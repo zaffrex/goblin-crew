@@ -1,0 +1,40 @@
+# 배선 점검용: 멤버별 Slack 앱 토큰이 동작하는지 확인한다 (채널 참여, 봇 ID, 선택적으로 자기소개).
+name: slack-check
+
+on:
+  workflow_dispatch:
+    inputs:
+      introduce:
+        description: "각 멤버가 #goblin-general에 자기소개를 올린다"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SLACK_TOKEN_PM: ${{ secrets.SLACK_TOKEN_PM }}
+      SLACK_TOKEN_DESIGNER: ${{ secrets.SLACK_TOKEN_DESIGNER }}
+      SLACK_TOKEN_FRONTEND: ${{ secrets.SLACK_TOKEN_FRONTEND }}
+      SLACK_TOKEN_BACKEND: ${{ secrets.SLACK_TOKEN_BACKEND }}
+      SLACK_TOKEN_INFRA: ${{ secrets.SLACK_TOKEN_INFRA }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Join channels
+        run: scripts/slack.sh join-all
+      - name: Bot user ids
+        run: scripts/slack.sh ids
+      - name: Introductions
+        if: inputs.introduce
+        run: |
+          scripts/slack.sh --as pm post general "안녕하세요, PM Noah예요. 우선순위와 백로그를 정리하고 회의를 진행해요. 결정은 #goblin-decisions에 남기고, 사장님이 정하셔야 할 일만 #goblin-ceo로 올릴게요. {CEO} 잘 부탁드립니다."
+          scripts/slack.sh --as designer post general "디자이너 Luna예요. 캐릭터 능력, 퍼즐, 아트 방향, UI를 맡아요. 원작을 베끼지 않는 우리만의 세계관을 만들 거예요."
+          scripts/slack.sh --as frontend post general "프론트엔드 Theo예요. 브라우저에서 돌아가는 게임 엔진, 렌더링, 입력, UI를 구현해요. 빨리 만져볼 수 있는 빌드부터 내놓을게요."
+          scripts/slack.sh --as backend post general "백엔드 Ben이에요. 세이브, API, 데이터를 맡아요. 그리고 '서버가 정말 필요한가?'를 제일 먼저 물어볼 사람이에요."
+          scripts/slack.sh --as infra post general "인프라 Sam이에요. CI/CD, 배포, 비용, 보안, 그리고 이 팀의 자동화 파이프라인을 지켜요. 문제가 생기면 #goblin-dev에 바로 알릴게요."
+      - name: Read back
+        run: scripts/slack.sh --as pm history general 6
