@@ -1,9 +1,9 @@
-# ADR-0005: MVP는 서버 없이 localStorage 세이브로 간다
+# ADR-0006: MVP는 서버 없이 localStorage 세이브로 간다
 
-- 상태: 제안됨
+- 상태: 승인됨 (2026-11-15, PM Noah)
 - 날짜: 2026-11-15
 - 작성자: **[BE Ben]**
-- 리뷰어: FE Theo, Infra Sam (PM Noah 승인 대기)
+- 리뷰어: **[FE Theo]** ✅, **[인프라 Sam]** ✅, 승인 **[PM Noah]**
 - 관련: 이슈 #6
 
 ## 배경 (Context)
@@ -37,13 +37,13 @@ M2(퍼즐 3~5개 + 세이브 + 모바일 터치)에 서버가 필요한지 결�
   "version": 1,
   "contentVersion": "m2-1",
   "updatedAt": "ISO-8601",
-  "progress": { "solvedScreens": [], "currentScreen": "s01" },
+  "progress": { "solvedScreens": [] },
   "checkpoint": { "screenId": "s01", "gauge": 100, "activeCharacter": "c1", "carriedItems": [] }
 }
 ```
 - **`checkpoint` 하나만 저장**한다(화면 입장 시점 기준). 화면 내부 플래그·캐릭터 위치는 저장하지 않고, 화면에 다시 들어가면 화면 데이터로 초기화한다. 퍼즐 설계가 바뀌어도 세이브가 깨지지 않는다. 중간 상태 저장이 필요해지면 `checkpoint.screenState`를 추가한다(`version` 2).
 - `gauge`(공용 체력/기력), `activeCharacter`, `carriedItems`(화면 사이에 들고 가는 인벤토리)는 최상위 자리만 잡아 둔다. **게이지가 화면 입장 시 리셋되는지 이어지는지 등 의미는 디자인 이슈 #3 결과를 따른다.**
-- `unlockedScreens`는 저장하지 않는다. `solvedScreens`와 화면 연결 데이터로 계산한다(같은 사실을 두 곳에 저장하면 어긋난다).
+- `unlockedScreens`는 저장하지 않는다. `solvedScreens`와 화면 연결 데이터로 계산한다(같은 사실을 두 곳에 저장하면 어긋난다). 같은 이유로 현재 화면은 `checkpoint.screenId` 하나만 저장한다(`progress.currentScreen` 없음).
 - `contentVersion`: 스키마 `version`과 별개로, 화면 ID 변경/삭제 시 콘텐츠 마이그레이션 판단에 쓴다.
 - **설정은 별도 키** `goblincrew.settings.v1`(`volume`, `textSpeed`). 새 게임 시작이나 손상 세이브 백업 시에도 설정이 유지된다.
 - `version` 필수. 로드 시 버전별 마이그레이션 함수 체인(`v1→v2…`)을 적용하고, 알 수 없는 상위 버전·파싱 실패 시 덮어쓰지 않고 백업 키로 보관 후 새 세이브로 시작한다.
@@ -75,5 +75,5 @@ interface SaveStore {
 - **멀티 탭**: 두 탭에서 동시에 플레이하면 나중에 쓴 쪽이 이긴다(last-write-wins). MVP에서는 감수한다.
 - **오리진 공유(Sam 지적)**: PR 프리뷰가 main과 같은 오리진이면 localStorage를 공유하므로, 프리뷰 빌드는 키 접두사에 빌드 ID를 붙이거나 별도 오리진을 쓴다. 배포 ADR(#5)에서 확정한다.
 - 완화: 지원 브라우저에서 `navigator.storage.persist()`를 요청한다(효과는 브라우저별, 내보내기를 대체하지 않음).
-- **ADR 번호**: 0005는 이슈 번호(#6)가 아니라 예약 번호다. 번호 규칙은 PM과 맞추고, 어긋나면 머지 시점에 재부여한다.
 - 재검토 조건: 플레이테스트에서 기기 간 이동/통계 요구가 반복되거나 리더보드 기능이 기획될 때.
+- `screenState`(v2) 재검토 조건(Ben 우려, Theo 제안): 플레이테스트에서 화면 하나의 중앙값 클리어 시간이 5분을 넘거나, 진행 소실 불만이 2건 이상 나올 때.
