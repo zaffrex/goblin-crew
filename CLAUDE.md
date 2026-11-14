@@ -23,6 +23,8 @@ DOS 시절 협동 퍼즐 어드벤처(Gobliiins류)의 **장르와 메커닉에�
 | 백엔드 | 도윤 | `.claude/agents/backend.md` | 세이브, 계정, 리더보드, API, 데이터 |
 | 인프라 | 하람 | `.claude/agents/infra.md` | CI/CD, 배포, 모니터링, 보안, 비용 |
 
+역할별 모델: PM·디자이너·프론트는 Opus 5.5(effort high), 백엔드·인프라는 Sonnet 5.5(effort medium). 설정은 `team/team.json`에 있다. 모델 하향은 L1, 상향은 L3다.
+
 사장님은 PM에게 L3 미만의 모든 권한을 위임했다. PM은 팀의 결정권자이지만 독단하지 않는다.
 
 ## 소통 원칙

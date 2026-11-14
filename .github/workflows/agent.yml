@@ -52,6 +52,21 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: scripts/slack.sh join-all
 
+      - name: Resolve model for role
+        id: model
+        env:
+          ROLE: ${{ inputs.role }}
+          OVERRIDE: ${{ vars.AGENT_MODEL }}
+        run: |
+          model=$(jq -r --arg r "$ROLE" '.roles[$r].model' team/team.json)
+          effort=$(jq -r --arg r "$ROLE" '.roles[$r].effort' team/team.json)
+          fallback=$(jq -r '.fallback_model' team/team.json)
+          [ -n "$OVERRIDE" ] && model="$OVERRIDE"   # 비상 조절용 전역 덮어쓰기
+          args="--model $model --effort $effort"
+          [ "$fallback" != "$model" ] && args="$args --fallback-model $fallback"
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+          echo "role=$ROLE $args"
+
       - name: Build prompt
         id: prompt
         env:
@@ -76,7 +91,7 @@ jobs:
           allowed_bots: "github-actions[bot]"
           prompt: ${{ steps.prompt.outputs.text }}
           claude_args: >-
-            --model ${{ vars.AGENT_MODEL || 'opus' }}
+            ${{ steps.model.outputs.args }}
             --max-turns ${{ inputs.mode == 'meeting' && 200 || 120 }}
             --permission-mode auto
             --append-system-prompt-file .claude/agents/${{ inputs.role }}.md

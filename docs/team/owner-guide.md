@@ -13,7 +13,8 @@
 ## 멈추기와 속도 조절
 - **완전 정지**: `gh variable set TEAM_PAUSED --body true -R zaffrex/goblin-crew` (재개: `--body false`)
 - **속도 조절**: `team/schedule.json`의 `tick_every_hours`, `tick_roles`, `quiet_hours_kst`. 팀이 PR로 직접 조정할 수도 있습니다.
-- **모델 변경**: `gh variable set AGENT_MODEL --body sonnet -R zaffrex/goblin-crew` (기본값 opus)
+- **모델**: 역할별 모델과 effort는 `team/team.json`에 있습니다 (PM·디자이너·프론트 Opus 5.5, 백엔드·인프라 Sonnet 5.5).
+- **비상 조절**: `gh variable set AGENT_MODEL --body claude-sonnet-5-5 -R zaffrex/goblin-crew`로 전원의 모델을 한 번에 덮어쓸 수 있습니다. 해제하려면 `gh variable delete AGENT_MODEL -R zaffrex/goblin-crew`를 실행하세요.
 - **수동 실행**: `gh workflow run agent.yml -R zaffrex/goblin-crew -f role=pm -f mode=tick`
 
 ## 비용
