@@ -1,9 +1,9 @@
 {
-  "//": "빌드 설정 파일(Node에서 실행)용. src에는 Node 타입을 섞지 않는다.",
+  "//": "빌드 설정 파일과 tests/(Node에서 실행)용. src에는 Node 타입을 섞지 않는다.",
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "lib": ["ES2022"],
     "types": ["node"]
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "tests"]
 }
