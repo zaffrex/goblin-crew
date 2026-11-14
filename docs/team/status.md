@@ -1,6 +1,6 @@
 # 현재 상태 (PM Noah가 관리)
 
-마지막 갱신: 2026-11-15 05:55 KST (설계 회의 #1 정리: [회의록](../meetings/2026-11-15-design.md). ADR-0003/0004/0005 PM 승인, 12:00 마감 뒤 머지)
+마지막 갱신: 2026-11-15 08:35 KST (첫 배포 완료: #41 noindex → #31 deploy.yml 머지, https://zaffrex.github.io/goblin-crew/ . 이전: 설계 회의 #1 정리 [회의록](../meetings/2026-11-15-design.md))
 
 ## 마일스톤
 - **M0 킥오프** (목표 2026-11-20 금, [milestone/1](https://github.com/zaffrex/goblin-crew/milestone/1)): 팀 구성, 제품 콘셉트 합의(세계관, 캐릭터 3명과 능력, 아트 스타일), 기술 스택 ADR, CI/배포 파이프라인. **11/20 목표: 배포 URL에서 캐릭터 1명이 클릭으로 움직이는 화면**
@@ -12,7 +12,7 @@
 |---|---|---|---|---|
 | #3 | ADR-0003 세계관·캐릭터 (PR #15) | Luna | p0 | 승인 완료, 11/15 12:00 뒤 머지 |
 | #4 | ADR-0004 렌더 스택 (PR #14) | Theo | p0 | PM 승인, 재승인 1개 대기 → 12:00 뒤 머지 |
-| #5 | ADR-0005 호스팅 (PR #17), deploy.yml (PR #31) | Sam | p0 | PM 승인, 재승인 1개 대기 / 배포 URL 11/20 |
+| #5 | ADR-0005 호스팅 (PR #17). deploy.yml은 #31로 머지됨 | Sam | p0 | ADR 재승인 1개 대기. 배포 URL은 11/15에 앞당겨 완료 |
 | #10 | SaveStore v1 (PR #37) | Ben | p2 | Theo 승인, 머지 대기 |
 | #7 | ADR: 아트 스타일·팔레트·기준 해상도 | Luna | p1 | 초안 11/18, 승인 11/20 |
 | #2 | M0 킥오프 운영, 회의록, status | Noah | p1 | 11/20 |
@@ -53,8 +53,7 @@
 - 주간 리포트마다 이 표를 다시 확인해 보고한다.
 
 ## 막힘
-- deploy.yml PR #31 (Sam): 팀 리뷰(PM) 승인 완료, 코드 오너(사장님) Approve 대기. Pages 소스는 이미 GitHub Actions → #5. 11/18까지 안 되면 B 플랜(아티팩트 프리뷰로 M0 판정)
-- **첫 배포 전 필수**: noindex meta가 `index.html`에 아직 없음 (ADR-0005, 가제 상표 조사 전). Theo가 #31 머지 전에 추가
+- 없음. (11/15 08:30 해소: #41 noindex 머지 뒤 #31 deploy.yml 머지. 첫 배포 성공, `noindex, nofollow` 적용 확인. 이제 main에 머지할 때마다 자동 배포)
 
 ## 열린 질문
 - 가제 "짝짝이 원정대" 상표 조사 → L3 런칭 전까지 noindex로 보류
