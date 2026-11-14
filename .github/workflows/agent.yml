@@ -47,6 +47,11 @@ jobs:
         with:
           node-version: 22
 
+      - name: Ensure Slack bot is in team channels
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: scripts/slack.sh join-all
+
       - name: Build prompt
         id: prompt
         env:

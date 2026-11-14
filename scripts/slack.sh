@@ -8,6 +8,7 @@
 #   scripts/slack.sh react <channel> <ts> <emoji-name>
 #   scripts/slack.sh --as <role> upload <channel> <file> [comment] [--thread <ts>]
 #   scripts/slack.sh permalink <channel> <ts>
+#   scripts/slack.sh join-all                                              # bot joins all team channels
 #
 # <channel>: general | dev | meeting | decisions | ceo | github  (or a raw channel ID)
 # <role>:    pm | designer | frontend | backend | infra
@@ -103,6 +104,11 @@ case "$CMD" in
     ch=$(channel_id "${1:?channel}")
     api reactions.add "$(jq -n --arg c "$ch" --arg t "${2:?ts}" --arg n "${3:?emoji}" '{channel:$c, timestamp:$t, name:$n}')" >/dev/null
     echo ok
+    ;;
+  join-all)
+    for ch in $(jq -r '.slack_channels[]' "$TEAM"); do
+      api conversations.join "$(jq -n --arg c "$ch" '{channel:$c}')" >/dev/null && echo "joined $ch"
+    done
     ;;
   permalink)
     ch=$(channel_id "${1:?channel}")
