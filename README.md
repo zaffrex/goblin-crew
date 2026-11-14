@@ -19,3 +19,18 @@ DOS 시절 협동 퍼즐 어드벤처에서 영감을 받은 **오리지널** �
                                                                 ├─ Slack: scripts/slack.sh (멤버별 Slack 앱)
  PR ─▶ ci.yml + review-gate.yml (서명 기반 승인) ─▶ 머지         └─ GitHub: gh (서명으로 역할 구분)
 ```
+
+## 게임 클라이언트 개발
+
+Node 22 이상. 스택과 구조는 ADR-0004(#14)를 따른다.
+
+```
+npm ci
+npm run dev        # 로컬 개발 서버
+npm run lint       # ESLint (src/core가 engine/ui를 import하면 실패)
+npm run typecheck  # tsc: 앱 / core(DOM lib 없음) / vite.config
+npm test           # Vitest
+npm run build      # dist/ 정적 산출물. BASE_PATH=/goblin-crew/ 로 하위 경로 빌드
+```
+
+`npm run preview`로 빌드 결과를 볼 때는 빌드와 **같은 `BASE_PATH`**를 줘야 한다. 다르면 JS 요청이 HTML로 응답되어 빈 화면이 나온다.
