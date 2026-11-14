@@ -1,0 +1,42 @@
+{
+  "display_information": {
+    "name": "Theo",
+    "description": "goblin-crew 프론트엔드 · 게임 엔진, 렌더링, 입력, UI 구현",
+    "background_color": "#1d76db"
+  },
+  "features": {
+    "app_home": {
+      "home_tab_enabled": false,
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
+    "bot_user": {
+      "display_name": "Theo",
+      "always_online": true
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "chat:write",
+        "chat:write.public",
+        "channels:history",
+        "channels:read",
+        "channels:join",
+        "reactions:read",
+        "reactions:write",
+        "users:read",
+        "files:read",
+        "files:write",
+        "im:history",
+        "im:read",
+        "im:write"
+      ]
+    }
+  },
+  "settings": {
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}

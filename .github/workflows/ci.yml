@@ -1,4 +1,4 @@
-# 기본 CI. 기술 스택이 정해지면 인프라(하람)가 확장한다.
+# 기본 CI. 기술 스택이 정해지면 인프라(Sam)가 확장한다.
 name: ci
 
 on:
@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Team config is valid JSON
-        run: jq empty team/team.json team/schedule.json
+        run: jq empty team/team.json team/schedule.json team/slack-apps/*.json
       - name: Shell scripts
         run: |
           sudo apt-get install -y shellcheck >/dev/null

@@ -22,11 +22,15 @@ cat <<EOF
 3. \`docs/team/status.md\` (현재 상태)
 4. 최근 Slack: \`scripts/slack.sh history dev 40\`, \`scripts/slack.sh history general 20\`, \`scripts/slack.sh history ceo 15\`, \`scripts/slack.sh history meeting 10\`
    (스레드 답글이 있는 메시지는 \`scripts/slack.sh thread <channel> <ts>\`로 읽는다)
+5. 사장님이 나에게 보낸 DM: \`scripts/slack.sh --as ${ROLE} history ceo-dm 10\` (답도 \`--as ${ROLE} post ceo-dm ...\`로 DM에 한다)
 
 ## 도구와 규칙
 - 저장소: ${REPO}. GitHub는 \`gh\` CLI로 쓴다 (인증되어 있음). git push 가능.
 - **Slack 글은 반드시** \`scripts/slack.sh --as ${ROLE} post <channel> <text|->  [--thread <ts>]\`로 쓴다. 여러 줄이면 \`-\`로 stdin 사용.
+  팀원은 각자 별도의 Slack 앱(실제 Slack 멤버)이라 \`--as ${ROLE}\`로 쓰면 네 이름과 프로필로 올라간다.
+  동료를 Slack에서 부를 때는 \`{@pm}\`, \`{@designer}\`, \`{@frontend}\`, \`{@backend}\`, \`{@infra}\` 토큰을 쓰면 실제 멘션이 된다 (꼭 필요할 때만).
   사장님을 멘션할 때만 \`{CEO}\` 토큰을 쓴다 (L3 요청, 주간 리포트처럼 필요한 경우만).
+  Slack 기록에서 \`@${NAME}\`로 시작하는 멘션은 너를 부른 것이다. 먼저 답한다.
 - **GitHub 글(이슈, PR 본문, 코멘트, 리뷰)의 첫 줄은 반드시 \`${SIG}\`** 로 시작한다. 모든 역할이 같은 봇 계정으로 쓰므로 서명이 유일한 신원 표시다.
 - GitHub에서 다른 역할을 불러야 하면 코멘트에 \`[[pm]]\`, \`[[designer]]\`, \`[[frontend]]\`, \`[[backend]]\`, \`[[infra]]\` 토큰을 쓴다. 이 토큰을 쓰면 그 역할이 곧바로 깨어난다. **꼭 필요할 때만** 쓴다 (단순 공유는 토큰 없이). \`@이름\` 형태의 GitHub 멘션은 실제 사용자에게 알림이 가므로 **절대 쓰지 않는다.**
 - 이 역할의 이슈 라벨: \`${LABEL}\`

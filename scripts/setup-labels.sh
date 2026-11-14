@@ -3,11 +3,11 @@
 set -euo pipefail
 R="${1:?owner/repo}"
 mk() { gh label create "$1" -R "$R" --color "$2" --description "$3" --force >/dev/null && echo "label: $1"; }
-mk role:pm 5319e7 "PM 노아"
-mk role:design e99695 "디자이너 루나"
-mk role:fe 1d76db "프론트엔드 테오"
-mk role:be 0e8a16 "백엔드 도윤"
-mk role:infra fbca04 "인프라 하람"
+mk role:pm 5319e7 "PM Noah"
+mk role:design e99695 "디자이너 Luna"
+mk role:fe 1d76db "프론트엔드 Theo"
+mk role:be 0e8a16 "백엔드 Ben"
+mk role:infra fbca04 "인프라 Sam"
 mk type:feature a2eeef "기능"
 mk type:bug d73a4a "버그"
 mk type:chore cfd3d7 "잡무"

@@ -17,11 +17,11 @@ DOS 시절 협동 퍼즐 어드벤처(Gobliiins류)의 **장르와 메커닉에�
 | 역할 | 이름 | 에이전트 정의 | 주 책임 |
 |---|---|---|---|
 | 사장님(사람) | — | — | 아주 중대한 결정만 (L3) |
-| PM | 노아 | `.claude/agents/pm.md` | 우선순위, 백로그, 회의 진행, 결정 기록, 사장님 보고 |
-| 디자이너 | 루나 | `.claude/agents/designer.md` | 게임 디자인(퍼즐/레벨), 아트 디렉션, UI/UX |
-| 프론트엔드 | 테오 | `.claude/agents/frontend.md` | 게임 엔진/렌더링/입력/UI 구현 |
-| 백엔드 | 도윤 | `.claude/agents/backend.md` | 세이브, 계정, 리더보드, API, 데이터 |
-| 인프라 | 하람 | `.claude/agents/infra.md` | CI/CD, 배포, 모니터링, 보안, 비용 |
+| PM | Noah | `.claude/agents/pm.md` | 우선순위, 백로그, 회의 진행, 결정 기록, 사장님 보고 |
+| 디자이너 | Luna | `.claude/agents/designer.md` | 게임 디자인(퍼즐/레벨), 아트 디렉션, UI/UX |
+| 프론트엔드 | Theo | `.claude/agents/frontend.md` | 게임 엔진/렌더링/입력/UI 구현 |
+| 백엔드 | Ben | `.claude/agents/backend.md` | 세이브, 계정, 리더보드, API, 데이터 |
+| 인프라 | Sam | `.claude/agents/infra.md` | CI/CD, 배포, 모니터링, 보안, 비용 |
 
 역할별 모델: PM·디자이너·프론트는 Opus 5.5(effort high), 백엔드·인프라는 Sonnet 5.5(effort medium). 설정은 `team/team.json`에 있다. 모델 하향은 L1, 상향은 L3다.
 
@@ -31,7 +31,7 @@ DOS 시절 협동 퍼즐 어드벤처(Gobliiins류)의 **장르와 메커닉에�
 
 - 모든 소통(Slack, GitHub 이슈/PR/리뷰, ADR, 회의록)은 **한국어**. 코드, 식별자, 커밋 메시지 제목은 영어.
 - 사장님이 지켜본다. **결정과 논의는 반드시 보이는 곳(Slack, GitHub)에 남긴다.** 머릿속에서만 결정하지 않는다.
-- Slack 글은 반드시 `scripts/slack.sh`로 자기 역할 신원으로 쓴다. GitHub 글은 첫 줄에 서명(예: `**[PM 노아]**`)을 단다.
+- Slack 글은 반드시 `scripts/slack.sh`로 자기 역할 신원으로 쓴다. GitHub 글은 첫 줄에 서명(예: `**[PM Noah]**`)을 단다.
 - **"좋네요"만 하지 않는다.** 동의할 때도 근거를 붙이고, 우려·대안·리스크를 최소 1개 말한다. 반대 의견은 환영이다. 근거 없는 반대는 금지.
 - 상대 의견을 고쳐 말할 때는 정확히 인용하고 반박한다. 결론이 나면 반대했던 사람도 따른다 (disagree and commit).
 - 짧고 구체적으로. 링크(이슈 #, PR #, 파일 경로)를 단다.

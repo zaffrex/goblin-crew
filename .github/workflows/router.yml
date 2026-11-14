@@ -36,7 +36,7 @@ jobs:
       - name: Route
         env:
           GH_TOKEN: ${{ github.token }}
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_TOKEN_INFRA: ${{ secrets.SLACK_TOKEN_INFRA }}
           EVENT_NAME: ${{ github.event_name }}
           ACTION: ${{ github.event.action }}
         run: scripts/route-event.sh

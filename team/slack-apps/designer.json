@@ -1,0 +1,42 @@
+{
+  "display_information": {
+    "name": "Luna",
+    "description": "goblin-crew 디자이너 · 게임 디자인(퍼즐/레벨), 아트 디렉션, UI/UX",
+    "background_color": "#e99695"
+  },
+  "features": {
+    "app_home": {
+      "home_tab_enabled": false,
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
+    "bot_user": {
+      "display_name": "Luna",
+      "always_online": true
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "chat:write",
+        "chat:write.public",
+        "channels:history",
+        "channels:read",
+        "channels:join",
+        "reactions:read",
+        "reactions:write",
+        "users:read",
+        "files:read",
+        "files:write",
+        "im:history",
+        "im:read",
+        "im:write"
+      ]
+    }
+  },
+  "settings": {
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}

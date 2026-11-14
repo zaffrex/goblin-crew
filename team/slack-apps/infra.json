@@ -1,0 +1,42 @@
+{
+  "display_information": {
+    "name": "Sam",
+    "description": "goblin-crew 인프라 · CI/CD, 배포, 모니터링, 보안, 비용",
+    "background_color": "#c69c00"
+  },
+  "features": {
+    "app_home": {
+      "home_tab_enabled": false,
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
+    "bot_user": {
+      "display_name": "Sam",
+      "always_online": true
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "chat:write",
+        "chat:write.public",
+        "channels:history",
+        "channels:read",
+        "channels:join",
+        "reactions:read",
+        "reactions:write",
+        "users:read",
+        "files:read",
+        "files:write",
+        "im:history",
+        "im:read",
+        "im:write"
+      ]
+    }
+  },
+  "settings": {
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}

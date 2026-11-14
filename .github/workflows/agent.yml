@@ -38,6 +38,14 @@ jobs:
     if: vars.TEAM_PAUSED != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      SLACK_TOKEN_PM: ${{ secrets.SLACK_TOKEN_PM }}
+      SLACK_TOKEN_DESIGNER: ${{ secrets.SLACK_TOKEN_DESIGNER }}
+      SLACK_TOKEN_FRONTEND: ${{ secrets.SLACK_TOKEN_FRONTEND }}
+      SLACK_TOKEN_BACKEND: ${{ secrets.SLACK_TOKEN_BACKEND }}
+      SLACK_TOKEN_INFRA: ${{ secrets.SLACK_TOKEN_INFRA }}
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}   # 구버전 단일 앱 (없어도 됨)
+      AGENT_ROLE: ${{ inputs.role }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,9 +55,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Ensure Slack bot is in team channels
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      - name: Ensure member bots are in team channels
         run: scripts/slack.sh join-all
 
       - name: Resolve model for role
@@ -82,9 +88,6 @@ jobs:
 
       - name: Run agent
         uses: anthropics/claude-code-action@v1
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          AGENT_ROLE: ${{ inputs.role }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # 라우터가 GITHUB_TOKEN으로 workflow_dispatch를 하므로 실행 주체가 github-actions[bot]이 된다.
@@ -99,7 +102,6 @@ jobs:
       - name: Report failure to Slack
         if: failure()
         env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           scripts/slack.sh --as infra post dev "⚠️ \`${{ inputs.role }}\` 에이전트 실행 실패 (${{ inputs.mode }}). 로그: $RUN_URL" || true

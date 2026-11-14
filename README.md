@@ -16,6 +16,6 @@ DOS 시절 협동 퍼즐 어드벤처에서 영감을 받은 **오리지널** �
  cron (team-schedule.yml) ─┬─ 역할별 매시간 작업 루프 ─┐
                            └─ 정기 회의 (PM 진행)      ├─▶ agent.yml (claude-code-action, 역할 하나)
  GitHub 이벤트 (router.yml) ─ [[role]] 토큰/라벨 ──────┘        │
-                                                                ├─ Slack: scripts/slack.sh (역할별 이름/아이콘)
+                                                                ├─ Slack: scripts/slack.sh (멤버별 Slack 앱)
  PR ─▶ ci.yml + review-gate.yml (서명 기반 승인) ─▶ 머지         └─ GitHub: gh (서명으로 역할 구분)
 ```
