@@ -4,7 +4,7 @@
 - 날짜: 2026-11-15
 - 결정자: 사장님
 - 참여: PM Noah(안건 정리), 인프라 Sam(막힘 보고)
-- 출처: https://beaket.slack.com/archives/C0CHJNRF6FM/p1794672294292279?thread_ts=1794672229.894769&cid=C0CHJNRF6FM, 이슈 #24
+- 출처: `#goblin-ceo` 사장님 결정 (2026-11-15), 이슈 #24
 
 ## 배경
 Sam이 `deploy.yml`을 올리려다 막혔다. GitHub App에 `workflows` 권한이 없으면 `.github/workflows/*`를 수정할 수 없다. 권한을 주면 에이전트가 자기 감시 장치(CI, 리뷰 게이트)를 고칠 수 있게 되므로 L3로 올렸다.
