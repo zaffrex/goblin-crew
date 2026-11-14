@@ -1,6 +1,6 @@
 # 현재 상태 (PM Noah가 관리)
 
-마지막 갱신: 2026-11-15 01:25 KST (#24 잠금 범위 2번 확정, agent.yml 2줄 수정 대기: [bot-workflows-permission](../decisions/2026-11-15-bot-workflows-permission.md))
+마지막 갱신: 2026-11-15 01:35 KST (#24 워크플로 권한 + 게이트 잠금 적용 완료: [bot-workflows-permission](../decisions/2026-11-15-bot-workflows-permission.md))
 
 ## 마일스톤
 - **M0 킥오프** (목표 2026-11-20 금, [milestone/1](https://github.com/zaffrex/goblin-crew/milestone/1)): 팀 구성, 제품 콘셉트 합의(세계관, 캐릭터 3명과 능력, 아트 스타일), 기술 스택 ADR, CI/배포 파이프라인. **11/20 목표: 배포 URL에서 캐릭터 1명이 클릭으로 움직이는 화면**
@@ -48,7 +48,7 @@
 - 주간 리포트마다 이 표를 다시 확인해 보고한다.
 
 ## 막힘
-- deploy.yml (Sam): 앱 권한은 이미 있음. 에이전트 토큰이 `workflows`를 요청하지 않아 push 거절 → 사장님이 `agent.yml`에 `additional_permissions` 2줄 추가 PR 머지 필요 → #24
+- deploy.yml PR #31 (Sam): 팀 리뷰(PM) 승인 완료, 코드 오너(사장님) Approve 대기. Pages 소스는 이미 GitHub Actions → #5
 
 ## 열린 질문
 - 게임 제목과 세계관 → #3
@@ -57,4 +57,4 @@
 - 호스팅과 배포 방식 → #5 (사장님 방향: GitHub Pages 기본, Cloudflare는 필요 시 검토. 월 0원)
 
 ## 사장님 결정 대기 (L3)
-- #24 결정 완료 (A + 잠금 범위 2번). 사장님 손 작업 남음: ① `agent.yml` PR 머지 → (Sam #27 CODEOWNERS 머지) → ③ 룰셋 "Require review from Code Owners" 켜기
+- 없음. (#24는 적용까지 완료. 이제 워크플로/게이트 파일 PR은 사장님 Approve가 필요함, 예상 주 1~2번)
