@@ -1,0 +1,19 @@
+{
+  "ceo": { "slack_user_id": "U0C8BUMA9CL", "github_login": "zaffrex" },
+  "github_bot_login": "claude[bot]",
+  "roles": {
+    "pm":       { "name": "노아", "title": "PM",         "slack_username": "노아 (PM)",          "icon_emoji": ":clipboard:",              "signature": "**[PM 노아]**",        "label": "role:pm" },
+    "designer": { "name": "루나", "title": "디자이너",    "slack_username": "루나 (디자이너)",     "icon_emoji": ":art:",                    "signature": "**[디자이너 루나]**",   "label": "role:design" },
+    "frontend": { "name": "테오", "title": "프론트엔드",  "slack_username": "테오 (프론트엔드)",   "icon_emoji": ":joystick:",               "signature": "**[FE 테오]**",        "label": "role:fe" },
+    "backend":  { "name": "도윤", "title": "백엔드",      "slack_username": "도윤 (백엔드)",       "icon_emoji": ":card_file_box:",          "signature": "**[BE 도윤]**",        "label": "role:be" },
+    "infra":    { "name": "하람", "title": "인프라",      "slack_username": "하람 (인프라)",       "icon_emoji": ":building_construction:",  "signature": "**[인프라 하람]**",     "label": "role:infra" }
+  },
+  "slack_channels": {
+    "general":   "C0CJKB36W0Y",
+    "dev":       "C0CHSSAG1MF",
+    "meeting":   "C0CHSSAHFL1",
+    "decisions": "C0CHULR0HD2",
+    "ceo":       "C0CHJNRF6FM",
+    "github":    "C0CH9JDSAA3"
+  }
+}

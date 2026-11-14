@@ -1,0 +1,42 @@
+# GitHub 이벤트를 보고 어떤 역할을 깨울지 정한다 (Claude를 직접 돌리지 않는 가벼운 셸 잡).
+# - 코멘트/본문의 [[role]] 토큰 → 그 역할을 깨움
+# - 역할 라벨이 붙은 이슈 → 그 역할을 깨움
+# - 라벨 없는 새 이슈, 사장님 코멘트 → PM을 깨움
+# 신뢰하는 작성자(팀 봇, 사장님, write 권한 협업자)의 글에만 반응한다. 루프 방지 상한 있음.
+name: router
+
+on:
+  issues:
+    types: [opened, labeled]
+  issue_comment:
+    types: [created]
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+permissions:
+  actions: write
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: router-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  route:
+    if: vars.TEAM_PAUSED != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            team
+            scripts
+      - name: Route
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+        run: scripts/route-event.sh

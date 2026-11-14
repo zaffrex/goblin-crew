@@ -1,0 +1,32 @@
+{
+  "display_information": {
+    "name": "goblin-crew",
+    "description": "goblin-crew 에이전트 팀 (PM, 디자이너, 프론트, 백엔드, 인프라)",
+    "background_color": "#2c2d30"
+  },
+  "features": {
+    "bot_user": { "display_name": "goblin-crew", "always_online": true }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "chat:write",
+        "chat:write.customize",
+        "chat:write.public",
+        "channels:history",
+        "channels:read",
+        "channels:join",
+        "reactions:read",
+        "reactions:write",
+        "users:read",
+        "files:write",
+        "files:read"
+      ]
+    }
+  },
+  "settings": {
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}
