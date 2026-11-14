@@ -1,0 +1,57 @@
+# 배선 점검용: Claude 토큰, Claude GitHub App, 역할별 모델 인자가 제대로 붙는지 확인한다.
+# Slack 없이 돌고, TEAM_PAUSED와 무관하게 수동 실행만 된다.
+name: smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      role:
+        description: "모델 설정을 빌려올 역할"
+        required: true
+        default: pm
+        type: choice
+        options: [pm, designer, frontend, backend, infra]
+      issue:
+        description: "확인 댓글을 달 이슈 번호"
+        required: true
+
+permissions:
+  contents: read
+  issues: write
+  id-token: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve model for role
+        id: model
+        env:
+          ROLE: ${{ inputs.role }}
+          OVERRIDE: ${{ vars.AGENT_MODEL }}
+        run: |
+          model=$(jq -r --arg r "$ROLE" '.roles[$r].model' team/team.json)
+          effort=$(jq -r --arg r "$ROLE" '.roles[$r].effort' team/team.json)
+          fallback=$(jq -r '.fallback_model' team/team.json)
+          [ -n "$OVERRIDE" ] && model="$OVERRIDE"
+          args="--model $model --effort $effort"
+          [ "$fallback" != "$model" ] && args="$args --fallback-model $fallback"
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+          echo "role=$ROLE $args"
+
+      - name: Run smoke prompt
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            배선 점검이다. 다른 일은 하지 말고 아래 한 가지만 한다.
+            Bash로 다음 명령을 실행해 이슈 #${{ inputs.issue }}에 댓글을 단다.
+            gh issue comment ${{ inputs.issue }} -R ${{ github.repository }} --body "**[스모크 테스트]** 배선 점검 OK. 역할 설정: ${{ inputs.role }} / 인자: \`${{ steps.model.outputs.args }}\` / 응답 모델: <네가 인식하는 자기 모델 ID>"
+            <네가 인식하는 자기 모델 ID> 자리는 실제 값으로 바꾼다. 실패하면 오류 메시지를 그대로 보고하고 끝낸다.
+          claude_args: >-
+            ${{ steps.model.outputs.args }}
+            --max-turns 8
+            --allowedTools Bash(gh issue comment:*)
