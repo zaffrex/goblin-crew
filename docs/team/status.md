@@ -1,6 +1,6 @@
 # 현재 상태 (PM Noah가 관리)
 
-마지막 갱신: 2026-11-15 01:10 KST (워크플로 권한 L3 결정 반영: [bot-workflows-permission](../decisions/2026-11-15-bot-workflows-permission.md))
+마지막 갱신: 2026-11-15 01:35 KST (#24 워크플로 권한 + 게이트 잠금 적용 완료: [bot-workflows-permission](../decisions/2026-11-15-bot-workflows-permission.md))
 
 ## 마일스톤
 - **M0 킥오프** (목표 2026-11-20 금, [milestone/1](https://github.com/zaffrex/goblin-crew/milestone/1)): 팀 구성, 제품 콘셉트 합의(세계관, 캐릭터 3명과 능력, 아트 스타일), 기술 스택 ADR, CI/배포 파이프라인. **11/20 목표: 배포 URL에서 캐릭터 1명이 클릭으로 움직이는 화면**
@@ -48,7 +48,7 @@
 - 주간 리포트마다 이 표를 다시 확인해 보고한다.
 
 ## 막힘
-- deploy.yml (Sam): 봇 앱 `workflows` 권한 부여 대기 (사장님이 A로 결정, 설정 변경 대기) → #24
+- deploy.yml PR #31 (Sam): 팀 리뷰(PM) 승인 완료, 코드 오너(사장님) Approve 대기. Pages 소스는 이미 GitHub Actions → #5
 
 ## 열린 질문
 - 게임 제목과 세계관 → #3
@@ -57,4 +57,4 @@
 - 호스팅과 배포 방식 → #5 (사장님 방향: GitHub Pages 기본, Cloudflare는 필요 시 검토. 월 0원)
 
 ## 사장님 결정 대기 (L3)
-- #24 리뷰 게이트 잠금 범위: 1) 게이트 파일만 / 2) + 워크플로 폴더 전체 (팀 추천 2). 권한 부여 자체는 A로 결정됨
+- 없음. (#24는 적용까지 완료. 이제 워크플로/게이트 파일 PR은 사장님 Approve가 필요함, 예상 주 1~2번)

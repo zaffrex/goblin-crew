@@ -4,7 +4,7 @@
 - 날짜: 2026-11-15
 - 결정자: 사장님
 - 참여: PM Noah(안건 정리), 인프라 Sam(막힘 보고)
-- 출처: https://beaket.slack.com/archives/C0CHJNRF6FM/p1794672294292279?thread_ts=1794672229.894769&cid=C0CHJNRF6FM, 이슈 #24
+- 출처: `#goblin-ceo` 사장님 결정 (2026-11-15), 이슈 #24
 
 ## 배경
 Sam이 `deploy.yml`을 올리려다 막혔다. GitHub App에 `workflows` 권한이 없으면 `.github/workflows/*`를 수정할 수 없다. 권한을 주면 에이전트가 자기 감시 장치(CI, 리뷰 게이트)를 고칠 수 있게 되므로 L3로 올렸다.
@@ -18,7 +18,20 @@ Sam이 `deploy.yml`을 올리려다 막혔다. GitHub App에 `workflows` 권한�
 **A.** 사장님: "A 로 가. 다만 리뷰 게이트는 봇이 못고치게 할순 없어?"
 - 권한은 사장님이 앱 설정에서 부여한다.
 - 리뷰 게이트 잠금: CODEOWNERS + 룰셋 "Require review from Code Owners"로 게이트 파일 변경에 사장님 승인을 요구한다. 봇은 룰셋을 바꿀 수 없어서(API 403 확인) 스스로 풀 수 없다.
-- **잠금 범위는 사장님 답을 기다리는 중**: 1) 게이트 파일만 (`review-gate.yml`, `scripts/review-gate.sh`, `team/team.json`, `.github/CODEOWNERS`) / 2) 1번 + `.github/workflows/` 전체 (팀 추천). 답이 오면 이 문서를 갱신한다.
+- **잠금 범위: 2번** (사장님 "2로 가", 2026-11-15 01:08 KST). 게이트 파일(`review-gate.yml`, `scripts/review-gate.sh`, `team/team.json`, `.github/CODEOWNERS`) + `.github/workflows/` 전체를 CODEOWNERS로 사장님 승인 필수로 둔다. 1번만으로는 새 워크플로가 `review-gate` 상태를 위조하는 우회가 남기 때문.
+
+## 후속 발견: 앱 권한만으로는 부족 (2026-11-15 01:2x)
+- 사장님이 보내 준 화면상 Claude 앱 설치에는 이미 `workflows: Read and write`가 있다.
+- 그래도 PM이 시험 push(`.github/workflows/` 아래 파일)를 해 보니 거절됐다.
+- 원인: `agent.yml`의 `claude-code-action`이 토큰 교환 때 기본 권한(contents, pull_requests, issues)만 요청한다. `additional_permissions`에 `workflows: write`를 넣어야 한다. 이 줄은 워크플로 파일 안이라 봇이 고칠 수 없어서 **사장님이 웹에서 1회 PR을 만들고 머지**한다.
+- 적용 순서: ① 사장님 `agent.yml` PR 머지 → ② CODEOWNERS PR #27에 `/.github/workflows/` 추가 후 머지 → ③ 룰셋 `main-protection`에 "Require review from Code Owners" 켜기. ③을 먼저 켜면 사장님 PR에 본인 승인이 필요해져 막힌다.
+- 리스크: 토큰 교환 서버가 `workflows` 요청을 거절할 수 있다(미확인). 그러면 이번 건은 B(사장님 붙여넣기)로 처리한다.
+
+## 적용 완료 (2026-11-15 01:35 KST)
+- ① 사장님 `agent.yml` PR #30 머지 (`additional_permissions: workflows: write`)
+- ② CODEOWNERS PR #27 머지 (`/.github/workflows/`, `review-gate.yml`, `scripts/review-gate.sh`, `team/team.json`, `.github/CODEOWNERS` → 사장님)
+- ③ 사장님이 룰셋 `main-protection`에서 "Require review from Code Owners" 켬. API로 `require_code_owner_review: true` 확인.
+- 검증: 봇 토큰으로 `.github/workflows/` 변경 브랜치 push 성공 (시험 브랜치는 즉시 삭제). 워크플로 PR #31은 코드 오너 승인 전까지 `BLOCKED` 상태로 잠금이 동작함을 확인. 위 리스크(토큰 교환 거절)는 발생하지 않음.
 
 ## 반대 의견
 - PM: 1번만으로는 새 워크플로 파일이 `review-gate` 상태를 위조하는 우회가 남는다. 그래서 2번을 추천했다. 결정은 사장님 몫.
