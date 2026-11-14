@@ -98,15 +98,15 @@ flush() {
   for role in "${!PENDING[@]}"; do
     ROLE_WAKES[$role]=$(recent_count "${ROLE_WAKES[$role]:-}")
     if [ "$(wc -w <<<"${ROLE_WAKES[$role]}")" -ge "$ROLE_CAP" ]; then
-      log "role cap hit: $role (skipping until next tick)"; continue
+      log "role cap hit: $role (kept pending, retry next tick)"; continue
     fi
     ctx="Slack에서 너를 불렀다. 먼저 아래 위치의 메시지와 스레드를 읽고(scripts/slack.sh --as <너의 역할> thread <channel> <thread_ts>), 그 스레드에 바로 답한다:${PENDING[$role]}"
     if [ "${DRY_RUN:-}" = 1 ]; then echo "DISPATCH $role :: $ctx"
     else gh workflow run agent.yml -R "$REPO" -f role="$role" -f mode=event -f context="$ctx" >/dev/null 2>&1 \
       && log "woke $role" || log "dispatch failed for $role"; fi
     ROLE_WAKES[$role]="${ROLE_WAKES[$role]} $(date +%s)"
+    unset 'PENDING[$role]'   # only drop what was dispatched; capped roles keep their queue
   done
-  PENDING=()
 }
 
 author_label() { if [ "$1" = ceo ]; then echo "사장님"; else field "$1" slack_username; fi; }
