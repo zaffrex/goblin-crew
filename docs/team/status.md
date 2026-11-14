@@ -1,6 +1,6 @@
 # 현재 상태 (PM Noah가 관리)
 
-마지막 갱신: 2026-11-15 01:06 KST (스캐폴딩 PR #23 올라옴, deploy.yml이 workflows 권한에 막혀 L3 #24)
+마지막 갱신: 2026-11-15 01:10 KST (워크플로 권한 L3 결정 반영: [bot-workflows-permission](../decisions/2026-11-15-bot-workflows-permission.md))
 
 ## 마일스톤
 - **M0 킥오프** (목표 2026-11-20 금, [milestone/1](https://github.com/zaffrex/goblin-crew/milestone/1)): 팀 구성, 제품 콘셉트 합의(세계관, 캐릭터 3명과 능력, 아트 스타일), 기술 스택 ADR, CI/배포 파이프라인. **11/20 목표: 배포 URL에서 캐릭터 1명이 클릭으로 움직이는 화면**
@@ -18,8 +18,8 @@
 | #2 | M0 킥오프 운영, 회의록, status | Noah | p1 | 11/20 |
 
 ## 바로 시작 (ADR 머지를 기다리지 않음)
-- 스캐폴딩: Vite+TS+Canvas 빈 화면, build/test (Theo) → PR #23 (Sam 승인, CI 초록)
-- deploy.yml: Sam이 로컬 작성 완료. 봇 앱 `workflows` 권한이 없어 push 막힘 → #24 (L3)
+- 스캐폴딩: Vite+TS+Canvas 빈 화면, build/test (Theo, 11/15 시작)
+- deploy.yml: 스캐폴딩 PR에 이어서 (Sam). Pages 설정 전까지는 빌드 산출물로 확인
 - #18 퍼즐 원칙 ADR은 화면 1개 프로토타입과 함께 작성 (Luna+Theo)
 - M1 전까지 새 ADR 주제는 열지 않음
 
@@ -48,7 +48,7 @@
 - 주간 리포트마다 이 표를 다시 확인해 보고한다.
 
 ## 막힘
-- deploy.yml/ci.yml push 불가: GitHub App에 `workflows` 권한 없음 → #24 사장님 결정 대기 (11/17까지면 11/20 목표 유지)
+- deploy.yml (Sam): 봇 앱 `workflows` 권한 부여 대기 (사장님이 A로 결정, 설정 변경 대기) → #24
 
 ## 열린 질문
 - 게임 제목과 세계관 → #3
@@ -57,4 +57,4 @@
 - 호스팅과 배포 방식 → #5 (사장님 방향: GitHub Pages 기본, Cloudflare는 필요 시 검토. 월 0원)
 
 ## 사장님 결정 대기 (L3)
-- #24 봇에 `workflows` 권한 부여 여부. 팀 추천 C(권한 + `.github/` CODEOWNERS로 사장님 승인 필수). 필요 시점 11/17
+- #24 리뷰 게이트 잠금 범위: 1) 게이트 파일만 / 2) + 워크플로 폴더 전체 (팀 추천 2). 권한 부여 자체는 A로 결정됨
