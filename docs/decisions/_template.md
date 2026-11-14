@@ -4,7 +4,7 @@
 - 날짜: YYYY-MM-DD
 - 결정자: <서명 또는 사장님>
 - 참여: <의견을 낸 사람들>
-- 출처: <Slack 스레드 링크(scripts/slack.sh permalink), 이슈/PR 번호>
+- 출처: <Slack 채널명 + 날짜 + 필요하면 원문 한 줄 인용, 이슈/PR 번호> (Slack URL 금지, README 참고)
 
 ## 배경
 무엇을 왜 정해야 했나. 2~4줄.
