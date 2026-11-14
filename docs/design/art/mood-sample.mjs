@@ -39,6 +39,8 @@ class Layer {
     this.w = w;
     this.h = h;
     this.px = new Int16Array(w * h).fill(EMPTY);
+    this.ox = 0;
+    this.ax = Math.floor(w / 2); // 기준점 x (캐릭터는 다리 가운데로 덮어쓴다)
   }
   get(x, y) {
     if (x < 0 || y < 0 || x >= this.w || y >= this.h) return EMPTY;
@@ -82,20 +84,22 @@ class Layer {
     for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) grown.set(x + 1, y + 1, this.get(x, y));
     for (const [x, y] of add) grown.set(x + 1, y + 1, c);
     grown.ox = -1;
+    grown.ax = this.ax + 1;
     return grown;
   }
-  // 좌우 반전 (캐릭터는 오른쪽을 보는 그림 1벌만 그리고 뒤집는다)
+  // 좌우 반전 (캐릭터는 오른쪽을 보는 그림 1벌만 그리고 뒤집는다).
+  // 축은 그림 박스 가운데가 아니라 기준점 ax(다리 가운데)다. 그래야 돌아서도 다리가 제자리에 있다 (ADR-0007 결정 4).
+  // 칸 크기는 그대로 두고 ax만 w - ax로 옮긴다: 그림 전체를 거울에 비춘 것과 같다.
   flip() {
     const f = new Layer(this.w, this.h);
     for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) f.set(this.w - 1 - x, y, this.get(x, y));
     f.ox = this.ox;
+    f.ax = this.w - this.ax;
     return f;
   }
-  // 바닥 가운데 기준점(anchor)으로 붙인다
+  // 기준점으로 붙인다. ax = 다리 가운데(픽셀 경계), ay = 걷기 좌표 y. 발 맨 아랫줄은 ay - 1행에 그려진다.
   blitAnchor(dst, ax, ay) {
-    const x0 = Math.round(ax - this.w / 2);
-    const y0 = ay - this.h + 1;
-    this.blit(dst, x0, y0);
+    this.blit(dst, ax - this.ax, ay - this.h);
   }
   blit(dst, x0, y0) {
     for (let y = 0; y < this.h; y++)
@@ -106,6 +110,8 @@ class Layer {
   }
   map(fn) {
     const m = new Layer(this.w, this.h);
+    m.ox = this.ox;
+    m.ax = this.ax;
     for (let i = 0; i < this.px.length; i++) m.px[i] = this.px[i] === EMPTY ? EMPTY : fn(this.px[i]);
     return m;
   }
@@ -122,6 +128,9 @@ function sock({ legW, legH, footW, footH, cuffH, base, shade, hi, cuff, cuffShad
   const w = Math.max(legW, footW) + 1;
   const h = legH + footH;
   const L = new Layer(w, h);
+  // 기준점 x = 다리 가운데. 다리 폭은 짝수여야 축이 픽셀 경계에 와서 반전해도 1px도 안 움직인다.
+  if (legW % 2 !== 0) throw new Error(`legW ${legW}: 다리 폭은 짝수여야 한다`);
+  L.ax = legW / 2;
   // 다리
   L.rect(0, 0, legW, legH + 2, base);
   // 발 (발끝은 둥글게)
@@ -200,25 +209,26 @@ function drawMukjik() {
 
 // 삑삑이: 뒤꿈치에 삑삑이 장난감이 박힌 아기 양말. 작고 동그랗다. 큰 눈.
 function drawPpik() {
-  const L = sock({ legW: 11, legH: 10, footW: 15, footH: 8, cuffH: 3, base: C.yel, shade: C.yelD, hi: C.yelL, cuff: C.pinkL, cuffShade: C.pink });
+  const L = sock({ legW: 10, legH: 10, footW: 15, footH: 8, cuffH: 3, base: C.yel, shade: C.yelD, hi: C.yelL, cuff: C.pinkL, cuffShade: C.pink });
   // 프릴: 커프 위쪽이 톱니
-  for (let x = 0; x < 11; x += 2) L.set(x, 0, EMPTY);
+  for (let x = 0; x < 10; x += 2) L.set(x, 0, EMPTY);
   // 뒤꿈치 장난감 (분홍 동그라미 + 숨구멍)
   L.ellipse(1.5, 14, 2.2, 2.2, C.pink);
   L.set(1, 13, C.white);
   // 큰 눈 + 볼터치
-  for (const ex of [3, 7]) {
+  for (const ex of [2, 6]) {
     L.rect(ex, 4, 3, 3, C.white);
     L.rect(ex + 1, 5, 2, 2, C.ink);
     L.set(ex + 1, 5, C.white);
   }
-  L.set(2, 8, C.pink);
-  L.set(10, 8, C.pink);
-  L.rect(6, 8, 2, 1, C.ink);
+  L.set(1, 8, C.pink);
+  L.set(9, 8, C.pink);
+  L.rect(5, 8, 2, 1, C.ink);
   // 방울: 실루엣만으로도 묵직이(뭉툭한 사각)와 구별되게 머리 위에 털방울을 단다
   const P = new Layer(L.w, L.h + 5);
   L.blit(P, 0, 5);
-  P.ellipse(5, 2.5, 2.6, 2.4, C.pinkL);
+  P.ax = L.ax;
+  P.ellipse(4.5, 2.5, 2.6, 2.4, C.pinkL);
   P.set(4, 1, C.white);
   P.set(6, 4, C.pink);
   return P.outline();
@@ -433,8 +443,17 @@ function drawCursor(S, x, y) {
   }));
 }
 
-// 호버한 대상: 외곽선을 힌트색으로 바꾼다
-const highlight = (L) => L.map((c) => (c === C.ink ? C.hint : c));
+// 호버한 대상: 가장 바깥 불투명 픽셀(투명과 4방향으로 맞닿은 픽셀)만 힌트색으로 바꾼다.
+// 색(0번 ink)이 아니라 위치로 고르므로 눈동자·입 같은 안쪽 ink는 그대로 남는다 (ADR-0007 결정 2).
+const highlight = (L) => {
+  const m = L.map((c) => c);
+  for (let y = 0; y < L.h; y++)
+    for (let x = 0; x < L.w; x++) {
+      if (L.get(x, y) === EMPTY) continue;
+      if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => L.get(x + dx, y + dy) === EMPTY)) m.set(x, y, C.hint);
+    }
+  return m;
+};
 
 // ───────────────────────── 장면 조립 ─────────────────────────
 
@@ -449,9 +468,9 @@ drawSeesaw().blit(scene, 160, 200);
 highlight(drawButton()).blit(scene, 392, 186);
 // 그림자 (바닥 위 납작한 타원)
 for (const [x, w] of [[96, 12], [134, 16], [70, 9]]) scene.ellipse(x, 233, w, 2, C.grn);
-jjuk.blitAnchor(scene, 96, 233);
-mukjik.blitAnchor(scene, 134, 233);
-ppik.flip().blitAnchor(scene, 70, 233);
+jjuk.blitAnchor(scene, 92, 234);
+mukjik.blitAnchor(scene, 130, 234);
+ppik.flip().blitAnchor(scene, 73, 234);
 drawGauge(scene, 4, 5);
 drawSelector(scene, [
   { face: { layer: jjuk, x: 0, y: 2 }, icon: 'stretch' },
@@ -465,9 +484,9 @@ drawCursor(scene, 418, 206);
 const sil = new Layer(120, 50);
 sil.rect(0, 0, 120, 50, C.cotton);
 const ink = (L) => L.map(() => C.ink);
-ink(jjuk).blitAnchor(sil, 22, 46);
-ink(mukjik).blitAnchor(sil, 62, 46);
-ink(ppik).blitAnchor(sil, 100, 46);
+ink(jjuk).blitAnchor(sil, 18, 47);
+ink(mukjik).blitAnchor(sil, 58, 47);
+ink(ppik).blitAnchor(sil, 97, 47);
 
 // ───────────────────────── PNG 저장 ─────────────────────────
 
@@ -522,9 +541,9 @@ function png(layer, scale = 1, gray = false) {
 // 캐릭터 확대 비교 (색 있음): 리뷰용
 const lineup = new Layer(120, 50);
 lineup.rect(0, 0, 120, 50, C.cotton);
-jjuk.blitAnchor(lineup, 22, 46);
-mukjik.blitAnchor(lineup, 62, 46);
-ppik.blitAnchor(lineup, 100, 46);
+jjuk.blitAnchor(lineup, 18, 47);
+mukjik.blitAnchor(lineup, 58, 47);
+ppik.blitAnchor(lineup, 97, 47);
 
 writeFileSync(join(HERE, 'characters-6x.png'), png(lineup, 6));
 writeFileSync(join(HERE, 'mood-1x.png'), png(scene, 1));
@@ -534,4 +553,13 @@ writeFileSync(join(HERE, 'silhouettes-4x.png'), png(sil, 4));
 
 const used = new Set(scene.px);
 console.log(`mood-1x.png ${W}x${H}, 사용 색 ${used.size}/32`);
-console.log(`쭉이 ${jjuk.w}x${jjuk.h}, 묵직이 ${mukjik.w}x${mukjik.h}, 삑삑이 ${ppik.w}x${ppik.h} (외곽선 포함)`);
+console.log(`쭉이 ${jjuk.w}x${jjuk.h} anchorX ${jjuk.ax}, 묵직이 ${mukjik.w}x${mukjik.h} anchorX ${mukjik.ax}, 삑삑이 ${ppik.w}x${ppik.h} anchorX ${ppik.ax} (외곽선 포함, 그림 왼쪽 끝 기준)`);
+// 돌아설 때 다리가 움직이는 거리: 기준점 축으로 뒤집으면 0이어야 한다. row = 다리만 있는 행(외곽선 포함 좌표).
+const legOffset = (layer, row) => {
+  const xs = [];
+  for (let x = 0; x < layer.w; x++) if (layer.get(x, row) !== EMPTY) xs.push(x);
+  return (xs[0] + xs[xs.length - 1] + 1) / 2 - layer.ax;
+};
+for (const [n, L, row] of [['쭉이', jjuk, 2], ['묵직이', mukjik, 2], ['삑삑이', ppik, 7]])
+  console.log(`${n} 다리 가운데 - 기준점: 오른쪽 ${legOffset(L, row)}, 왼쪽(반전) ${legOffset(L.flip(), row)}`);
+
