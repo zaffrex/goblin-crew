@@ -20,8 +20,8 @@ pr_user=$(jq -r '.user.login' <<<"$pr")
 if [ "$pr_user" = "$CEO" ]; then state success "사장님 PR"; exit 0; fi
 
 files=$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename')
-if ! grep -qvE '^(docs/meetings/|docs/team/status\.md$)' <<<"$files"; then
-  state success "회의록/상태 문서만 변경 — 자동 통과"; exit 0
+if ! grep -qvE '^(docs/meetings/|docs/decisions/|docs/team/status\.md$)' <<<"$files"; then
+  state success "회의록/결정 기록/상태 문서만 변경 — 자동 통과"; exit 0
 fi
 is_adr=false; grep -qE '^docs/adr/[0-9]{4}-' <<<"$files" && ! grep -qx 'docs/adr/0000-template.md' <<<"$files" && is_adr=true
 

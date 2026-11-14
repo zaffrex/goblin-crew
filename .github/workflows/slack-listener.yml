@@ -1,0 +1,39 @@
+# 서버 없는 준실시간 Slack 리스너: 긴 Actions 잡이 15초마다 팀 채널과 사장님 DM을 확인하고,
+# 멘션되거나 사장님이 쓰면 해당 역할을 즉시 깨운다. 잡은 약 5시간 40분 뒤 끝나고, 30분마다 도는 cron이 다음 잡을 대기시켜 이어받는다.
+# 결정 배경: docs/decisions/2026-11-15-realtime-slack-without-server.md
+name: slack-listener
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: slack-listener
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  listen:
+    if: vars.TEAM_PAUSED != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            team
+            scripts
+      - name: Listen
+        env:
+          SLACK_TOKEN_PM: ${{ secrets.SLACK_TOKEN_PM }}
+          SLACK_TOKEN_DESIGNER: ${{ secrets.SLACK_TOKEN_DESIGNER }}
+          SLACK_TOKEN_FRONTEND: ${{ secrets.SLACK_TOKEN_FRONTEND }}
+          SLACK_TOKEN_BACKEND: ${{ secrets.SLACK_TOKEN_BACKEND }}
+          SLACK_TOKEN_INFRA: ${{ secrets.SLACK_TOKEN_INFRA }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: scripts/slack-listener.sh
