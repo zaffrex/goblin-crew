@@ -92,6 +92,8 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # 라우터가 GITHUB_TOKEN으로 workflow_dispatch를 하므로 실행 주체가 github-actions[bot]이 된다.
           allowed_bots: "github-actions[bot]"
+          additional_permissions: |
+            workflows: write
           prompt: ${{ steps.prompt.outputs.text }}
           claude_args: >-
             ${{ steps.model.outputs.args }}
