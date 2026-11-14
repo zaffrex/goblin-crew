@@ -1,0 +1,9 @@
+{
+  "//": "src/core는 순수 로직이다 (ADR-0004 결정 2). DOM lib 없이 타입체크해서 window/document/Canvas 사용을 컴파일 단계에서 막는다.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": []
+  },
+  "include": ["src/core"]
+}
