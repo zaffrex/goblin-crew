@@ -33,6 +33,13 @@ describe('LocalSaveStore', () => {
     await st.clear();
     expect(await st.load()).toBeNull();
   });
+  it('rejects invalid save and keeps the existing one', async () => {
+    const st = new LocalSaveStore(new MemoryStorage());
+    const d = parseSave(v1)!;
+    await st.save(d);
+    await expect(st.save({ ...d, checkpoint: { ...d.checkpoint, gauge: 999 } })).rejects.toThrow();
+    expect(await st.load()).toEqual(d);
+  });
   it('backs up corrupt data instead of overwriting', async () => {
     const m = new MemoryStorage();
     m.setItem(SAVE_KEY, 'garbage');
@@ -41,8 +48,9 @@ describe('LocalSaveStore', () => {
   });
   it('probeStorage falls back to memory when storage throws', () => {
     const bad = { getItem: () => null, removeItem() {}, setItem() { throw new Error('Quota'); } };
-    expect(probeStorage(bad).persistent).toBe(false);
-    expect(probeStorage(undefined).persistent).toBe(false);
-    expect(probeStorage(new MemoryStorage()).persistent).toBe(true);
+    expect(probeStorage(() => bad).persistent).toBe(false);
+    expect(probeStorage(() => { throw new Error('SecurityError'); }).persistent).toBe(false);
+    expect(probeStorage(() => undefined).persistent).toBe(false);
+    expect(probeStorage(() => new MemoryStorage()).persistent).toBe(true);
   });
 });

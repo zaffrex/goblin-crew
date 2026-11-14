@@ -1,5 +1,6 @@
-import { BACKUP_KEY, SAVE_KEY, parseSave, type SaveData } from './schema';
+import { BACKUP_KEY, SAVE_KEY, parseSave, validateSave, type SaveData } from './schema';
 
+/** 계약: save/clear 실패 시 reject하며 기존 세이브는 유지된다. 원격 구현체도 같은 규칙을 따른다. */
 export interface SaveStore {
   load(): Promise<SaveData | null>;
   save(d: SaveData): Promise<void>;
@@ -21,8 +22,9 @@ export class MemoryStorage implements StorageLike {
 }
 
 /** 쓰기를 시험해 보고 실패(SecurityError/Quota)하면 메모리 저장소로 대체한다. persistent=false면 UI가 안내를 띄운다. */
-export function probeStorage(s: StorageLike | undefined): { storage: StorageLike; persistent: boolean } {
+export function probeStorage(get: () => StorageLike | undefined): { storage: StorageLike; persistent: boolean } {
   try {
+    const s = get(); // 쿠키 차단 시 프로퍼티 접근 자체가 SecurityError를 던진다
     if (!s) throw new Error('no storage');
     s.setItem('goblincrew.probe', '1');
     s.removeItem('goblincrew.probe');
@@ -46,7 +48,9 @@ export class LocalSaveStore implements SaveStore {
   }
 
   async save(d: SaveData): Promise<void> {
-    this.s.setItem(SAVE_KEY, JSON.stringify(d));
+    const v = validateSave(d);
+    if (!v) throw new Error('invalid SaveData');
+    this.s.setItem(SAVE_KEY, JSON.stringify(v));
   }
 
   async clear(): Promise<void> {
