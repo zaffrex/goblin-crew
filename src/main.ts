@@ -3,7 +3,7 @@
 
 import { walkerHitBox } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, WALK_AREA } from './core/config';
-import { activeChar, click, createGame, step } from './core/game';
+import { activeChar, click, createGame, tick } from './core/game';
 import { createDisplay } from './engine/display';
 import { onPointerTap } from './engine/input';
 import { startLoop } from './engine/loop';
@@ -36,4 +36,4 @@ function render(): void {
   display.present();
 }
 
-startLoop({ step: () => step(state), render });
+startLoop({ step: () => tick(state), render });

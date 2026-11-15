@@ -1,0 +1,499 @@
+import { describe, expect, it } from 'vitest';
+import { approachFor, initialState, PuzzleContentError, step } from './step';
+import type { Action, CharactersData, PuzzleState, ScreenData } from './types';
+
+// ADR-0065 3절 예시(ADR-0003 예시 퍼즐 뼈대). 실제 화면 1 JSON은 #66/#88에서 Luna가 쓴다.
+function magpieScreen(): ScreenData {
+  return {
+    id: 'magpie_nest',
+    spots: {
+      floor: { x: 0, y: 240, free: true },
+      seesaw_left: {
+        x: 220, y: 214, box: [208, 196, 38, 24],
+        takenShow: [{ say: ['self', 'magpie_nest.spot_taken'] }],
+      },
+      seesaw_right: { x: 284, y: 214, box: [250, 196, 38, 24] },
+      hook: {
+        x: 160, y: 160, box: [150, 84, 24, 24], hold: true, releaseTo: 'floor',
+        releaseShow: {
+          default: [{ say: ['self', 'magpie_nest.let_go_jjuk'] }],
+          ppik: [{ say: ['ppik', 'magpie_nest.let_go_ppik'] }],
+        },
+      },
+    },
+    hotspots: {
+      magpie: {
+        box: [134, 6, 24, 24], hintAbility: 'squeak',
+        variants: [{ when: { flags: { 'magpie.on_ground': true } }, box: [88, 212, 24, 24] }],
+      },
+      nest: { box: [128, 30, 36, 24], hintAbility: 'stretch', reachPoint: [150, 34] },
+    },
+    flags: { 'magpie.on_ground': false, 'nest.key_taken': false },
+    start: { at: { jjuk: 'floor', mukjik: 'floor', ppik: 'floor' }, items: [] },
+    exitFlag: 'nest.key_taken',
+    onEnter: [{ say: ['ppik', 'magpie_nest.enter'] }],
+    rules: [
+      {
+        id: 'squeak_magpie_down', target: 'magpie', verb: 'squeak',
+        when: { flags: { 'magpie.on_ground': false } },
+        do: { set: { 'magpie.on_ground': true } },
+        show: [{ anim: ['magpie', 'fly_down'] }, { say: ['ppik', 'magpie_nest.squeak_ok'] }],
+      },
+      {
+        id: 'launch_to_hook', target: 'seesaw_right', verb: 'stomp',
+        when: { occupied: { seesaw_left: true, hook: false } },
+        do: { move: [{ from: 'seesaw_left', to: 'hook' }] },
+        show: [{ anim: ['mukjik', 'stomp_seesaw'] }, { say: ['@seesaw_left', 'magpie_nest.whee'] }],
+      },
+      {
+        id: 'take_key', target: 'nest', verb: 'stretch',
+        when: { at: ['hook'], flags: { 'magpie.on_ground': true } },
+        do: { set: { 'nest.key_taken': true }, give: ['item.shop_key'], move: [{ who: 'self', to: 'floor' }] },
+        show: [{ anim: ['jjuk', 'reach_hang_up'] }],
+      },
+      {
+        id: 'peck_from_hook', target: 'nest', verb: 'stretch',
+        when: { at: ['hook'] },
+        do: { gauge: -1, move: [{ who: 'self', to: 'floor' }] },
+        show: [{ anim: ['jjuk', 'pecked_fall'] }],
+      },
+    ],
+    fallbacks: {
+      nest: { stretch: { show: [{ anim: ['jjuk', 'reach_too_short'] }] } },
+    },
+    solution: [
+      { char: 'ppik', verb: 'squeak', target: 'magpie' },
+      { char: 'jjuk', verb: 'move', target: 'seesaw_left' },
+      { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' },
+      { char: 'jjuk', verb: 'stretch', target: 'nest' },
+    ],
+  };
+}
+
+function deepFreeze<T>(o: T): T {
+  if (o && typeof o === 'object') {
+    Object.freeze(o);
+    for (const v of Object.values(o)) deepFreeze(v);
+  }
+  return o;
+}
+
+function run(screen: ScreenData, actions: Action[], from = initialState(screen)): PuzzleState {
+  return actions.reduce((s, a) => step(screen, s, a).state, from);
+}
+
+const withState = (s: PuzzleState, patch: Partial<PuzzleState>): PuzzleState => ({ ...s, ...patch });
+
+describe('initialState', () => {
+  it('시작 자리·선언 순서 플래그·정렬된 아이템·게이지 5', () => {
+    const screen = magpieScreen();
+    screen.start.items = ['item.b', 'item.a'];
+    const s = initialState(screen);
+    expect(s).toEqual({
+      screen: 'magpie_nest',
+      at: { jjuk: 'floor', mukjik: 'floor', ppik: 'floor' },
+      flags: { 'magpie.on_ground': false, 'nest.key_taken': false },
+      items: ['item.a', 'item.b'],
+      gauge: 5,
+    });
+    expect(Object.keys(s.flags)).toEqual(['magpie.on_ground', 'nest.key_taken']);
+    expect(JSON.parse(JSON.stringify(s))).toEqual(s);
+  });
+});
+
+describe('solution 자동 플레이 (ADR-0065 7절)', () => {
+  it('4행동 모두 rule/move이고 게이지가 줄지 않으며 마지막에 clear', () => {
+    const screen = magpieScreen();
+    let s = initialState(screen);
+    const sources: string[] = [];
+    for (const [i, a] of screen.solution!.entries()) {
+      const r = step(screen, s, a);
+      sources.push(r.source);
+      expect(r.events.some((e) => e.type === 'faint')).toBe(false);
+      expect(r.events.some((e) => e.type === 'clear')).toBe(i === screen.solution!.length - 1);
+      s = r.state;
+    }
+    expect(sources).toEqual(['rule', 'move', 'rule', 'rule']);
+    expect(s.gauge).toBe(5);
+    expect(s.items).toEqual(['item.shop_key']);
+    expect(s.at.jjuk).toBe('floor');
+  });
+
+  it('같은 상태 + 같은 행동 = 같은 결과, 입력 state는 바꾸지 않는다', () => {
+    const screen = deepFreeze(magpieScreen());
+    const s0 = deepFreeze(initialState(screen));
+    const a: Action = { char: 'ppik', verb: 'squeak', target: 'magpie' };
+    const r1 = step(screen, s0, a);
+    const r2 = step(screen, s0, a);
+    expect(r1).toEqual(r2);
+    expect(r1.state).not.toBe(s0);
+    expect(s0.flags['magpie.on_ground']).toBe(false);
+  });
+
+  it('이미 clear 플래그가 true면 다시 clear를 내지 않는다', () => {
+    const screen = magpieScreen();
+    const s = run(screen, screen.solution!.slice(0, 3));
+    const done = withState(s, { flags: { ...s.flags, 'nest.key_taken': true } });
+    const r = step(screen, done, { char: 'jjuk', verb: 'stretch', target: 'nest' });
+    expect(r.events.some((e) => e.type === 'clear')).toBe(false);
+  });
+});
+
+describe('규칙 매칭 (3단계)', () => {
+  it('파일 순서로 when이 맞는 첫 규칙 하나만 적용한다', () => {
+    const screen = magpieScreen();
+    // 까치가 둥지 위면 take_key는 안 맞고 peck_from_hook이 맞는다.
+    const s = run(screen, screen.solution!.slice(1, 3));
+    expect(s.at.jjuk).toBe('hook');
+    const r = step(screen, s, { char: 'jjuk', verb: 'stretch', target: 'nest' });
+    expect(r.source).toBe('rule');
+    expect(r.ruleId).toBe('peck_from_hook');
+    expect(r.state.gauge).toBe(4);
+    expect(r.state.at.jjuk).toBe('floor');
+    expect(r.events.map((e) => e.type)).toEqual(['anim', 'place', 'gauge']);
+  });
+
+  it('연출 → 효과(item, place, gauge) 순서로 이벤트를 낸다', () => {
+    const screen = magpieScreen();
+    const s = run(screen, screen.solution!.slice(0, 3));
+    const r = step(screen, s, screen.solution![3]!);
+    expect(r.events).toEqual([
+      { type: 'anim', target: 'jjuk', name: 'reach_hang_up' },
+      { type: 'item', op: 'give', item: 'item.shop_key' },
+      { type: 'place', char: 'jjuk', from: 'hook', to: 'floor' },
+      { type: 'clear' },
+    ]);
+  });
+
+  it('`@자리` 화자는 효과 적용 전 그 자리의 캐릭터로 푼다', () => {
+    const screen = magpieScreen();
+    const s = run(screen, [{ char: 'ppik', verb: 'move', target: 'seesaw_left' }]);
+    const r = step(screen, s, { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' });
+    expect(r.events).toContainEqual({ type: 'say', speaker: 'ppik', text: 'magpie_nest.whee' });
+    expect(r.events).toContainEqual({ type: 'place', char: 'ppik', from: 'seesaw_left', to: 'hook' });
+    expect(r.state.at.ppik).toBe('hook');
+  });
+
+  it('`@자리`가 비어 있으면 그 연출만 건너뛴다', () => {
+    const screen = magpieScreen();
+    screen.rules.unshift({
+      id: 'stomp_empty', target: 'seesaw_right', verb: 'stomp',
+      when: { occupied: { seesaw_left: false } },
+      show: [{ say: ['@seesaw_left', 'x.y'] }, { anim: ['mukjik', 'stomp_air'] }],
+    });
+    const r = step(screen, initialState(screen), { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' });
+    expect(r.ruleId).toBe('stomp_empty');
+    expect(r.events.map((e) => e.type)).toEqual(['anim']);
+  });
+
+  it('조건 who·has·lacks·item·occupied', () => {
+    const screen = magpieScreen();
+    screen.flags['door.open'] = false;
+    screen.hotspots.door = { box: [0, 0, 24, 24] };
+    screen.rules.push(
+      { id: 'key_door', target: 'door', verb: 'item', when: { item: 'item.key' }, do: { set: { 'door.open': true }, take: ['item.key'] } },
+      { id: 'mukjik_pull', target: 'door', verb: 'hand', when: { who: ['mukjik'], lacks: ['item.key'] }, show: [{ anim: ['mukjik', 'pull'] }] },
+      { id: 'others_pull', target: 'door', verb: 'hand', when: { has: ['item.key'] }, show: [{ anim: ['self', 'jingle'] }] },
+    );
+    const s0 = withState(initialState(screen), { items: ['item.key'] });
+    expect(step(screen, s0, { char: 'mukjik', verb: 'hand', target: 'door' }).ruleId).toBe('others_pull');
+    expect(step(screen, initialState(screen), { char: 'mukjik', verb: 'hand', target: 'door' }).ruleId).toBe('mukjik_pull');
+    expect(step(screen, initialState(screen), { char: 'jjuk', verb: 'hand', target: 'door' }).source).toBe('characterFallback');
+    const used = step(screen, s0, { char: 'jjuk', verb: 'item', target: 'door', item: 'item.key' });
+    expect(used.ruleId).toBe('key_door');
+    expect(used.state.items).toEqual([]);
+    expect(used.state.flags['door.open']).toBe(true);
+    expect(used.events).toContainEqual({ type: 'item', op: 'take', item: 'item.key' });
+  });
+});
+
+describe('폴백 (4·5단계)', () => {
+  it('폴백 ①: 맞는 규칙이 없으면 대상의 동사별 기본 반응, 상태는 그대로', () => {
+    const screen = magpieScreen();
+    const r = step(screen, initialState(screen), { char: 'jjuk', verb: 'stretch', target: 'nest' });
+    expect(r.source).toBe('hotspotFallback');
+    expect(r.state).toEqual(initialState(screen));
+    expect(r.events).toEqual([{ type: 'anim', target: 'jjuk', name: 'reach_too_short' }]);
+  });
+
+  it('폴백 ①은 게이지만 바꿀 수 있다', () => {
+    const screen = magpieScreen();
+    screen.fallbacks!.magpie = { hand: { do: { gauge: -1 }, show: [{ anim: ['magpie', 'peck'] }] } };
+    const r = step(screen, initialState(screen), { char: 'jjuk', verb: 'hand', target: 'magpie' });
+    expect(r.source).toBe('hotspotFallback');
+    expect(r.state.gauge).toBe(4);
+    expect(r.events.at(-1)).toEqual({ type: 'gauge', delta: -1, value: 4 });
+  });
+
+  it('폴백 ②: characters.json의 캐릭터·동사 공통 반응, 없으면 연출 없이 끝', () => {
+    const screen = magpieScreen();
+    const chars: CharactersData = { fallbacks: { ppik: { look: { show: [{ say: ['self', 'char.ppik.look_generic'] }] } } } };
+    const r = step(screen, initialState(screen), { char: 'ppik', verb: 'look', target: 'nest' }, chars);
+    expect(r.source).toBe('characterFallback');
+    expect(r.events).toEqual([{ type: 'say', speaker: 'ppik', text: 'char.ppik.look_generic' }]);
+    const bare = step(screen, initialState(screen), { char: 'ppik', verb: 'look', target: 'nest' });
+    expect(bare.source).toBe('characterFallback');
+    expect(bare.events).toEqual([]);
+  });
+
+  it('텍스트 배열("두 번째부터")은 그대로 넘긴다. 고르는 건 UI다', () => {
+    const screen = magpieScreen();
+    screen.fallbacks!.magpie = { look: { show: [{ say: ['self', ['a.first', 'a.again']] }] } };
+    const r = step(screen, initialState(screen), { char: 'jjuk', verb: 'look', target: 'magpie' });
+    expect(r.events).toEqual([{ type: 'say', speaker: 'jjuk', text: ['a.first', 'a.again'] }]);
+  });
+});
+
+describe('이동과 자동 걷기 (2단계)', () => {
+  it('기본 이동: 빈 자리면 at이 바뀌고 walk 이벤트', () => {
+    const screen = magpieScreen();
+    const r = step(screen, initialState(screen), { char: 'jjuk', verb: 'move', target: 'seesaw_left' });
+    expect(r.source).toBe('move');
+    expect(r.state.at.jjuk).toBe('seesaw_left');
+    expect(r.events).toEqual([{ type: 'walk', char: 'jjuk', from: 'floor', to: 'seesaw_left' }]);
+  });
+
+  it('정원이 차면 blocked + takenShow, 상태 그대로', () => {
+    const screen = magpieScreen();
+    const s = run(screen, [{ char: 'jjuk', verb: 'move', target: 'seesaw_left' }]);
+    const r = step(screen, s, { char: 'ppik', verb: 'move', target: 'seesaw_left' });
+    expect(r.source).toBe('blocked');
+    expect(r.state).toEqual(s);
+    expect(r.events).toEqual([{ type: 'say', speaker: 'ppik', text: 'magpie_nest.spot_taken' }]);
+  });
+
+  it('hold 자리는 move로 못 간다 (stomp 없는 3행동 지름길 차단)', () => {
+    const screen = magpieScreen();
+    const r = step(screen, initialState(screen), { char: 'jjuk', verb: 'move', target: 'hook' });
+    expect(r.source).toBe('invalid');
+    expect(r.state).toEqual(initialState(screen));
+  });
+
+  it('지금 선 자리로 move는 invalid', () => {
+    const screen = magpieScreen();
+    expect(step(screen, initialState(screen), { char: 'jjuk', verb: 'move', target: 'floor' }).source).toBe('invalid');
+  });
+
+  it('(T, move) 규칙이 맞으면 기본 이동 대신 그 규칙', () => {
+    const screen = magpieScreen();
+    screen.rules.push({
+      id: 'slip', target: 'seesaw_left', verb: 'move', when: { who: ['mukjik'] },
+      do: { gauge: -1 }, show: [{ anim: ['mukjik', 'slip'] }],
+    });
+    const r = step(screen, initialState(screen), { char: 'mukjik', verb: 'move', target: 'seesaw_left' });
+    expect(r.ruleId).toBe('slip');
+    expect(r.state.at.mukjik).toBe('floor');
+    expect(r.state.gauge).toBe(4);
+  });
+
+  it('자동 걷기 중 (A, move) 규칙이 적용되면 행동은 거기서 끝난다 (울타리 건너뛰기 차단)', () => {
+    const screen = magpieScreen();
+    screen.spots.yard = { x: 300, y: 240, capacity: 3 };
+    screen.flags['dog.asleep'] = false;
+    screen.hotspots.bone = { box: [300, 220, 24, 24], approach: 'yard' };
+    screen.rules.push(
+      { id: 'dog_bites', target: 'yard', verb: 'move', when: { flags: { 'dog.asleep': false } }, do: { gauge: -1 } },
+      { id: 'grab_bone', target: 'bone', verb: 'hand', do: { give: ['item.bone'] } },
+    );
+    const r = step(screen, initialState(screen), { char: 'jjuk', verb: 'hand', target: 'bone' });
+    expect(r.ruleId).toBe('dog_bites');
+    expect(r.state.items).toEqual([]);
+    expect(r.state.at.jjuk).toBe('floor');
+    const asleep = initialState(screen);
+    asleep.flags['dog.asleep'] = true;
+    const ok = step(screen, asleep, { char: 'jjuk', verb: 'hand', target: 'bone' });
+    expect(ok.ruleId).toBe('grab_bone');
+    expect(ok.state.at.jjuk).toBe('yard');
+    expect(ok.events[0]).toEqual({ type: 'walk', char: 'jjuk', from: 'floor', to: 'yard' });
+  });
+
+  it('자동 걷기가 막히면(blocked) 행동은 거기서 끝난다', () => {
+    const screen = magpieScreen();
+    screen.hotspots.lever = { box: [220, 180, 24, 24], approach: 'seesaw_left' };
+    screen.rules.push({ id: 'pull', target: 'lever', verb: 'hand', show: [{ anim: ['self', 'pull'] }] });
+    const s = run(screen, [{ char: 'jjuk', verb: 'move', target: 'seesaw_left' }]);
+    const r = step(screen, s, { char: 'ppik', verb: 'hand', target: 'lever' });
+    expect(r.source).toBe('blocked');
+    expect(r.state.at.ppik).toBe('floor');
+  });
+
+  it('`when.at`은 자동 걷기 뒤 자리로 판정한다', () => {
+    const screen = magpieScreen();
+    // seesaw_left 위의 쭉이가 둥지에 hand → approach 기본 floor로 걸어간 뒤 판정.
+    screen.rules.unshift({ id: 'hand_from_floor', target: 'nest', verb: 'hand', when: { at: ['floor'] } });
+    const s = run(screen, [{ char: 'jjuk', verb: 'move', target: 'seesaw_left' }]);
+    const r = step(screen, s, { char: 'jjuk', verb: 'hand', target: 'nest' });
+    expect(r.ruleId).toBe('hand_from_floor');
+    expect(r.state.at.jjuk).toBe('floor');
+  });
+
+  it('look은 걷지 않는다', () => {
+    const screen = magpieScreen();
+    screen.rules.push({ id: 'look_left', target: 'nest', verb: 'look', when: { at: ['seesaw_left'] } });
+    const s = run(screen, [{ char: 'jjuk', verb: 'move', target: 'seesaw_left' }]);
+    const r = step(screen, s, { char: 'jjuk', verb: 'look', target: 'nest' });
+    expect(r.ruleId).toBe('look_left');
+    expect(r.events.some((e) => e.type === 'walk')).toBe(false);
+  });
+
+  it('approach 동사별 맵과 stay, variants의 approach', () => {
+    const screen = magpieScreen();
+    screen.spots.yard = { x: 300, y: 240, capacity: 3 };
+    screen.hotspots.dog = { box: [300, 200, 24, 24], approach: { default: 'yard', squeak: 'stay' } };
+    screen.hotspots.magpie!.variants![0]!.approach = 'seesaw_right';
+    const s = initialState(screen);
+    expect(approachFor(screen, s, 'dog', 'hand')).toBe('yard');
+    expect(approachFor(screen, s, 'dog', 'squeak')).toBe('stay');
+    expect(approachFor(screen, s, 'nest', 'hand')).toBe('floor');
+    expect(approachFor(screen, s, 'magpie', 'hand')).toBe('floor');
+    const down = withState(s, { flags: { ...s.flags, 'magpie.on_ground': true } });
+    expect(approachFor(screen, down, 'magpie', 'hand')).toBe('seesaw_right');
+    const r = step(screen, s, { char: 'ppik', verb: 'squeak', target: 'dog' });
+    expect(r.state.at.ppik).toBe('floor');
+    expect(r.events.some((e) => e.type === 'walk')).toBe(false);
+  });
+});
+
+describe('유지 상태 (1단계)', () => {
+  const onHook = (screen: ScreenData, who: 'jjuk' | 'ppik' = 'jjuk'): PuzzleState =>
+    run(screen, [
+      { char: who, verb: 'move', target: 'seesaw_left' },
+      { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' },
+    ]);
+
+  it('hold 자리에서 맞는 규칙(when.at에 그 자리)이 없으면 손을 놓고 끝난다', () => {
+    const screen = magpieScreen();
+    const s = onHook(screen);
+    const r = step(screen, s, { char: 'jjuk', verb: 'hand', target: 'magpie' });
+    expect(r.source).toBe('release');
+    expect(r.state.at.jjuk).toBe('floor');
+    expect(r.state.gauge).toBe(5);
+    expect(r.events).toEqual([
+      { type: 'release', char: 'jjuk', from: 'hook', to: 'floor' },
+      { type: 'say', speaker: 'jjuk', text: 'magpie_nest.let_go_jjuk' },
+    ]);
+  });
+
+  it('releaseShow는 캐릭터 키가 있으면 그것을 쓴다', () => {
+    const screen = magpieScreen();
+    const s = onHook(screen, 'ppik');
+    const r = step(screen, s, { char: 'ppik', verb: 'squeak', target: 'magpie' });
+    expect(r.source).toBe('release');
+    expect(r.events[1]).toEqual({ type: 'say', speaker: 'ppik', text: 'magpie_nest.let_go_ppik' });
+  });
+
+  it('releaseShow의 `@자리` 화자는 손 놓기 전 자리로 푼다', () => {
+    const screen = magpieScreen();
+    screen.spots.hook!.releaseShow = { default: [{ anim: ['@hook', 'drop'] }] };
+    const r = step(screen, onHook(screen), { char: 'jjuk', verb: 'hand', target: 'magpie' });
+    expect(r.events[1]).toEqual({ type: 'anim', target: 'jjuk', name: 'drop' });
+  });
+
+  it('`when.at`이 없는 규칙은 hold 자리에서 발동하지 않는다', () => {
+    const screen = magpieScreen();
+    // squeak_magpie_down에는 at 조건이 없다 → 매달린 삑삑이가 삑 해도 손 놓기.
+    const s = onHook(screen, 'ppik');
+    const r = step(screen, s, { char: 'ppik', verb: 'squeak', target: 'magpie' });
+    expect(r.state.flags['magpie.on_ground']).toBe(false);
+  });
+
+  it('look은 손을 놓지 않는다', () => {
+    const screen = magpieScreen();
+    const s = onHook(screen);
+    const r = step(screen, s, { char: 'jjuk', verb: 'look', target: 'magpie' });
+    expect(r.source).toBe('characterFallback');
+    expect(r.state.at.jjuk).toBe('hook');
+  });
+
+  it('move floor도 손 놓기다', () => {
+    const screen = magpieScreen();
+    const r = step(screen, onHook(screen), { char: 'jjuk', verb: 'move', target: 'floor' });
+    expect(r.source).toBe('release');
+    expect(r.state.at.jjuk).toBe('floor');
+  });
+
+  it('고리가 차 있으면 launch_to_hook은 안 맞는다 (occupied: hook false)', () => {
+    const screen = magpieScreen();
+    const s2 = step(screen, onHook(screen), { char: 'ppik', verb: 'move', target: 'seesaw_left' }).state;
+    const r = step(screen, s2, { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' });
+    expect(r.source).toBe('characterFallback');
+    expect(r.state.at.ppik).toBe('seesaw_left');
+  });
+});
+
+describe('보송 게이지 (6단계, ADR-0018 G1·G2)', () => {
+  it('0이 되면 faint: 위치만 시작으로, 게이지 5, 플래그·아이템은 그대로', () => {
+    const screen = magpieScreen();
+    const s = run(screen, [
+      { char: 'jjuk', verb: 'move', target: 'seesaw_left' },
+      { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' },
+    ]);
+    const low = withState(s, { gauge: 1, items: ['item.x'], flags: { ...s.flags, 'nest.key_taken': false } });
+    const r = step(screen, low, { char: 'jjuk', verb: 'stretch', target: 'nest' });
+    expect(r.ruleId).toBe('peck_from_hook');
+    expect(r.state.gauge).toBe(5);
+    expect(r.state.at).toEqual(screen.start.at);
+    expect(r.state.items).toEqual(['item.x']);
+    expect(r.events.slice(-2)).toEqual([
+      { type: 'gauge', delta: -1, value: 0 },
+      { type: 'faint', to: { jjuk: 'floor', mukjik: 'floor', ppik: 'floor' } },
+    ]);
+  });
+
+  it('"열쇠는 챙겼지만 쪼였다": 같은 행동으로 기절해도 플래그·아이템은 남고 clear도 난다', () => {
+    const screen = magpieScreen();
+    screen.rules[2]!.do!.gauge = -1;
+    const s = run(screen, screen.solution!.slice(0, 3));
+    const r = step(screen, withState(s, { gauge: 1 }), screen.solution![3]!);
+    expect(r.state.flags['nest.key_taken']).toBe(true);
+    expect(r.state.items).toEqual(['item.shop_key']);
+    expect(r.events.map((e) => e.type).slice(-2)).toEqual(['faint', 'clear']);
+  });
+
+  it('게이지는 5를 넘지 않는다', () => {
+    const screen = magpieScreen();
+    screen.fallbacks!.magpie = { hand: { do: { gauge: 2 } } };
+    const r = step(screen, withState(initialState(screen), { gauge: 4 }), { char: 'jjuk', verb: 'hand', target: 'magpie' });
+    expect(r.state.gauge).toBe(5);
+  });
+});
+
+describe('invalid 행동', () => {
+  const screen = magpieScreen();
+  const s = initialState(screen);
+  it.each<[string, Action]>([
+    ['남의 능력', { char: 'jjuk', verb: 'squeak', target: 'magpie' }],
+    ['없는 대상', { char: 'jjuk', verb: 'hand', target: 'moon' }],
+    ['핫스팟으로 move', { char: 'jjuk', verb: 'move', target: 'nest' }],
+    ['없는 아이템', { char: 'jjuk', verb: 'item', target: 'nest', item: 'item.shop_key' }],
+    ['item 없이 item 동사', { char: 'jjuk', verb: 'item', target: 'nest' }],
+    ['item 동사가 아닌데 item', { char: 'jjuk', verb: 'hand', target: 'nest', item: 'item.shop_key' }],
+  ])('%s → invalid, 상태 그대로, 이벤트 없음', (_name, a) => {
+    const r = step(screen, s, a);
+    expect(r).toEqual({ state: s, events: [], source: 'invalid' });
+  });
+});
+
+describe('콘텐츠 오류는 PuzzleContentError', () => {
+  it('정원을 넘기는 규칙 move', () => {
+    const screen = magpieScreen();
+    screen.rules.unshift({ id: 'bad', target: 'nest', verb: 'hand', do: { move: [{ who: 'self', to: 'seesaw_left' }] } });
+    const s = run(screen, [{ char: 'mukjik', verb: 'move', target: 'seesaw_left' }]);
+    expect(() => step(screen, s, { char: 'jjuk', verb: 'hand', target: 'nest' })).toThrow(PuzzleContentError);
+  });
+
+  it('선언 안 된 플래그', () => {
+    const screen = magpieScreen();
+    screen.rules.unshift({ id: 'bad', target: 'nest', verb: 'hand', do: { set: { 'nope.flag': true } } });
+    expect(() => step(screen, initialState(screen), { char: 'jjuk', verb: 'hand', target: 'nest' })).toThrow(/선언 안 된 플래그/);
+  });
+
+  it('빈 자리의 move.from은 아무 일 없음 (오류 아님)', () => {
+    const screen = magpieScreen();
+    screen.rules.unshift({ id: 'stomp_any', target: 'seesaw_right', verb: 'stomp', do: { move: [{ from: 'seesaw_left', to: 'hook' }] } });
+    const r = step(screen, initialState(screen), { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' });
+    expect(r.ruleId).toBe('stomp_any');
+    expect(r.state).toEqual(initialState(screen));
+    expect(r.events).toEqual([]);
+  });
+});

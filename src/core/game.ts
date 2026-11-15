@@ -36,7 +36,7 @@ export function activeChar(state: GameState): Walker {
   return w;
 }
 
-export function step(state: GameState): void {
+export function tick(state: GameState): void {
   state.tick += 1;
   // 전환해도 다른 캐릭터는 하던 걷기를 끝낸다.
   for (const c of state.chars) stepWalker(c, WALK_SPEED);

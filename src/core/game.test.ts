@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { walkerHitBox } from './characters';
 import { WALK_AREA } from './config';
-import { activeChar, click, createGame, step, type GameState } from './game';
+import { activeChar, click, createGame, tick, type GameState } from './game';
 import { isWalking } from './walk';
 
 function runUntilIdle(s: GameState, limit = 10_000): void {
   let guard = 0;
-  while (s.chars.some(isWalking) && guard++ < limit) step(s);
+  while (s.chars.some(isWalking) && guard++ < limit) tick(s);
 }
 
 /** 캐릭터 히트 영역 한가운데 점 (클릭 위치로 쓴다). */
@@ -17,10 +17,10 @@ function centerOf(s: GameState, id: string) {
 }
 
 describe('game state', () => {
-  it('step은 틱을 1 올린다', () => {
+  it('tick은 틱을 1 올린다', () => {
     const s = createGame();
-    step(s);
-    step(s);
+    tick(s);
+    tick(s);
     expect(s.tick).toBe(2);
   });
 
@@ -52,7 +52,7 @@ describe('game state', () => {
     const s = createGame();
     click(s, { x: 400, y: 240 });
     click(s, centerOf(s, 'ppik'));
-    step(s);
+    tick(s);
     expect(JSON.parse(JSON.stringify(s))).toEqual(s);
   });
 
@@ -82,7 +82,7 @@ describe('game state', () => {
   it('자동 플레이: 쭉이를 보내고, 묵직이로 바꿔 보내면 둘 다 각자 목표에 도착한다', () => {
     const s = createGame();
     click(s, { x: 400, y: 250 }); // 쭉이 출발
-    for (let i = 0; i < 10; i++) step(s);
+    for (let i = 0; i < 10; i++) tick(s);
     expect(click(s, centerOf(s, 'mukjik')).kind).toBe('select');
     click(s, { x: 50, y: 20 }); // 벽 클릭 → 묵직이가 바닥 위쪽 끝으로
     runUntilIdle(s);
