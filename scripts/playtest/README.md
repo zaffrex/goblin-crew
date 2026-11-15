@@ -10,6 +10,16 @@ node scripts/playtest/smoke.ts --url http://localhost:4173/ --out /tmp/pt
 node scripts/playtest/smoke.ts --no-sandbox             # 컨테이너 등 샌드박스가 안 될 때
 ```
 
+판정 1 재생(2부-b, A1·A2·A3·A4·A6②):
+
+```bash
+node --import ./scripts/playtest/register.mjs scripts/playtest/replay.ts --url https://zaffrex.github.io/goblin-crew/
+npm run build && npx vite preview --port 4173 &   # 로컬 빌드로 먼저 볼 때
+node --import ./scripts/playtest/register.mjs scripts/playtest/replay.ts --url http://localhost:4173/ --out /tmp/pt --no-sandbox
+```
+
+`register.mjs`는 `src/`의 확장자 없는 import(`./hit`)를 `.ts`로 풀어 주는 resolve 훅이다(의존성 없음, Node 22.15+). 스크린샷의 한글이 네모로 나오면 CJK 글꼴을 깐다(`sudo apt-get install fonts-noto-cjk`). 보고서에는 말풍선 DOM 글자를 따로 적으므로 글꼴이 없어도 판정은 된다.
+
 `--no-sandbox`는 신뢰하는 URL(우리 배포본, 로컬 빌드)에만 쓴다. `--url`로 아무 주소나 열 수 있으니 외부 사이트에는 쓰지 않는다.
 
 결과: `<out>/report.md`, `report.json`, 뷰포트별 PNG. A4 콘솔 에러나 입력 경로 실패면 종료 코드 1, A5·A6는 경고만.
@@ -19,6 +29,8 @@ node scripts/playtest/smoke.ts --no-sandbox             # 컨테이너 등 샌�
 | `coords.ts` | 화면 JSON 대상(핫스팟 `variants`, 서는 자리 `box`) → 내부 좌표 → CSS px. 게임 입력과 같은 `viewport.ts` 변환을 쓴다 |
 | `cdp.ts` | Chrome 실행, CDP 세션, 클릭·탭·스크린샷·콘솔 에러 수집 |
 | `plan.ts` | 2부-a: 정답 행동 `{char, verb, target}` → 누를 곳(캐릭터 칸, 동사 무장, 대상, 터치 2번). `docs/design/ui-interaction.md` 2·3·4·10절. 입력은 `?playtest=1` 읽기 전용 훅 `window.__gcLayout()`(#68). HUD id는 `hud.ts` `HudId`(`char.jjuk`, `verb.ability`, `item.0`). 테스트는 고른 탭을 실제 `interact.ts` `tap()`에 넣어 확인한다 |
+| `scenarios.ts` | 2부-b: 판정 시나리오(A1 정답, A2 규칙 2·7 두 번씩, A3 게이지 0 → 리셋 → 클리어, A6② 8px/9px 탭)와 행동별 확인 함수. `scenarios.test.ts`가 같은 시나리오를 실제 `scene.ts`에 넣어 Chrome 없이 먼저 확인한다 |
+| `replay.ts` | 2부-b: `?playtest=1`로 열어 시나리오를 실제 클릭·탭으로 재생. 행동마다 `busy`가 거짓이 될 때까지 기다리고, 새 말풍선이 뜰 때마다 스크린샷. `report.md`에 판정 표(A1~A4, A6②)와 행동별 말풍선 글·게이지 |
 | `smoke.ts` | 1부: 데스크톱 1280×720(마우스, dpr 1), 모바일 844×390(터치, dpr 3), 세로 390×844(스크린샷) |
 
-2부-b(훅을 읽어 `solution` 재생 A1, 오답 A2, 게이지 0 A3, 8px 탭 A6②)는 #68 훅이 머지된 뒤 붙인다. 행동마다 `busy`가 거짓이 될 때까지 기다리고, 말풍선 넘기기는 쓰지 않는다(ui-interaction 5절).
+재생은 말풍선 넘기기를 쓰지 않는다(ui-interaction 5절). 그래서 "걷는 중 누른 탭이 씹힌다" 같은 문제는 판정 1에서 안 보이고 판정 2(사람)에서 본다. A5(첫 화면)·A6①(세로 안내)은 `smoke.ts`가 본다.
