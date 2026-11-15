@@ -1,9 +1,9 @@
 # ADR-0018: 퍼즐 설계 원칙: 능력 매트릭스, 상태와 시간, 공정성, 보송 게이지, 안정 ID
 
-- 상태: 제안됨
+- 상태: 승인됨 (2026-11-15, PM Noah. PR #21 머지. 상태 줄은 ADR-0065 PR에서 일괄 변경)
 - 날짜: 2026-11-15
 - 작성자: **[디자이너 Luna]**
-- 리뷰어: (요청) **[FE Theo]** 퍼즐 데이터 모델 ADR·BFS 검사와의 정합, **[BE Ben]** 안정 ID와 세이브, **[PM Noah]** 범위·승인
+- 리뷰어: **[FE Theo]** 퍼즐 데이터 모델 ADR·BFS 검사와의 정합(승인), **[PM Noah]** 범위·승인(승인). **[BE Ben]** 안정 ID와 세이브는 요청했으나 머지 전 리뷰 없음
 - 관련: 이슈 #18, ADR-0003(PR #15, 사람 3명 "뽀송빨래방" 버전, 결정 기록 `docs/decisions/2026-11-15-human-characters.md`), ADR-0006, #7(아트), #10(SaveStore), 설계 회의 #1 스레드(#goblin-meeting). 화면 계획은 `docs/design/mvp-screen-matrix.md`
 
 ## 배경 (Context)

@@ -1,0 +1,226 @@
+# ADR-0065: 퍼즐 데이터 모델: 화면 JSON, 순수 함수 `step(screen, state, action)`, BFS 검사 도구
+
+- 상태: 제안됨
+- 날짜: 2026-11-15
+- 작성자: **[FE Theo]**
+- 리뷰어: (요청) **[디자이너 Luna]** 퍼즐 원칙(ADR-0018)·화면 1 상세(#66)와의 정합, **[BE Ben]** 안정 ID·세이브·BFS 검사 도구(#67), **[PM Noah]** 범위·승인
+- 관련: 이슈 #65, ADR-0003(규칙 목록 + 3단계 폴백, 예시 퍼즐), ADR-0004(결정 2 코어 분리·JSON 직렬화, 결정 6 콘텐츠는 데이터, 결정 7 `solution`·콘텐츠 검증), ADR-0006(세이브), ADR-0018(M·S·F·G·R·I 원칙), `docs/design/mvp-screen-matrix.md`, 후속 구현 #64(규칙 엔진)·#67(BFS 검사)·#68(상호작용 UI)·#66(화면 1 상세)
+
+## 배경 (Context)
+ADR-0004 결정 6은 "코드 수정 없이 데이터로 퍼즐을 추가한다"만 정하고 데이터 형식은 이 ADR로 넘겼다. ADR-0003은 상호작용 구조(`(핫스팟, 동사, 조건) → 반응`, 처음 맞는 규칙 하나, 3단계 폴백, 서는 자리)를, ADR-0018은 검사할 숫자(M1~M6, S2, S3)와 리셋 범위(G2), ID 정책(I1~I3)을 정했다. 이 셋을 실제로 돌아가는 계약 하나로 묶어야 M1 임계 경로가 움직인다.
+
+- #64(규칙 엔진, Theo), #67(BFS 검사, Ben), 정답 경로 자동 플레이(ADR-0004 결정 7), #68(UI)이 **같은 함수**를 써야 한다. 함수가 둘이면 "CI는 풀린다는데 게임에서는 안 풀린다"가 생긴다(PM, #65 코멘트).
+- #66(화면 1 상세, Luna)이 JSON으로 옮겨질 형식이 필요하다.
+- 넘어온 항목(#65 본문): ID 문법, 규칙/상태 구조, 리셋, `solution`, 검사 도구 판정, 자동 걷기 중 입력, `onEnter`. 그리고 #21 리뷰 메모 중 이 ADR이 기본값을 정할 것: 쿵 리셋 범위(대상 핫스팟 단위), 인벤토리 공용.
+
+제약: 런타임 의존성 0개(ADR-0004 결정 1), `src/core`는 DOM 금지·JSON 직렬화 가능한 상태(결정 2), 서버 없음(ADR-0006), M1 목표 11/18. 퍼즐 데이터를 주로 쓰는 사람은 Luna다.
+
+## 고려한 선택지 (Options)
+
+### A. 선언형 JSON 규칙 목록 + 순수 함수 `step` 하나 (추천)
+화면 하나 = JSON 파일 하나. 규칙은 `조건(when) → 효과(do) + 연출(show)`이다. 코어는 이 데이터를 해석하는 순수 함수 `step(screen, state, action)` 하나만 공개한다. 게임, 자동 플레이, BFS가 모두 이 함수를 부른다.
+- 장점: 퍼즐 추가에 코드가 필요 없다. 조건·효과 종류가 닫혀 있어 BFS가 모든 행동을 열거할 수 있다. 규칙 diff가 문서처럼 읽혀서 Luna가 리뷰하고 고칠 수 있다.
+- 단점: 표현력이 조건·효과 목록에 묶인다. 새 종류가 필요하면 코어 PR(그리고 이 ADR 개정)이 필요하다.
+
+### B. 화면마다 TypeScript 스크립트(콜백)
+`onAct(state, action) { if (...) ... }`처럼 화면별 코드로 퍼즐을 짠다.
+- 장점: 표현력이 무한하다. 형식 설계가 필요 없다.
+- 단점: ADR-0004 결정 6("코드 수정 없이 데이터로")과 맞지 않는다. Luna가 직접 고칠 수 없다. 콜백 안에서 시간·난수·전역 상태를 쓰면 BFS 결과를 믿을 수 없고, 막을 방법이 리뷰뿐이다.
+
+### C. 명시적 상태 그래프(상태 목록 + 전이 표)
+상태와 전이를 데이터에 직접 나열한다.
+- 장점: BFS가 필요 없을 만큼 검사가 쉽다.
+- 단점: 예시 퍼즐만 해도 도달 가능한 상태가 약 1,700개다(ADR-0018 S2). 손으로 쓸 수 없다. 결국 A 같은 규칙에서 생성하게 된다.
+
+## 결정 (Decision)
+**A를 채택한다.** 근거: 이 게임의 위험은 표현력 부족이 아니라 "막힌 상태"와 "너무 쉬운 화면"이다(ADR-0018). 닫힌 조건·효과 집합이어야 BFS가 그 둘을 기계적으로 잡는다. 표현력이 모자라면 조건·효과 종류를 하나씩 추가한다(각각 코어 30~50줄 + 테스트).
+
+### 1. 파일 배치
+```
+content/
+  characters.json          # 캐릭터 공통 폴백(ADR-0003 폴백 ②), 시작 대사 등
+  screens/<screenId>.json  # 화면 하나 = 파일 하나. 파일 이름 = 화면 ID
+  text/ko.json             # 문자열 리소스 { textId: "대사" } (ADR-0004 결정 3)
+src/core/puzzle/           # types.ts, step.ts, validate.ts, bfs.ts (+ *.test.ts)
+tests/playthrough/         # 화면마다 solution 자동 플레이
+```
+- 형식은 JSON이다. YAML·JSON5는 파서 의존성이 생겨 쓰지 않는다. 주석이 필요하면 아무 객체에나 `"note"` 문자열 필드를 쓴다(코어는 무시).
+- 스키마 검사는 의존성 없이 `validate.ts`로 직접 한다. 콘텐츠 검증(ADR-0004 결정 7)은 이 함수를 `npm test`에서 부른다.
+
+### 2. ID 문법 (ADR-0018 I1의 구체화)
+- **데이터 ID**: `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$`, 64자 이하. 마디는 소문자 snake_case, 마디 구분은 `.`이다. 예: `magpie_nest`, `magpie.on_ground`, `item.shop_key`.
+- **데이터 필드 이름**은 camelCase다(`gripPoint`, `reachPoint`, `releaseTo`). ID와 필드 이름은 다른 것이다.
+- **범위**: 화면 ID·아이템 ID·텍스트 ID는 전역에서 유일하다. 핫스팟·서는 자리·플래그·규칙 ID는 화면 안에서 유일하고, 화면 밖에서 가리킬 때는 `<screenId>/<localId>`(예: `magpie_nest/peck_from_hook`)로 쓴다(로그, 테스트 이름).
+- 이름공간 관례: 플래그는 `<대상>.<상태>`(`magpie.on_ground`), 아이템은 `item.<이름>`, 텍스트는 `<screenId>.<이름>` 또는 `char.<캐릭터>.<이름>`. 핫스팟·서는 자리는 같은 이름공간을 쓴다(서는 자리도 클릭 대상이라서).
+- ID 위반은 콘텐츠 검증 **실패**다. 세이브 스키마의 `ID_RE`(`src/core/save/schema.ts`, 대문자 허용)는 더 넓어서 그대로 둔다. 좁히는 건 Ben 판단으로 별도 PR.
+
+### 3. 화면 데이터 형식
+예시는 ADR-0003 예시 퍼즐의 뼈대다. 실제 규칙·반응·대사는 #66(Luna)이 정한다.
+
+```jsonc
+{
+  "id": "magpie_nest",
+  "spots": {                       // 서는 자리 (ADR-0003). 위치 상태는 이것뿐
+    "floor":        { "x": 0, "y": 240, "free": true },        // 자유 바닥. 정원 무제한
+    "seesaw_left":  { "x": 150, "y": 236 },                     // 정원 기본 1
+    "seesaw_right": { "x": 230, "y": 236 },
+    "hook":         { "x": 168, "y": 90, "hold": true, "releaseTo": "floor" }  // 유지 상태(S2)
+  },
+  "hotspots": {
+    "magpie": { "box": [300, 180, 32, 28], "approach": "floor" },
+    "nest":   { "box": [160, 40, 40, 24], "approach": "floor", "reachPoint": [180, 52] }
+  },
+  "flags": { "magpie.on_ground": false, "nest.key_taken": false },  // 선언 + 초깃값. 불리언만
+  "start": { "at": { "jjuk": "floor", "mukjik": "floor", "ppik": "floor" }, "items": [] },
+  "exitFlag": "nest.key_taken",    // ADR-0018 S4
+  "onEnter": [{ "say": ["ppik", "magpie_nest.enter"] }],
+  "rules": [
+    { "id": "squeak_magpie_down", "target": "magpie", "verb": "squeak",
+      "when": { "flags": { "magpie.on_ground": false } },
+      "do":   { "set": { "magpie.on_ground": true } },
+      "show": [{ "anim": ["magpie", "fly_down"] }, { "say": ["ppik", "magpie_nest.squeak_ok"] }] },
+    { "id": "launch_to_hook", "target": "seesaw_right", "verb": "stomp",
+      "when": { "occupied": { "seesaw_left": true, "hook": false } },
+      "do":   { "move": [{ "from": "seesaw_left", "to": "hook" }] },
+      "show": [{ "anim": ["mukjik", "stomp_seesaw"] }] },
+    { "id": "take_key", "target": "nest", "verb": "stretch",
+      "when": { "at": ["hook"], "flags": { "magpie.on_ground": true } },
+      "do":   { "set": { "nest.key_taken": true }, "give": ["item.shop_key"], "move": [{ "who": "self", "to": "floor" }] },
+      "show": [{ "anim": ["jjuk", "reach_hang_up"] }] },
+    { "id": "peck_from_hook", "target": "nest", "verb": "stretch",
+      "when": { "at": ["hook"] },
+      "do":   { "gauge": -1, "move": [{ "who": "self", "to": "floor" }] },
+      "show": [{ "anim": ["jjuk", "pecked_fall"] }] }
+  ],
+  "fallbacks": {                   // 폴백 ①: 이 핫스팟의 동사별 기본 반응 (상태를 바꾸지 않는다, gauge만 예외)
+    "nest": { "stretch": { "show": [{ "anim": ["jjuk", "reach_too_short"] }] } }
+  },
+  "solution": [
+    { "char": "ppik",   "verb": "squeak",  "target": "magpie" },
+    { "char": "jjuk",   "verb": "move",    "target": "seesaw_left" },
+    { "char": "mukjik", "verb": "stomp",   "target": "seesaw_right" },
+    { "char": "jjuk",   "verb": "stretch", "target": "nest" }
+  ]
+}
+```
+
+필드 규칙:
+- **서는 자리(`spots`)**: `floor`(`free: true`)는 화면마다 하나 있고 정원이 없다. 나머지는 정원 1이 기본이다(`capacity`로 바꿀 수 있다). `hold: true`인 자리가 **유지 상태**다(ADR-0018 G2: 유지 상태는 서는 자리로 모델링). `hold` 자리는 `releaseTo`가 필수다. 좌표 `x, y`는 엔진이 걷기·그리기에 쓰고 코어 규칙은 쓰지 않는다.
+- **핫스팟(`hotspots`)**: `box`는 내부 좌표 사각형 `[x, y, w, h]`(최소 24×24, ADR-0007 결정 6), `approach`는 그 대상에 손대기 전에 걸어갈 서는 자리다(기본 `floor`). 서는 자리도 클릭 대상이므로 규칙의 `target`에 올 수 있다.
+- **플래그(`flags`)**: 선언한 것만 쓸 수 있고 값은 **불리언만**이다. 상태가 셋 이상인 NPC는 불리언 여러 개와 규칙으로 표현한다. 열거형이 필요한 화면이 나오면 이 ADR을 개정한다(반대 의견 참고).
+- **아이템**: 인벤토리는 **파티 공용**(#21 메모 4의 기본값)이고, 정렬된 ID 목록이다. 화면 사이에 아이템을 넘기지 않는다(매트릭스 문서 "화면 사이에 아이템을 넘기지 않는다"). 그래서 `start.items`는 보통 `[]`이고, BFS는 화면마다 따로 돈다.
+- **NPC 리셋 범위는 대상 핫스팟 단위다**(#21 메모 1의 기본값). 규칙은 자기 `target`에 맞는 행동에만 발동하므로, "시소에 쿵 하면 까치도 놀란다"를 원하면 시소 규칙의 `do`에 `magpie.on_ground: false`를 명시해야 한다. 암묵적인 화면 전체 반응은 없다.
+
+### 4. 상태 (`PuzzleState`, JSON 직렬화 가능)
+```ts
+interface PuzzleState {
+  screen: string;                        // 화면 ID
+  at: Record<CharacterId, string>;       // 캐릭터별 서는 자리 ID
+  flags: Record<string, boolean>;        // 선언된 플래그 전부 (키 순서는 선언 순서)
+  items: string[];                       // 파티 공용, 정렬
+  gauge: number;                         // 보송 게이지 0..5 (ADR-0018 G1)
+}
+```
+- **이게 퍼즐 상태의 전부다.** 지금 조작 중인 캐릭터, 걷기 중 좌표, 힌트 ② 카운터(ADR-0018 F3), 대사 진행은 UI 상태라 여기에 넣지 않는다. 그래서 캐릭터 전환은 행동이 아니다(ADR-0018 M6).
+- 시간이 없다. 코어는 난수·시각·틱을 쓰지 않는다(ADR-0018 S1). 같은 상태 + 같은 행동 = 항상 같은 결과.
+- 기존 고정 틱 함수 `game.ts`의 `step(state)`는 #64에서 `tick(state)`으로 이름을 바꾼다. 앞으로 `step`은 이 ADR의 퍼즐 함수만 가리킨다.
+- 세이브(ADR-0006)는 지금처럼 화면 진입 시점의 `checkpoint`만 저장한다. 화면 중간의 `flags`·`at`은 저장하지 않으므로 새로고침하면 그 화면 처음부터 다시 한다. 화면이 4~10행동이라 감수한다. 중간 저장이 필요해지면 `PuzzleState`를 그대로 `checkpoint`에 넣으면 된다(이미 JSON이다).
+
+### 5. 행동과 `step` 계약
+```ts
+type Verb = 'move' | 'look' | 'hand' | 'stretch' | 'stomp' | 'squeak' | 'item';
+interface Action { char: CharacterId; verb: Verb; target: string; item?: string }  // item은 verb==='item'일 때만
+
+interface StepResult {
+  state: PuzzleState;          // 새 객체. 입력 state는 바꾸지 않는다
+  events: PuzzleEvent[];       // 엔진이 순서대로 재생할 연출
+  source: 'rule' | 'hotspotFallback' | 'characterFallback' | 'blocked' | 'invalid';
+  ruleId?: string;             // source==='rule'일 때
+}
+function step(screen: ScreenData, state: PuzzleState, action: Action): StepResult;
+function initialState(screen: ScreenData): PuzzleState;
+```
+- **동사**: `move`(서는 자리로 이동), `look`(보기), `hand`(맨손: 줍기·당기기·열기. 매트릭스의 "아이템 줍기는 일반 상호작용"), 능력 3개, `item`(가진 아이템 쓰기). 능력은 그 캐릭터의 것만 쓸 수 있다(`jjuk`→`stretch` 등, `characters.ts`). 남의 능력이나 없는 아이템은 `invalid`이고 상태는 그대로다(UI가 애초에 못 고르게 한다).
+- **입력 1번 = `step` 1번 = 1행동**(ADR-0018 M6). 자동 걷기(`approach`)는 같은 행동 안에서 일어난다.
+
+**`step` 처리 순서** (ADR-0003 규칙 목록·폴백·설계 규칙 3을 그대로 옮긴 것):
+1. **유지 상태 확인**: 행동하는 캐릭터가 `hold` 자리 H에 있고 동사가 `look`이 아니면, 이 `(target, verb)`의 규칙 중 `when.at`에 H가 들어 있고 조건이 모두 맞는 첫 규칙을 찾는다. 있으면 그 자리에서 적용하고 끝낸다. 없으면 **먼저 손을 놓는다**: `at = H.releaseTo`, `release` 이벤트(ADR-0003 설계 규칙 3). `look`은 자리를 바꾸지 않고 손도 놓지 않는다.
+2. **이동**: `move`면 대상 자리로 옮기고 끝낸다. 단, 그 자리에 대한 `move` 규칙이 있으면 규칙이 우선한다(예: 정원이 찬 자리에 가려다 밀려나는 개그). 정원이 차 있고 규칙도 없으면 `blocked`.
+   다른 동사면 대상의 `approach` 자리로 걸어간다(이미 거기 있으면 생략). 대상이 서는 자리면 그 자리 자체가 `approach`다. `approach` 자리가 차 있으면 `blocked`. `look`은 걷지 않는다.
+3. **규칙**: `(target, verb)`가 같은 규칙을 파일 순서대로 보고, `when`이 모두 맞는 **첫 규칙 하나**만 적용한다(ADR-0003). `when.at`은 2단계 이동 **뒤** 자리로 판정한다.
+4. **폴백 ①**: 맞는 규칙이 없으면 `fallbacks[target][verb]`. 폴백은 상태를 바꾸지 않는다. 예외로 `gauge`(다치는 실패)만 허용한다.
+5. **폴백 ②**: 그것도 없으면 `characters.json`의 그 캐릭터·그 동사 공통 실패 리액션(ADR-0018 R2 공용 리액션). 상태는 그대로다.
+6. **게이지 0 처리**: 효과 적용 뒤 `gauge`가 0이면 `faint` 이벤트, `at = screen.start.at`, `gauge = 5`. 플래그와 아이템은 그대로다(ADR-0018 G2). 유지 상태도 자리라서 함께 풀린다.
+7. **클리어**: `flags[exitFlag]`가 이번 행동으로 `true`가 되면 `clear` 이벤트(ADR-0018 S4).
+
+**조건(`when`)** — 모두 AND. 종류는 이것뿐이다:
+| 키 | 뜻 |
+|---|---|
+| `who` | 행동하는 캐릭터 목록 (`look`·`hand`·`item` 개그를 캐릭터별로 나눌 때) |
+| `at` | 행동하는 캐릭터의 서는 자리 목록 (2단계 이동 뒤 기준) |
+| `flags` | `{ 플래그: true/false }` |
+| `has` / `lacks` | 파티 인벤토리에 있는/없는 아이템 |
+| `item` | `verb: "item"`일 때 쓴 아이템 |
+| `occupied` | `{ 자리: true/false }` 그 자리에 누가 있는지 |
+
+**효과(`do`)** — 이 순서로 적용한다:
+| 키 | 뜻 |
+|---|---|
+| `set` | 플래그 값 바꾸기 |
+| `give` / `take` | 인벤토리에 넣기/빼기 |
+| `move` | `{ who: "self" \| 캐릭터 ID, to }` 또는 `{ from: 자리, to }`(그 자리에 있는 사람을 옮김, 시소 발사). 빈 자리에서 `from`은 아무 일 없음 |
+| `gauge` | 게이지 증감 (−1이 보통) |
+
+**연출(`show`)과 이벤트**: `show`는 상태를 바꾸지 않는다. `anim [대상, 애니메이션]`, `say [화자, 텍스트 ID]`, `fx [효과, 대상]`(먼지·별·"삑!", ADR-0018 R2). `step`은 이것을 `walk`, `release`, `anim`, `say`, `fx`, `gauge`, `item`, `faint`, `clear` 이벤트 목록으로 바꿔 돌려준다. 엔진(#64·#68)은 **이벤트로만** 반응한다. 상태를 직접 들여다보고 연출을 추측하지 않는다.
+
+**힌트 ② 카운터**(ADR-0018 F3): UI가 `source`와 `target`으로 센다. `hotspotFallback`·`characterFallback`이 같은 `target`에서 2번이면 힌트 대사. 코어는 카운터를 모른다.
+
+**`onEnter`**: 화면에 들어올 때 엔진이 재생하는 연출 목록이다. 상태를 바꾸지 않는다(효과를 가진 트리거는 BFS 그래프를 흐리게 만들어 MVP에는 두지 않는다).
+
+### 6. 자동 걷기 중 입력
+`step`은 즉시 끝나고 상태도 즉시 바뀐다. 엔진은 돌려받은 이벤트를 시간에 맞춰 재생할 뿐이다. 그래서 연출 도중 새 입력이 오면:
+- **걷기(`walk`) 재생 중**: 걷기를 끝 위치로 건너뛰고 새 행동을 `step`한다(#65 본문의 "취소하고 새 명령 실행"). 상태는 이미 확정이라 되돌릴 게 없다.
+- **반응(`anim`, `say`) 재생 중**: 입력은 대사 넘기기로만 쓴다. 반응이 끝나야 다음 행동을 받는다. 반응 하나가 1~2초라 막힘이 짧다.
+- 바닥 클릭으로 그냥 걸어 다니기(같은 `floor` 안)는 퍼즐 행동이 아니다. 엔진 좌표만 바뀌고 `step`을 부르지 않는다. `floor`가 아닌 자리에서 바닥을 누르면 `move floor` 행동이다.
+- 큐(입력 미리 쌓기)는 UI 설계 문서에서 정한다.
+
+### 7. `solution`과 자동 플레이
+- `solution`은 화면 JSON 안의 `Action` 배열이다(ADR-0004 결정 7). 자동 플레이 테스트(`tests/playthrough/`)는 `initialState`부터 차례로 `step`하고 다음을 확인한다: 모든 행동의 `source`가 `rule`이다, 게이지가 0이 되지 않는다, 마지막 행동에서 `clear`가 나온다.
+- 길이 규칙(ADR-0018 M6)은 `solution` 길이와 BFS 최단 길이로 센다. 캐릭터 전환은 `Action`이 아니라서 자연히 빠진다.
+
+### 8. 검사 도구 (#67, Ben)
+`bfs.ts`가 화면마다 `step`만으로 상태 그래프를 만든다. 다른 퍼즐 해석 코드를 두지 않는다.
+- **노드**: `PuzzleState`에서 `gauge`를 뺀 정규화 키(`at`, 선언 순서 `flags`, 정렬된 `items`). 게이지는 그래프에서 빼고, 대신 **모든 상태에 "리셋" 간선**(`at = start.at`)을 더한다. 게이지 0 리셋은 아무 상태에서나 일어날 수 있기 때문이다(#65 본문).
+- **간선**: 캐릭터 3명 × (모든 서는 자리로 `move` + 모든 대상에 `look`·`hand`·자기 능력 + 가진 아이템별 `item`). `source`가 `invalid`·`blocked`이거나 키가 같은 간선은 버린다. 예시 화면은 상태당 약 60행동이라 1,700상태 × 60 ≈ 10만 `step` 호출, 1초 미만으로 본다.
+- **검사와 판정** (ADR-0018의 실패/경고 구분을 따른다):
+
+| 항목 | 방법 | 판정 |
+|---|---|---|
+| 스키마, I1 ID 문법, 참조 무결성(자리·핫스팟·플래그·아이템·텍스트 ID 존재), 대사 14자×2줄 | `validate.ts` | 실패 |
+| I2 세이브 ID(화면·아이템) 삭제·개명 | main의 ID 목록과 비교. 바뀌면 마이그레이션 노트 필요 | 실패 |
+| 정답 도달 | 시작 상태에서 `exitFlag = true` 상태에 닿는다 | 실패 |
+| S3 막다른 상태 | 도달 가능한 모든 상태에서 정답 상태로 가는 경로가 있다(리셋 간선 포함). 실패 시 시작→그 상태 경로를 출력하고 리셋을 지나면 `via reset` 표시 | 실패 |
+| M1·M2 필수 능력 | 능력 하나씩 간선에서 빼고 정답 도달을 다시 본다. 풀리면 그 능력은 필수가 아니다. 결과 표를 출력하고, 매트릭스 문서와 다르면 문서를 고친다(ADR-0018) | 실패 |
+| M3·M4 | 화면별 필수 능력 결과를 화면 순서대로 집계 | 실패 |
+| `solution` 재생 | 위 7절 | 실패 |
+| M5 동사 비율 | `solution`에서 능력 동사만 센다 | 경고 |
+| M6 경로 길이 | BFS 최단 길이가 범위 안인지, `solution` 길이가 최단과 같은지 | 경고 |
+| S2 유지 상태 | `hold` 자리 수 ≤ 2 | 경고 |
+| R1 고유 반응 수 | `show`의 서로 다른 `anim` ID 수 4~12 | 경고 |
+| 상태 수 | 도달 가능 상태가 10만 개를 넘음 | 경고 |
+
+- S2는 ADR-0018이 실패/경고를 정하지 않았다. 인지 부하 기준(추정치)이라 경고로 둔다.
+- 화면 순서(M3·M4 집계용)는 `content/screens/order.json`의 ID 배열로 둔다.
+
+## 반대 의견 (Dissent)
+작성 시점에 리뷰는 아직 없다. 작성자가 보는 강한 반론과 지금의 답:
+- **"플래그를 불리언으로만 두면 NPC 상태가 꼬인다"**(예: 대장이 `in_house`, `in_corner` 둘 다 true): 맞는 우려다. 열거형을 넣으면 조건·효과·BFS 키가 모두 한 단계 복잡해지는데, MVP 5화면은 매트릭스상 NPC 상태가 화면당 2개 이하라 불리언 1개로 충분하다. 꼬임은 S3 BFS가 "도달 가능 상태" 목록으로 드러내 준다. 3상태 NPC가 실제로 나오면 개정한다.
+- **"조건·효과가 닫혀 있으면 Luna가 원하는 개그를 못 만든다"**: 연출(`show`)은 열려 있다. 애니메이션·대사·효과는 상태와 무관해서 아무리 늘려도 BFS에 영향이 없다. 닫힌 것은 상태를 바꾸는 쪽뿐이다. 새 효과가 필요하면 #66 리뷰에서 바로 말해 달라. 예시 퍼즐과 매트릭스 5화면 한 줄 설계를 위 표로 옮겨 봤을 때 빠진 종류는 없었다(`dog_yard`의 "실패하면 울타리 밖으로 밀려남"은 `move self` + `gauge`).
+- **"상태가 즉시 바뀌고 연출은 뒤따르면 화면과 상태가 어긋나 보인다"**: 엔진은 이벤트 재생이 끝나기 전에는 상태에서 그림을 다시 만들지 않는다. 걷기만 건너뛰기를 허용한다. 반응 재생 중 입력 차단이 답답하다는 관찰이 M1에서 나오면 #68에서 조정한다.
+- **"`hand` 동사가 하나 더 늘면 UI 선택지가 늘어난다"**: 매트릭스 2·3번 화면이 "줍기는 일반 상호작용"이라 필요하다. UI에서 기본 클릭(동사를 고르지 않은 탭)이 `hand`가 되게 하면 선택지는 늘지 않는다. 결정은 #68 UI 설계에서 Luna와 한다.
+
+## 결과 (Consequences)
+- 좋아지는 것: #64(엔진)·#67(BFS)·자동 플레이·#68(UI)이 `step` 하나를 공유한다. #66은 이 형식으로 바로 JSON을 쓸 수 있다. ADR-0018의 실패 항목이 전부 CI에서 기계적으로 검사된다.
+- 나빠지는 것: 조건·효과 종류가 늘 때마다 코어 PR과 이 ADR 개정이 필요하다. JSON에는 주석이 없어 `note` 필드로 대신한다. 화면 중간 세이브가 없다.
+- 새 리스크: (1) `approach` 자동 걷기 + 유지 상태 해제 순서가 플레이어 직관과 다를 수 있다(예: 매달린 쭉이에게 바닥의 대상을 시키면 먼저 떨어진다). M1 플레이테스트 확인 항목이다. (2) 상태 수가 예상보다 빨리 늘 수 있다. 10만 경고로 감시한다.
+- 다시 검토할 조건: (1) 3상태 이상 NPC가 필요한 화면, (2) 화면 사이에 아이템을 넘기는 설계, (3) 효과를 가진 이벤트 트리거(`onFlag` 등)가 필요할 때, (4) 한 화면의 도달 가능 상태가 10만 개를 넘을 때.
