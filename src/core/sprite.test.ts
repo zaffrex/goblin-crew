@@ -1,0 +1,92 @@
+import { describe, expect, it } from 'vitest';
+import { WALK_SPEED } from './config';
+import jjukJson from '../../public/sprites/jjuk-base.json';
+import { frameSourceX, parseSpriteMeta, spriteBox, spriteFrame, type Pose, type SpriteMeta } from './sprite';
+
+const JJUK = parseSpriteMeta(jjukJson);
+const still: Pose = { walkedPx: null, holding: false, event: null, clockMs: 0 };
+
+describe('parseSpriteMeta', () => {
+  it('커밋된 쭉이 시트 메타를 받아들인다', () => {
+    expect(JJUK.character).toBe('jjuk');
+    expect(JJUK.cell).toEqual([48, 64]);
+  });
+
+  it.each([
+    ['cell 없음', { cell: undefined }],
+    ['anchor 소수', { anchor: [25.5, 64] }],
+    ['walkCycle 0', { walkCycle: 0 }],
+    ['ms 길이가 frames와 다름', { anims: { idle: { frames: [0, 1], ms: [700] } } }],
+    ['by가 distance가 아님', { anims: { walk: { frames: [2], by: 'time' } } }],
+    ['frames 비었음', { anims: { idle: { frames: [], ms: [] } } }],
+  ])('%s → 던진다(그 캐릭터는 실루엣으로 남는다)', (_, patch) => {
+    expect(() => parseSpriteMeta({ ...JJUK, ...patch })).toThrow(/스프라이트 메타 오류/);
+  });
+});
+
+describe('spriteFrame', () => {
+  it('서 있기: anims.idle.ms대로 돌고 반복한다(700 + 500)', () => {
+    expect(spriteFrame(JJUK, { ...still, clockMs: 0 })).toBe(0);
+    expect(spriteFrame(JJUK, { ...still, clockMs: 699 })).toBe(0);
+    expect(spriteFrame(JJUK, { ...still, clockMs: 700 })).toBe(1);
+    expect(spriteFrame(JJUK, { ...still, clockMs: 1199 })).toBe(1);
+    expect(spriteFrame(JJUK, { ...still, clockMs: 1200 })).toBe(0);
+  });
+
+  it('걷기: 시간이 아니라 걸은 거리로 넘긴다(walkCycle 36px / 6장 = 6px마다 1장)', () => {
+    const at = (px: number) => spriteFrame(JJUK, { ...still, walkedPx: px });
+    expect([0, 5.9, 6, 12, 30, 35.9, 36, 42].map(at)).toEqual([2, 2, 3, 4, 7, 7, 2, 3]);
+  });
+
+  it('걷기 한 주기(36px)를 걷는 틱 수 = 36 / WALK_SPEED, 그동안 6장을 정확히 한 번씩 보인다', () => {
+    const ticks = JJUK.walkCycle / WALK_SPEED;
+    const seen = new Set<number | null>();
+    for (let t = 0; t < ticks; t++) seen.add(spriteFrame(JJUK, { ...still, walkedPx: t * WALK_SPEED }));
+    expect([...seen]).toEqual([2, 3, 4, 5, 6, 7]);
+  });
+
+  it('시트에 없는 자세는 null(실루엣): 매달림, 아직 안 그린 연출', () => {
+    expect(spriteFrame(JJUK, { ...still, holding: true })).toBeNull();
+    expect(spriteFrame(JJUK, { ...still, event: { name: 'common.bump_bottom', ms: 0 } })).toBeNull();
+  });
+
+  it('연출이 매달림·걷기보다 앞선다. 연출은 반복하지 않고 마지막 장에 머문다', () => {
+    const meta: SpriteMeta = {
+      ...JJUK,
+      anims: { ...JJUK.anims, 'common.bump_bottom': { frames: [8, 9], ms: [100, 100] }, hold: { frames: [10], ms: [500] } },
+    };
+    const ev = (ms: number): Pose => ({ ...still, holding: true, walkedPx: 6, event: { name: 'common.bump_bottom', ms } });
+    expect(spriteFrame(meta, ev(0))).toBe(8);
+    expect(spriteFrame(meta, ev(100))).toBe(9);
+    expect(spriteFrame(meta, ev(5000))).toBe(9);
+    expect(spriteFrame(meta, { ...still, holding: true, walkedPx: 6 })).toBe(10);
+  });
+
+  it('다른 캐릭터 시트도 json만으로 붙는다(쭉이 전용 분기 없음)', () => {
+    const muk: SpriteMeta = { ...JJUK, character: 'mukjik', image: 'mukjik-base.png' };
+    expect(spriteFrame(muk, { ...still, walkedPx: 6 })).toBe(3);
+  });
+});
+
+describe('spriteBox', () => {
+  it('오른쪽: 기준점(25, 64)이 발 위치에 온다', () => {
+    expect(spriteBox(JJUK, 100, 200, 1)).toEqual({ left: 75, top: 136, width: 48, height: 64 });
+  });
+
+  it('왼쪽: 기준점 ax 경계를 축으로 뒤집는다(오른쪽 칸과 발 위치 기준 좌우 대칭)', () => {
+    const r = spriteBox(JJUK, 100, 200, 1);
+    const l = spriteBox(JJUK, 100, 200, -1);
+    expect(l).toEqual({ left: 100 - (48 - 25), top: 136, width: 48, height: 64 });
+    expect(100 - l.left).toBe(r.left + r.width - 100);
+  });
+
+  it('발 위치는 반올림한다(걷기 중 소수 좌표에서 1px 떨림 방지)', () => {
+    expect(spriteBox(JJUK, 100.4, 199.6, 1).left).toBe(75);
+    expect(spriteBox(JJUK, 100.4, 199.6, 1).top).toBe(136);
+  });
+
+  it('프레임 n은 가로 한 줄의 n번째 칸', () => {
+    expect(frameSourceX(JJUK, 0)).toBe(0);
+    expect(frameSourceX(JJUK, 7)).toBe(7 * 48);
+  });
+});
