@@ -7,6 +7,7 @@
 
 import { characterDef, type CharacterId } from '../../src/core/characters.ts';
 import { distanceToBox, type HitBox } from '../../src/core/hit.ts';
+import { HUD_AREA, type HudId } from '../../src/core/hud.ts';
 import type { Action, ScreenData, Verb } from '../../src/core/puzzle/types.ts';
 import type { Point } from '../../src/core/viewport.ts';
 
@@ -16,8 +17,8 @@ import type { Point } from '../../src/core/viewport.ts';
  */
 export interface Layout {
   active: CharacterId;
-  /** 무장한 HUD 버튼 id(`verb:ability` 등). 없으면 null. */
-  armed: string | null;
+  /** 무장한 HUD 버튼 id(`verb.ability` 등). 없으면 null. */
+  armed: HudId | null;
   selected: string | null;
   busy: boolean;
   cleared: boolean;
@@ -30,14 +31,26 @@ export interface Layout {
   hud: Record<string, HitBox>;
 }
 
-/** HUD 버튼 id. 훅이 이 이름으로 돌려줘야 한다(#68에 요청). 좌표는 하드코딩하지 않고 훅에서 받는다. */
+/**
+ * HUD 버튼 id. `src/core/hud.ts` `HudId`와 같은 점(`.`) 표기다(PR #111 Theo 리뷰).
+ * 콜론(`char:jjuk`)은 월드 대상인 캐릭터 몸 id라서, 점으로 HUD 칸과 몸을 구분한다. 좌표는 훅에서 받는다.
+ */
 export const HUD = {
-  char: (c: CharacterId) => `char:${c}`,
-  ability: 'verb:ability',
-  hand: 'verb:hand',
-  look: 'verb:look',
-  item: 'item:0',
-} as const;
+  char: (c: CharacterId): HudId => `char.${c}`,
+  ability: 'verb.ability',
+  hand: 'verb.hand',
+  look: 'verb.look',
+  item: 'item.0',
+} as const satisfies Record<string, HudId | ((c: CharacterId) => HudId)>;
+
+/** 터치 여유(ADR-0007 결정 6). HUD는 거리 비교 없이 먼저 판정되니 월드 점은 HUD 영역에서 이만큼 떨어져야 한다. */
+const TOUCH_SLOP = 8;
+const HUD_GUARD: HitBox = {
+  left: HUD_AREA.left - TOUCH_SLOP,
+  top: HUD_AREA.top - TOUCH_SLOP,
+  width: HUD_AREA.width + 2 * TOUCH_SLOP,
+  height: HUD_AREA.height + 2 * TOUCH_SLOP,
+};
 
 export type Input = 'mouse' | 'touch';
 
@@ -63,21 +76,25 @@ export interface PlanOptions {
 
 const abilityOf = (c: CharacterId): Verb => characterDef(c).ability;
 
-/** 무장 없이 대상을 누르면 고르는 동사 (ui-interaction 2절). 규칙 데이터는 보지 않는다(원칙 1). */
+/**
+ * 무장 없이 대상을 누르면 고르는 동사 (ui-interaction 2절, `interact.ts` `resolveTap`). 규칙 데이터는 보지 않는다(원칙 1).
+ * 서는 자리: 내가 서 있거나 `hold` 자리면 능력, 아니면 `move` (hold 자리 = 능력은 PR #115·#116).
+ */
 export function defaultVerb(screen: ScreenData, char: CharacterId, charAt: string, target: string): Verb {
   if (target === 'floor') return 'move';
-  if (screen.spots[target]) return charAt === target ? abilityOf(char) : 'move';
+  const spot = screen.spots[target];
+  if (spot) return charAt === target || spot.hold === true ? abilityOf(char) : 'move';
   if (screen.hotspots[target]) return abilityOf(char);
   throw new Error(`화면 ${screen.id}에 없는 대상: ${target}`);
 }
 
 /** 동사 → 무장 버튼 id. `move`는 버튼이 없다(3절). */
-function verbButton(verb: Verb, char: CharacterId): string {
+function verbButton(verb: Verb, char: CharacterId): HudId {
   if (verb === abilityOf(char)) return HUD.ability;
   if (verb === 'hand') return HUD.hand;
   if (verb === 'look') return HUD.look;
   if (verb === 'item') throw new Error('item 동사는 M1 재생 범위 밖 (화면 1은 열쇠를 얻는 순간 클리어)');
-  if (verb === 'move') throw new Error('move는 무장 버튼이 없다: 지금 서 있는 자리로 move는 기본 탭으로 못 고른다');
+  if (verb === 'move') throw new Error('move는 무장 버튼이 없다: 지금 서 있는 자리나 hold 자리로 move는 탭으로 못 고른다');
   throw new Error(`${char}는 ${verb} 능력이 없다`);
 }
 
@@ -142,6 +159,7 @@ export function planAction(screen: ScreenData, layout: Layout, action: Action, i
     const box = layout.spots[action.target] ?? layout.hotspots[action.target];
     if (!box) throw new Error(`훅에 대상 상자 없음: ${action.target}`);
     const blockers: HitBox[] = [
+      HUD_GUARD,
       ...Object.entries(layout.spots).filter(([id]) => id !== action.target).map(([, b]) => b),
       ...Object.entries(layout.hotspots).filter(([id]) => id !== action.target).map(([, b]) => b),
     ];
@@ -158,8 +176,9 @@ export function planAction(screen: ScreenData, layout: Layout, action: Action, i
     } else point = p;
   }
 
-  // 4. 터치는 step 행동이 되는 탭을 2번 (4절). 바닥→바닥 걷기만 1번.
-  const isStepTap = action.target !== 'floor' || charAt !== 'floor';
+  // 4. 터치는 step 행동이 되는 탭을 2번 (4절). 바닥(`free` 자리)에서 바닥 걷기만 1번(`interact.ts` floorIntent).
+  const fromFree = charAt === 'floor' || screen.spots[charAt]?.free === true;
+  const isStepTap = action.target !== 'floor' || !fromFree;
   const times = input === 'touch' && isStepTap ? 2 : 1;
   for (let i = 0; i < times; i++) {
     taps.push({ id: action.target, at: point, why: times === 2 ? (i === 0 ? '선택(첫 탭)' : '실행(같은 대상 다시 탭)') : `${action.verb} 실행` });
