@@ -1,22 +1,24 @@
 // 부트스트랩: 엔진(브라우저)과 코어(순수 로직)를 연결한다.
-// 화면 1(magpie_nest)을 탭으로 처음부터 끝까지 푼다(#68). 그림은 임시(placeholder)다.
+// 화면 1(magpie_nest)을 탭으로 처음부터 끝까지 푼다(#68). 캐릭터는 시트가 있으면 시트 그림(#140), 없으면 임시 실루엣이다.
 // 진행 로직은 core/scene.ts에 있다. 여기서는 입력을 넘기고, 결과를 그리고, DOM 말풍선·라벨을 띄운다.
 
 import charactersJson from '../content/characters.json';
 import screenJson from '../content/screens/magpie_nest.json';
 import texts from '../content/text/ko.json';
 import { CHARACTERS, type CharacterId } from './core/characters';
-import { INTERNAL_HEIGHT, INTERNAL_WIDTH, WALK_AREA } from './core/config';
+import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA, WALK_SPEED } from './core/config';
 import type { HitBox } from './core/hit';
 import { GAUGE_CELLS, HUD_AREA } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { createScene, currentBubble, isBusy, sceneLayout, sceneTap, sceneTick, tapContext, type SceneData } from './core/scene';
+import type { Pose } from './core/sprite';
 import { internalToScreen, screenToInternal, type Point } from './core/viewport';
 import { createDisplay } from './engine/display';
 import { onPointerTap } from './engine/input';
 import { startLoop } from './engine/loop';
 import { drawActiveMarker, drawCharacter, drawHud, drawOutline, drawRoom, drawSpark, drawTarget, drawTargets } from './engine/placeholder';
+import { drawSprite } from './engine/sprites';
 
 function need<T extends HTMLElement>(selector: string): T {
   const el = document.querySelector<T>(selector);
@@ -71,10 +73,28 @@ canvas.addEventListener('pointermove', (e) => {
   canvas.style.cursor = r.kind === 'act' ? 'pointer' : 'default';
 });
 
+/** 이번 프레임에 시트 그림으로 그린 캐릭터의 그림 꼭대기. 실루엣으로 그렸으면 없다(히트 박스 위끝을 쓴다). */
+const spriteTops: Partial<Record<CharacterId, number>> = {};
+
 /** 연출 대상(캐릭터 ID 또는 핫스팟 ID)의 머리 위 점. 내부 좌표. */
 function anchorOf(target: string, layout: ReturnType<typeof sceneLayout>): Point | null {
   const box: HitBox | undefined = layout.chars[target as CharacterId] ?? layout.hotspots[target] ?? layout.spots[target];
-  return box ? { x: box.left + box.width / 2, y: box.top } : null;
+  if (!box) return null;
+  const top = Math.min(box.top, spriteTops[target as CharacterId] ?? box.top);
+  return { x: box.left + box.width / 2, y: top };
+}
+
+/** 장면 상태 → 시트 자세. 퍼즐 상태는 자리(`at`)만 본다. 연출은 재생 중인 이벤트로만 안다(ADR-0065 5절). */
+function poseOf(id: CharacterId, layout: ReturnType<typeof sceneLayout>): Pose {
+  const w = scene.walkers[id];
+  const cur = scene.current;
+  const ev = cur?.ev.type === 'anim' && cur.ev.target === id ? cur.ev : null;
+  return {
+    walkedPx: w.target ? w.walkTicks * WALK_SPEED : null,
+    holding: data.screen.spots[layout.at[id]]?.hold === true,
+    event: ev ? { name: ev.name, ms: cur!.t * TICK_MS } : null,
+    clockMs: scene.tick * TICK_MS,
+  };
 }
 
 function placeDom(el: HTMLElement, at: Point): void {
@@ -92,15 +112,23 @@ function render(): void {
   const me = scene.walkers[scene.ui.active];
   if (me.target && !isBusy(scene)) drawTarget(ctx, me.target, scene.tick);
 
-  // 반응 애니메이션(임시): 대상 캐릭터를 좌우로 1px 흔든다.
+  // 반응 애니메이션: 시트에 없는 연출(임시)은 대상 캐릭터 실루엣을 좌우로 1px 흔든다.
   const ev = scene.current?.ev;
   const shaking = ev?.type === 'anim' ? ev.target : null;
   const order = CHARACTERS.map((c) => scene.walkers[c.id]).sort(
     (a, b) => Math.round(a.y) - Math.round(b.y) || (a.id < b.id ? 1 : -1),
   );
   for (const w of order) {
-    const dx = w.id === shaking && Math.floor(scene.tick / 3) % 2 === 1 ? 1 : 0;
-    drawCharacter(ctx, dx ? { ...w, x: w.x + dx } : w);
+    const id = w.id as CharacterId;
+    // 시트에 그 연출이 있으면 시트가 재생하고, 없으면 drawSprite가 null → 실루엣을 흔든다.
+    const top = drawSprite(ctx, w, poseOf(id, layout));
+    if (top === null) {
+      const dx = w.id === shaking && Math.floor(scene.tick / 3) % 2 === 1 ? 1 : 0;
+      delete spriteTops[id];
+      drawCharacter(ctx, dx ? { ...w, x: w.x + dx } : w);
+    } else {
+      spriteTops[id] = top;
+    }
   }
   if (ev?.type === 'fx') {
     const at = anchorOf(ev.target, layout);
@@ -108,7 +136,7 @@ function render(): void {
   }
   if (!isBusy(scene) && !scene.cleared) {
     const box = layout.chars[scene.ui.active];
-    drawActiveMarker(ctx, box.top, me.x, scene.tick);
+    drawActiveMarker(ctx, Math.min(box.top, spriteTops[scene.ui.active] ?? box.top), me.x, scene.tick);
   }
   if (scene.ui.selected) {
     const target = scene.ui.selected.split('|')[2] ?? '';
