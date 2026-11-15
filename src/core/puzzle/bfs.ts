@@ -198,12 +198,19 @@ export function explore<S extends PuzzleStateLike, A extends ActionLike>(
   };
 }
 
-/** M1/M2: for each ability verb, is the screen still solvable without it? */
+/**
+ * For each ability verb, is the screen unsolvable without it?
+ * `null` = the search was truncated before a clear was found, so necessity is unknown.
+ */
 export function requiredAbilities<S extends PuzzleStateLike, A extends ActionLike>(
   host: BfsHost<S, A>,
   abilities: string[],
-): Record<string, boolean> {
-  const out: Record<string, boolean> = {};
-  for (const v of abilities) out[v] = !explore(host, { excludeVerb: v }).clearReachable;
+  maxStates?: number,
+): Record<string, boolean | null> {
+  const out: Record<string, boolean | null> = {};
+  for (const v of abilities) {
+    const r = explore(host, { excludeVerb: v, ...(maxStates === undefined ? {} : { maxStates }) });
+    out[v] = r.clearReachable ? false : r.truncated ? null : true;
+  }
   return out;
 }
