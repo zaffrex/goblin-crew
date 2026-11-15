@@ -1,4 +1,18 @@
 {
+  "fallbacks": {
+    "jjuk": {
+      "look": { "show": [{ "say": ["self", "char.jjuk.look"] }] },
+      "hand": { "show": [{ "say": ["self", "char.jjuk.hand"] }] }
+    },
+    "mukjik": {
+      "look": { "show": [{ "say": ["self", "char.mukjik.look"] }] },
+      "hand": { "show": [{ "say": ["self", "char.mukjik.hand"] }] }
+    },
+    "ppik": {
+      "look": { "show": [{ "say": ["self", "char.ppik.look"] }] },
+      "hand": { "show": [{ "say": ["self", "char.ppik.hand"] }] }
+    }
+  },
   "hints": {
     "jjuk": {
       "squeak": "char.jjuk.hint_squeak",
