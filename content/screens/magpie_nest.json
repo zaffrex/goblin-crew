@@ -1,0 +1,1233 @@
+{
+  "id": "magpie_nest",
+  "note": "화면 1 빨랫대 까치 둥지. 설계: docs/design/screens/magpie_nest.md (#66). 'common.'으로 시작하는 anim은 공용 리액션·능력 동작(ADR-0018 R2), 나머지가 화면 고유 반응(R1)",
+  "spots": {
+    "floor": {
+      "x": 400,
+      "y": 244,
+      "free": true,
+      "note": "설계 문서의 yard. 시작 좌표: 쭉이 360,244 / 묵직이 400,244 / 삑삑이 440,244 (엔진 배치)"
+    },
+    "seesaw_left": {
+      "x": 220,
+      "y": 214,
+      "box": [
+        208,
+        196,
+        38,
+        24
+      ],
+      "takenShow": [
+        {
+          "say": [
+            "self",
+            "magpie_nest.spot_taken"
+          ]
+        }
+      ],
+      "note": "고리 쪽 끝"
+    },
+    "seesaw_right": {
+      "x": 284,
+      "y": 214,
+      "box": [
+        250,
+        196,
+        38,
+        24
+      ],
+      "takenShow": [
+        {
+          "say": [
+            "self",
+            "magpie_nest.spot_taken"
+          ]
+        }
+      ],
+      "note": "빨랫줄 쪽 끝"
+    },
+    "hook": {
+      "x": 160,
+      "y": 160,
+      "box": [
+        150,
+        84,
+        24,
+        24
+      ],
+      "hold": true,
+      "releaseTo": "floor",
+      "releaseShow": {
+        "default": [
+          {
+            "anim": [
+              "self",
+              "common.bump_bottom"
+            ]
+          },
+          {
+            "say": [
+              "self",
+              "magpie_nest.let_go_jjuk"
+            ]
+          }
+        ],
+        "ppik": [
+          {
+            "anim": [
+              "ppik",
+              "common.bump_bottom"
+            ]
+          },
+          {
+            "say": [
+              "ppik",
+              "magpie_nest.let_go_ppik"
+            ]
+          }
+        ]
+      },
+      "note": "유일한 유지 상태(S2). 발사로만 온다. 손 놓으면 바구니(floor)로"
+    }
+  },
+  "hotspots": {
+    "magpie": {
+      "box": [
+        134,
+        6,
+        24,
+        24
+      ],
+      "hintAbility": "squeak",
+      "variants": [
+        {
+          "when": {
+            "flags": {
+              "magpie.on_ground": true
+            }
+          },
+          "box": [
+            88,
+            212,
+            24,
+            24
+          ]
+        }
+      ],
+      "note": "둥지 위 / 바닥, 핫스팟 하나"
+    },
+    "nest": {
+      "box": [
+        128,
+        30,
+        36,
+        24
+      ],
+      "hintAbility": "stretch",
+      "reachPoint": [
+        150,
+        34
+      ],
+      "note": "열쇠 반짝임 150,33 (진입 즉시 보임, X4)"
+    },
+    "basket": {
+      "box": [
+        144,
+        212,
+        32,
+        24
+      ],
+      "note": "장난감. 고리 바로 아래, 떨어지는 사람이 들어감"
+    },
+    "long_johns": {
+      "box": [
+        372,
+        112,
+        32,
+        40
+      ],
+      "note": "장난감"
+    }
+  },
+  "flags": {
+    "magpie.on_ground": false,
+    "nest.key_taken": false
+  },
+  "start": {
+    "at": {
+      "jjuk": "floor",
+      "mukjik": "floor",
+      "ppik": "floor"
+    },
+    "items": []
+  },
+  "exitFlag": "nest.key_taken",
+  "onEnter": [
+    {
+      "fx": [
+        "chirp_text",
+        "magpie"
+      ]
+    },
+    {
+      "anim": [
+        "magpie",
+        "ruffle"
+      ]
+    },
+    {
+      "say": [
+        "ppik",
+        "magpie_nest.enter"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "hook_jjuk_nest_key",
+      "target": "nest",
+      "verb": "stretch",
+      "when": {
+        "at": [
+          "hook"
+        ],
+        "flags": {
+          "magpie.on_ground": true
+        }
+      },
+      "do": {
+        "set": {
+          "nest.key_taken": true
+        },
+        "give": [
+          "item.shop_key"
+        ],
+        "move": [
+          {
+            "who": "self",
+            "to": "floor"
+          }
+        ]
+      },
+      "show": [
+        {
+          "anim": [
+            "jjuk",
+            "reach_hang_up"
+          ]
+        },
+        {
+          "say": [
+            "jjuk",
+            "magpie_nest.key_got"
+          ]
+        }
+      ],
+      "note": "#1 정답. 클리어 컷(U10, L32)은 clear 이벤트 뒤 엔진이 재생(#68)"
+    },
+    {
+      "id": "hook_jjuk_pecked",
+      "target": "nest",
+      "verb": "stretch",
+      "when": {
+        "at": [
+          "hook"
+        ],
+        "flags": {
+          "magpie.on_ground": false
+        }
+      },
+      "do": {
+        "move": [
+          {
+            "who": "self",
+            "to": "floor"
+          }
+        ],
+        "gauge": -1
+      },
+      "show": [
+        {
+          "anim": [
+            "magpie",
+            "peck"
+          ]
+        },
+        {
+          "anim": [
+            "jjuk",
+            "common.zap"
+          ]
+        },
+        {
+          "say": [
+            "jjuk",
+            [
+              "magpie_nest.hook_pecked",
+              "magpie_nest.hook_pecked_again"
+            ]
+          ]
+        }
+      ],
+      "note": "#2 다치는 실패"
+    },
+    {
+      "id": "hook_jjuk_pecked_magpie",
+      "target": "magpie",
+      "verb": "stretch",
+      "when": {
+        "at": [
+          "hook"
+        ],
+        "flags": {
+          "magpie.on_ground": false
+        }
+      },
+      "do": {
+        "move": [
+          {
+            "who": "self",
+            "to": "floor"
+          }
+        ],
+        "gauge": -1
+      },
+      "show": [
+        {
+          "anim": [
+            "magpie",
+            "peck"
+          ]
+        },
+        {
+          "anim": [
+            "jjuk",
+            "common.zap"
+          ]
+        },
+        {
+          "say": [
+            "jjuk",
+            [
+              "magpie_nest.hook_pecked",
+              "magpie_nest.hook_pecked_again"
+            ]
+          ]
+        }
+      ],
+      "note": "#2 다치는 실패(대상이 까치일 때)"
+    },
+    {
+      "id": "magpie_squeak_down",
+      "target": "magpie",
+      "verb": "squeak",
+      "when": {
+        "flags": {
+          "magpie.on_ground": false
+        }
+      },
+      "do": {
+        "set": {
+          "magpie.on_ground": true
+        }
+      },
+      "show": [
+        {
+          "anim": [
+            "ppik",
+            "common.squeeze_chicken"
+          ]
+        },
+        {
+          "fx": [
+            "squeak_text",
+            "ppik"
+          ]
+        },
+        {
+          "anim": [
+            "magpie",
+            "fly_down"
+          ]
+        },
+        {
+          "say": [
+            "ppik",
+            "magpie_nest.squeak_down"
+          ]
+        }
+      ],
+      "note": "#4 정답"
+    },
+    {
+      "id": "magpie_squeak_again",
+      "target": "magpie",
+      "verb": "squeak",
+      "when": {
+        "flags": {
+          "magpie.on_ground": true
+        }
+      },
+      "show": [
+        {
+          "anim": [
+            "ppik",
+            "common.squeeze_chicken"
+          ]
+        },
+        {
+          "fx": [
+            "squeak_text",
+            "ppik"
+          ]
+        },
+        {
+          "anim": [
+            "magpie",
+            "ruffle"
+          ]
+        },
+        {
+          "fx": [
+            "kkak_text",
+            "magpie"
+          ]
+        },
+        {
+          "say": [
+            "ppik",
+            "magpie_nest.squeak_again"
+          ]
+        }
+      ],
+      "note": "#5"
+    },
+    {
+      "id": "magpie_stomp_back",
+      "target": "magpie",
+      "verb": "stomp",
+      "when": {
+        "flags": {
+          "magpie.on_ground": true
+        }
+      },
+      "do": {
+        "set": {
+          "magpie.on_ground": false
+        }
+      },
+      "show": [
+        {
+          "anim": [
+            "mukjik",
+            "common.stomp"
+          ]
+        },
+        {
+          "fx": [
+            "dust",
+            "magpie"
+          ]
+        },
+        {
+          "anim": [
+            "magpie",
+            "fly_up"
+          ]
+        },
+        {
+          "say": [
+            "ppik",
+            "magpie_nest.stomp_back"
+          ]
+        }
+      ],
+      "note": "#6 까치가 둥지로. 삑삑이가 소리 단서를 말함(C7)"
+    },
+    {
+      "id": "magpie_stretch_pecked",
+      "target": "magpie",
+      "verb": "stretch",
+      "when": {
+        "flags": {
+          "magpie.on_ground": true
+        }
+      },
+      "do": {
+        "gauge": -1
+      },
+      "show": [
+        {
+          "anim": [
+            "magpie",
+            "peck"
+          ]
+        },
+        {
+          "anim": [
+            "jjuk",
+            "common.zap"
+          ]
+        },
+        {
+          "say": [
+            "jjuk",
+            [
+              "magpie_nest.magpie_pecked",
+              "magpie_nest.magpie_pecked_again"
+            ]
+          ]
+        }
+      ],
+      "note": "#7 다치는 실패. 고리에 매달린 경우는 hold 단계가 먼저 처리"
+    },
+    {
+      "id": "nest_stretch_short",
+      "target": "nest",
+      "verb": "stretch",
+      "show": [
+        {
+          "anim": [
+            "jjuk",
+            "common.reach_wobble"
+          ]
+        },
+        {
+          "say": [
+            "jjuk",
+            [
+              "magpie_nest.nest_too_short",
+              "magpie_nest.nest_too_short_again"
+            ]
+          ]
+        }
+      ],
+      "note": "#8 높이 단서"
+    },
+    {
+      "id": "hook_stretch_short",
+      "target": "hook",
+      "verb": "stretch",
+      "show": [
+        {
+          "anim": [
+            "jjuk",
+            "common.reach_wobble"
+          ]
+        },
+        {
+          "fx": [
+            "ting_text",
+            "hook"
+          ]
+        },
+        {
+          "say": [
+            "jjuk",
+            [
+              "magpie_nest.hook_too_short",
+              "magpie_nest.hook_too_short_again"
+            ]
+          ]
+        }
+      ],
+      "note": "#9 발사 단서"
+    },
+    {
+      "id": "seesaw_end_taken_right",
+      "target": "seesaw_right",
+      "verb": "stomp",
+      "when": {
+        "occupied": {
+          "seesaw_right": true
+        }
+      },
+      "show": [
+        {
+          "say": [
+            "mukjik",
+            "magpie_nest.seesaw_end_taken"
+          ]
+        }
+      ],
+      "note": "#10. 묵직이는 approach(floor)로 먼저 내려서므로 자기 자신은 안 걸린다"
+    },
+    {
+      "id": "seesaw_launch",
+      "target": "seesaw_right",
+      "verb": "stomp",
+      "when": {
+        "occupied": {
+          "seesaw_left": true,
+          "hook": false
+        }
+      },
+      "do": {
+        "move": [
+          {
+            "from": "seesaw_left",
+            "to": "hook"
+          }
+        ]
+      },
+      "show": [
+        {
+          "anim": [
+            "mukjik",
+            "common.stomp"
+          ]
+        },
+        {
+          "anim": [
+            "seesaw_right",
+            "plank_bounce"
+          ]
+        },
+        {
+          "anim": [
+            "@seesaw_left",
+            "launch_to_hook"
+          ]
+        },
+        {
+          "say": [
+            "@seesaw_left",
+            "magpie_nest.launch"
+          ]
+        }
+      ],
+      "note": "#11 정답(쭉이) + #12(삑삑이). 문법에 '그 자리에 누가 있나' 조건이 없어 한 규칙으로 합침. 삑삑이 전용 대사 L13은 화자별 텍스트 지원 뒤 분리"
+    },
+    {
+      "id": "seesaw_launch_bump",
+      "target": "seesaw_right",
+      "verb": "stomp",
+      "when": {
+        "occupied": {
+          "seesaw_left": true,
+          "hook": true
+        }
+      },
+      "do": {
+        "move": [
+          {
+            "from": "seesaw_left",
+            "to": "floor"
+          },
+          {
+            "from": "hook",
+            "to": "floor"
+          }
+        ],
+        "gauge": -1
+      },
+      "show": [
+        {
+          "anim": [
+            "mukjik",
+            "common.stomp"
+          ]
+        },
+        {
+          "anim": [
+            "seesaw_right",
+            "plank_bounce"
+          ]
+        },
+        {
+          "anim": [
+            "@seesaw_left",
+            "common.flatten"
+          ]
+        },
+        {
+          "anim": [
+            "@hook",
+            "common.flatten"
+          ]
+        },
+        {
+          "say": [
+            "@hook",
+            "magpie_nest.bump"
+          ]
+        }
+      ],
+      "note": "#13 다치는 실패"
+    },
+    {
+      "id": "seesaw_self_smack_right",
+      "target": "seesaw_right",
+      "verb": "stomp",
+      "when": {
+        "occupied": {
+          "seesaw_left": false
+        }
+      },
+      "do": {
+        "gauge": -1
+      },
+      "show": [
+        {
+          "anim": [
+            "mukjik",
+            "common.stomp"
+          ]
+        },
+        {
+          "anim": [
+            "seesaw_left",
+            "plank_bounce"
+          ]
+        },
+        {
+          "anim": [
+            "mukjik",
+            "common.flatten"
+          ]
+        },
+        {
+          "fx": [
+            "stars",
+            "mukjik"
+          ]
+        },
+        {
+          "say": [
+            "mukjik",
+            [
+              "magpie_nest.self_smack",
+              "magpie_nest.self_smack_again"
+            ]
+          ]
+        }
+      ],
+      "note": "#15 다치는 실패"
+    },
+    {
+      "id": "seesaw_end_taken_left",
+      "target": "seesaw_left",
+      "verb": "stomp",
+      "when": {
+        "occupied": {
+          "seesaw_left": true
+        }
+      },
+      "show": [
+        {
+          "say": [
+            "mukjik",
+            "magpie_nest.seesaw_end_taken"
+          ]
+        }
+      ],
+      "note": "#10"
+    },
+    {
+      "id": "seesaw_launch_wrong_way",
+      "target": "seesaw_left",
+      "verb": "stomp",
+      "when": {
+        "occupied": {
+          "seesaw_right": true
+        }
+      },
+      "do": {
+        "move": [
+          {
+            "from": "seesaw_right",
+            "to": "floor"
+          }
+        ],
+        "gauge": -1
+      },
+      "show": [
+        {
+          "anim": [
+            "mukjik",
+            "common.stomp"
+          ]
+        },
+        {
+          "anim": [
+            "seesaw_left",
+            "plank_bounce"
+          ]
+        },
+        {
+          "anim": [
+            "long_johns",
+            "flutter"
+          ]
+        },
+        {
+          "anim": [
+            "@seesaw_right",
+            "common.bump_bottom"
+          ]
+        },
+        {
+          "say": [
+            "@seesaw_right",
+            [
+              "magpie_nest.wrong_way",
+              "magpie_nest.wrong_way_again"
+            ]
+          ]
+        }
+      ],
+      "note": "#14 다치는 실패(방향 단서)"
+    },
+    {
+      "id": "seesaw_self_smack_left",
+      "target": "seesaw_left",
+      "verb": "stomp",
+      "when": {
+        "occupied": {
+          "seesaw_right": false
+        }
+      },
+      "do": {
+        "gauge": -1
+      },
+      "show": [
+        {
+          "anim": [
+            "mukjik",
+            "common.stomp"
+          ]
+        },
+        {
+          "anim": [
+            "seesaw_right",
+            "plank_bounce"
+          ]
+        },
+        {
+          "anim": [
+            "mukjik",
+            "common.flatten"
+          ]
+        },
+        {
+          "fx": [
+            "stars",
+            "mukjik"
+          ]
+        },
+        {
+          "say": [
+            "mukjik",
+            [
+              "magpie_nest.self_smack",
+              "magpie_nest.self_smack_again"
+            ]
+          ]
+        }
+      ],
+      "note": "#15 다치는 실패"
+    }
+  ],
+  "fallbacks": {
+    "magpie": {
+      "stretch": {
+        "show": [
+          {
+            "anim": [
+              "jjuk",
+              "common.stretch"
+            ]
+          },
+          {
+            "anim": [
+              "magpie",
+              "ruffle"
+            ]
+          },
+          {
+            "say": [
+              "jjuk",
+              "magpie_nest.magpie_tease"
+            ]
+          }
+        ]
+      },
+      "stomp": {
+        "show": [
+          {
+            "anim": [
+              "mukjik",
+              "common.stomp"
+            ]
+          },
+          {
+            "anim": [
+              "magpie",
+              "ruffle"
+            ]
+          },
+          {
+            "fx": [
+              "kkak_text",
+              "magpie"
+            ]
+          },
+          {
+            "say": [
+              "mukjik",
+              "magpie_nest.magpie_wont_come"
+            ]
+          }
+        ]
+      }
+    },
+    "nest": {
+      "stomp": {
+        "show": [
+          {
+            "anim": [
+              "mukjik",
+              "common.stomp"
+            ]
+          },
+          {
+            "fx": [
+              "twig_drop",
+              "mukjik"
+            ]
+          },
+          {
+            "say": [
+              "mukjik",
+              "magpie_nest.nest_twig"
+            ]
+          }
+        ]
+      },
+      "squeak": {
+        "show": [
+          {
+            "anim": [
+              "ppik",
+              "common.squeeze_chicken"
+            ]
+          },
+          {
+            "fx": [
+              "squeak_text",
+              "nest"
+            ]
+          },
+          {
+            "fx": [
+              "small_squeak_text",
+              "ppik"
+            ]
+          },
+          {
+            "say": [
+              "ppik",
+              "magpie_nest.nest_no_answer"
+            ]
+          }
+        ]
+      }
+    },
+    "hook": {
+      "stomp": {
+        "show": [
+          {
+            "anim": [
+              "mukjik",
+              "common.stomp"
+            ]
+          },
+          {
+            "fx": [
+              "shake",
+              "hook"
+            ]
+          },
+          {
+            "fx": [
+              "clang_text",
+              "hook"
+            ]
+          },
+          {
+            "say": [
+              "mukjik",
+              "magpie_nest.hook_high"
+            ]
+          }
+        ]
+      },
+      "squeak": {
+        "show": [
+          {
+            "anim": [
+              "ppik",
+              "common.shiver"
+            ]
+          },
+          {
+            "say": [
+              "ppik",
+              "magpie_nest.hook_scary"
+            ]
+          }
+        ]
+      }
+    },
+    "seesaw_left": {
+      "stretch": {
+        "show": [
+          {
+            "anim": [
+              "jjuk",
+              "common.stretch"
+            ]
+          },
+          {
+            "fx": [
+              "creak_text",
+              "seesaw_left"
+            ]
+          },
+          {
+            "say": [
+              "jjuk",
+              "magpie_nest.seesaw_creak"
+            ]
+          }
+        ]
+      },
+      "squeak": {
+        "show": [
+          {
+            "anim": [
+              "ppik",
+              "common.squeeze_chicken"
+            ]
+          },
+          {
+            "fx": [
+              "squeak_bounce",
+              "seesaw_left"
+            ]
+          },
+          {
+            "say": [
+              "ppik",
+              "magpie_nest.seesaw_weightless"
+            ]
+          }
+        ]
+      }
+    },
+    "seesaw_right": {
+      "stretch": {
+        "show": [
+          {
+            "anim": [
+              "jjuk",
+              "common.stretch"
+            ]
+          },
+          {
+            "fx": [
+              "creak_text",
+              "seesaw_right"
+            ]
+          },
+          {
+            "say": [
+              "jjuk",
+              "magpie_nest.seesaw_creak"
+            ]
+          }
+        ]
+      },
+      "squeak": {
+        "show": [
+          {
+            "anim": [
+              "ppik",
+              "common.squeeze_chicken"
+            ]
+          },
+          {
+            "fx": [
+              "squeak_bounce",
+              "seesaw_right"
+            ]
+          },
+          {
+            "say": [
+              "ppik",
+              "magpie_nest.seesaw_weightless"
+            ]
+          }
+        ]
+      }
+    },
+    "basket": {
+      "stretch": {
+        "show": [
+          {
+            "anim": [
+              "jjuk",
+              "common.stretch"
+            ]
+          },
+          {
+            "fx": [
+              "sock_lift",
+              "basket"
+            ]
+          },
+          {
+            "say": [
+              "jjuk",
+              "magpie_nest.basket_soft"
+            ]
+          }
+        ]
+      },
+      "stomp": {
+        "show": [
+          {
+            "anim": [
+              "mukjik",
+              "common.stomp"
+            ]
+          },
+          {
+            "fx": [
+              "shake",
+              "basket"
+            ]
+          },
+          {
+            "fx": [
+              "sock_on_head",
+              "mukjik"
+            ]
+          },
+          {
+            "say": [
+              "mukjik",
+              "magpie_nest.basket_sock"
+            ]
+          }
+        ]
+      },
+      "squeak": {
+        "show": [
+          {
+            "anim": [
+              "ppik",
+              "hide_in_basket"
+            ]
+          },
+          {
+            "say": [
+              "ppik",
+              "magpie_nest.basket_cozy"
+            ]
+          }
+        ]
+      }
+    },
+    "long_johns": {
+      "stretch": {
+        "show": [
+          {
+            "anim": [
+              "long_johns",
+              "flutter"
+            ]
+          },
+          {
+            "anim": [
+              "jjuk",
+              "common.wet"
+            ]
+          },
+          {
+            "say": [
+              "jjuk",
+              "magpie_nest.long_johns_whose"
+            ]
+          }
+        ]
+      },
+      "stomp": {
+        "show": [
+          {
+            "anim": [
+              "mukjik",
+              "common.stomp"
+            ]
+          },
+          {
+            "anim": [
+              "long_johns",
+              "flutter"
+            ]
+          },
+          {
+            "fx": [
+              "long_johns_hat",
+              "mukjik"
+            ]
+          },
+          {
+            "say": [
+              "mukjik",
+              "magpie_nest.long_johns_not_mine"
+            ]
+          }
+        ]
+      },
+      "squeak": {
+        "show": [
+          {
+            "anim": [
+              "ppik",
+              "common.wag_finger"
+            ]
+          },
+          {
+            "say": [
+              "ppik",
+              "magpie_nest.long_johns_dont_touch"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "solution": [
+    {
+      "char": "ppik",
+      "verb": "squeak",
+      "target": "magpie"
+    },
+    {
+      "char": "jjuk",
+      "verb": "move",
+      "target": "seesaw_left"
+    },
+    {
+      "char": "mukjik",
+      "verb": "stomp",
+      "target": "seesaw_right"
+    },
+    {
+      "char": "jjuk",
+      "verb": "stretch",
+      "target": "nest"
+    }
+  ]
+}

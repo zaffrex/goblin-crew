@@ -1,0 +1,16 @@
+{
+  "hints": {
+    "jjuk": {
+      "squeak": "char.jjuk.hint_squeak",
+      "stomp": "char.jjuk.hint_stomp"
+    },
+    "mukjik": {
+      "squeak": "char.mukjik.hint_squeak",
+      "stretch": "char.mukjik.hint_stretch"
+    },
+    "ppik": {
+      "stretch": "char.ppik.hint_stretch",
+      "stomp": "char.ppik.hint_stomp"
+    }
+  }
+}
