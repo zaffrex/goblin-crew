@@ -1,0 +1,149 @@
+// 스프라이트 시트 검사 (ADR-0007 결정 7·8). 시트는 node art/build.mjs로 만든다.
+// - 다시 만들면 커밋된 파일과 바이트가 같아야 한다(원본과 출력이 어긋나지 않게)
+// - 8비트 인덱스 PNG, 팔레트는 보송 32색(+ 투명 1칸)뿐
+// - 메타데이터: 칸은 16의 배수, 이미지 폭 = 칸 × 프레임 수, 기준점은 칸 안
+// - 캐릭터 시트 합계 300KB 경고선
+
+import { describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+const ROOT = join(import.meta.dirname, '..', '..');
+const DIR = join(ROOT, 'public', 'sprites');
+const BOSONG = readFileSync(join(ROOT, 'docs', 'design', 'art', 'bosong-32.hex'), 'utf8')
+  .split('\n')
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
+
+interface Png {
+  width: number;
+  height: number;
+  bitDepth: number;
+  colorType: number;
+  plte: string[];
+  trns: number[];
+}
+
+function readPng(buf: Buffer): Png {
+  expect(buf.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+  const png: Png = { width: 0, height: 0, bitDepth: 0, colorType: 0, plte: [], trns: [] };
+  let off = 8;
+  while (off < buf.length) {
+    const len = buf.readUInt32BE(off);
+    const type = buf.toString('ascii', off + 4, off + 8);
+    const data = buf.subarray(off + 8, off + 8 + len);
+    if (type === 'IHDR') {
+      png.width = data.readUInt32BE(0);
+      png.height = data.readUInt32BE(4);
+      png.bitDepth = data.readUInt8(8);
+      png.colorType = data.readUInt8(9);
+    } else if (type === 'PLTE') {
+      for (let i = 0; i < data.length; i += 3) png.plte.push(data.subarray(i, i + 3).toString('hex'));
+    } else if (type === 'tRNS') {
+      png.trns = [...data];
+    }
+    off += 12 + len;
+  }
+  return png;
+}
+
+interface Meta {
+  image: string;
+  cell: [number, number];
+  anchor: [number, number];
+  hit: [number, number, number, number];
+  head: [number, number, number, number];
+  walkCycle?: number;
+  anims: Record<string, { frames: number[]; ms?: number[]; by?: string }>;
+}
+
+const metas = readdirSync(DIR).filter((f) => f.endsWith('.json'));
+
+describe('sprite sheets', () => {
+  it('보송 팔레트 파일은 32색이다', () => {
+    expect(BOSONG).toHaveLength(32);
+  });
+
+  it('원본(art/)으로 다시 만들면 커밋된 시트와 같다', () => {
+    // 실패하면: node art/build.mjs 를 돌려 나온 파일을 커밋한다
+    expect(() => execFileSync(process.execPath, [join(ROOT, 'art', 'build.mjs'), '--check'], { stdio: 'pipe' })).not.toThrow();
+  });
+
+  it('시트가 하나 이상 있다', () => {
+    expect(metas.length).toBeGreaterThan(0);
+  });
+
+  it('캐릭터 시트 합계가 300KB 경고선 안이다', () => {
+    const total = readdirSync(DIR)
+      .filter((f) => f.endsWith('.png'))
+      .reduce((n, f) => n + readFileSync(join(DIR, f)).length, 0);
+    expect(total).toBeLessThan(300 * 1024);
+  });
+
+  for (const file of metas) {
+    describe(file, () => {
+      const meta = JSON.parse(readFileSync(join(DIR, file), 'utf8')) as Meta;
+      const png = readPng(readFileSync(join(DIR, meta.image)));
+
+      it('8비트 인덱스 PNG이고 팔레트는 보송 32색(+ 투명 32번)뿐이다', () => {
+        expect(png.colorType).toBe(3);
+        expect(png.bitDepth).toBe(8);
+        expect(png.plte.length).toBeGreaterThanOrEqual(32);
+        expect(png.plte.length).toBeLessThanOrEqual(33);
+        expect(png.plte.slice(0, 32)).toEqual(BOSONG);
+        if (png.plte.length === 33) {
+          expect(png.trns).toHaveLength(33);
+          expect(png.trns.slice(0, 32).every((a) => a === 255)).toBe(true);
+          expect(png.trns[32]).toBe(0);
+        }
+      });
+
+      it('칸은 16의 배수이고 이미지 = 칸 × 프레임 수(가로 한 줄)', () => {
+        const [cw, ch] = meta.cell;
+        expect(cw % 16).toBe(0);
+        expect(ch % 16).toBe(0);
+        const frames = Object.values(meta.anims).flatMap((a) => a.frames);
+        expect(new Set(frames).size).toBe(frames.length);
+        expect(png.width).toBe(cw * frames.length);
+        expect(png.height).toBe(ch);
+        expect(Math.max(...frames)).toBe(frames.length - 1);
+      });
+
+      it('기준점·히트 영역·머리 박스가 칸 안에 있다', () => {
+        const [cw, ch] = meta.cell;
+        const [ax, ay] = meta.anchor;
+        expect(Number.isInteger(ax)).toBe(true);
+        expect(ax).toBeGreaterThan(0);
+        expect(ax).toBeLessThan(cw);
+        expect(ay).toBe(ch);
+        for (const [x, y, w, h] of [meta.hit, meta.head]) {
+          expect(x).toBeGreaterThanOrEqual(0);
+          expect(y).toBeGreaterThanOrEqual(0);
+          expect(x + w).toBeLessThanOrEqual(cw);
+          expect(y + h).toBeLessThanOrEqual(ch);
+        }
+        // UI 초상화는 머리 박스를 24×24로 자른다(ADR-0007 결정 4)
+        expect(meta.head[2]).toBeLessThanOrEqual(24);
+        expect(meta.head[3]).toBeLessThanOrEqual(24);
+      });
+
+      it('걷기는 6장이고 거리로 넘기며 walkCycle이 있다(ADR-0007 결정 5)', () => {
+        const walk = meta.anims.walk;
+        if (!walk) return;
+        expect(walk.frames).toHaveLength(6);
+        expect(walk.by).toBe('distance');
+        expect(meta.walkCycle).toBeGreaterThan(0);
+        expect(meta.walkCycle! % 6).toBe(0);
+      });
+
+      it('시간으로 넘기는 애니메이션은 50ms 배수다', () => {
+        for (const a of Object.values(meta.anims)) {
+          if (!a.ms) continue;
+          expect(a.ms).toHaveLength(a.frames.length);
+          for (const ms of a.ms) expect(ms % 50).toBe(0);
+        }
+      });
+    });
+  }
+});
