@@ -278,7 +278,7 @@ const seesaw = pic((im) => {
 
 // ═════════════ 빨래 바구니 (basket, 그림 144,220 32×16, 히트 144,212 32×24) ═════════════
 // 위에서 살짝 내려다본 등나무 바구니. 뒤판(물건 기본 그림) = 꼬인 테두리 뒤쪽 + 어두운 안쪽 + 그 안의 빨래.
-// 앞판(overlay, sortY 236) = 테두리 앞쪽 + 엮은 앞벽 226~236(높이 10px, 설계 1-4절 3번). 바구니 안 캐릭터는 앞판 뒤에 선다.
+// 앞판(overlay, sortY 236) = 테두리 앞쪽 + 엮은 앞벽 226~236(높이 10px, 설계 1-4절 3번. 외곽선 포함 225~236). 바구니 안 캐릭터는 앞판 뒤에 선다.
 const BASKET = { X0: 144, X1: 176, RIM: 220, FRONT: 226, BOT: 236 };
 
 const basketBack = pic((im) => {
@@ -314,16 +314,17 @@ const basketFront = pic((im) => {
     if (y === BOT - 1) c = C.woodD;
     return c;
   });
-  // 테두리 앞쪽(꼬인 줄 3단, 빛을 받는다)
+  // 테두리 앞쪽(꼬인 줄 3단, 빛을 받는다). 앞벽 윗줄에 겹쳐 그려 외곽선 포함 위 끝이 225다
+  // (발 235 위 10px 이하, 형식 기록 6절 개정 1. 위로 올리면 삑삑이가 머리만 남는다)
   for (let x = X0 - 1; x < X1 + 1; x++) {
-    im.set(x, FRONT - 2, x % 3 === 0 ? C.woodL : C.tan);
-    im.set(x, FRONT - 1, x % 3 === 1 ? C.woodL : C.wood);
-    im.set(x, FRONT, x % 3 === 2 ? C.wood : C.woodD);
+    im.set(x, FRONT, x % 3 === 0 ? C.woodL : C.tan);
+    im.set(x, FRONT + 1, x % 3 === 1 ? C.woodL : C.wood);
+    im.set(x, FRONT + 2, x % 3 === 2 ? C.wood : C.woodD);
   }
   // 손잡이 구멍 둘 + 앞으로 늘어진 셔츠 소매(단추)
-  stamp(im, X0 + 1, FRONT + 2, ['kk', 'k.'], { k: C.woodD });
-  stamp(im, X1 - 3, FRONT + 2, ['kk', '.k'], { k: C.woodD });
-  stamp(im, 150, FRONT - 1, ['cwwc', '.cwc', '.cwc', '.lll', '..t.'], { w: C.white, c: C.cotton, l: C.lint, t: C.tealM });
+  stamp(im, X0 + 1, FRONT + 4, ['kk', 'k.'], { k: C.woodD });
+  stamp(im, X1 - 3, FRONT + 4, ['kk', '.k'], { k: C.woodD });
+  stamp(im, 150, FRONT + 1, ['cwwc', '.cwc', '.cwc', '.lll', '..t.'], { w: C.white, c: C.cotton, l: C.lint, t: C.tealM });
 });
 
 // ═════════════ 물건 목록 (형식 3절. 적은 순서 = 뒤 → 앞, 설계 1-4절) ═════════════
