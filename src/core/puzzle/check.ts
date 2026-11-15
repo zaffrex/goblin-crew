@@ -1,15 +1,15 @@
 // Screen checker (#67): wires the real `step` into the generic BFS explorer (ADR-0096) and
 // replays the screen's `solution`. Part 1 = M1 required items; damage-dependence warnings come in part 2.
 
-import { CHARACTERS } from '../characters';
-import { explore, requiredAbilities, type BfsHost, type ExploreResult } from './bfs';
+import { explore, type BfsHost, type ExploreResult } from './bfs';
 import { initialState, step } from './step';
 import type { Action, CharactersData, PuzzleState, ScreenData, Verb } from './types';
 import { VERBS } from './types';
 
 export function screenHost(screen: ScreenData, characters?: CharactersData): BfsHost<PuzzleState, Action> {
   const targets = [...new Set([...Object.keys(screen.spots), ...Object.keys(screen.hotspots)])];
-  const chars = CHARACTERS.map((c) => c.id);
+  // Characters of this screen come from `start.at`, not the global roster.
+  const chars = Object.keys(screen.start.at) as Action['char'][];
   return {
     initial: initialState(screen),
     step: (s, a) => step(screen, s, a, characters),
@@ -31,7 +31,8 @@ export function screenHost(screen: ScreenData, characters?: CharactersData): Bfs
 
 export interface ScreenReport {
   explore: ExploreResult<PuzzleState, Action>;
-  requiredAbilities: Record<string, boolean>;
+  /** true = removing the ability makes clear unreachable. `null` = could not be judged (the search was truncated). */
+  requiredAbilities: Record<string, boolean | null>;
   /** Empty when `solution` replays cleanly to a clear without fainting. */
   solutionProblems: string[];
 }
@@ -56,11 +57,63 @@ export function replaySolution(screen: ScreenData, characters?: CharactersData):
   return problems;
 }
 
+function required(host: BfsHost<PuzzleState, Action>, abilities: string[], maxStates?: number): Record<string, boolean | null> {
+  const out: Record<string, boolean | null> = {};
+  for (const v of abilities) {
+    const r = explore(host, { excludeVerb: v, ...(maxStates === undefined ? {} : { maxStates }) });
+    // A truncated search that has not found a clear says nothing about necessity.
+    out[v] = r.clearReachable ? false : r.truncated ? null : true;
+  }
+  return out;
+}
+
+/** ADR-0018 R1: distinct `anim` names the screen uses, not counting shared `common.*` ones. */
+export function uniqueReactions(screen: ScreenData): number {
+  const names = new Set<string>();
+  const walk = (v: unknown): void => {
+    if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === 'object') {
+      const o = v as Record<string, unknown>;
+      const a = o.anim;
+      if (Array.isArray(a) && typeof a[1] === 'string' && !a[1].startsWith('common.')) names.add(a[1]);
+      Object.values(o).forEach(walk);
+    }
+  };
+  walk([screen.rules, screen.fallbacks, screen.onEnter]);
+  return names.size;
+}
+
 export function checkScreen(screen: ScreenData, characters?: CharactersData, maxStates?: number): ScreenReport {
   const host = screenHost(screen, characters);
   return {
     explore: explore(host, maxStates === undefined ? {} : { maxStates }),
-    requiredAbilities: requiredAbilities(host, ['stretch', 'stomp', 'squeak']),
+    requiredAbilities: required(host, ['stretch', 'stomp', 'squeak'], maxStates),
     solutionProblems: replaySolution(screen, characters),
   };
+}
+
+/** One-screen human report for CI logs. Shortest is over the full graph (faint edges included) until part 2. */
+export function formatReport(screen: ScreenData, r: ScreenReport): string {
+  const e = r.explore;
+  const lines = [
+    `[${screen.id}] 노드 ${e.stateCount}(게이지 제외 ${e.foldedCount})${e.truncated ? ' 잘림' : ''}, 최단(전체 그래프) ${e.shortestLength ?? '없음'}`,
+    `  막다른 상태 ${e.deadEndsKnown ? e.deadEnds.length : '판정 불가'}, 예외 ${e.failures.length}, R1 고유 반응 ${uniqueReactions(screen)}`,
+    `  필수 능력 ${Object.entries(r.requiredAbilities).map(([k, v]) => `${k}=${v === null ? '?' : v ? 'Y' : 'N'}`).join(' ')}`,
+  ];
+  for (const d of e.deadEnds) lines.push(`  막다른: 게이지 ${d.gauges.join(',')} 경로 ${d.path.map((p) => `${p.action.char}.${p.action.verb}@${p.action.target}${p.faint ? '(기절)' : ''}`).join(' > ')}`);
+  for (const f of e.failures.slice(0, 3)) lines.push(`  예외: ${f.message}`);
+  for (const p of r.solutionProblems) lines.push(`  solution: ${p}`);
+  return lines.join('\n');
+}
+
+/** Failures (CI-breaking) for a screen report. Empty = pass. Warnings are the report text only. */
+export function reportErrors(r: ScreenReport): string[] {
+  const e = r.explore;
+  const out: string[] = [];
+  if (e.failures.length) out.push(`step 예외 ${e.failures.length}건`);
+  if (e.truncated) out.push('상태 수 한도 초과(S3 판정 불가)');
+  if (!e.clearReachable) out.push('클리어에 닿지 않음');
+  if (e.deadEndsKnown && e.deadEnds.length) out.push(`막다른 상태 ${e.deadEnds.length}개`);
+  out.push(...r.solutionProblems);
+  return out;
 }
