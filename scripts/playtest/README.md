@@ -18,6 +18,7 @@ node scripts/playtest/smoke.ts --no-sandbox             # 컨테이너 등 샌�
 |---|---|
 | `coords.ts` | 화면 JSON 대상(핫스팟 `variants`, 서는 자리 `box`) → 내부 좌표 → CSS px. 게임 입력과 같은 `viewport.ts` 변환을 쓴다 |
 | `cdp.ts` | Chrome 실행, CDP 세션, 클릭·탭·스크린샷·콘솔 에러 수집 |
+| `plan.ts` | 2부-a: 정답 행동 `{char, verb, target}` → 누를 곳(캐릭터 칸, 동사 무장, 대상, 터치 2번). `docs/design/ui-interaction.md` 2·3·4·10절. 입력은 `?playtest=1` 읽기 전용 훅 `window.__gcLayout()`(#68) |
 | `smoke.ts` | 1부: 데스크톱 1280×720(마우스, dpr 1), 모바일 844×390(터치, dpr 3), 세로 390×844(스크린샷) |
 
-2부(`solution` 재생 A1, 오답 A2, 게이지 0 A3, 8px 탭 A6②)는 #68 입력 계약이 정해진 뒤 붙인다.
+2부-b(훅을 읽어 `solution` 재생 A1, 오답 A2, 게이지 0 A3, 8px 탭 A6②)는 #68 훅이 머지된 뒤 붙인다. 행동마다 `busy`가 거짓이 될 때까지 기다리고, 말풍선 넘기기는 쓰지 않는다(ui-interaction 5절).
