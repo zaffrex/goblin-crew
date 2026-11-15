@@ -45,7 +45,15 @@ while read -r c; do
   [ -n "$r" ] && [ "$r" != "$author_role" ] || continue
   # 판정 표시는 줄 맨 앞에 있을 때만 센다 (인용 `> `도 제외, 본문 중 다른 PR 언급의 "✅ 승인"은 무시)
   if grep -qE '^[[:space:]]*((- |\* )?(\*\*)?)🔁 수정 요청([[:space:]]|$|\*\*|[.:])' <<<"$body"; then latest[$r]=changes
-  elif grep -qE '^[[:space:]]*((- |\* )?(\*\*)?)✅ 승인([[:space:]]|$|\*\*|[.:])' <<<"$body"; then latest[$r]=approve; fi
+  elif grep -qE '^[[:space:]]*((- |\* )?(\*\*)?)✅ 승인([[:space:]]|$|\*\*|[.:])' <<<"$body"; then
+    # 리뷰한 커밋 표기(`sha: abc1234`, `커밋: abc1234`)가 있으면 head SHA와 맞을 때만 센다 (#126).
+    # 표기가 없는 승인은 전환기라 지금처럼 세되 경고를 남긴다.
+    rsha=$(grep -oiE '(sha|커밋|commit)[^0-9a-zA-Z]{0,6}[0-9a-f]{7,40}' <<<"$body" | grep -oE '[0-9a-f]{7,40}$' | tail -n1 || true)
+    if [ -z "$rsha" ]; then
+      echo "warn: $r 승인에 리뷰한 커밋(sha) 표기가 없음 (#126)"; latest[$r]=approve
+    elif [ "${sha#"$rsha"}" != "$sha" ]; then latest[$r]=approve
+    else echo "ignore: $r 승인은 옛 커밋($rsha) 기준 — head ${sha:0:7}"; fi
+  fi
 done < <(jq -c 'sort_by(.at) | .[]' <<<"$verdicts")
 
 approvers=(); blockers=()
