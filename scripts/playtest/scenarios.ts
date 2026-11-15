@@ -9,7 +9,7 @@ import { outsidePoint } from './coords.ts';
 import type { Layout } from './plan.ts';
 
 export interface StepExpect {
-  /** 이 행동 동안 말풍선에 차례로 떠야 하는 글 id (`content/text/ko.json`). 다른 말풍선이 사이에 있어도 된다. */
+  /** 이 행동 동안 말풍선(또는 게이지 0 컷 `#faint`)에 차례로 떠야 하는 글 id (`content/text/ko.json`). 다른 글이 사이에 있어도 된다. */
   says?: string[];
   /** 연출이 끝난 뒤 HUD 게이지. */
   gauge?: number;
@@ -80,7 +80,7 @@ export function scenarios(screen: ScreenData): Scenario[] {
         { check: 'A2', action: act('ppik', 'squeak', 'magpie'), label: '까치 내리기', expect: { hotspotBox: ground } },
         { check: 'A2', action: act('jjuk', 'stretch', 'magpie'), label: '규칙 7 1회', expect: { says: ['magpie_nest.magpie_pecked'], gauge: 2 } },
         { check: 'A2', action: act('jjuk', 'stretch', 'magpie'), label: '규칙 7 2회', expect: { says: ['magpie_nest.magpie_pecked_again'], gauge: 1 } },
-        { check: 'A3', action: act('jjuk', 'stretch', 'magpie'), label: '규칙 7 3회 → 게이지 0', expect: { faint: true, gauge: 5, hotspotBox: ground } },
+        { check: 'A3', action: act('jjuk', 'stretch', 'magpie'), label: '규칙 7 3회 → 게이지 0', expect: { says: ['ui.faint'], faint: true, gauge: 5, hotspotBox: ground } },
         ...launch('리셋 뒤:', 'A3'),
         { check: 'A3', action: act('jjuk', 'stretch', 'nest'), label: '리셋 뒤: 고리에서 열쇠', expect: { cleared: true } },
       ],

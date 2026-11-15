@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { CharactersData, ScreenData } from '../../src/core/puzzle/types';
-import { createScene, currentBubble, isBusy, sceneLayout, sceneTap, sceneTick, type SceneData, type SceneState } from '../../src/core/scene';
+import { createScene, currentBubble, currentCut, isBusy, sceneLayout, sceneTap, sceneTick, type SceneData, type SceneState } from '../../src/core/scene';
 import { planAction, type Input } from './plan';
 import { checkStep, scenarios, selectedTarget, slopProbes } from './scenarios';
 
@@ -16,17 +16,19 @@ const data: SceneData = {
 const id = (s: string) => s;
 
 /**
- * 재생으로 찾은 알려진 버그(#129: 게이지 0 리셋 뒤 HUD 게이지가 0에 머묾). 고치면 이 목록을 []로 바꾼다.
+ * 재생으로 찾은 알려진 버그 목록. 비어 있어야 정상이다(#129 수정으로 비움).
  * 목록과 정확히 같아야 통과하므로, 고쳐지거나 새 문제가 생기면 이 테스트가 깨져서 알려 준다.
  */
-const KNOWN_A3 = ['규칙 7 3회 → 게이지 0: 게이지 0 (기대 5)'];
+const KNOWN_A3: string[] = [];
 
-/** 연출이 끝날 때까지 틱. 그 사이 뜬 말풍선 글 id를 모은다(replay.ts는 DOM `#bubble`을 본다). */
+/** 연출이 끝날 때까지 틱. 그 사이 뜬 말풍선·컷 글 id를 모은다(replay.ts는 DOM `#bubble`·`#faint`를 본다). */
 function idle(s: SceneState, said: string[]): void {
   for (let i = 0; i < 10_000 && isBusy(s); i++) {
     sceneTick(data, s);
     const b = currentBubble(s);
     if (b && said.at(-1) !== b.text) said.push(b.text);
+    const c = currentCut(s);
+    if (c && !said.includes(c)) said.push(c);
   }
   expect(isBusy(s)).toBe(false);
 }

@@ -10,7 +10,7 @@ import { WALK_AREA, WALK_SPEED } from './config';
 import type { HitBox } from './hit';
 import { hotspotBox, hudTargets, tap, type Intent, type TapContext, type UiState } from './interact';
 import { initialState, step } from './puzzle/step';
-import type { Action, CharactersData, PuzzleEvent, PuzzleState, ScreenData, StepSource } from './puzzle/types';
+import { GAUGE_MAX, type Action, type CharactersData, type PuzzleEvent, type PuzzleState, type ScreenData, type StepSource } from './puzzle/types';
 import type { Point } from './viewport';
 import { clampToArea, createWalker, stepWalker, walkTo, type Walker } from './walk';
 
@@ -23,6 +23,8 @@ export const TIMING = {
   place: 12,
   release: 18,
   faint: 60,
+  /** 게이지 0 컷 글(`ui.faint`)이 떠 있는 시간. `faint`(busy)보다 길고, 남는 동안은 입력을 막지 않는다(#129 Luna 제안 2). */
+  faintCut: 90,
   /** 말풍선: 기본 + 글자당. 상한을 둔다. */
   sayBase: 60,
   sayPerChar: 4,
@@ -52,8 +54,14 @@ export interface SceneState {
   /** 아직 시작하지 않은 이벤트. */
   queue: PlayEvent[];
   current: Playing | null;
-  /** 화면에 보이는 게이지. `gauge` 이벤트가 올 때 바뀐다(퍼즐 상태는 이미 확정이라 연출보다 앞선다). */
+  /**
+   * 화면에 보이는 게이지. `gauge` 이벤트가 올 때 바뀐다(퍼즐 상태는 이미 확정이라 연출보다 앞선다).
+   * `faint`는 "자리 리셋 + 게이지 가득"이다(ADR-0065 5절 6). `step`은 `faint` 뒤에 `gauge` 이벤트를 따로 내지 않으므로
+   * `faint`가 끝날 때 가득으로 채운다. 컷 동안은 0을 보여 줘서 "0 → 리셋 → 다시 참" 순서가 보이게 한다(ADR-0018 G2, #129).
+   */
   shownGauge: number;
+  /** 게이지 0 컷 글이 이 틱 전까지 떠 있다. 0이면 없음. */
+  faintCutUntil: number;
   /** 규칙·폴백별 발동 횟수(대사 변형 선택), 대상별 폴백 횟수(힌트 ②). UI 상태라 세이브·BFS에 넣지 않는다(ADR-0065 5절). */
   counts: Record<string, number>;
   /** `move floor` 행동에서 걸어갈 바닥 점. 캐릭터별. */
@@ -97,6 +105,7 @@ export function createScene(data: SceneData): SceneState {
     queue: [],
     current: null,
     shownGauge: puzzle.gauge,
+    faintCutUntil: 0,
     counts: {},
     floorTo: {},
     cleared: false,
@@ -211,6 +220,7 @@ function start(data: SceneData, s: SceneState, ev: PlayEvent): Playing {
       return { ev, t: 0, duration: TIMING.place };
     case 'faint':
       for (const c of CHARACTERS) teleport(s.walkers[c.id], destination(data, s, c.id, ev.to[c.id]));
+      s.faintCutUntil = s.tick + TIMING.faintCut;
       return { ev, t: 0, duration: TIMING.faint };
     case 'gauge':
       s.shownGauge = ev.value;
@@ -249,6 +259,7 @@ export function sceneTick(data: SceneData, s: SceneState): void {
       s.current.t += 1;
     }
     if (!finished(s, s.current)) return;
+    if (s.current.ev.type === 'faint') s.shownGauge = GAUGE_MAX;
     s.current = null;
   }
 }
@@ -285,6 +296,8 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
   const r = tap(tapContext(data, s), s.ui, p, slop, touch);
   s.ui = r.ui;
   const intent = r.intent;
+  // 컷이 남은 동안(faint 뒤 0.5초) 새 행동을 시작하면 컷을 바로 내린다. 말풍선과 겹치지 않게.
+  if (intent.kind === 'walk' || intent.kind === 'act') s.faintCutUntil = 0;
   if (intent.kind === 'walk') walkTo(s.walkers[s.ui.active], intent.to, WALK_AREA);
   else if (intent.kind === 'act') runAction(data, s, intent.action, intent.to);
   return { kind: 'intent', intent };
@@ -294,6 +307,11 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
 export function currentBubble(s: SceneState): { speaker: string; text: string } | null {
   const ev = s.current?.ev;
   return ev?.type === 'say' ? { speaker: ev.speaker, text: ev.text } : null;
+}
+
+/** 지금 떠 있는 화면 가운데 컷 글 ID. 없으면 null. busy가 끝난 뒤에도 잠깐 남을 수 있다. */
+export function currentCut(s: SceneState): string | null {
+  return s.tick < s.faintCutUntil ? 'ui.faint' : null;
 }
 
 /**
@@ -307,6 +325,8 @@ export interface SceneLayout {
   busy: boolean;
   cleared: boolean;
   gauge: number;
+  /** 화면 가운데 컷 글 ID(`ui.faint`). 없으면 null. */
+  cut: string | null;
   at: Record<CharacterId, string>;
   chars: Record<CharacterId, HitBox>;
   spots: Record<string, HitBox>;
@@ -337,6 +357,7 @@ export function sceneLayout(data: SceneData, s: SceneState): SceneLayout {
     busy: isBusy(s),
     cleared: s.cleared,
     gauge: s.shownGauge,
+    cut: currentCut(s),
     at: { ...s.puzzle.at },
     chars: bodies(s),
     spots,

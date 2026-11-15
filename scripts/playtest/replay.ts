@@ -28,13 +28,16 @@ const screen = JSON.parse(readFileSync('content/screens/magpie_nest.json', 'utf8
 const TEXT = JSON.parse(readFileSync('content/text/ko.json', 'utf8')) as Record<string, string>;
 const text = (id: string): string => TEXT[id] ?? id;
 
-/** 관찰 전용: 말풍선 DOM에 뜬 글을 차례로 적는다. 숨겨졌다가 같은 글이 다시 뜨면 다시 적는다. */
+/**
+ * 관찰 전용: 말풍선 `#bubble`과 게이지 0 컷 `#faint`(#129)에 뜬 글을 차례로 적는다. 숨겨졌다가 같은 글이 다시 뜨면 다시 적는다.
+ * 요소마다 따로 건다. `#faint`가 없는 옛 빌드에서도 말풍선 기록은 된다.
+ */
 const PROBE = `(() => {
   const said = (window.__ptSaid = []);
-  let last = '';
-  const hook = () => {
-    const b = document.querySelector('#bubble');
-    if (!b) return void requestAnimationFrame(hook);
+  const hook = (sel) => {
+    const b = document.querySelector(sel);
+    if (!b) return void requestAnimationFrame(() => hook(sel));
+    let last = '';
     const note = () => {
       const t = b.hidden ? '' : (b.textContent || '');
       if (t && t !== last) said.push(t);
@@ -43,7 +46,8 @@ const PROBE = `(() => {
     new MutationObserver(note).observe(b, { attributes: true, childList: true, characterData: true, subtree: true });
     note();
   };
-  hook();
+  hook('#bubble');
+  hook('#faint');
 })();`;
 
 interface Viewport {
