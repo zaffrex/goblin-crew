@@ -1,0 +1,49 @@
+{
+  "//": "node art/build.mjs로 만든 파일. 직접 고치지 않는다. 원본: art/sprites/jjuk.mjs. 좌표는 칸 왼쪽 위 기준 px.",
+  "image": "jjuk-base.png",
+  "character": "jjuk",
+  "cell": [
+    48,
+    64
+  ],
+  "anchor": [
+    25,
+    64
+  ],
+  "hit": [
+    12,
+    0,
+    28,
+    64
+  ],
+  "head": [
+    14,
+    0,
+    19,
+    21
+  ],
+  "walkCycle": 36,
+  "anims": {
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "ms": [
+        700,
+        500
+      ]
+    },
+    "walk": {
+      "frames": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "by": "distance"
+    }
+  }
+}
