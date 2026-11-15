@@ -25,6 +25,7 @@
           ]
         }
       ],
+      "hintAbility": "stomp",
       "note": "고리 쪽 끝"
     },
     "seesaw_right": {
@@ -44,6 +45,7 @@
           ]
         }
       ],
+      "hintAbility": "stomp",
       "note": "빨랫줄 쪽 끝"
     },
     "hook": {
@@ -87,6 +89,7 @@
           }
         ]
       },
+      "hintAbility": "stomp",
       "note": "유일한 유지 상태(S2). 발사로만 온다. 손 놓으면 바구니(floor)로"
     }
   },
