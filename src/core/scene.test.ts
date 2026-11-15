@@ -12,6 +12,7 @@ const center = (b: HitBox): Point => ({ x: b.left + b.width / 2, y: b.top + b.he
 const MAGPIE = center({ left: 134, top: 6, width: 24, height: 24 });
 const NEST = center({ left: 128, top: 30, width: 36, height: 24 });
 const SEESAW_LEFT = center({ left: 208, top: 196, width: 38, height: 24 });
+const HOOK = center({ left: 150, top: 84, width: 24, height: 24 });
 
 function idle(s: SceneState, max = 5000): number {
   let n = 0;
@@ -159,6 +160,24 @@ describe('대사 변형과 힌트 ② (ADR-0065 5절, ADR-0018 F3)', () => {
     const nest = { ...data.screen.hotspots.nest!, hintAbility: 'stomp' as const };
     const own: SceneData = { ...data, screen: { ...data.screen, hotspots: { ...data.screen.hotspots, nest } } };
     expect(run(own).some((t) => t.startsWith('char.'))).toBe(false);
+  });
+
+  it('자기 능력 캐릭터의 폴백은 세지 않는다: 묵직이 hook ×2 뒤 삑삑이 2번째에 H06(#122 리뷰)', () => {
+    const s = ready();
+    const seen: string[][] = [];
+    sceneTap(data, s, center(CHAR_SLOTS.mukjik), 0, false);
+    for (let i = 0; i < 2; i++) {
+      sceneTap(data, s, HOOK, 0, false); // 묵직이 쿵: 고리 → 폴백(L22), hook 힌트 능력이 stomp라 힌트 없음
+      seen.push(sayTexts(s));
+    }
+    sceneTap(data, s, center(CHAR_SLOTS.ppik), 0, false);
+    for (let i = 0; i < 2; i++) {
+      sceneTap(data, s, HOOK, 0, false); // 삑삑이 꽥: 고리 → 폴백
+      seen.push(sayTexts(s));
+    }
+    expect(seen.slice(0, 2).flat().some((t) => t.startsWith('char.'))).toBe(false);
+    expect(seen[2]).not.toContain('char.ppik.hint_stomp');
+    expect(seen[3]).toContain('char.ppik.hint_stomp');
   });
 });
 

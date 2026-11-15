@@ -142,13 +142,14 @@ function bump(s: SceneState, key: string): number {
 
 /**
  * 힌트 ②(ADR-0018 F3, 화면 1 설계 5절): 같은 대상에서 핫스팟 폴백 2번째에 한 번.
- * 대상의 `hintAbility`가 행동한 캐릭터 자기 능력이면 띄우지 않는다.
+ * 대상의 `hintAbility`가 행동한 캐릭터 자기 능력이면 그 폴백은 **세지도 않는다**.
+ * 먼저 세면 자기 능력 캐릭터가 2번째를 써 버려 그 대상의 힌트가 다시는 안 뜬다(#122 리뷰).
  */
 function hintEvent(data: SceneData, s: SceneState, source: StepSource, a: Action): PlayEvent | null {
   if (source !== 'hotspotFallback') return null;
-  if (bump(s, `hint:${a.target}`) !== 2) return null;
   const ability = data.screen.hotspots[a.target]?.hintAbility ?? data.screen.spots[a.target]?.hintAbility;
   if (!ability || ability === characterDef(a.char).ability) return null;
+  if (bump(s, `hint:${a.target}`) !== 2) return null;
   const text = data.characters?.hints?.[a.char]?.[ability];
   return text ? { type: 'say', speaker: a.char, text } : null;
 }
