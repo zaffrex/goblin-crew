@@ -2,15 +2,18 @@
   "fallbacks": {
     "jjuk": {
       "look": { "show": [{ "say": ["self", "char.jjuk.look"] }] },
-      "hand": { "show": [{ "say": ["self", "char.jjuk.hand"] }] }
+      "hand": { "show": [{ "say": ["self", "char.jjuk.hand"] }] },
+      "stretch": { "show": [{ "say": ["self", "char.jjuk.stretch"] }] }
     },
     "mukjik": {
       "look": { "show": [{ "say": ["self", "char.mukjik.look"] }] },
-      "hand": { "show": [{ "say": ["self", "char.mukjik.hand"] }] }
+      "hand": { "show": [{ "say": ["self", "char.mukjik.hand"] }] },
+      "stomp": { "show": [{ "say": ["self", "char.mukjik.stomp"] }] }
     },
     "ppik": {
       "look": { "show": [{ "say": ["self", "char.ppik.look"] }] },
-      "hand": { "show": [{ "say": ["self", "char.ppik.hand"] }] }
+      "hand": { "show": [{ "say": ["self", "char.ppik.hand"] }] },
+      "squeak": { "show": [{ "say": ["self", "char.ppik.squeak"] }] }
     }
   },
   "hints": {
