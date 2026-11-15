@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { explore, requiredAbilities, type ActionLike, type BfsHost, type PuzzleStateLike } from './bfs';
+import { explore, requiredAbilities, requiredAbilitiesBoth, type ActionLike, type BfsHost, type PuzzleStateLike } from './bfs';
 
 // Toy screen: squeak sets flag `a`; stretch with `a` set clears; poke is a trap
 // that sets `trap` (dead end: nothing can ever clear afterwards); hurt costs gauge
@@ -141,29 +141,78 @@ describe('requiredAbilities', () => {
   });
 });
 
-describe('excludeFaint', () => {
-  // Fainting (hurt at gauge 1) is the only way to set `done`.
-  const faintOnly = host({
-    step: (s, a) => {
-      if (a.verb !== 'hurt') return { state: s, events: [], source: 'invalid' };
-      if (s.gauge > 1) return { state: { ...s, gauge: s.gauge - 1 }, events: [], source: 'rule' };
-      return { state: { ...s, gauge: 5, flags: { ...s.flags, done: true } }, events: [{ type: 'faint' }], source: 'rule' };
-    },
+describe('damage-free graph (ADR-0096 decision 5/6)', () => {
+  type S = PuzzleStateLike;
+  // Tiny graph host: states are `at.c` names; edges carry explicit events.
+  function graph(edges: Record<string, Record<string, { to: string; events?: { type: string; delta?: number }[] }>>, clear = 'win'): BfsHost<S, ActionLike> {
+    return {
+      initial: { at: { c: 'start' }, flags: {}, items: [], gauge: 5 },
+      isClear: (s) => s.at.c === clear,
+      actions: (s) => Object.keys(edges[s.at.c!] ?? {}).map((verb) => ({ char: 'c', verb, target: 't' })),
+      step: (s, a) => {
+        const e = edges[s.at.c!]?.[a.verb];
+        if (!e) return { state: s, events: [], source: 'invalid' };
+        const events = e.events ?? [];
+        const delta = events.find((x) => x.type === 'gauge')?.delta ?? 0;
+        return { state: { ...s, at: { c: e.to }, gauge: s.gauge + delta }, events, source: 'rule' };
+      },
+    };
+  }
+  const hurt = { type: 'gauge', delta: -1 };
+
+  it('escape only by non-faint damage warns at every gauge, not just gauge 1', () => {
+    const r = explore(graph({ start: { go: { to: 'roof' } }, roof: { jump: { to: 'ground', events: [hurt] } }, ground: { go: { to: 'win' } } }));
+    expect(r.safeClearReachable).toBe(false);
+    expect(r.damageWarnings.map((w) => foldedKeyOf(w.state))).toContain('roof');
+    expect(r.damageWarnings.find((w) => w.state.at.c === 'roof')?.path.length).toBe(1);
   });
 
-  it('a clear reachable only by fainting is unreachable without faint edges', () => {
-    const all = explore(faintOnly);
-    expect(all.clearReachable).toBe(true);
-    expect(all.shortestPath?.at(-1)?.faint).toBe(true);
-    const nf = explore(faintOnly, { excludeFaint: true });
-    expect(nf.clearReachable).toBe(false);
-    // every faint-free state is stuck: the faint is the only way out
-    expect(nf.deadEnds.length).toBe(1);
+  it('a state only reachable through damage is still checked', () => {
+    // pushed (via damage) -> stuck unless damage again
+    const r = explore(
+      graph({
+        start: { go: { to: 'win' }, push: { to: 'outside', events: [hurt] } },
+        outside: { back: { to: 'inside', events: [hurt] } },
+        inside: { go: { to: 'win' } },
+      }),
+    );
+    expect(r.safeClearReachable).toBe(true);
+    expect(r.damageWarnings.some((w) => w.state.at.c === 'outside')).toBe(true);
+    expect(r.damageWarnings.find((w) => w.state.at.c === 'outside')?.path[0]?.damage).toBe(true);
   });
 
-  it('leaves the normal solution intact', () => {
-    const nf = explore(host(), { excludeFaint: true });
-    expect(nf.shortestLength).toBe(2);
-    expect(nf.shortestPath?.some((p) => p.faint)).toBe(false);
+  it('a final move that hurts while clearing is not a warning', () => {
+    const r = explore(graph({ start: { go: { to: 'win', events: [hurt, { type: 'clear' }] } } }));
+    expect(r.safeClearReachable).toBe(true);
+    expect(r.damageWarnings).toEqual([]);
+  });
+
+  it('safe shortest path ignores a shorter damage shortcut', () => {
+    const r = explore(
+      graph({
+        start: { shortcut: { to: 'x', events: [hurt] }, a: { to: 'b' } },
+        x: { fin: { to: 'win' } },
+        b: { c: { to: 'd' } },
+        d: { fin: { to: 'win' } },
+      }),
+    );
+    expect(r.shortestLength).toBe(2);
+    expect(r.safeShortestLength).toBe(3);
+    expect(r.safeShortestPath?.map((p) => p.action.verb)).toEqual(['a', 'c', 'fin']);
+  });
+
+  it('requiredAbilities falls back to the full graph on a damage-required screen', () => {
+    const h = graph({ start: { hurt: { to: 'x', events: [hurt] }, squeak: { to: 'start' } }, x: { fin: { to: 'win' } } });
+    expect(requiredAbilities(h, ['squeak'])).toEqual({ squeak: false });
+    expect(requiredAbilitiesBoth(h, ['hurt'])).toEqual({ primary: { hurt: true }, full: { hurt: true } });
+  });
+
+  it('requiredAbilities uses the damage-free graph when it can clear', () => {
+    const h = graph({ start: { cheat: { to: 'x', events: [hurt] }, real: { to: 'r' } }, x: { go: { to: 'win' } }, r: { go: { to: 'win' } } });
+    expect(requiredAbilitiesBoth(h, ['real'])).toEqual({ primary: { real: true }, full: { real: false } });
   });
 });
+
+function foldedKeyOf(s: PuzzleStateLike): string {
+  return s.at.c ?? '';
+}

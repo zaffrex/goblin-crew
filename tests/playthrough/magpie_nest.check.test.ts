@@ -26,9 +26,9 @@ describe('magpie_nest BFS check', () => {
   it('requires all three abilities', () => {
     expect(r.requiredAbilities).toEqual({ stretch: true, stomp: true, squeak: true });
   });
-  it('has no faint dependence or shortcut (faint-free graph clears in the same 4 moves)', () => {
-    expect(r.faintWarnings).toEqual([]);
-    expect(r.noFaint.shortestLength).toBe(4);
+  it('has no damage dependence or shortcut (damage-free graph clears in the same 4 moves)', () => {
+    expect(r.damageWarnings).toEqual([]);
+    expect(r.explore.safeShortestLength).toBe(4);
   });
   it('replays the solution', () => {
     expect(r.solutionProblems).toEqual([]);

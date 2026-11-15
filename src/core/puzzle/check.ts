@@ -1,7 +1,7 @@
 // Screen checker (#67): wires the real `step` into the generic BFS explorer (ADR-0096) and
 // replays the screen's `solution`. Part 1 = M1 required items; damage-dependence warnings come in part 2.
 
-import { explore, requiredAbilities, type BfsHost, type ExploreResult } from './bfs';
+import { explore, requiredAbilitiesBoth, type BfsHost, type ExploreResult, type PathStep } from './bfs';
 import { initialState, step } from './step';
 import type { Action, CharactersData, PuzzleState, ScreenData, Verb } from './types';
 import { VERBS } from './types';
@@ -31,12 +31,12 @@ export function screenHost(screen: ScreenData, characters?: CharactersData): Bfs
 
 export interface ScreenReport {
   explore: ExploreResult<PuzzleState, Action>;
-  /** Same search with faint edges removed. Its dead ends are states only a faint can escape (자해 탈출). */
-  noFaint: ExploreResult<PuzzleState, Action>;
-  /** Warnings (not CI failures): faint-dependent clear, faint shortcut, faint-only escape states. */
-  faintWarnings: string[];
+  /** Warnings (not CI failures): damage-dependent clear, damage shortcut, states that clear only by damage. */
+  damageWarnings: string[];
   /** true = removing the ability makes clear unreachable. `null` = could not be judged (the search was truncated). */
   requiredAbilities: Record<string, boolean | null>;
+  /** Same over the full graph; shown in the report only when it differs from `requiredAbilities`. */
+  requiredAbilitiesFull: Record<string, boolean | null>;
   /** Empty when `solution` replays cleanly to a clear without fainting. */
   solutionProblems: string[];
 }
@@ -77,41 +77,46 @@ export function uniqueReactions(screen: ScreenData): number {
   return names.size;
 }
 
-export function faintWarnings(full: ExploreResult<PuzzleState, Action>, nf: ExploreResult<PuzzleState, Action>): string[] {
+const fmtPath = (path: PathStep<Action>[]): string =>
+  path.map((p) => `${p.action.char}.${p.action.verb}@${p.action.target}${p.faint ? '(기절)' : p.damage ? '(피해)' : ''}`).join(' > ');
+
+export function damageWarnings(e: ExploreResult<PuzzleState, Action>): string[] {
   const w: string[] = [];
-  if (full.truncated || nf.truncated) return w;
-  if (full.clearReachable && !nf.clearReachable) w.push('기절 없이는 클리어에 닿지 않음');
-  else if (full.shortestLength !== null && nf.shortestLength !== null && full.shortestLength < nf.shortestLength)
-    w.push(`기절 지름길: 기절 포함 ${full.shortestLength}수 < 기절 없이 ${nf.shortestLength}수`);
-  if (nf.clearReachable && nf.deadEnds.length) w.push(`기절로만 탈출하는 상태 ${nf.deadEnds.length}개`);
+  if (e.truncated) return w;
+  if (e.clearReachable && !e.safeClearReachable) w.push('피해 없이는 클리어에 닿지 않음');
+  else if (e.shortestLength !== null && e.safeShortestLength !== null && e.shortestLength < e.safeShortestLength)
+    w.push(`피해 지름길: 피해 포함 ${e.shortestLength}수 < 피해 없이 ${e.safeShortestLength}수 경로 ${fmtPath(e.shortestPath ?? [])}`);
+  for (const d of e.damageWarnings)
+    w.push(`피해로만 탈출하는 상태 ${JSON.stringify({ at: d.state.at, flags: d.state.flags, items: d.state.items })} 게이지 ${d.gauges.join(',')} 경로 ${fmtPath(d.path)}`);
   return w;
 }
 
 export function checkScreen(screen: ScreenData, characters?: CharactersData, maxStates?: number): ScreenReport {
   const host = screenHost(screen, characters);
-  const lim = maxStates === undefined ? {} : { maxStates };
-  const full = explore(host, lim);
-  const noFaint = explore(host, { excludeFaint: true, ...lim });
+  const full = explore(host, maxStates === undefined ? {} : { maxStates });
+  const req = requiredAbilitiesBoth(host, ['stretch', 'stomp', 'squeak'], maxStates);
   return {
     explore: full,
-    noFaint,
-    faintWarnings: faintWarnings(full, noFaint),
-    requiredAbilities: requiredAbilities(host, ['stretch', 'stomp', 'squeak'], maxStates),
+    damageWarnings: damageWarnings(full),
+    requiredAbilities: req.primary,
+    requiredAbilitiesFull: req.full,
     solutionProblems: replaySolution(screen, characters),
   };
 }
 
-/** One-screen human report for CI logs. Shortest here is over the full graph; the faint-free comparison is in the warnings. */
+/** One-screen human report for CI logs. Shortest is over the damage-free graph, or the full graph when it cannot clear damage-free. */
 export function formatReport(screen: ScreenData, r: ScreenReport): string {
   const e = r.explore;
   const lines = [
-    `[${screen.id}] 노드 ${e.stateCount}(게이지 제외 ${e.foldedCount})${e.truncated ? ' 잘림' : ''}, 최단(전체 그래프) ${e.shortestLength ?? '없음'}`,
+    `[${screen.id}] 노드 ${e.stateCount}(게이지 제외 ${e.foldedCount})${e.truncated ? ' 잘림' : ''}, 최단(${e.safeClearReachable ? '피해 없는 그래프' : '전체 그래프'}) ${(e.safeClearReachable ? e.safeShortestLength : e.shortestLength) ?? '없음'}`,
     `  막다른 상태 ${e.deadEndsKnown ? e.deadEnds.length : '판정 불가'}, 예외 ${e.failures.length}, R1 고유 반응 ${uniqueReactions(screen)}`,
     `  필수 능력 ${Object.entries(r.requiredAbilities).map(([k, v]) => `${k}=${v === null ? '?' : v ? 'Y' : 'N'}`).join(' ')}`,
   ];
-  for (const d of e.deadEnds) lines.push(`  막다른: 게이지 ${d.gauges.join(',')} 경로 ${d.path.map((p) => `${p.action.char}.${p.action.verb}@${p.action.target}${p.faint ? '(기절)' : ''}`).join(' > ')}`);
+  if (JSON.stringify(r.requiredAbilities) !== JSON.stringify(r.requiredAbilitiesFull))
+    lines.push(`  필수 능력(전체 그래프) ${Object.entries(r.requiredAbilitiesFull).map(([k, v]) => `${k}=${v === null ? '?' : v ? 'Y' : 'N'}`).join(' ')}`);
+  for (const d of e.deadEnds) lines.push(`  막다른: 게이지 ${d.gauges.join(',')} 경로 ${fmtPath(d.path)}`);
   for (const f of e.failures.slice(0, 3)) lines.push(`  예외: ${f.message}`);
-  for (const w of r.faintWarnings) lines.push(`  경고: ${w}`);
+  for (const w of r.damageWarnings) lines.push(`  경고: ${w}`);
   for (const p of r.solutionProblems) lines.push(`  solution: ${p}`);
   return lines.join('\n');
 }
