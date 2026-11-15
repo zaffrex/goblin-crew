@@ -40,6 +40,8 @@ export interface SpotDef {
   takenShow?: ShowItem[];
   /** 이 자리를 대상으로 다른 동사를 쓸 때 걸어갈 자리. 기본 `floor`. */
   approach?: Approach;
+  /** 힌트 ②에서 가리킬 능력(핫스팟과 같음). 서는 자리도 클릭 대상이라 둘 수 있다(PR #99 리뷰). */
+  hintAbility?: AbilityVerb;
   note?: string;
 }
 
