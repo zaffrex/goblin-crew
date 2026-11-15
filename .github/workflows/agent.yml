@@ -103,6 +103,7 @@ jobs:
             --max-turns ${{ inputs.mode == 'meeting' && 200 || 120 }}
             --permission-mode auto
             --append-system-prompt-file .claude/agents/${{ inputs.role }}.md
+          bot_id: "209825114"
 
       - name: Report failure to Slack
         if: failure()
