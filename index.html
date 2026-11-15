@@ -7,6 +7,9 @@
          프로젝트 사이트(/goblin-crew/)는 오리진 루트가 아니라 robots.txt가 효과 없어서 meta로 막는다. -->
     <meta name="robots" content="noindex, nofollow" />
     <title>goblin-crew (prototype)</title>
+    <!-- #109: 아이콘 링크가 없으면 브라우저가 도메인 루트 /favicon.ico를 요청해 404 콘솔 에러가 난다(M1 판정 A4).
+         빈 data URI는 요청 자체를 만들지 않는다. 실제 아이콘은 아트 작업 때 base 기준 경로로 바꾼다. -->
+    <link rel="icon" href="data:," />
     <style>
       html, body { margin: 0; height: 100%; background: #111; overflow: hidden; }
       body { display: grid; place-items: center; }
