@@ -34,8 +34,13 @@ fi
 who_label=$([ -n "$author_role" ] && jq -r --arg r "$author_role" '.roles[$r].signature' "$TEAM" || { [ "$who" = "$CEO" ] && echo 사장님 || echo "$who"; })
 
 # 3) 깨울 역할 결정
+# HTML 주석, 펜스 코드 블록(``` / ~~~), 인라인 코드(`..`, ``..``) 안의 토큰은 설명이므로 읽지 않는다.
+# 순서 중요: 주석 → 펜스 → 이중 백틱 → 단일 백틱. 짝 없는 백틱은 그대로 둔다(줄 단위로만 짝을 맞춘다).
+strip_quoted() {
+  perl -0pe 's/<!--.*?-->//gs; s/^[ \t]*```.*?^[ \t]*```[ \t]*$//gms; s/^[ \t]*~~~.*?^[ \t]*~~~[ \t]*$//gms; s/``[^\n]*?``//g; s/`[^`\n]*`//g' <<<"$1"
+}
 declare -A wake=()
-for r in $(grep -oE '\[\[(pm|designer|frontend|backend|infra)\]\]' <<<"$(perl -0pe 's/<!--.*?-->//gs' <<<"$body")" | tr -d '[]' | sort -u); do wake[$r]=1; done
+for r in $(grep -oE '\[\[(pm|designer|frontend|backend|infra)\]\]' <<<"$(strip_quoted "$body")" | tr -d '[]' | sort -u); do wake[$r]=1; done
 
 if [ "$EVENT_NAME" = issues ] && [ "$ACTION" = labeled ]; then
   label=$(jq -r '.label.name' "$EV")
