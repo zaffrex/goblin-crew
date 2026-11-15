@@ -5,10 +5,11 @@
 //   띠 ②(a) 하늘·먼 지붕·왼쪽 건물  ← 이 파일 첫 PR
 //   띠 ②(b) 담장·화단
 //   띠 ②(c) 바닥·오른쪽 빨랫줄·시소 받침·볼거리 소품
-// 물건(`objects`)은 물건 시트 ③ PR에서 채운다. 그 전까지는 엔진 폴백(상자)이다(형식 기록 9절).
-// 미리보기·검사: node docs/design/screens/magpie_nest-bg-preview.mjs
+// 물건(`objects`)은 art/scenes/magpie_nest.objects.mjs에 그린다(물건 시트 ③). 일시 연출(`anims`)은 ③-2에서 채운다.
+// 미리보기·검사: node docs/design/screens/magpie_nest-bg-preview.mjs (배경), node docs/design/screens/magpie_nest-objects-preview.mjs (물건)
 
 import { C } from '../lib/pixel.mjs';
+import { OBJECTS, GRIPS } from './magpie_nest.objects.mjs';
 import {
   hash, rng, bay, fill, ellipse, line, stamp, darker,
   bricks, planks, grassBase, tuft, daisy, clover, pebble,
@@ -359,6 +360,7 @@ export const SCENE = {
   // 띠 (b)·(c)가 아직이다. 빌드가 이 값을 보면 배포용 배경 PNG를 내보내지 않고 폴백(drawRoom)을 쓰게 하자고 제안(#145).
   draft: true,
   bg(img) { drawBg(img); },
-  objects: {},
+  objects: OBJECTS,
+  grips: GRIPS,
   anims: {},
 };
