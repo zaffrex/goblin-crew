@@ -1,4 +1,4 @@
-# 정기 실행: 역할별 작업 루프(매시간, 역할마다 시차) + 정기 회의.
+# 정기 실행: 역할별 작업 루프(매시간, 역할마다 시차) + 금요일 회고. 그 밖의 회의는 PM이 조건이 되면 연다.
 # 빈도 조정은 team/schedule.json, 완전 정지는 저장소 변수 TEAM_PAUSED=true.
 name: team-schedule
 
@@ -9,9 +9,6 @@ on:
     - cron: "29 * * * *"   # frontend tick
     - cron: "41 * * * *"   # backend tick
     - cron: "53 * * * *"   # infra tick
-    - cron: "0 0 * * *"    # 09:00 KST 데일리 스탠드업
-    - cron: "0 1 * * 1"    # 월 10:00 KST 스프린트 플래닝
-    - cron: "0 5 * * 1,4"  # 월·목 14:00 KST 설계 회의
     - cron: "0 8 * * 5"    # 금 17:00 KST 회고 + 주간 리포트
   workflow_dispatch:
 
@@ -62,9 +59,6 @@ jobs:
             "29 * * * *")  tick frontend ;;
             "41 * * * *")  tick backend ;;
             "53 * * * *")  tick infra ;;
-            "0 0 * * *")   meeting "standup: 데일리 스탠드업" ;;
-            "0 1 * * 1")   meeting "planning: 주간 스프린트 플래닝" ;;
-            "0 5 * * 1,4") meeting "design: 정기 설계 회의 (L2 안건 토론, ADR 담당자 지정)" ;;
             "0 8 * * 5")   meeting "retro: 주간 회고, 끝나면 사장님께 주간 리포트" ;;
             manual)        for r in pm designer frontend backend infra; do run "$r" tick "수동 전체 실행"; done ;;
           esac
