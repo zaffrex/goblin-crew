@@ -1,12 +1,15 @@
 // 스프라이트 시트 생성 (ADR-0007 결정 7·8). 원본은 art/ 아래 텍스트, 출력 PNG·JSON은 커밋한다.
+// 화면 배경·물건 시트(public/scenes/)도 여기서 만든다(art/scene-build.mjs, 형식: docs/decisions/2026-11-16-scene-art-format-v1.md).
 // 실행:
-//   node art/build.mjs          시트(public/sprites/)와 미리보기(docs/design/art/)를 다시 만든다
+//   node art/build.mjs          시트(public/sprites/, public/scenes/)와 미리보기(docs/design/art/)를 다시 만든다
 //   node art/build.mjs --check  다시 만들었을 때 커밋된 시트와 바이트가 다르면 실패한다(npm test에서 부른다)
+// 화면 검사(형식 기록 8절)는 두 모드 모두 돈다. 어기면 실패한다.
+// 화면 SCENE.draft가 true면 배경 PNG를 내보내지 않는다(엔진은 drawRoom 폴백). 물건 시트는 draft와 상관없이 내보낸다.
 //
 // 시트 하나 = 가로 한 줄. 프레임 순서는 anims 순서대로 이어 붙인다.
 // 검사(어기면 오류): 칸은 16의 배수, 서 있기 0번에서 두 발 폭(외곽선 포함)은 짝수, 딛은 발의 맨 아랫줄은 칸의 마지막 행.
 
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 import process from 'node:process';
@@ -14,11 +17,15 @@ import { Buffer } from 'node:buffer';
 import console from 'node:console';
 import { Image, C, EMPTY, indexedPng, animatedPng } from './lib/pixel.mjs';
 import { SHEET as JJUK, HEAD_BOX as JJUK_HEAD } from './sprites/jjuk.mjs';
+import { SCENE as MAGPIE_NEST } from './scenes/magpie_nest.mjs';
+import { buildScene } from './scene-build.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'public', 'sprites');
 const PREVIEW = join(ROOT, 'docs', 'design', 'art');
 const SHEETS = [{ ...JJUK, head: JJUK_HEAD }];
+const SCENE_OUT = join(ROOT, 'public', 'scenes');
+const SCENES = [MAGPIE_NEST];
 
 function fail(msg) {
   throw new Error(`[art] ${msg}`);
@@ -181,16 +188,43 @@ for (const s of built) {
   outputs.push([join(OUT, `${s.def.name}.json`), Buffer.from(JSON.stringify(s.meta, null, 2) + '\n')]);
 }
 
+// ── 화면: 검사 → 출력. 내보내지 않는 파일(draft 배경, 물건이 없을 때 시트)은 커밋돼 있으면 안 된다(낡은 그림).
+const absent = [];
+const sceneLines = [];
+for (const S of SCENES) {
+  const screen = JSON.parse(readFileSync(join(ROOT, 'content', 'screens', `${S.id}.json`), 'utf8'));
+  const r = buildScene(S, screen);
+  if (r.problems.length) {
+    console.error(`[art] 화면 ${S.id} 검사 실패 ${r.problems.length}건:\n  ${r.problems.join('\n  ')}`);
+    process.exit(1);
+  }
+  const bgPath = join(SCENE_OUT, `${S.id}-bg.png`);
+  if (r.draft) absent.push(bgPath);
+  else outputs.push([bgPath, r.bgPng]);
+  const sheetPaths = [join(SCENE_OUT, `${S.id}-objects.png`), join(SCENE_OUT, `${S.id}-objects.json`)];
+  if (r.sheet) {
+    outputs.push([sheetPaths[0], indexedPng(r.sheet)]);
+    outputs.push([sheetPaths[1], Buffer.from(JSON.stringify(r.meta, null, 2) + '\n')]);
+  } else absent.push(...sheetPaths);
+  const bgKb = (r.bgPng.length / 1024).toFixed(1);
+  const sheetInfo = r.sheet ? `물건 ${r.meta.objects.length}개·그림 ${r.meta.frames.length}장 ${r.sheet.w}×${r.sheet.h}` : '물건 없음(엔진 폴백 상자)';
+  sceneLines.push(`${S.id}: 배경 ${bgKb}KB${r.draft ? ' (draft, 내보내지 않음)' : ''}, ${sheetInfo}`);
+}
+
 if (check) {
   const bad = outputs.filter(([p, buf]) => !existsSync(p) || !readFileSync(p).equals(buf)).map(([p]) => relative(ROOT, p));
+  for (const p of absent) if (existsSync(p)) bad.push(`${relative(ROOT, p)} (내보내지 않는 파일인데 있다. 지운다)`);
   if (bad.length) {
     console.error(`[art] 커밋된 시트가 원본과 다르다. node art/build.mjs로 다시 만들어 커밋한다:\n  ${bad.join('\n  ')}`);
     process.exit(1);
   }
-  console.log(`[art] 시트 ${outputs.length / 2}개가 원본과 같다`);
+  console.log(`[art] 출력 ${outputs.length}개가 원본과 같다. ${sceneLines.join(' / ')}`);
 } else {
   mkdirSync(OUT, { recursive: true });
+  mkdirSync(SCENE_OUT, { recursive: true });
   for (const [p, buf] of outputs) writeFileSync(p, buf);
+  for (const p of absent) if (existsSync(p)) rmSync(p);
+  for (const line of sceneLines) console.log(line);
   for (const s of built) {
     writeFileSync(join(PREVIEW, `${s.def.name}-preview-4x.png`), indexedPng(previewSheet(s), 4));
     writeFileSync(join(PREVIEW, `${s.def.name}-walk-3x.png`), animatedPng(previewWalk(s), 3));
