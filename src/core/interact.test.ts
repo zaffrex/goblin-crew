@@ -57,6 +57,22 @@ describe('기본 탭 동사 (설계 2절)', () => {
     expect(r).toEqual({ kind: 'none', label: { verb: null, target: 'jjuk' } });
   });
 
+  it('hold 자리(고리)를 바닥에서 누르면 move가 아니라 내 능력(설계 2절, PR #115)', () => {
+    const ctx = ctxFor(puzzleWith({}));
+    const hook = { x: 162, y: 96 }; // 고리 box [150, 84, 24, 24] 중심
+    const cases = [
+      ['jjuk', 'stretch', '뻗기: 빨랫줄 고리'],
+      ['mukjik', 'stomp', '쿵: 빨랫줄 고리'],
+      ['ppik', 'squeak', '삑: 빨랫줄 고리'],
+    ] as const;
+    for (const [char, verb, text] of cases) {
+      const r = resolveTap(ctx, ui(char), hook, 0);
+      expect(r).toMatchObject({ kind: 'act', action: { char, verb, target: 'hook' }, label: { verb, target: 'hook' } });
+      if (r.kind !== 'act') throw new Error('unreachable');
+      expect(labelText(r.label, 'magpie_nest', (id) => (texts as Record<string, string>)[id] ?? id)).toBe(text);
+    }
+  });
+
   it('다른 캐릭터 몸은 그 뒤 서는 자리보다 앞: 전환', () => {
     const ctx = ctxFor(puzzleWith({ jjuk: 'seesaw_left' }));
     expect(resolveTap(ctx, ui('mukjik'), { x: 225, y: 205 }, 0)).toMatchObject({ kind: 'switch', char: 'jjuk' });
