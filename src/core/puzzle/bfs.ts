@@ -35,6 +35,8 @@ export interface BfsHost<S extends PuzzleStateLike, A extends ActionLike> {
 export interface ExploreOptions {
   /** Drop actions with this verb from the graph (M1/M2 required-ability check). */
   excludeVerb?: string;
+  /** Drop edges where `step` emitted a faint event (ADR-0096: shortest/required/M6 are judged without faint edges). */
+  excludeFaint?: boolean;
   /** Stop exploring when this many nodes (gauge included) are reached (ADR-0096 decision 3 warning line). */
   maxStates?: number;
 }
@@ -140,7 +142,9 @@ export function explore<S extends PuzzleStateLike, A extends ActionLike>(
         continue;
       }
       if (res.source === 'invalid' || res.source === 'blocked') continue;
-      const to = add(res.state, head, action, res.events.some((ev) => ev.type === 'faint'));
+      const faint = res.events.some((ev) => ev.type === 'faint');
+      if (faint && opts.excludeFaint) continue;
+      const to = add(res.state, head, action, faint);
       if (to >= 0 && to !== head) cur.out.push(to);
     }
   }
@@ -209,7 +213,7 @@ export function requiredAbilities<S extends PuzzleStateLike, A extends ActionLik
 ): Record<string, boolean | null> {
   const out: Record<string, boolean | null> = {};
   for (const v of abilities) {
-    const r = explore(host, { excludeVerb: v, ...(maxStates === undefined ? {} : { maxStates }) });
+    const r = explore(host, { excludeVerb: v, excludeFaint: true, ...(maxStates === undefined ? {} : { maxStates }) });
     out[v] = r.clearReachable ? false : r.truncated ? null : true;
   }
   return out;

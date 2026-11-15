@@ -31,6 +31,10 @@ export function screenHost(screen: ScreenData, characters?: CharactersData): Bfs
 
 export interface ScreenReport {
   explore: ExploreResult<PuzzleState, Action>;
+  /** Same search with faint edges removed. Its dead ends are states only a faint can escape (자해 탈출). */
+  noFaint: ExploreResult<PuzzleState, Action>;
+  /** Warnings (not CI failures): faint-dependent clear, faint shortcut, faint-only escape states. */
+  faintWarnings: string[];
   /** true = removing the ability makes clear unreachable. `null` = could not be judged (the search was truncated). */
   requiredAbilities: Record<string, boolean | null>;
   /** Empty when `solution` replays cleanly to a clear without fainting. */
@@ -73,16 +77,31 @@ export function uniqueReactions(screen: ScreenData): number {
   return names.size;
 }
 
+export function faintWarnings(full: ExploreResult<PuzzleState, Action>, nf: ExploreResult<PuzzleState, Action>): string[] {
+  const w: string[] = [];
+  if (full.truncated || nf.truncated) return w;
+  if (full.clearReachable && !nf.clearReachable) w.push('기절 없이는 클리어에 닿지 않음');
+  else if (full.shortestLength !== null && nf.shortestLength !== null && full.shortestLength < nf.shortestLength)
+    w.push(`기절 지름길: 기절 포함 ${full.shortestLength}수 < 기절 없이 ${nf.shortestLength}수`);
+  if (nf.clearReachable && nf.deadEnds.length) w.push(`기절로만 탈출하는 상태 ${nf.deadEnds.length}개`);
+  return w;
+}
+
 export function checkScreen(screen: ScreenData, characters?: CharactersData, maxStates?: number): ScreenReport {
   const host = screenHost(screen, characters);
+  const lim = maxStates === undefined ? {} : { maxStates };
+  const full = explore(host, lim);
+  const noFaint = explore(host, { excludeFaint: true, ...lim });
   return {
-    explore: explore(host, maxStates === undefined ? {} : { maxStates }),
+    explore: full,
+    noFaint,
+    faintWarnings: faintWarnings(full, noFaint),
     requiredAbilities: requiredAbilities(host, ['stretch', 'stomp', 'squeak'], maxStates),
     solutionProblems: replaySolution(screen, characters),
   };
 }
 
-/** One-screen human report for CI logs. Shortest is over the full graph (faint edges included) until part 2. */
+/** One-screen human report for CI logs. Shortest here is over the full graph; the faint-free comparison is in the warnings. */
 export function formatReport(screen: ScreenData, r: ScreenReport): string {
   const e = r.explore;
   const lines = [
@@ -92,6 +111,7 @@ export function formatReport(screen: ScreenData, r: ScreenReport): string {
   ];
   for (const d of e.deadEnds) lines.push(`  막다른: 게이지 ${d.gauges.join(',')} 경로 ${d.path.map((p) => `${p.action.char}.${p.action.verb}@${p.action.target}${p.faint ? '(기절)' : ''}`).join(' > ')}`);
   for (const f of e.failures.slice(0, 3)) lines.push(`  예외: ${f.message}`);
+  for (const w of r.faintWarnings) lines.push(`  경고: ${w}`);
   for (const p of r.solutionProblems) lines.push(`  solution: ${p}`);
   return lines.join('\n');
 }

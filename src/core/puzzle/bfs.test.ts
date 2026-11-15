@@ -140,3 +140,30 @@ describe('requiredAbilities', () => {
     expect(requiredAbilities(host(), ['squeak'], 1)).toEqual({ squeak: null });
   });
 });
+
+describe('excludeFaint', () => {
+  // Fainting (hurt at gauge 1) is the only way to set `done`.
+  const faintOnly = host({
+    step: (s, a) => {
+      if (a.verb !== 'hurt') return { state: s, events: [], source: 'invalid' };
+      if (s.gauge > 1) return { state: { ...s, gauge: s.gauge - 1 }, events: [], source: 'rule' };
+      return { state: { ...s, gauge: 5, flags: { ...s.flags, done: true } }, events: [{ type: 'faint' }], source: 'rule' };
+    },
+  });
+
+  it('a clear reachable only by fainting is unreachable without faint edges', () => {
+    const all = explore(faintOnly);
+    expect(all.clearReachable).toBe(true);
+    expect(all.shortestPath?.at(-1)?.faint).toBe(true);
+    const nf = explore(faintOnly, { excludeFaint: true });
+    expect(nf.clearReachable).toBe(false);
+    // every faint-free state is stuck: the faint is the only way out
+    expect(nf.deadEnds.length).toBe(1);
+  });
+
+  it('leaves the normal solution intact', () => {
+    const nf = explore(host(), { excludeFaint: true });
+    expect(nf.shortestLength).toBe(2);
+    expect(nf.shortestPath?.some((p) => p.faint)).toBe(false);
+  });
+});
