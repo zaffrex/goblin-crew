@@ -10,6 +10,8 @@ node scripts/playtest/smoke.ts --url http://localhost:4173/ --out /tmp/pt
 node scripts/playtest/smoke.ts --no-sandbox             # 컨테이너 등 샌드박스가 안 될 때
 ```
 
+`--no-sandbox`는 신뢰하는 URL(우리 배포본, 로컬 빌드)에만 쓴다. `--url`로 아무 주소나 열 수 있으니 외부 사이트에는 쓰지 않는다.
+
 결과: `<out>/report.md`, `report.json`, 뷰포트별 PNG. A4 콘솔 에러나 입력 경로 실패면 종료 코드 1, A5·A6는 경고만.
 
 | 파일 | 내용 |

@@ -34,6 +34,7 @@ export class Browser {
   private readonly ws: WebSocket;
   private readonly proc: ChildProcess;
   private readonly profileDir: string;
+  private closed = false;
 
   // 매개변수 프로퍼티는 쓰지 않는다: Node의 타입 제거 실행(--experimental-strip-types)이 지원하지 않는다.
   private constructor(ws: WebSocket, proc: ChildProcess, profileDir: string) {
@@ -52,6 +53,13 @@ export class Browser {
         for (const fn of this.listeners.get(msg.method) ?? []) fn(msg.params ?? {}, msg.sessionId);
       }
     });
+    // Chrome이 중간에 죽으면 기다리던 요청을 모두 실패시킨다 (멈추지 않고 실패).
+    ws.addEventListener('close', () => {
+      this.closed = true;
+      const err = new Error('CDP 연결이 끊겼어요 (Chrome 종료)');
+      for (const p of this.pending.values()) p.reject(err);
+      this.pending.clear();
+    });
   }
 
   /** headless Chrome을 새 프로필로 띄운다. 캐시 없는 첫 방문을 재기 위해 매번 새 프로필이다. */
@@ -69,26 +77,33 @@ export class Browser {
       'about:blank',
     ];
     const proc = spawn(findChrome(), args, { stdio: 'ignore' });
-    const portFile = join(profileDir, 'DevToolsActivePort');
-    const deadline = Date.now() + 15_000;
-    while (!existsSync(portFile) || readFileSync(portFile, 'utf8').split('\n').length < 2) {
-      if (Date.now() > deadline || proc.exitCode !== null) {
-        proc.kill();
-        throw new Error('Chrome이 디버깅 포트를 열지 않았어요 (샌드박스 문제면 --no-sandbox)');
+    try {
+      const portFile = join(profileDir, 'DevToolsActivePort');
+      const deadline = Date.now() + 15_000;
+      while (!existsSync(portFile) || readFileSync(portFile, 'utf8').split('\n').length < 2) {
+        if (Date.now() > deadline || proc.exitCode !== null) {
+          throw new Error('Chrome이 디버깅 포트를 열지 않았어요 (샌드박스 문제면 --no-sandbox)');
+        }
+        await sleep(50);
       }
-      await sleep(50);
+      const [port, path] = readFileSync(portFile, 'utf8').trim().split('\n');
+      const ws = new WebSocket(`ws://127.0.0.1:${port}${path}`);
+      await new Promise<void>((resolve, reject) => {
+        ws.addEventListener('open', () => resolve(), { once: true });
+        ws.addEventListener('error', () => reject(new Error('CDP WebSocket 연결 실패')), { once: true });
+      });
+      return new Browser(ws, proc, profileDir);
+    } catch (e) {
+      // launch 실패 시에도 프로세스와 프로필 폴더를 남기지 않는다.
+      await stopChrome(proc);
+      removeProfile(profileDir);
+      throw e;
     }
-    const [port, path] = readFileSync(portFile, 'utf8').trim().split('\n');
-    const ws = new WebSocket(`ws://127.0.0.1:${port}${path}`);
-    await new Promise<void>((resolve, reject) => {
-      ws.addEventListener('open', () => resolve(), { once: true });
-      ws.addEventListener('error', () => reject(new Error('CDP WebSocket 연결 실패')), { once: true });
-    });
-    return new Browser(ws, proc, profileDir);
   }
 
   send(method: string, params: Json = {}, sessionId?: string): Promise<Json> {
     const id = this.nextId++;
+    if (this.closed) return Promise.reject(new Error('CDP 연결이 이미 닫혔어요'));
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
       this.ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
@@ -116,8 +131,29 @@ export class Browser {
       // 이미 닫힘
     }
     this.ws.close();
-    this.proc.kill();
-    rmSync(this.profileDir, { recursive: true, force: true });
+    // Chrome은 SIGTERM 뒤에도 잠시 프로필에 쓴다. 종료를 기다린 뒤 지운다.
+    await stopChrome(this.proc);
+    removeProfile(this.profileDir);
+  }
+}
+
+/** SIGTERM 후 exit를 기다리고, 시간이 지나면 SIGKILL. */
+async function stopChrome(proc: ChildProcess, timeoutMs = 3000): Promise<void> {
+  if (proc.exitCode !== null || proc.signalCode !== null) return;
+  const exited = new Promise<void>((r) => proc.once('exit', () => r()));
+  proc.kill('SIGTERM');
+  const ok = await Promise.race([exited.then(() => true), sleep(timeoutMs).then(() => false)]);
+  if (!ok) {
+    proc.kill('SIGKILL');
+    await Promise.race([exited, sleep(1000)]);
+  }
+}
+
+function removeProfile(dir: string): void {
+  try {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  } catch (e) {
+    console.warn(`프로필 폴더를 지우지 못했어요: ${dir} (${(e as Error).message})`);
   }
 }
 
