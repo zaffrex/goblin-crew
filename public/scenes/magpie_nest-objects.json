@@ -1,0 +1,349 @@
+{
+  "//": "node art/build.mjs로 만든 파일. 직접 고치지 않는다. 원본: art/scenes/magpie_nest.mjs. 형식: docs/decisions/2026-11-16-scene-art-format-v1.md. frames[i].src = 시트 안 [x,y,w,h], at = 화면 좌표(왼쪽 위).",
+  "image": "magpie_nest-objects.png",
+  "screen": "magpie_nest",
+  "frames": [
+    {
+      "src": [
+        0,
+        0,
+        49,
+        34
+      ],
+      "at": [
+        122,
+        17
+      ]
+    },
+    {
+      "src": [
+        49,
+        0,
+        49,
+        34
+      ],
+      "at": [
+        122,
+        17
+      ]
+    },
+    {
+      "src": [
+        98,
+        0,
+        49,
+        34
+      ],
+      "at": [
+        122,
+        17
+      ]
+    },
+    {
+      "src": [
+        147,
+        0,
+        49,
+        34
+      ],
+      "at": [
+        122,
+        17
+      ]
+    },
+    {
+      "src": [
+        196,
+        0,
+        49,
+        34
+      ],
+      "at": [
+        122,
+        17
+      ]
+    },
+    {
+      "src": [
+        245,
+        0,
+        22,
+        20
+      ],
+      "at": [
+        128,
+        12
+      ]
+    },
+    {
+      "src": [
+        267,
+        0,
+        22,
+        20
+      ],
+      "at": [
+        128,
+        12
+      ]
+    },
+    {
+      "src": [
+        289,
+        0,
+        21,
+        19
+      ],
+      "at": [
+        128,
+        13
+      ]
+    },
+    {
+      "src": [
+        310,
+        0,
+        22,
+        20
+      ],
+      "at": [
+        128,
+        12
+      ]
+    },
+    {
+      "src": [
+        332,
+        0,
+        22,
+        20
+      ],
+      "at": [
+        90,
+        217
+      ]
+    },
+    {
+      "src": [
+        354,
+        0,
+        22,
+        20
+      ],
+      "at": [
+        90,
+        217
+      ]
+    },
+    {
+      "src": [
+        376,
+        0,
+        21,
+        19
+      ],
+      "at": [
+        90,
+        218
+      ]
+    },
+    {
+      "src": [
+        397,
+        0,
+        22,
+        20
+      ],
+      "at": [
+        90,
+        217
+      ]
+    },
+    {
+      "src": [
+        419,
+        0,
+        12,
+        12
+      ],
+      "at": [
+        149,
+        88
+      ]
+    },
+    {
+      "src": [
+        431,
+        0,
+        34,
+        44
+      ],
+      "at": [
+        372,
+        107
+      ]
+    },
+    {
+      "src": [
+        0,
+        44,
+        82,
+        8
+      ],
+      "at": [
+        207,
+        213
+      ]
+    },
+    {
+      "src": [
+        82,
+        44,
+        34,
+        16
+      ],
+      "at": [
+        143,
+        213
+      ]
+    },
+    {
+      "src": [
+        116,
+        44,
+        36,
+        14
+      ],
+      "at": [
+        142,
+        223
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "key": "nest",
+      "ids": [
+        "nest"
+      ],
+      "default": {
+        "frame": 0,
+        "layer": "back",
+        "loop": {
+          "frames": [
+            1,
+            2,
+            3
+          ],
+          "ms": [
+            1600,
+            120,
+            120
+          ]
+        }
+      },
+      "states": [
+        {
+          "when": {
+            "flags": {
+              "nest.key_taken": true
+            }
+          },
+          "frame": 4,
+          "layer": "back"
+        }
+      ]
+    },
+    {
+      "key": "magpie",
+      "ids": [
+        "magpie"
+      ],
+      "default": {
+        "frame": 5,
+        "layer": "back",
+        "loop": {
+          "frames": [
+            6,
+            7,
+            8
+          ],
+          "ms": [
+            2500,
+            150,
+            300
+          ]
+        }
+      },
+      "states": [
+        {
+          "when": {
+            "flags": {
+              "magpie.on_ground": true
+            }
+          },
+          "frame": 9,
+          "layer": "front",
+          "loop": {
+            "frames": [
+              10,
+              11,
+              12
+            ],
+            "ms": [
+              2200,
+              150,
+              300
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "key": "hook",
+      "ids": [
+        "hook"
+      ],
+      "default": {
+        "frame": 13,
+        "layer": "back"
+      }
+    },
+    {
+      "key": "long_johns",
+      "ids": [
+        "long_johns"
+      ],
+      "default": {
+        "frame": 14,
+        "layer": "back"
+      }
+    },
+    {
+      "key": "seesaw",
+      "ids": [
+        "seesaw_left",
+        "seesaw_right"
+      ],
+      "default": {
+        "frame": 15,
+        "layer": "back"
+      }
+    },
+    {
+      "key": "basket",
+      "ids": [
+        "basket"
+      ],
+      "default": {
+        "frame": 16,
+        "layer": "back"
+      },
+      "overlay": {
+        "sortY": 236,
+        "frame": 17
+      }
+    }
+  ],
+  "anims": {}
+}
