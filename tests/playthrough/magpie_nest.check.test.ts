@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { checkScreen } from '../../src/core/puzzle/check';
 import type { CharactersData, ScreenData } from '../../src/core/puzzle/types';
 
-// #67 part 1 on the real screen 1 (ADR-0096): 305 nodes / 108 folded, shortest 4, no dead ends,
+// #67 part 1 on the real screen 1 (ADR-0096): 305 nodes / 61 folded, shortest 4, no dead ends,
 // all three abilities required, no step exceptions (capacity overflow etc.), solution replays.
 const load = (rel: string): unknown => JSON.parse(readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8'));
 const screen = load('../../content/screens/magpie_nest.json') as ScreenData;

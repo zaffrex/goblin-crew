@@ -66,13 +66,27 @@ describe('explore', () => {
     }
   });
 
-  it('has no reset edge: a real dead end stays dead', () => {
+  it('trap dead end survives faint (stuck at every gauge)', () => {
     const r = explore(host());
-    // Trap states stay dead even though everyone could "start over": no reset edge exists.
     expect(r.deadEnds.length).toBeGreaterThan(0);
-    // A faint edge is flagged on its step.
-    const faintHost = explore(host(), { excludeVerb: 'squeak' });
-    expect(faintHost.clearReachable).toBe(false);
+    expect(r.deadEnds.every((d) => d.gauges.length === 5)).toBe(true);
+    expect(explore(host(), { excludeVerb: 'squeak' }).clearReachable).toBe(false);
+  });
+
+  it('toy B: a position-only dead end stays dead (no reset edge)', () => {
+    const r = explore<PuzzleStateLike, ActionLike>({
+      initial: { at: { c: 'floor' }, flags: { done: false }, items: [], gauge: 5 },
+      isClear: (s) => s.flags.done === true,
+      actions: () => ['climb', 'open'].map((verb) => ({ char: 'c', verb, target: 't' })),
+      step: (s, a) => {
+        if (s.at.c === 'floor' && a.verb === 'climb') return { state: { ...s, at: { c: 'roof' } }, events: [], source: 'rule' };
+        if (s.at.c === 'floor' && a.verb === 'open') return { state: { ...s, flags: { done: true } }, events: [], source: 'rule' };
+        return { state: s, events: [], source: 'invalid' };
+      },
+    });
+    expect(r.clearReachable).toBe(true);
+    expect(r.deadEnds.map((d) => d.state.at.c)).toEqual(['roof']);
+    expect(r.deadEnds[0]?.gauges).toEqual([5]);
   });
 
   it('flags the faint step in a path', () => {
