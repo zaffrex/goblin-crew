@@ -847,7 +847,7 @@
           {
             "say": [
               "jjuk",
-              "magpie_nest.magpie_tease"
+              "magpie_nest.magpie_high_five"
             ]
           }
         ]
@@ -1117,7 +1117,7 @@
           {
             "say": [
               "mukjik",
-              "magpie_nest.basket_sock"
+              "magpie_nest.basket_sock_missing"
             ]
           }
         ]
@@ -1133,7 +1133,7 @@
           {
             "say": [
               "ppik",
-              "magpie_nest.basket_cozy"
+              "magpie_nest.basket_own_squeak"
             ]
           }
         ]
@@ -1157,7 +1157,7 @@
           {
             "say": [
               "jjuk",
-              "magpie_nest.long_johns_whose"
+              "magpie_nest.long_johns_flowers"
             ]
           }
         ]
@@ -1185,7 +1185,7 @@
           {
             "say": [
               "mukjik",
-              "magpie_nest.long_johns_not_mine"
+              "magpie_nest.long_johns_warm"
             ]
           }
         ]
