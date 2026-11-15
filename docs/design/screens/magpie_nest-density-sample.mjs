@@ -452,6 +452,14 @@ const people = new Image(W, H);
 // ═════════════ 합치기 + 검사 ═════════════
 const fg = new Image(W, H);
 for (const [, im] of OBJ) fg.blit(outlined(im), 0, 0);
+// 사람만 바꿔 세우는 다른 샘플(docs/design/art/jjuk-v4-sample.mjs, #142)이 쓰는 층: under = 배경, over = 물건·효과
+if (process.env.DENSITY_LAYERS) {
+  const over = new Image(W, H);
+  over.blit(fg, 0, 0); over.blit(fx, 0, 0);
+  writeFileSync(join(process.env.DENSITY_LAYERS, 'under.png'), indexedPng(bg));
+  writeFileSync(join(process.env.DENSITY_LAYERS, 'over.png'), indexedPng(over));
+  process.exit(0);
+}
 const scene = new Image(W, H);
 scene.blit(bg, 0, 0); scene.blit(people, 0, 0); scene.blit(fg, 0, 0); scene.blit(fx, 0, 0);
 
