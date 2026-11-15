@@ -35,7 +35,7 @@ who_label=$([ -n "$author_role" ] && jq -r --arg r "$author_role" '.roles[$r].si
 
 # 3) 깨울 역할 결정
 declare -A wake=()
-for r in $(grep -oE '\[\[(pm|designer|frontend|backend|infra)\]\]' <<<"$body" | tr -d '[]' | sort -u); do wake[$r]=1; done
+for r in $(grep -oE '\[\[(pm|designer|frontend|backend|infra)\]\]' <<<"$(perl -0pe 's/<!--.*?-->//gs' <<<"$body")" | tr -d '[]' | sort -u); do wake[$r]=1; done
 
 if [ "$EVENT_NAME" = issues ] && [ "$ACTION" = labeled ]; then
   label=$(jq -r '.label.name' "$EV")
