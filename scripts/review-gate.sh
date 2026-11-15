@@ -25,9 +25,13 @@ if ! grep -qvE '^(docs/meetings/|docs/decisions/|docs/team/status\.md$)' <<<"$fi
 fi
 is_adr=false; grep -qE '^docs/adr/[0-9]{4}-' <<<"$files" && ! grep -qx 'docs/adr/0000-template.md' <<<"$files" && is_adr=true
 
-author_line=$(jq -r '.body // ""' <<<"$pr" | grep -m1 '작성자:' || true)
-author_role=$(role_of "$author_line")
-[ -n "$author_role" ] || { state failure "PR 본문에 '작성자: <서명>' 줄이 없음"; exit 0; }
+if [ "$pr_user" = "dependabot[bot]" ]; then
+  author_role=dependabot   # 의존성 PR: 일반 PR처럼 팀 역할의 ✅ 승인 1개면 통과 (보통 인프라 Sam)
+else
+  author_line=$(jq -r '.body // ""' <<<"$pr" | grep -m1 '작성자:' || true)
+  author_role=$(role_of "$author_line")
+  [ -n "$author_role" ] || { state failure "PR 본문에 '작성자: <서명>' 줄이 없음"; exit 0; }
+fi
 
 head_date=$(gh api "repos/$REPO/commits/$sha" --jq '.commit.committer.date')
 
