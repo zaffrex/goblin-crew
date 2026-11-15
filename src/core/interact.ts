@@ -200,7 +200,8 @@ export function resolveTap(ctx: TapContext, ui: UiState, p: Point, slop: number)
       return { kind: 'switch', char: id, label: { verb: null, target: id } };
     }
     case 'spot':
-      if (ui.armed === null && ctx.puzzle.at[me] !== hit.ref) {
+      // hold 자리는 move로 못 간다(ADR-0065). 핫스팟처럼 내 능력(설계 2절, PR #115).
+      if (ui.armed === null && ctx.puzzle.at[me] !== hit.ref && !ctx.screen.spots[hit.ref]?.hold) {
         return act({ char: me, verb: 'move', target: hit.ref }, { verb: 'climb', target: hit.ref });
       }
       return armedOrAbility(me, ui.armed, hit.ref);
