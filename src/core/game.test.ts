@@ -24,7 +24,7 @@ describe('game state', () => {
     expect(s.tick).toBe(2);
   });
 
-  it('처음에는 양말 3명이 있고 쭉이를 조작한다', () => {
+  it('처음에는 캐릭터 3명이 있고 쭉이를 조작한다', () => {
     const s = createGame();
     expect(s.chars.map((c) => c.id).sort()).toEqual(['jjuk', 'mukjik', 'ppik']);
     expect(s.active).toBe('jjuk');

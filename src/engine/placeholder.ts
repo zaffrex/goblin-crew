@@ -19,53 +19,72 @@ export function drawRoom(ctx: CanvasRenderingContext2D, size: Size, area: WalkAr
   for (let x = 24; x < size.width; x += 48) ctx.fillRect(x, floorTop, 1, size.height - floorTop);
 }
 
-type Part = [dx: number, dy: number, w: number, h: number, color: string];
+export type Part = [dx: number, dy: number, w: number, h: number, color: string];
 
-/** 가로 줄무늬: top부터 bottom 전까지 6px마다 2px 줄. */
-function stripes(dx: number, top: number, bottom: number, w: number, color: string): Part[] {
-  const out: Part[] = [];
-  for (let y = top; y < bottom; y += 6) out.push([dx, y, w, 2, color]);
-  return out;
-}
+const SKIN = '#f1c27d';
+const EYE = '#1d1d1d';
 
-// 오른쪽을 볼 때 기준점(발 바닥 + 다리 가운데) 기준 사각형들. 왼쪽을 보면 기준점 축으로 뒤집는다.
-// 크기는 ADR-0007 결정 4(쭉이 20×42, 묵직이 30×30, 삑삑이 18×25)를 흉내만 낸다.
-const SHAPES: Record<CharacterId, Part[]> = {
-  // 쭉이: 길고 가는 줄무늬 니삭스
+// 오른쪽을 볼 때 기준점(발 바닥 + 두 다리 가운데) 기준 사각형들. 왼쪽을 보면 기준점 축으로 뒤집는다.
+// 키는 ADR-0007 결정 4의 히트 영역 높이(42 / 30 / 25)에 맞춘다. 사람 비율과 외형은 새 ADR-0003에서 정한다.
+// 모든 사각형은 characters.ts의 히트 영역 안에 들어간다 (placeholder.test.ts).
+export const FIGURES: Record<CharacterId, Part[]> = {
+  // 쭉이 → 키다리: 마르고 긴 팔다리
   jjuk: [
-    [-5, -42, 10, 36, '#e9c46a'],
-    ...stripes(-5, -36, -8, 10, '#e76f51'),
-    [-6, -42, 12, 3, '#f4f1de'], // 고무줄 입구
-    [-5, -6, 15, 6, '#e9c46a'], // 발
-    [10, -6, 4, 6, '#e76f51'], // 발끝 덧댐
-    [2, -36, 1, 2, '#1d1d1d'], // 눈
+    [-4, -42, 9, 9, SKIN], // 머리
+    [-5, -42, 10, 3, '#4a2f1d'], // 머리카락
+    [-5, -39, 2, 3, '#4a2f1d'],
+    [0, -38, 1, 1, EYE], // 눈 2개
+    [3, -38, 1, 1, EYE],
+    [-1, -33, 3, 2, SKIN], // 목
+    [-6, -30, 2, 11, '#1f7a70'], // 뒤쪽 팔
+    [-4, -31, 9, 14, '#2a9d8f'], // 몸통
+    [5, -30, 2, 10, '#2a9d8f'], // 앞쪽 팔
+    [5, -20, 2, 2, SKIN], // 손
+    [-3, -17, 3, 15, '#264653'], // 다리
+    [1, -17, 3, 15, '#264653'],
+    [-3, -2, 4, 2, EYE], // 신발 (발끝이 앞)
+    [1, -2, 5, 2, EYE],
   ],
-  // 묵직이: 넓고 뭉툭한 울 양말, 발끝에 동전
+  // 묵직이 → 덩치: 넓은 어깨, 짧고 굵은 다리
   mukjik: [
-    [-11, -30, 22, 22, '#6d6875'],
-    [-11, -30, 22, 4, '#b5838d'], // 접힌 입구
-    [-11, -8, 30, 8, '#6d6875'], // 발
-    [13, -6, 4, 4, '#e9c46a'], // 동전 불룩
-    [4, -22, 2, 1, '#1d1d1d'], // 졸린 눈
+    [-4, -30, 9, 8, '#c68642'], // 머리
+    [-4, -30, 9, 2, EYE], // 짧은 머리카락
+    [0, -26, 1, 1, EYE], // 눈 2개
+    [3, -26, 1, 1, EYE],
+    [-11, -21, 3, 9, '#c68642'], // 뒤쪽 팔
+    [-8, -22, 17, 11, '#e76f51'], // 몸통
+    [-8, -12, 17, 1, '#5c3a21'], // 허리띠
+    [9, -21, 3, 9, '#c68642'], // 앞쪽 팔
+    [-7, -11, 6, 9, '#6d6875'], // 다리
+    [2, -11, 6, 9, '#6d6875'],
+    [-7, -2, 6, 2, '#3d3136'], // 신발
+    [2, -2, 8, 2, '#3d3136'],
   ],
-  // 삑삑이: 작은 아기 양말, 머리에 털방울
+  // 삑삑이 → 꼬마: 큰 머리, 짧은 몸
   ppik: [
-    [-3, -25, 6, 5, '#f4a6c1'], // 털방울
-    [-6, -20, 12, 14, '#a8dadc'],
-    [-6, -6, 18, 6, '#a8dadc'], // 발
-    [-6, -6, 3, 6, '#e63946'], // 뒤꿈치 삑삑이
-    [2, -16, 1, 2, '#1d1d1d'], // 눈
+    [-5, -25, 10, 9, SKIN], // 머리
+    [-5, -25, 10, 2, '#e9c46a'], // 머리카락
+    [-6, -23, 1, 4, '#e9c46a'], // 뒤로 묶은 머리
+    [0, -21, 1, 1, EYE], // 눈 2개
+    [3, -21, 1, 1, EYE],
+    [-6, -15, 2, 6, SKIN], // 뒤쪽 팔
+    [-4, -16, 8, 8, '#a8dadc'], // 몸통
+    [4, -15, 2, 6, SKIN], // 앞쪽 팔
+    [-3, -8, 2, 6, '#457b9d'], // 다리
+    [1, -8, 2, 6, '#457b9d'],
+    [-3, -2, 3, 2, '#e63946'], // 신발
+    [1, -2, 4, 2, '#e63946'],
   ],
 };
 
-/** 임시 양말 그림. 발 위치(x, y)가 기준점이다. */
-export function drawSock(ctx: CanvasRenderingContext2D, w: Walker): void {
+/** 임시 캐릭터(사람 실루엣) 그림. 발 위치(x, y)가 기준점이다. */
+export function drawCharacter(ctx: CanvasRenderingContext2D, w: Walker): void {
   const fx = Math.round(w.x);
   const fy = Math.round(w.y);
   const f = w.facing;
   // 걸을 때 8틱마다 1px 들썩인다.
   const bob = w.walkTicks > 0 && Math.floor(w.walkTicks / 8) % 2 === 1 ? 1 : 0;
-  const parts = SHAPES[w.id as CharacterId];
+  const parts = FIGURES[w.id as CharacterId];
 
   // 그림자
   ctx.fillStyle = '#3d3136';

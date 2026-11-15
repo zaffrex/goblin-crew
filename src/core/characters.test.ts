@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CHARACTERS, MIN_HIT_SIZE, characterDef, characterHitBox } from './characters';
 
-describe('양말 3인조 히트 영역 (ADR-0007 결정 4·6)', () => {
+describe('캐릭터 3인 히트 영역 (ADR-0007 결정 4·6)', () => {
   it('ADR-0003 안정 ID 3개', () => {
     expect(CHARACTERS.map((c) => c.id)).toEqual(['jjuk', 'mukjik', 'ppik']);
   });
