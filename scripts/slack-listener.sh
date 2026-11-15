@@ -141,6 +141,31 @@ process() { # process <channel-id> <message-json> <thread-parent-user>
   log "event ${CH_NAME[$ch]} ts=$ts from=$author -> $targets"
 }
 
+# --- tick watchdog ------------------------------------------------------------------------------
+# GitHub cron (team-schedule.yml) fires late or skips hours (11/14~15 we saw 3~4 hour gaps).
+# If a role in tick_roles has had no tick for tick_every_hours + TICK_GRACE_MIN, dispatch one here.
+# Ticks are found by agent.yml run-name "<role> · tick". The listener start counts as the last tick,
+# so a fresh listener never bursts all roles at once.
+TICK_GRACE_MIN=${TICK_GRACE_MIN:-20}
+watchdog() {
+  local cfg every limit now runs r last last_s
+  cfg=$(gh api "repos/$REPO/contents/team/schedule.json" --jq .content 2>/dev/null | base64 -d 2>/dev/null)
+  [ -n "$cfg" ] || return 0
+  [ "$(jq -r '.paused // false' <<<"$cfg")" = true ] && return 0
+  jq -e --argjson h "$(TZ=Asia/Seoul date +%-H)" '(.quiet_hours_kst // []) | index($h)' <<<"$cfg" >/dev/null && return 0
+  every=$(jq -r '.tick_every_hours // 1' <<<"$cfg")
+  now=$(date +%s); limit=$(( every * 3600 + TICK_GRACE_MIN * 60 ))
+  runs=$(gh run list -R "$REPO" --workflow agent.yml --limit 100 --json displayTitle,createdAt 2>/dev/null) || return 0
+  for r in $(jq -r '.tick_roles[]' <<<"$cfg"); do
+    last=$(jq -r --arg p "$r · tick" '[.[] | select(.displayTitle | startswith($p)) | .createdAt] | max // empty' <<<"$runs")
+    last_s=$began; [ -n "$last" ] && last_s=$(date -d "$last" +%s) && [ "$last_s" -lt "$began" ] && last_s=$began
+    [ $(( now - last_s )) -lt "$limit" ] && continue
+    if [ "${DRY_RUN:-}" = 1 ]; then echo "DISPATCH $r :: watchdog tick"
+    else gh workflow run agent.yml -R "$REPO" -f role="$r" -f mode=tick -f context="정기 작업 (cron이 늦어 감시가 대신 깨움, 매 ${every}시간)" >/dev/null 2>&1 \
+      && log "watchdog tick: $r (last tick ${last:-none})" || log "watchdog dispatch failed for $r"; fi
+  done
+}
+
 # --- main loop ----------------------------------------------------------------------------------
 began=$(date +%s); cycle=0
 while [ $(( $(date +%s) - began )) -lt "$MAX" ]; do
@@ -149,6 +174,7 @@ while [ $(( $(date +%s) - began )) -lt "$MAX" ]; do
     paused=$(gh api "repos/$REPO/contents/team/schedule.json" --jq .content 2>/dev/null | base64 -d 2>/dev/null | jq -r '.paused // false')
     [ "$paused" = true ] && { log "schedule paused; exiting"; exit 0; }
   fi
+  [ $((cycle % 20)) = 0 ] && watchdog   # ~5 min
   since=$(( $(date +%s) - 259200 ))
   for ch in "${!CH_NAME[@]}"; do
     tok=${CH_TOKEN[$ch]}; cur=${CURSOR[$ch]}; newcur=$cur
