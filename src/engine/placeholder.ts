@@ -1,6 +1,7 @@
 // 아트가 나오기 전(#7)까지 쓰는 임시 그림. 사각형만으로 그린다.
 // 실제 스프라이트가 들어오면 이 파일은 통째로 지운다.
 
+import type { CharacterId } from '../core/characters';
 import type { WalkArea, Walker } from '../core/walk';
 import type { Point, Size } from '../core/viewport';
 
@@ -18,37 +19,69 @@ export function drawRoom(ctx: CanvasRenderingContext2D, size: Size, area: WalkAr
   for (let x = 24; x < size.width; x += 48) ctx.fillRect(x, floorTop, 1, size.height - floorTop);
 }
 
-/** 쭉이 임시 그림: 줄무늬 니삭스 실루엣. 발 위치(x, y)가 기준점이다. 키 40px. */
+type Part = [dx: number, dy: number, w: number, h: number, color: string];
+
+/** 가로 줄무늬: top부터 bottom 전까지 6px마다 2px 줄. */
+function stripes(dx: number, top: number, bottom: number, w: number, color: string): Part[] {
+  const out: Part[] = [];
+  for (let y = top; y < bottom; y += 6) out.push([dx, y, w, 2, color]);
+  return out;
+}
+
+// 오른쪽을 볼 때 기준점(발 바닥 + 다리 가운데) 기준 사각형들. 왼쪽을 보면 기준점 축으로 뒤집는다.
+// 크기는 ADR-0007 결정 4(쭉이 20×42, 묵직이 30×30, 삑삑이 18×25)를 흉내만 낸다.
+const SHAPES: Record<CharacterId, Part[]> = {
+  // 쭉이: 길고 가는 줄무늬 니삭스
+  jjuk: [
+    [-5, -42, 10, 36, '#e9c46a'],
+    ...stripes(-5, -36, -8, 10, '#e76f51'),
+    [-6, -42, 12, 3, '#f4f1de'], // 고무줄 입구
+    [-5, -6, 15, 6, '#e9c46a'], // 발
+    [10, -6, 4, 6, '#e76f51'], // 발끝 덧댐
+    [2, -36, 1, 2, '#1d1d1d'], // 눈
+  ],
+  // 묵직이: 넓고 뭉툭한 울 양말, 발끝에 동전
+  mukjik: [
+    [-11, -30, 22, 22, '#6d6875'],
+    [-11, -30, 22, 4, '#b5838d'], // 접힌 입구
+    [-11, -8, 30, 8, '#6d6875'], // 발
+    [13, -6, 4, 4, '#e9c46a'], // 동전 불룩
+    [4, -22, 2, 1, '#1d1d1d'], // 졸린 눈
+  ],
+  // 삑삑이: 작은 아기 양말, 머리에 털방울
+  ppik: [
+    [-3, -25, 6, 5, '#f4a6c1'], // 털방울
+    [-6, -20, 12, 14, '#a8dadc'],
+    [-6, -6, 18, 6, '#a8dadc'], // 발
+    [-6, -6, 3, 6, '#e63946'], // 뒤꿈치 삑삑이
+    [2, -16, 1, 2, '#1d1d1d'], // 눈
+  ],
+};
+
+/** 임시 양말 그림. 발 위치(x, y)가 기준점이다. */
 export function drawSock(ctx: CanvasRenderingContext2D, w: Walker): void {
   const fx = Math.round(w.x);
   const fy = Math.round(w.y);
   const f = w.facing;
   // 걸을 때 8틱마다 1px 들썩인다.
   const bob = w.walkTicks > 0 && Math.floor(w.walkTicks / 8) % 2 === 1 ? 1 : 0;
-  const top = fy - 40 - bob;
+  const parts = SHAPES[w.id as CharacterId];
 
   // 그림자
   ctx.fillStyle = '#3d3136';
-  ctx.fillRect(fx - 7, fy - 1, 14, 2);
+  ctx.fillRect(fx - 8, fy - 1, 16, 2);
 
-  // 다리(몸통): 줄무늬
-  ctx.fillStyle = '#e9c46a';
-  ctx.fillRect(fx - 5, top, 10, 34);
-  ctx.fillStyle = '#e76f51';
-  for (let y = top + 6; y < fy - 8 - bob; y += 6) ctx.fillRect(fx - 5, y, 10, 2);
-  // 고무줄 입구
-  ctx.fillStyle = '#f4f1de';
-  ctx.fillRect(fx - 6, top, 12, 3);
+  for (const [dx, dy, bw, bh, color] of parts) {
+    ctx.fillStyle = color;
+    ctx.fillRect(f === 1 ? fx + dx : fx - (dx + bw), fy + dy - bob, bw, bh);
+  }
+}
 
-  // 발: 발끝이 보는 방향으로 나온다
-  ctx.fillStyle = '#e9c46a';
-  ctx.fillRect(f === 1 ? fx - 5 : fx - 10, fy - 6 - bob, 15, 6);
-  ctx.fillStyle = '#e76f51';
-  ctx.fillRect(f === 1 ? fx + 7 : fx - 10, fy - 6 - bob, 3, 6); // 발끝 덧댐
-
-  // 눈
-  ctx.fillStyle = '#1d1d1d';
-  ctx.fillRect(fx + f * 2, top + 6, 1, 2);
+/** 조작 중인 캐릭터 표시: 히트 영역 위에서 깜빡이지 않고 위아래로 흔들리는 작은 ▼. */
+export function drawActiveMarker(ctx: CanvasRenderingContext2D, top: number, centerX: number, tick: number): void {
+  const y = top - 7 - (Math.floor(tick / 20) % 2);
+  ctx.fillStyle = '#edf2f4';
+  for (let i = 0; i < 3; i++) ctx.fillRect(Math.round(centerX) - 2 + i, y + i, 5 - 2 * i, 1);
 }
 
 /** 걸어가는 목표점 표시 (작은 ×). */
