@@ -1,5 +1,7 @@
-// BFS state-graph explorer for puzzle screens (ADR-0065 section 8, issue #67).
+// BFS state-graph explorer for puzzle screens (ADR-0065 section 8 as amended by ADR-0096, issue #67).
 // It only calls the injected `step`, so it never re-interprets puzzle rules.
+// Node key = the whole puzzle state including gauge; edges are exactly what `step` returns
+// (no reset edge, no gauge=1 re-call). Clear states are not expanded (S4).
 // Pure TypeScript, no DOM, no dependencies (ADR-0004).
 
 export interface PuzzleStateLike {
@@ -24,10 +26,6 @@ export interface StepResultLike<S> {
 
 export interface BfsHost<S extends PuzzleStateLike, A extends ActionLike> {
   initial: S;
-  /** `screen.start.at`: where a faint (gauge 0) or reset edge puts everyone. */
-  startAt: Record<string, string>;
-  /** Gauge value after a faint (ADR-0018 G1). */
-  fullGauge: number;
   step(state: S, action: A): StepResultLike<S>;
   /** Every action to try from `state` (3 chars x spots/targets/verbs/items). */
   actions(state: S): A[];
@@ -37,37 +35,63 @@ export interface BfsHost<S extends PuzzleStateLike, A extends ActionLike> {
 export interface ExploreOptions {
   /** Drop actions with this verb from the graph (M1/M2 required-ability check). */
   excludeVerb?: string;
-  /** Stop exploring when this many states are reached (ADR-0065 "state count" warning). */
+  /** Stop exploring when this many nodes (gauge included) are reached (ADR-0096 decision 3 warning line). */
   maxStates?: number;
 }
 
+/** One action on a path; `faint` marks an edge where `step` emitted a faint event. */
+export interface PathStep<A> {
+  action: A;
+  faint: boolean;
+}
+
 export interface StepFailure<A> {
-  path: (A | 'reset')[];
+  path: PathStep<A>[];
   action: A;
   message: string;
 }
 
+export interface DeadEnd<S, A> {
+  /** One representative node (the first found), gauge shown as found. */
+  state: S;
+  /** Gauge values at which this puzzle state is stuck, ascending. */
+  gauges: number[];
+  /** Shortest path from start to the first stuck node of this puzzle state. */
+  path: PathStep<A>[];
+}
+
 export interface ExploreResult<S extends PuzzleStateLike, A extends ActionLike> {
+  /** Reached nodes, gauge included. */
   stateCount: number;
+  /** Reached puzzle states, gauge folded away. */
+  foldedCount: number;
   truncated: boolean;
   clearReachable: boolean;
-  /** Shortest action count to clear, resets excluded from the count's meaning (they are free edges). */
+  /** Shortest action count to clear over the full graph (faint edges included). */
   shortestLength: number | null;
-  shortestPath: (A | 'reset')[] | null;
-  /** S3: reachable states that cannot reach a clear state. Path from start included. */
-  deadEnds: { state: S; path: (A | 'reset')[]; viaReset: boolean }[];
+  shortestPath: PathStep<A>[] | null;
+  /** S3: reached nodes that cannot reach a clear state, folded by puzzle state (ADR-0096 decision 4). Empty when truncated. */
+  deadEnds: DeadEnd<S, A>[];
+  /** False when truncated: S3 cannot be judged and must be reported as a failure (ADR-0096 decision 7). */
+  deadEndsKnown: boolean;
   failures: StepFailure<A>[];
 }
 
-/** Normalized node key: gauge is excluded (ADR-0065 section 8). */
+/** Full node key: the puzzle state including gauge. `screen` is constant per run, so it is ignored. */
 export function stateKey(s: PuzzleStateLike): string {
+  return JSON.stringify([s.at, s.flags, [...s.items].sort(), s.gauge]);
+}
+
+/** Folded key: same without gauge, for reports. */
+export function foldedKey(s: PuzzleStateLike): string {
   return JSON.stringify([s.at, s.flags, [...s.items].sort()]);
 }
 
 interface Node<S, A> {
   state: S;
   parent: number;
-  via: A | 'reset' | null;
+  via: A | null;
+  viaFaint: boolean;
   out: number[];
 }
 
@@ -76,20 +100,19 @@ export function explore<S extends PuzzleStateLike, A extends ActionLike>(
   opts: ExploreOptions = {},
 ): ExploreResult<S, A> {
   const maxStates = opts.maxStates ?? 100_000;
-  const norm = (s: S): S => ({ ...s, gauge: host.fullGauge });
   const nodes: Node<S, A>[] = [];
   const index = new Map<string, number>();
   const failures: StepFailure<A>[] = [];
   let truncated = false;
 
   const at = (i: number): Node<S, A> => nodes[i] as Node<S, A>;
-  const pathTo = (i: number): (A | 'reset')[] => {
-    const p: (A | 'reset')[] = [];
-    for (let n = i; at(n).parent >= 0; n = at(n).parent) p.push(at(n).via as A | 'reset');
+  const pathTo = (i: number): PathStep<A>[] => {
+    const p: PathStep<A>[] = [];
+    for (let n = i; at(n).parent >= 0; n = at(n).parent) p.push({ action: at(n).via as A, faint: at(n).viaFaint });
     return p.reverse();
   };
 
-  const add = (s: S, parent: number, via: A | 'reset' | null): number => {
+  const add = (s: S, parent: number, via: A | null, viaFaint: boolean): number => {
     const key = stateKey(s);
     const found = index.get(key);
     if (found !== undefined) return found;
@@ -97,40 +120,28 @@ export function explore<S extends PuzzleStateLike, A extends ActionLike>(
       truncated = true;
       return -1;
     }
-    nodes.push({ state: norm(s), parent, via, out: [] });
+    nodes.push({ state: s, parent, via, viaFaint, out: [] });
     index.set(key, nodes.length - 1);
     return nodes.length - 1;
   };
 
-  add(host.initial, -1, null);
+  add(host.initial, -1, null, false);
   for (let head = 0; head < nodes.length; head++) {
     const cur = at(head);
-    const link = (s: S, via: A | 'reset') => {
-      const to = add(s, head, via);
-      if (to >= 0 && to !== head) cur.out.push(to);
-    };
-    // Reset edge: same flags and items, everyone back at start.
-    link({ ...cur.state, at: { ...host.startAt } }, 'reset');
+    // S4: a clear state is reached but never expanded.
+    if (host.isClear(cur.state)) continue;
     for (const action of host.actions(cur.state)) {
       if (opts.excludeVerb && action.verb === opts.excludeVerb) continue;
       let res: StepResultLike<S>;
       try {
         res = host.step(cur.state, action);
       } catch (e) {
-        failures.push({ path: [...pathTo(head), action], action, message: String(e) });
+        failures.push({ path: [...pathTo(head), { action, faint: false }], action, message: String(e) });
         continue;
       }
       if (res.source === 'invalid' || res.source === 'blocked') continue;
-      link(res.state, action);
-      // Damage edge: re-step at gauge 1 so effect + faint together become an edge.
-      if (res.state.gauge < cur.state.gauge || res.events.some((ev) => ev.type === 'faint')) {
-        try {
-          const faint = host.step({ ...cur.state, gauge: 1 }, action);
-          link(faint.state, action);
-        } catch (e) {
-          failures.push({ path: [...pathTo(head), action], action, message: String(e) });
-        }
-      }
+      const to = add(res.state, head, action, res.events.some((ev) => ev.type === 'faint'));
+      if (to >= 0 && to !== head) cur.out.push(to);
     }
   }
 
@@ -156,21 +167,33 @@ export function explore<S extends PuzzleStateLike, A extends ActionLike>(
 
   const firstClear = nodes.findIndex((n) => host.isClear(n.state));
   const shortestPath = firstClear >= 0 ? pathTo(firstClear) : null;
-  const deadEnds = truncated
-    ? []
-    : nodes.flatMap((n, i) => {
-        if (canClear[i]) return [];
-        const path = pathTo(i);
-        return [{ state: n.state, path, viaReset: path.includes('reset') }];
-      });
+
+  // Fold stuck nodes by puzzle state. Nodes are in BFS order, so the first one has the shortest path.
+  const folded = new Map<string, DeadEnd<S, A> & { first: number }>();
+  if (!truncated) {
+    nodes.forEach((n, i) => {
+      if (canClear[i]) return;
+      const key = foldedKey(n.state);
+      const found = folded.get(key);
+      if (found) found.gauges.push(n.state.gauge);
+      else folded.set(key, { state: n.state, gauges: [n.state.gauge], path: pathTo(i), first: i });
+    });
+  }
+  const deadEnds: DeadEnd<S, A>[] = [...folded.values()].map((d) => ({
+    state: d.state,
+    gauges: d.gauges.sort((a, b) => a - b),
+    path: d.path,
+  }));
 
   return {
     stateCount: nodes.length,
+    foldedCount: new Set(nodes.map((n) => foldedKey(n.state))).size,
     truncated,
     clearReachable: firstClear >= 0,
-    shortestLength: shortestPath ? shortestPath.filter((a) => a !== 'reset').length : null,
+    shortestLength: shortestPath ? shortestPath.length : null,
     shortestPath,
     deadEnds,
+    deadEndsKnown: !truncated,
     failures,
   };
 }
