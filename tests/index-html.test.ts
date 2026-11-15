@@ -11,4 +11,12 @@ describe('index.html', () => {
     const robots = /<meta\s+name="robots"\s+content="([^"]*)"/i.exec(html);
     expect(robots?.[1]).toMatch(/\bnoindex\b/);
   });
+
+  // #109: 아이콘 링크가 없으면 Pages 하위 경로 배포에서 도메인 루트 /favicon.ico가 404 → 콘솔 에러(M1 판정 A4).
+  // 실제 아이콘으로 바꿀 때는 public/ 파일을 "/파일명"으로 걸면 Vite가 base를 붙인다. 배포 후 smoke로 A4를 다시 본다.
+  it('declares a favicon that never hits the domain-root /favicon.ico', () => {
+    const icon = /<link\s+rel="icon"\s+href="([^"]*)"/i.exec(html);
+    expect(icon).not.toBeNull();
+    expect(icon![1]).not.toBe('/favicon.ico');
+  });
 });
