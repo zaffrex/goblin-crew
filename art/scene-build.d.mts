@@ -1,0 +1,44 @@
+// art/scene-build.mjs 타입(tests/art/scenes.test.ts용). 런타임 형식은 docs/decisions/2026-11-16-scene-art-format-v1.md.
+
+export interface Img {
+  w: number;
+  h: number;
+  c: Int16Array;
+  set(x: number, y: number, col: number): void;
+  rect(x: number, y: number, w: number, h: number, col: number): void;
+}
+type Draw = (img: Img) => void;
+interface Loop { ms: number | number[]; frames: Draw[] }
+interface Picture { draw: Draw; loop?: Loop; layer?: 'back' | 'front' }
+export interface SceneSrc {
+  id: string;
+  draft?: boolean;
+  bg: Draw;
+  objects?: Record<string, Partial<Picture> & {
+    ids?: string[];
+    states?: (Partial<Picture> & { when: { flags: Record<string, boolean> } })[];
+    overlay?: { sortY: number; draw: Draw };
+  } & Record<string, unknown>>;
+  anims?: Record<string, { ms: number | number[]; frames: Draw[]; layer?: 'back' | 'front' } & Record<string, unknown>>;
+}
+export interface Frame { src: [number, number, number, number]; at: [number, number] }
+interface PicMeta { frame: number; layer: 'back' | 'front'; loop?: { frames: number[]; ms: number[] } }
+export interface SceneMeta {
+  image: string;
+  screen: string;
+  frames: Frame[];
+  objects: { key: string; ids: string[]; default: PicMeta; states?: (PicMeta & { when: { flags: Record<string, boolean> } })[]; overlay?: { sortY: number; frame: number } }[];
+  anims: Record<string, { object: string | null; frames: number[]; ms: number[]; layer: 'back' | 'front' }>;
+}
+export const SCREEN_W: number;
+export const SCREEN_H: number;
+export const BG_MAX_BYTES: number;
+export const ANIM_MAX_MS: number;
+export function buildScene(scene: SceneSrc, screen: unknown, opts?: { bgMaxBytes?: number }): {
+  problems: string[];
+  draft: boolean;
+  bg: Img;
+  bgPng: Uint8Array;
+  sheet: Img | null;
+  meta: SceneMeta | null;
+};
