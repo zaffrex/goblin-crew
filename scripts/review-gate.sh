@@ -48,7 +48,8 @@ while read -r c; do
   elif grep -qE '^[[:space:]]*((- |\* )?(\*\*)?)✅ 승인([[:space:]]|$|\*\*|[.:])' <<<"$body"; then
     # 리뷰한 커밋 표기(`sha: abc1234`, `커밋: abc1234`)가 있으면 head SHA와 맞을 때만 센다 (#126).
     # 표기가 없는 승인은 전환기라 지금처럼 세되 경고를 남긴다.
-    rsha=$(grep -oiE '(sha|커밋|commit)[^0-9a-zA-Z]{0,6}[0-9a-f]{7,40}' <<<"$body" | grep -oE '[0-9a-f]{7,40}$' | tail -n1 || true)
+    # 줄 맨 앞(불릿·굵게 허용)에서 시작하는 표기만 인정하고, 본문 속 "지난 커밋 abc1234" 같은 서술은 무시한다.
+    rsha=$(grep -oiE '^[[:space:]]*((- |\* )?(\*\*)?)?`?(sha|커밋|commit)`?(\*\*)?[^0-9a-zA-Z]{0,6}[0-9a-f]{7,40}' <<<"$body" | grep -oE '[0-9a-f]{7,40}$' | tail -n1 || true)
     if [ -z "$rsha" ]; then
       echo "warn: $r 승인에 리뷰한 커밋(sha) 표기가 없음 (#126)"; latest[$r]=approve
     elif [ "${sha#"$rsha"}" != "$sha" ]; then latest[$r]=approve
