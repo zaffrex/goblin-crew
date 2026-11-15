@@ -47,7 +47,7 @@ jobs:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}   # 구버전 단일 앱 (없어도 됨)
       AGENT_ROLE: ${{ inputs.role }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

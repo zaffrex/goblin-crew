@@ -23,7 +23,7 @@ jobs:
       SLACK_TOKEN_BACKEND: ${{ secrets.SLACK_TOKEN_BACKEND }}
       SLACK_TOKEN_INFRA: ${{ secrets.SLACK_TOKEN_INFRA }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Join channels
         run: scripts/slack.sh join-all
       - name: Bot user ids

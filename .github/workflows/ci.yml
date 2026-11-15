@@ -13,7 +13,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Team config is valid JSON
         run: jq empty team/team.json team/schedule.json team/slack-apps/*.json
       - name: Shell scripts
