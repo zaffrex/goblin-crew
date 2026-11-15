@@ -4,7 +4,7 @@ import screenJson from '../../content/screens/magpie_nest.json';
 import type { HitBox } from './hit';
 import { CHAR_SLOTS } from './hud';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { createScene, currentBubble, isBusy, sceneLayout, sceneTap, sceneTick, TIMING, type SceneData, type SceneState } from './scene';
+import { createScene, currentBubble, currentCut, isBusy, sceneLayout, sceneTap, sceneTick, TIMING, type SceneData, type SceneState } from './scene';
 import type { Point } from './viewport';
 
 const data: SceneData = { screen: screenJson as unknown as ScreenData, characters: charactersJson as CharactersData };
@@ -191,5 +191,64 @@ describe('sceneLayout (재생 도구 훅)', () => {
     expect(l.hotspots.magpie).toEqual({ left: 134, top: 6, width: 24, height: 24 });
     expect(l.at).toEqual({ jjuk: 'floor', mukjik: 'floor', ppik: 'floor' });
     expect(l.armed).toBeNull();
+  });
+});
+
+describe('게이지 0 (#129, ADR-0065 5절 6, ADR-0018 G2)', () => {
+  const ground = data.screen.hotspots.magpie!.variants![0]!.box!;
+  const MAGPIE_GROUND = center({ left: ground[0], top: ground[1], width: ground[2], height: ground[3] });
+
+  /** 까치를 내리고 게이지를 1로 둔 뒤, 쭉이로 바닥 까치를 뻗어(규칙 7, 게이지 -1) 기절시킨다. */
+  function faintNow(): SceneState {
+    const s = ready();
+    sceneTap(data, s, center(CHAR_SLOTS.ppik), 0, false);
+    sceneTap(data, s, MAGPIE, 0, false); // 삑삑이 꽥: 까치가 바닥으로
+    idle(s);
+    sceneTap(data, s, center(CHAR_SLOTS.jjuk), 0, false);
+    s.puzzle.gauge = 1;
+    s.shownGauge = 1;
+    sceneTap(data, s, MAGPIE_GROUND, 0, false);
+    return s;
+  }
+
+  it('컷 동안은 0을 보이고, faint가 끝나면 HUD 게이지가 가득이다', () => {
+    const s = faintNow();
+    let faintStart = -1;
+    const shownDuringFaint = new Set<number>();
+    while (isBusy(s)) {
+      sceneTick(data, s);
+      if (s.current?.ev.type === 'faint') {
+        if (faintStart < 0) faintStart = s.tick;
+        shownDuringFaint.add(s.shownGauge);
+      }
+    }
+    expect(faintStart).toBeGreaterThan(0);
+    expect([...shownDuringFaint]).toEqual([0]);
+    expect(s.puzzle.gauge).toBe(5);
+    expect(s.shownGauge).toBe(5);
+    expect(sceneLayout(data, s).gauge).toBe(5);
+  });
+
+  it('컷 글은 faint 시작에 뜨고, busy가 끝난 뒤 0.5초 더 남다가 사라진다', () => {
+    const s = faintNow();
+    while (s.current?.ev.type !== 'faint') sceneTick(data, s);
+    const from = s.tick;
+    expect(currentCut(s)).toBe('ui.faint');
+    idle(s);
+    expect(sceneLayout(data, s).cut).toBe('ui.faint');
+    while (currentCut(s) !== null) sceneTick(data, s);
+    expect(s.tick - from).toBe(TIMING.faintCut);
+    expect(TIMING.faintCut).toBeGreaterThan(TIMING.faint);
+  });
+
+  it('컷이 남은 동안 입력을 받고, 새 행동을 시작하면 컷을 내린다', () => {
+    const s = faintNow();
+    idle(s);
+    expect(currentCut(s)).toBe('ui.faint');
+    sceneTap(data, s, center(CHAR_SLOTS.ppik), 0, false); // 캐릭터 전환은 컷을 그대로 둔다
+    expect(currentCut(s)).toBe('ui.faint');
+    const r = sceneTap(data, s, SEESAW_LEFT, 0, false);
+    expect(r.kind).toBe('intent');
+    expect(currentCut(s)).toBeNull();
   });
 });

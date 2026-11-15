@@ -28,6 +28,7 @@ const hud = need('#hud');
 const bubble = need('#bubble');
 const label = need('#label');
 const clearCut = need('#clear');
+const faintCut = need('#faint');
 
 const data: SceneData = { screen: screenJson as unknown as ScreenData, characters: charactersJson as CharactersData };
 const TEXT: Readonly<Record<string, string>> = texts;
@@ -134,6 +135,10 @@ function render(): void {
   placeDom(label, { x: INTERNAL_WIDTH / 2, y: INTERNAL_HEIGHT - 4 });
 
   clearCut.hidden = !(scene.cleared && !isBusy(scene));
+  // 게이지 0 컷(#129, L33). 그림 없는 M1 임시 연출: 클리어 카드와 같은 DOM 글 한 줄.
+  const cut = layout.cut;
+  faintCut.hidden = cut === null;
+  if (cut !== null && faintCut.textContent !== t(cut)) faintCut.textContent = t(cut);
 }
 
 startLoop({ step: () => sceneTick(data, scene), render });
