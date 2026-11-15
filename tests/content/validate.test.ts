@@ -38,6 +38,13 @@ describe('validateScreen', () => {
     expect(r.errors).toEqual([expect.objectContaining({ code: 'unknown-key', path: 'hotspots.nest.aproach' })]);
   });
 
+  it('rejects `when.gauge`: the gauge is not a rule condition (#67, ADR-0096)', () => {
+    const r = mutate((s) => {
+      s.rules[0].when = { ...(s.rules[0].when ?? {}), gauge: 1 };
+    });
+    expect(r.errors).toEqual([expect.objectContaining({ code: 'unknown-key', path: 'rules[0].when.gauge' })]);
+  });
+
   it('enforces I1 ID grammar on keys and values', () => {
     const r = mutate((s) => {
       s.flags['Magpie.Up'] = false;
