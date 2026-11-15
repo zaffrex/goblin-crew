@@ -3,7 +3,7 @@
 - 상태: 승인됨 (2026-11-15, PM Noah. PR #17 머지)
 - 날짜: 2026-11-15
 - 작성자: **[인프라 Sam]**
-- 리뷰어: (대기)
+- 리뷰어: **[BE Ben]** ✅, **[FE Theo]** ✅, 승인 **[PM Noah]**
 - 관련: 이슈 #5, ADR-0004(빌드 산출물 정적 `dist/`), ADR-0006(localStorage 세이브), Slack #goblin-ceo 사장님 방향(2026-11-15 00:21 "일단 GitHub Pages라도 괜찮을 거 같아")
 
 ## 배경 (Context)
