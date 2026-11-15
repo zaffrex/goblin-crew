@@ -1,6 +1,7 @@
 // 아트가 나오기 전(#7)까지 쓰는 임시 그림. 사각형만으로 그린다.
 // 실제 스프라이트가 들어오면 이 파일은 통째로 지운다.
 
+import type { CharacterId } from '../core/characters';
 import type { WalkArea, Walker } from '../core/walk';
 import type { Point, Size } from '../core/viewport';
 
@@ -18,37 +19,88 @@ export function drawRoom(ctx: CanvasRenderingContext2D, size: Size, area: WalkAr
   for (let x = 24; x < size.width; x += 48) ctx.fillRect(x, floorTop, 1, size.height - floorTop);
 }
 
-/** 쭉이 임시 그림: 줄무늬 니삭스 실루엣. 발 위치(x, y)가 기준점이다. 키 40px. */
-export function drawSock(ctx: CanvasRenderingContext2D, w: Walker): void {
+export type Part = [dx: number, dy: number, w: number, h: number, color: string];
+
+const SKIN = '#f1c27d';
+const EYE = '#1d1d1d';
+
+// 오른쪽을 볼 때 기준점(발 바닥 + 두 다리 가운데) 기준 사각형들. 왼쪽을 보면 기준점 축으로 뒤집는다.
+// 키는 ADR-0007 결정 4의 히트 영역 높이(42 / 30 / 25)에 맞춘다. 사람 비율과 외형은 새 ADR-0003에서 정한다.
+// 모든 사각형은 characters.ts의 히트 영역 안에 들어간다 (placeholder.test.ts).
+export const FIGURES: Record<CharacterId, Part[]> = {
+  // 쭉이 → 키다리: 마르고 긴 팔다리
+  jjuk: [
+    [-4, -42, 9, 9, SKIN], // 머리
+    [-5, -42, 10, 3, '#4a2f1d'], // 머리카락
+    [-5, -39, 2, 3, '#4a2f1d'],
+    [0, -38, 1, 1, EYE], // 눈 2개
+    [3, -38, 1, 1, EYE],
+    [-1, -33, 3, 2, SKIN], // 목
+    [-6, -30, 2, 11, '#1f7a70'], // 뒤쪽 팔
+    [-4, -31, 9, 14, '#2a9d8f'], // 몸통
+    [5, -30, 2, 10, '#2a9d8f'], // 앞쪽 팔
+    [5, -20, 2, 2, SKIN], // 손
+    [-3, -17, 3, 15, '#264653'], // 다리
+    [1, -17, 3, 15, '#264653'],
+    [-3, -2, 4, 2, EYE], // 신발 (발끝이 앞)
+    [1, -2, 5, 2, EYE],
+  ],
+  // 묵직이 → 덩치: 넓은 어깨, 짧고 굵은 다리
+  mukjik: [
+    [-4, -30, 9, 8, '#c68642'], // 머리
+    [-4, -30, 9, 2, EYE], // 짧은 머리카락
+    [0, -26, 1, 1, EYE], // 눈 2개
+    [3, -26, 1, 1, EYE],
+    [-11, -21, 3, 9, '#c68642'], // 뒤쪽 팔
+    [-8, -22, 17, 11, '#e76f51'], // 몸통
+    [-8, -12, 17, 1, '#5c3a21'], // 허리띠
+    [9, -21, 3, 9, '#c68642'], // 앞쪽 팔
+    [-7, -11, 6, 9, '#6d6875'], // 다리
+    [2, -11, 6, 9, '#6d6875'],
+    [-7, -2, 6, 2, '#3d3136'], // 신발
+    [2, -2, 8, 2, '#3d3136'],
+  ],
+  // 삑삑이 → 꼬마: 큰 머리, 짧은 몸
+  ppik: [
+    [-5, -25, 10, 9, SKIN], // 머리
+    [-5, -25, 10, 2, '#e9c46a'], // 머리카락
+    [-6, -23, 1, 4, '#e9c46a'], // 뒤로 묶은 머리
+    [0, -21, 1, 1, EYE], // 눈 2개
+    [3, -21, 1, 1, EYE],
+    [-6, -15, 2, 6, SKIN], // 뒤쪽 팔
+    [-4, -16, 8, 8, '#a8dadc'], // 몸통
+    [4, -15, 2, 6, SKIN], // 앞쪽 팔
+    [-3, -8, 2, 6, '#457b9d'], // 다리
+    [1, -8, 2, 6, '#457b9d'],
+    [-3, -2, 3, 2, '#e63946'], // 신발
+    [1, -2, 4, 2, '#e63946'],
+  ],
+};
+
+/** 임시 캐릭터(사람 실루엣) 그림. 발 위치(x, y)가 기준점이다. */
+export function drawCharacter(ctx: CanvasRenderingContext2D, w: Walker): void {
   const fx = Math.round(w.x);
   const fy = Math.round(w.y);
   const f = w.facing;
   // 걸을 때 8틱마다 1px 들썩인다.
   const bob = w.walkTicks > 0 && Math.floor(w.walkTicks / 8) % 2 === 1 ? 1 : 0;
-  const top = fy - 40 - bob;
+  const parts = FIGURES[w.id as CharacterId];
 
   // 그림자
   ctx.fillStyle = '#3d3136';
-  ctx.fillRect(fx - 7, fy - 1, 14, 2);
+  ctx.fillRect(fx - 8, fy - 1, 16, 2);
 
-  // 다리(몸통): 줄무늬
-  ctx.fillStyle = '#e9c46a';
-  ctx.fillRect(fx - 5, top, 10, 34);
-  ctx.fillStyle = '#e76f51';
-  for (let y = top + 6; y < fy - 8 - bob; y += 6) ctx.fillRect(fx - 5, y, 10, 2);
-  // 고무줄 입구
-  ctx.fillStyle = '#f4f1de';
-  ctx.fillRect(fx - 6, top, 12, 3);
+  for (const [dx, dy, bw, bh, color] of parts) {
+    ctx.fillStyle = color;
+    ctx.fillRect(f === 1 ? fx + dx : fx - (dx + bw), fy + dy - bob, bw, bh);
+  }
+}
 
-  // 발: 발끝이 보는 방향으로 나온다
-  ctx.fillStyle = '#e9c46a';
-  ctx.fillRect(f === 1 ? fx - 5 : fx - 10, fy - 6 - bob, 15, 6);
-  ctx.fillStyle = '#e76f51';
-  ctx.fillRect(f === 1 ? fx + 7 : fx - 10, fy - 6 - bob, 3, 6); // 발끝 덧댐
-
-  // 눈
-  ctx.fillStyle = '#1d1d1d';
-  ctx.fillRect(fx + f * 2, top + 6, 1, 2);
+/** 조작 중인 캐릭터 표시: 히트 영역 위에서 깜빡이지 않고 위아래로 흔들리는 작은 ▼. */
+export function drawActiveMarker(ctx: CanvasRenderingContext2D, top: number, centerX: number, tick: number): void {
+  const y = top - 7 - (Math.floor(tick / 20) % 2);
+  ctx.fillStyle = '#edf2f4';
+  for (let i = 0; i < 3; i++) ctx.fillRect(Math.round(centerX) - 2 + i, y + i, 5 - 2 * i, 1);
 }
 
 /** 걸어가는 목표점 표시 (작은 ×). */
