@@ -43,9 +43,9 @@ while read -r c; do
   body=$(jq -r '.body' <<<"$c")
   r=$(role_of "$(head -n1 <<<"$body")")
   [ -n "$r" ] && [ "$r" != "$author_role" ] || continue
-  # 판정 표시는 줄 맨 앞에 있을 때만 센다 (본문 중 다른 PR 언급의 "✅ 승인"은 무시)
-  if grep -qE '^[[:space:]]*((- |\* |> )?(\*\*)?)🔁 수정 요청' <<<"$body"; then latest[$r]=changes
-  elif grep -qE '^[[:space:]]*((- |\* |> )?(\*\*)?)✅ 승인' <<<"$body"; then latest[$r]=approve; fi
+  # 판정 표시는 줄 맨 앞에 있을 때만 센다 (인용 `> `도 제외, 본문 중 다른 PR 언급의 "✅ 승인"은 무시)
+  if grep -qE '^[[:space:]]*((- |\* )?(\*\*)?)🔁 수정 요청([[:space:]]|$|\*\*|[.:])' <<<"$body"; then latest[$r]=changes
+  elif grep -qE '^[[:space:]]*((- |\* )?(\*\*)?)✅ 승인([[:space:]]|$|\*\*|[.:])' <<<"$body"; then latest[$r]=approve; fi
 done < <(jq -c 'sort_by(.at) | .[]' <<<"$verdicts")
 
 approvers=(); blockers=()
