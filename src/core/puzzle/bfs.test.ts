@@ -135,4 +135,8 @@ describe('requiredAbilities', () => {
       poke: false,
     });
   });
+
+  it('returns null when a truncated search found no clear', () => {
+    expect(requiredAbilities(host(), ['squeak'], 1)).toEqual({ squeak: null });
+  });
 });

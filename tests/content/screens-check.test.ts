@@ -22,6 +22,8 @@ describe('screen BFS check', () => {
   it('counts unique reactions without common.*', () => {
     const screen = load(dir('../../content/screens/magpie_nest.json')) as ScreenData;
     expect(uniqueReactions(screen)).toBe(9);
+    const withSpots = { spots: { a: { takenShow: [{ anim: ['x', 'taken_u'] }], releaseShow: { default: [{ anim: ['x', 'release_u'] }] } } } };
+    expect(uniqueReactions(withSpots as unknown as ScreenData)).toBe(2);
     expect(uniqueReactions({ ...screen, fallbacks: undefined, onEnter: undefined, rules: [{ show: [{ anim: ['a', 'common.x'] }, { anim: ['a', 'y'] }] }] } as unknown as ScreenData)).toBe(1);
   });
 });

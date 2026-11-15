@@ -1,7 +1,7 @@
 // Screen checker (#67): wires the real `step` into the generic BFS explorer (ADR-0096) and
 // replays the screen's `solution`. Part 1 = M1 required items; damage-dependence warnings come in part 2.
 
-import { explore, type BfsHost, type ExploreResult } from './bfs';
+import { explore, requiredAbilities, type BfsHost, type ExploreResult } from './bfs';
 import { initialState, step } from './step';
 import type { Action, CharactersData, PuzzleState, ScreenData, Verb } from './types';
 import { VERBS } from './types';
@@ -57,16 +57,6 @@ export function replaySolution(screen: ScreenData, characters?: CharactersData):
   return problems;
 }
 
-function required(host: BfsHost<PuzzleState, Action>, abilities: string[], maxStates?: number): Record<string, boolean | null> {
-  const out: Record<string, boolean | null> = {};
-  for (const v of abilities) {
-    const r = explore(host, { excludeVerb: v, ...(maxStates === undefined ? {} : { maxStates }) });
-    // A truncated search that has not found a clear says nothing about necessity.
-    out[v] = r.clearReachable ? false : r.truncated ? null : true;
-  }
-  return out;
-}
-
 /** ADR-0018 R1: distinct `anim` names the screen uses, not counting shared `common.*` ones. */
 export function uniqueReactions(screen: ScreenData): number {
   const names = new Set<string>();
@@ -79,7 +69,7 @@ export function uniqueReactions(screen: ScreenData): number {
       Object.values(o).forEach(walk);
     }
   };
-  walk([screen.rules, screen.fallbacks, screen.onEnter]);
+  walk([screen.rules, screen.fallbacks, screen.onEnter, screen.spots]);
   return names.size;
 }
 
@@ -87,7 +77,7 @@ export function checkScreen(screen: ScreenData, characters?: CharactersData, max
   const host = screenHost(screen, characters);
   return {
     explore: explore(host, maxStates === undefined ? {} : { maxStates }),
-    requiredAbilities: required(host, ['stretch', 'stomp', 'squeak'], maxStates),
+    requiredAbilities: requiredAbilities(host, ['stretch', 'stomp', 'squeak'], maxStates),
     solutionProblems: replaySolution(screen, characters),
   };
 }
