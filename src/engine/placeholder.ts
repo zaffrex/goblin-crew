@@ -2,6 +2,7 @@
 // 실제 스프라이트가 들어오면 이 파일은 통째로 지운다.
 
 import type { CharacterId } from '../core/characters';
+import type { HitBox } from '../core/hit';
 import type { WalkArea, Walker } from '../core/walk';
 import type { Point, Size } from '../core/viewport';
 
@@ -113,4 +114,67 @@ export function drawTarget(ctx: CanvasRenderingContext2D, p: Point, tick: number
     ctx.fillRect(x + i, y + i, 1, 1);
     ctx.fillRect(x + i, y - i, 1, 1);
   }
+}
+
+const hb = (b: HitBox): [number, number, number, number] => [b.left, b.top, b.width, b.height];
+
+/** 임시 대상 그림: 서는 자리·핫스팟 상자. 판정 상자 그대로 그려서 그림과 판정이 어긋나지 않는다. */
+export function drawTargets(ctx: CanvasRenderingContext2D, spots: Record<string, HitBox>, hotspots: Record<string, HitBox>): void {
+  for (const b of Object.values(spots)) {
+    ctx.fillStyle = '#8d6e63';
+    ctx.fillRect(...hb(b));
+    ctx.fillStyle = '#5d4037';
+    ctx.fillRect(b.left, b.top + b.height - 3, b.width, 3);
+  }
+  for (const b of Object.values(hotspots)) {
+    ctx.fillStyle = '#6d597a';
+    ctx.fillRect(...hb(b));
+    ctx.strokeStyle = '#b56576';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(b.left + 0.5, b.top + 0.5, b.width - 1, b.height - 1);
+  }
+}
+
+/** 고른(터치 첫 탭) 대상 외곽선. */
+export function drawOutline(ctx: CanvasRenderingContext2D, b: HitBox, tick: number): void {
+  if (Math.floor(tick / 15) % 2 === 1) return;
+  ctx.strokeStyle = '#edf2f4';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(b.left - 1.5, b.top - 1.5, b.width + 3, b.height + 3);
+}
+
+const VERB_GLYPH: Record<string, string> = { 'verb.ability': '능', 'verb.hand': '손', 'verb.look': '눈', 'item.0': '물' };
+const CHAR_COLOR: Record<string, string> = { 'char.jjuk': '#2a9d8f', 'char.mukjik': '#e76f51', 'char.ppik': '#a8dadc' };
+
+/** 임시 HUD: 캐릭터 칸·동사 버튼·아이템 칸, 게이지 5칸. 배치는 hud.ts 숫자 그대로. */
+export function drawHud(
+  ctx: CanvasRenderingContext2D,
+  hud: Record<string, HitBox>,
+  gauge: readonly HitBox[],
+  state: { active: string; armed: string | null; gauge: number },
+): void {
+  ctx.font = '10px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const [id, b] of Object.entries(hud)) {
+    const on = id === `char.${state.active}` || id === state.armed;
+    ctx.fillStyle = on ? '#edf2f4' : '#3d405b';
+    ctx.fillRect(...hb(b));
+    ctx.fillStyle = CHAR_COLOR[id] ?? (on ? '#2b2d42' : '#edf2f4');
+    if (id in CHAR_COLOR) ctx.fillRect(b.left + 8, b.top + 6, b.width - 16, b.height - 12);
+    else ctx.fillText(VERB_GLYPH[id] ?? '?', b.left + b.width / 2, b.top + b.height / 2 + 1);
+  }
+  gauge.forEach((b, i) => {
+    ctx.fillStyle = i < state.gauge ? '#f2cc8f' : '#3d405b';
+    ctx.fillRect(...hb(b));
+  });
+}
+
+/** 효과(fx) 임시 표시: 대상 위의 작은 별. */
+export function drawSpark(ctx: CanvasRenderingContext2D, at: Point, t: number): void {
+  const y = Math.round(at.y) - 4 - Math.floor(t / 6);
+  const x = Math.round(at.x);
+  ctx.fillStyle = '#f2cc8f';
+  ctx.fillRect(x - 1, y - 3, 3, 7);
+  ctx.fillRect(x - 3, y - 1, 7, 3);
 }
