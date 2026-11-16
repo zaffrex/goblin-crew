@@ -87,6 +87,7 @@ const BOB = [3, 4, 1, 3, 4, 1];
 const lag = (arr, k) => arr[(k + 5) % 6];
 
 export function pose(kind, k) {
+  if (POSES[kind]) return POSES[kind](k);
   if (kind === 'idle') {
     return {
       chest: k, // 숨 들이쉬기 / 내쉬기
@@ -219,6 +220,7 @@ function drawLeg(K, side, hx, hy, a, bias) {
 }
 
 export function drawFrame(p) {
+  if (p.kind === 'pose') return drawPose(p);
   const K = new Canvas(CELL[0], CELL[1], S, OX, 0);
   const d = u(p.chest);
   const hipY = HIP_Y + p.hipDrop; // 걷기: 골반도 내려감(상체보다 덜, HIP_BOB) / 서 있기(숨쉬기): 상체만
@@ -328,6 +330,186 @@ export function drawFrame(p) {
   return { K, feet, grip: P(px, handY) };
 }
 
+// ══════════ 화면 1 자세 (#142 "화면 1 자세", 설계 docs/design/screens/magpie_nest.md 7절) ══════════
+// 서 있기·걷기(drawFrame)는 바이트 그대로 두고, 자세는 관절 점(① 좌표)을 직접 주는 drawPose로 그린다.
+// 부품·색·마감 패스(colorLines → 손·머리 → rimShade → soles → outline)는 drawFrame과 같다.
+//   hold        U4 고리에 매달려 버티기(대기). 한 손으로 고리, 다른 손은 장대를 비스듬히 든 채 다리를 허우적. 왼쪽(기둥·둥지)을 본다.
+//               손 = 칸 (26,4) → 뒤집어 그리면 고리 손 기준점(형식 기록 7절) (158,100). build.mjs가 검사한다.
+//   common.zap  공용 "찌릿". 머리카락이 곤두서고 눈이 점이 된다(2칸 덜덜) → 이를 악물고 움츠림. 합 500ms = 지금 캐릭터 anim busy(TIMING.anim 30틱).
+
+// 얼굴 갈아 끼우기: 눈(8~11행), 눈썹(5~6행), 입(14~17행)
+const EYES = {
+  squint: [ // 질끈 감은 눈 > <
+    'XHHHhHHDsssssssssssss.',
+    'XHHdsdHDsPPssssssPPss.',
+    'XHdsDdsDsssPPssPPssss.',
+    'XHdsDdsdsPPssssssPPss.',
+  ],
+  shock: [ // 눈이 커지고 눈동자가 점 하나
+    'XHHHhHHDsWWWWssWWWWss.',
+    'XHHdsdHDWWWWWWWWWWWWs.',
+    'XHdsDdsDWWPWWWlWWPWWs.',
+    'XHdsDdsdslWWlsslWWlss.',
+  ],
+};
+const BROWS_UP = [ // 놀라서 눈썹이 한 줄 위로
+  'XHHHHHHHHBBBBtHtBBBBH.',
+  'XHHHHHHHtssssstsssssH.',
+];
+const MOUTHS = {
+  open: HEAD_OPEN.slice(14, 18),
+  shut: MOUTH_SHUT,
+  grit: [ // 이를 악묾(매달려 버티기, 찌릿 뒤)
+    '...xdssssmmmmmmmmm....',
+    '....dssssmTkTkTkTkm...',
+    '....ddsssmmmmmmmmmm...',
+    '.....ddssssssssss.....',
+  ],
+  ouch: [ // 크게 벌린 비명
+    '...xdsssmmmmmmmmmm....',
+    '....dsssmkTkkkkkkm....',
+    '....ddssmkkrrrrkkm....',
+    '.....ddsmmmmmmmmm.....',
+  ],
+};
+function face(eyes, mouth, brows) {
+  const r = HEAD_OPEN.slice();
+  if (brows === 'up') r.splice(5, 2, ...BROWS_UP);
+  if (eyes !== 'open') r.splice(8, 4, ...EYES[eyes]);
+  r.splice(14, 4, ...MOUTHS[mouth]);
+  for (const row of r) if (row.length !== 22) throw new Error(`[jjuk] 얼굴 줄 길이 ${row.length}: ${row}`);
+  return r;
+}
+// 곤두선 머리(찌릿): 머리 위 3줄. 두 모양을 번갈아 덜덜 떤다.
+const SPIKES = [
+  ['.H...H...H...H..', '.HH..HH..HH..Hh.', 'HHh.HHh.HHh.HHh.'],
+  ['...H...H...H....', '..HH..HH..HH..H.', '.HHh.HHh.HHh.HHh'],
+];
+// 고리를 쥔 주먹(옆에서, 손가락이 갈고리 끝을 감싼다). 가운데 위가 손 기준점.
+const HOOK_FIST = ['.tts.', 'tsssd', 'DDDDd', 'tsssd', 'DDDdd', '.sdd.'];
+// 놀라서 쫙 편 손
+const SPREAD = ['t.t.t', 'stsds', '.sssd', '..dd.'];
+const HAND_ROWS = { ...BACK_HAND, fist: HOOK_FIST, spread: SPREAD, grip: GRIP };
+
+/**
+ * 자세 하나 그리기. 좌표는 모두 ① 좌표(칸 px = ① × 4/3 + 2.6).
+ * p.head {x, y, eyes, mouth, brows, hair: 0~2 가닥 | 's0'·'s1' 곤두섬} — x·y는 칸 px(머리 왼쪽 위)
+ * p.torso [[x,y,r]×3] 어깨 → 허리 → 골반, p.hip [x,y]
+ * p.back/p.front 팔 {sh, el, wr} + hand {rows, at: 칸 px 왼쪽 위}
+ * p.pole {top:[x,y], bot:[x,y]} 장대(위 끝에 집게), p.legs {back, front}: {x, lift, toe} (drawLeg와 같은 뜻)
+ */
+function drawPose(p) {
+  const K = new Canvas(CELL[0], CELL[1], S, OX, 0);
+  const stripes = (x, y) => (Math.floor(y * S) % 4 < 2 ? R4.stripe : undefined);
+  const arm = (a, bias) => {
+    const mid = [a.sh[0] + (a.el[0] - a.sh[0]) * 0.5, a.sh[1] + (a.el[1] - a.sh[1]) * 0.5];
+    K.limb([[...a.sh, 1.6], [...mid, 1.45]], R4.shirt, { bias, pattern: stripes });
+    K.limb([[a.sh[0] + (a.el[0] - a.sh[0]) * 0.4, a.sh[1] + (a.el[1] - a.sh[1]) * 0.4, 0.95], [...a.el, 0.95], [...a.wr, 0.9]], R4.skin, { bias });
+  };
+
+  // 장대(맨 뒤): 집게는 위 끝에 선 채로 붙는다
+  let pole;
+  if (p.pole) {
+    const { top, bot } = p.pole;
+    const len = Math.hypot(bot[0] - top[0], bot[1] - top[1]);
+    pole = K.limb([[...top, 0.95], [...bot, 0.95]], R4.metal, {
+      pattern: (x, y) => (Math.abs((Math.hypot(x - top[0], y - top[1]) % 6)) < 0.5 && Math.hypot(x - top[0], y - top[1]) < len - 1 ? [C.plum, C.dusk, C.lav] : undefined),
+    });
+    const hx = Math.round(K.X(top[0] - 1.6)), hy = Math.round(K.Y(top[1] - 4.4));
+    K.stamp(hx, hy, ['.LLLD.', 'L....D', 'L...LD', '.D..D.', '..LD..', '..LD..', '..dD..'], { L: C.lint, D: C.dusk, d: C.plum }, pole);
+  }
+  const feet = [];
+  feet.push(drawLeg(K, 'back', p.hip[0] - (p.hipSpread ?? 0.5), p.hip[1], p.legs.back, -0.35).shoe);
+  arm(p.back, -0.3);
+  feet.push(drawLeg(K, 'front', p.hip[0] + (p.hipSpread ?? 0.5), p.hip[1], p.legs.front, 0).shoe);
+  const [t0, t1, t2] = p.torso;
+  K.limb([t0, t1, t2], R4.shirt, {
+    pattern: (x, y) => (Math.round((y - (t0[1] - 19.5)) * S) % 4 < 2 && y > t0[1] + 0.8 ? R4.stripe : undefined),
+  });
+  K.limb([[t2[0] - 3.0, t2[1] + 0.2, 1.0], [t2[0] - 3.4, t2[1] + 1.7, 0.9]], R4.shirt, { bias: -0.2 }); // 빠져나온 셔츠 자락
+  K.limb([[t2[0] - 2.0, t2[1] + 0.6, 0.55], [t2[0] + 2.8, t2[1] + 0.6, 0.55]], R4.shoe, { line: false }); // 허리띠
+  if (p.neck) K.limb([[...p.neck[0], 1.1], [...p.neck[1], 1.2]], R4.skin, { bias: -0.15 });
+  arm(p.front, 0);
+  colorLines(K, LINE);
+
+  const handPart = K.part(R4.skin);
+  for (const h of [p.back.hand, p.front.hand]) K.stamp(h.at[0], h.at[1], HAND_ROWS[h.rows], HAND, handPart);
+
+  const { x: hx0, y: hy0 } = p.head;
+  const headPart = K.part(R4.skin);
+  if (typeof p.head.hair === 'number') K.stamp(hx0 + 4, hy0 - 1, TUFT[p.head.hair], HL, headPart);
+  else K.stamp(hx0 + 2, hy0 - 3, SPIKES[p.head.hair === 's1' ? 1 : 0], HL, headPart);
+  K.stamp(hx0, hy0, face(p.head.eyes, p.head.mouth, p.head.brows), HL, headPart);
+  K.stamp(hx0 + NOSE[0], hy0 + NOSE[1], NOSE[2], HL, headPart);
+  K.stamp(hx0 + 3, hy0 + 8, ['.ts', 'tsd', 'sDd', 'sdd', '.d.'], HL, headPart);
+  // 셔츠 깃·명찰(몸통 위 끝 기준)
+  const P = (x, y) => [Math.round(K.X(x)), Math.round(K.Y(y))];
+  K.stamp(...P(t0[0] - 1.2, t0[1] - 1.1), ['WW..W', 'cWWWc'], { W: C.white, c: C.lint });
+  K.stamp(...P(t0[0] + 1.1, t0[1] + 2.5), ['AAA', 'AtA'], { A: C.aqua, t: C.tealM });
+
+  rimShade(K, new Set([headPart, handPart, ...(pole === undefined ? [] : [pole])]), DOWN);
+  soles(K, feet);
+  K.outline();
+  return { K, feet, hand: p.hand, facing: p.facing };
+}
+
+// 손 stamp 왼쪽 위(칸 px): 손목 점에서 손 크기만큼
+const handAt = (wr, dx, dy) => [Math.round(wr[0] * S + OX) + dx, Math.round(wr[1] * S) + dy];
+
+// 고리 손 기준점(칸 px, 오른쪽을 본 시트 좌표). 주먹 HOOK_FIST를 (24,1)에 찍으면 가운데 위가 여기다.
+// 매달린 쭉이는 **왼쪽(기둥·둥지 쪽)을 본다**(HOLD_FACING). 엔진이 뒤집어 그리면 손이 칸 47 − 26 = 21열 → 화면 137 + 21 = 158.
+export const HOLD_HAND = [26, 4];
+export const HOLD_FACING = -1;
+
+const POSES = {
+  // U4 매달려 버티기: 어깨가 귀까지 올라붙고(머리가 어깨 사이로), 다리는 두 박자로 허우적
+  hold(k) {
+    const sway = k === 0 ? 0 : -0.4; // 버둥거리면 몸통이 반대로 살짝 흔들린다
+    const wr = [17.4, 5.9];
+    const fwr = [21.0 + sway, 29.6];
+    return {
+      kind: 'pose',
+      chest: 9,
+      head: { x: 13, y: 10, eyes: 'squint', mouth: 'grit', hair: k === 0 ? 1 : 0 },
+      torso: [[15.0 + sway, 23.2, 3.4], [14.8 + sway, 28.4, 3.6], [14.6 + sway, 33.4, 3.4]],
+      hip: [14.45 + sway, 33.4],
+      back: { sh: [12.8, 23.6], el: [6.0, 15.4], wr, hand: { rows: 'fist', at: [24, 1] } },
+      front: { sh: [16.8 + sway, 23.8], el: [19.4 + sway, 27.6], wr: fwr, hand: { rows: 'grip', at: handAt(fwr, -2, -3) } },
+      pole: { top: [30.6, 9.0], bot: [19.2 + sway, 37.0] },
+      legs: k === 0
+        ? { back: { x: -1.0, lift: 0, toe: false }, front: { x: 3.4, lift: 3.4, toe: true } }
+        : { back: { x: 2.6, lift: 3.2, toe: true }, front: { x: -0.4, lift: 0, toe: false } },
+      hand: HOLD_HAND,
+      facing: HOLD_FACING,
+    };
+  },
+  // 찌릿: 0·1 덜덜(1px 좌우), 2 이를 악물고 움츠림
+  'common.zap'(k) {
+    const j = k === 1 ? 0.75 : 0; // 덜덜(① 0.75 = 칸 1px)
+    const d = k === 2 ? 1.5 : 2.25; // 몸이 움찔 내려앉는다
+    const body = (y) => y + d;
+    const fwr = [22.8 + j, body(23.4)];
+    const zapped = k < 2;
+    return {
+      kind: 'pose',
+      chest: Math.round(d * S),
+      head: zapped
+        ? { x: 13 + Math.round(j * S), y: 4, eyes: 'shock', mouth: 'ouch', brows: 'up', hair: k === 0 ? 's0' : 's1' }
+        : { x: 13, y: 3, eyes: 'squint', mouth: 'grit', hair: 0 },
+      neck: [[15.0 + j, body(14)], [15.2 + j, body(18.5)]],
+      torso: [[15.2 + j, body(19.5), 3.4], [14.8 + j, body(25), 3.6], [14.6, 30 + d * 0.5, 3.4]],
+      hip: [14.45, 30 + d * 0.5],
+      hipSpread: 1.85, // 서 있기와 같은 다리 벌림
+      back: zapped
+        ? { sh: [13 + j, body(20)], el: [9.6 + j, body(23.6) - k], wr: [7.4 + j, body(26.4) - 2 * k], hand: { rows: 'spread', at: handAt([7.4 + j, body(26.4) - 2 * k], -3, -1) } }
+        : { sh: [13, body(20)], el: [12.0, body(26.4)], wr: [12.4, body(31.8)], hand: { rows: 'mid', at: handAt([12.4, body(31.8)], -2, -1) } },
+      front: { sh: [16.6 + j, body(20)], el: [19.6 + j, body(25.2)], wr: fwr, hand: { rows: 'grip', at: handAt([24.2 + j, fwr[1]], -3, -3) } },
+      pole: zapped ? { top: [24.2 + j, 3.6], bot: [24.2 + j, 44.0] } : { top: [24.2, 5], bot: [24.2, 45.5] },
+      legs: { back: { x: -2.05, lift: 0, toe: false }, front: { x: 2.4, lift: 0, toe: false } },
+    };
+  },
+};
+
 export const SHEET = {
   name: 'jjuk-base',
   character: 'jjuk',
@@ -336,6 +518,8 @@ export const SHEET = {
   anims: [
     { name: 'idle', frames: 2, ms: [700, 500] },
     { name: 'walk', frames: 6, by: 'distance' },
+    { name: 'hold', frames: 2, ms: [450, 450] },
+    { name: 'common.zap', frames: 3, ms: [100, 100, 300] },
   ],
   pose,
   drawFrame,

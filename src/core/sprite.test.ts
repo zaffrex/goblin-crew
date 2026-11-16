@@ -46,8 +46,20 @@ describe('spriteFrame', () => {
   });
 
   it('시트에 없는 자세는 null(실루엣): 매달림, 아직 안 그린 연출', () => {
-    expect(spriteFrame(JJUK, { ...still, holding: true })).toBeNull();
+    const noHold = Object.fromEntries(Object.entries(JJUK.anims).filter(([name]) => name !== 'hold'));
+    expect(spriteFrame({ ...JJUK, anims: noHold }, { ...still, holding: true })).toBeNull();
     expect(spriteFrame(JJUK, { ...still, event: { name: 'common.bump_bottom', ms: 0 } })).toBeNull();
+  });
+
+  it('쭉이 시트의 화면 1 자세(#142): 매달림은 반복, 찌릿은 500ms 안에 끝나고 마지막 장에 머문다', () => {
+    const hold = JJUK.anims.hold!;
+    const zap = JJUK.anims['common.zap']!;
+    expect(spriteFrame(JJUK, { ...still, holding: true, clockMs: 0 })).toBe(hold.frames[0]);
+    expect(spriteFrame(JJUK, { ...still, holding: true, clockMs: 450 })).toBe(hold.frames[1]);
+    expect(spriteFrame(JJUK, { ...still, holding: true, clockMs: 900 })).toBe(hold.frames[0]);
+    expect('ms' in zap && zap.ms.reduce((a, b) => a + b, 0)).toBe(500); // 지금 캐릭터 anim busy(TIMING.anim 30틱)와 같다
+    expect(spriteFrame(JJUK, { ...still, event: { name: 'common.zap', ms: 499 } })).toBe(zap.frames[2]);
+    expect(spriteFrame(JJUK, { ...still, event: { name: 'common.zap', ms: 2000 } })).toBe(zap.frames[2]);
   });
 
   it('연출이 매달림·걷기보다 앞선다. 연출은 반복하지 않고 마지막 장에 머문다', () => {
