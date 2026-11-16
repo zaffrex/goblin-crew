@@ -324,7 +324,7 @@ const STOMP = [
     aim: { back: [2.2, 1.95], front: [0.95, 1.3] },
     tails: 0,
     face: { brows: 'furrow', eyes: 'shut', mouth: 'grit' },
-    fx: (K) => { puff(K, 5, 1, { behind: true }); puff(K, 43, 1, { behind: true }); impact(K); },
+    fx: (K) => { puff(K, 6, 1, { behind: true }); puff(K, 42, 1, { behind: true }); impact(K); },
   },
   { // 3 여운: 몸이 올라오는데 배는 한 번 더 튀어 오른다. 얼굴은 원래 무표정(비장)으로, 먼지는 흩어진다
     chest: 2, belly: 0.6, jiggle: -2, lean: 0,

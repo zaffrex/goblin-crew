@@ -70,6 +70,7 @@ const lag = (arr, k) => arr[(k + 5) % 6];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export function pose(kind, k) {
+  if (kind === 'common.squeeze_chicken') return SQUEEZE[k];
   if (kind === 'idle') {
     return {
       chest: k, // 숨 들이쉬기 / 내쉬기
@@ -143,10 +144,18 @@ const GLASSES = {
   // 렌즈 5×5 두 개 + 코다리. 흰자가 렌즈를 채우고 눈동자는 1×2 점(겁먹어 작아진 눈동자). 2×2로 채우면 선글라스로 읽힌다.
   fwd: [11, 11, ['.FFF...FFF.', 'FawwFFFawwF', 'FwwPF.FwwPF', 'FlwPF.FlwPF', '.FFF...FFF.']],
   back: [11, 11, ['.FFF...FFF.', 'FawwFFFawwF', 'FPwwF.FPwwF', 'FPwlF.FPwlF', '.FFF...FFF.']],
+  // 질끈 감은 눈: 렌즈를 가로지르는 한 줄 + 아래 주름 점(3×3 렌즈에서 > <는 동그라미로 읽혀서 뺐다)
+  shut: [11, 11, ['.FFF...FFF.', 'FawwFFFawwF', 'FPPPF.FPPPF', 'FlwlF.FlwlF', '.FFF...FFF.']],
+  // 자기 소리에 놀란 눈: 렌즈 가운데 1px 눈동자(바늘 눈). 안경은 1px 튀어 오른다(glassesUp).
+  wide: [11, 11, ['.FFF...FFF.', 'FawwFFFawwF', 'FwPwF.FwPwF', 'FwwwF.FwwwF', '.FFF...FFF.']],
 };
 const TEMPLE = [10, 12, ['F']]; // 안경다리(후드 안으로)
 const NOSE = [20, 15, ['.tt.', 'tsss', 'ssdd', '.dD.']]; // 작은 단추 코(쭉이 코와 반대로 작다)
-const MOUTH = [13, 18, ['.m.m.m', 'm.m.m.']]; // 덜덜 떨리는 입
+const MOUTHS = {
+  shake: [13, 18, ['.m.m.m', 'm.m.m.']], // 덜덜 떨리는 입(기본)
+  clench: [13, 18, ['mmmmmm', '.m..m.']], // 이를 악문 입(쥐어짜기)
+  o: [14, 17, ['.mm.', 'mPPm', 'mPPm', '.mm.']], // 흐익(놀라 벌린 입)
+};
 const CHEEK = [11, 16, ['cc']];
 const SWEAT = ['.A.', 'AAA', 'AWA', '.A.'];
 const HEAD_X = 11, HEAD_Y = 15;
@@ -208,10 +217,12 @@ export function drawFrame(p) {
 
   // 고무 닭: 몸(두 손 사이) → 목 → 머리. 머리는 한 프레임 늦게 까딱인다.
   const ch = u(p.chickHead);
-  const cbx = bx(23.4, body(31.6)), cby = body(31.6);
-  const chick = K.ball(cbx, cby, 3.2, 2.5, R4.chick);
+  const sq = p.squash ?? 0; // 0 보통 ~ 1 쥐어짜 납작
+  const up = u(p.chickUp ?? 0); // 닭을 가슴께로 끌어올린다
+  const cbx = bx(23.4, body(31.6)), cby = body(31.6) - up;
+  const chick = K.ball(cbx, cby, 3.2 + 1.0 * sq, 2.5 - 0.9 * sq, R4.chick);
   K.ball(cbx - 2.6, cby - 0.9, 1.3, 1.0, R4.chick, { bias: 0.1 }); // 꼬리
-  const hx = bx(26.0, body(27.2)), hy = body(27.2) + ch;
+  const hx = bx(26.0, body(27.2)), hy = body(27.2) - up + ch;
   K.limb([[cbx + 1.4, cby - 1.2, 1.15], [hx - 0.3, hy + 0.9, 1.0]], R4.chick, { line: false });
   const chickHead = K.ball(hx, hy, 1.75, 1.85, R4.chick);
 
@@ -224,7 +235,8 @@ export function drawFrame(p) {
   {
     const [x, y] = P(hx, hy);
     K.stamp(x - 1, y - 4, ['.R.R', 'RRrR'], CHICK_L, chickHead);
-    K.stamp(x + 2, y - 1, ['OO.', 'OOO', 'Or.'], CHICK_L, chickHead);
+    // 부리: 쥐어짜면 쩍 벌어진다(위 부리 / 목구멍 / 아래 부리)
+    K.stamp(x + 2, y - 1, p.beakOpen ? ['OOO.', 'r...', 'OOOO'] : ['OO.', 'OOO', 'Or.'], CHICK_L, chickHead);
     K.stamp(x, y - 1, ['k'], CHICK_L);
     const [lx, ly] = P(cbx - 0.6, cby + 2.2);
     K.stamp(lx, ly, ['O.O', 'O.O', 'OOOO'], CHICK_L, chick);
@@ -233,11 +245,11 @@ export function drawFrame(p) {
   // 손(격자): 앞손은 닭 배 아래, 뒷손은 닭 등 위
   const handPart = K.part(R4.skin);
   {
-    const [x, y] = P(cbx - 1.6, cby + 0.6);
+    const [x, y] = P(cbx - 1.6, cby + 0.6 - 0.6 * sq);
     K.stamp(x - 2, y - 1, HAND.front, HAND_L, handPart);
   }
   {
-    const [x, y] = P(cbx + 0.6, cby - 2.0);
+    const [x, y] = P(cbx + 0.6, cby - 2.0 + 0.8 * sq);
     K.stamp(x - 1, y - 1, HAND.back, HAND_L, handPart);
   }
 
@@ -259,14 +271,61 @@ export function drawFrame(p) {
   const hx0 = HEAD_X + p.lean, hy0 = HEAD_Y + p.chest;
   const headPart = K.part(R4.skin);
   K.stamp(hx0, hy0, HEAD, HL, headPart);
-  for (const [cx2, cy2, rows] of [BROWS, GLASSES[p.eyes], TEMPLE, NOSE, MOUTH, CHEEK]) K.stamp(hx0 + cx2, hy0 + cy2, rows, HL, headPart);
+  const gUp = p.glassesUp ?? 0; // 안경·눈썹이 튀어 오른다(놀람)
+  for (const [cx2, cy2, rows] of [[BROWS[0], BROWS[1] - gUp, BROWS[2]], [...GLASSES[p.eyes].slice(0, 1), GLASSES[p.eyes][1] - gUp, GLASSES[p.eyes][2]], TEMPLE, NOSE, MOUTHS[p.mouth ?? 'shake'], CHEEK])
+    K.stamp(hx0 + cx2, hy0 + cy2, rows, HL, headPart);
   if (p.sweat >= 0) K.stamp(hx0 + 21, hy0 + 1 + p.sweat, SWEAT, { A: C.tealM, W: C.white }, K.part(R4.chick));
 
   rimShade(K, new Set([headPart, handPart]), DOWN);
   soles(K, feet, C.redD);
   K.outline();
+  if (p.fx) p.fx(K, { beak: P(hx, hy), head: [hx0, hy0] }); // 소리선·놀람선: 외곽선 없이(ADR-0007 결정 3-1)
   return { K, feet };
 }
+
+// ══════════ 화면 1 자세 (#142, 설계 docs/design/screens/magpie_nest.md) ══════════
+// common.squeeze_chicken  공용 "삑"(능력 동작). 까치·둥지·시소·바닥 어디에 삑 해도 같은 그림. "삑!" 글자는 엔진 fx(squeak_text)다.
+//   개그: 겁 많은 삑삑이가 자기가 낸 소리에 제일 놀란다.
+//   0 준비(닭을 가슴께로 끌어올리고 눈을 질끈, 무릎을 모은다) → 1 꽉!(닭이 납작해지고 목이 쭉, 부리가 쩍, 소리선)
+//   → 2 흐익(몸을 젖히고 안경이 튀어 오른다, 바늘 눈, 놀람선, 닭은 부풀며 머리가 늦게 내려온다). 합 1000ms ≤ 1500.
+//   서 있기와 같은 drawFrame에 닭 납작(squash)·끌어올림(chickUp)·부리·얼굴·효과만 더한다. 방향은 고정하지 않는다.
+/** 부리 앞 소리선(외곽선 없음): 위·앞·아래로 퍼지는 짧은 선 3개. 몸 위에는 그리지 않는다. */
+function soundLines(K, { beak: [x, y] }) {
+  const rays = [
+    [[x + 6, y - 3, C.white], [x + 7, y - 4, C.white], [x + 8, y - 5, C.cotton]],
+    [[x + 7, y, C.white], [x + 8, y, C.white], [x + 9, y, C.cotton]],
+    [[x + 6, y + 3, C.white], [x + 7, y + 4, C.white], [x + 8, y + 5, C.cotton]],
+  ];
+  for (const ray of rays) for (const [rx, ry, c] of ray) if (K.get(rx, ry) === -1) K.dot(rx, ry, c);
+}
+/** 놀람선(외곽선 없음): 후드 위로 튀는 짧은 선 3개. */
+function startle(K, { head: [hx, hy] }) {
+  const rays = [
+    [[hx + 2, hy - 1, C.cotton], [hx + 1, hy - 2, C.white], [hx, hy - 3, C.white]],
+    [[hx + 9, hy - 3, C.cotton], [hx + 9, hy - 4, C.white], [hx + 9, hy - 5, C.white]],
+    [[hx + 17, hy - 1, C.cotton], [hx + 18, hy - 2, C.white], [hx + 19, hy - 3, C.white]],
+  ];
+  for (const ray of rays) for (const [rx, ry, c] of ray) if (K.get(rx, ry) === -1) K.dot(rx, ry, c);
+}
+const SQUEEZE = [
+  { // 0 준비: 닭을 가슴께로, 무릎 모으고 움츠림, 눈 질끈 + 이 악물기
+    chest: 2, lean: 0,
+    legs: { back: { x: -0.3, lift: 0, toe: false }, front: { x: 0.4, lift: 0, toe: false } },
+    eyes: 'shut', mouth: 'clench', sweat: -1, chickHead: 0, chickUp: 2, flare: 0,
+  },
+  { // 1 꽉!: 더 움츠리고 두 손으로 쥐어짠다. 닭은 납작, 목이 위로 튀고 부리가 쩍
+    chest: 3, lean: 0,
+    legs: { back: { x: -0.3, lift: 0, toe: false }, front: { x: 0.4, lift: 0, toe: false } },
+    eyes: 'shut', mouth: 'clench', sweat: -1, chickHead: -3, chickUp: 2, squash: 1, beakOpen: true, flare: 0,
+    fx: soundLines,
+  },
+  { // 2 흐익: 자기 소리에 놀라 몸을 젖힌다. 안경 튐 + 바늘 눈 + 벌린 입, 땀 한 방울. 닭은 부풀고 머리가 늦게 내려온다
+    chest: 0, lean: -2,
+    legs: { back: { x: -1.6, lift: 0, toe: false }, front: { x: 1.9, lift: 0, toe: true } },
+    eyes: 'wide', mouth: 'o', glassesUp: 1, sweat: 0, chickHead: 2, chickUp: 1, flare: 1,
+    fx: startle,
+  },
+];
 
 export const SHEET = {
   name: 'ppik-base',
@@ -275,6 +334,7 @@ export const SHEET = {
   anims: [
     { name: 'idle', frames: 2, ms: [700, 450] },
     { name: 'walk', frames: 6, by: 'distance' },
+    { name: 'common.squeeze_chicken', frames: 3, ms: [200, 350, 450] },
   ],
   pose,
   drawFrame,
