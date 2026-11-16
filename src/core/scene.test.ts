@@ -5,7 +5,7 @@ import { hitTest, type HitBox } from './hit';
 import { CHAR_SLOTS, VERB_SLOTS } from './hud';
 import { worldTargets } from './interact';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { createScene, currentBubble, currentCut, drawOrder, isBusy, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
+import { charPose, createScene, currentBubble, currentCut, drawOrder, isBusy, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
 import type { Point } from './viewport';
 
 const data: SceneData = { screen: screenJson as unknown as ScreenData, characters: charactersJson as CharactersData };
@@ -401,5 +401,81 @@ describe('클리어 컷 L32 (설계 8절, #68)', () => {
     }
     expect(s.cleared).toBe(true);
     expect(sawCut).toBe(false);
+  });
+});
+
+describe('한 번 재생 연출의 마지막 장 유지와 매달림 (#189, 형식 기록 5절)', () => {
+  /** 지금 재생 중인 이벤트 종류. 함수로 읽어서 while 조건의 타입 좁힘이 루프 뒤로 새지 않게 한다. */
+  const now = (s: SceneState): string | undefined => s.current?.ev.type;
+  const animOn = (s: SceneState, target: string): boolean => s.current?.ev.type === 'anim' && s.current.ev.target === target;
+  const pick = (s: SceneState, c: 'jjuk' | 'mukjik' | 'ppik'): void => {
+    sceneTap(data, s, center(CHAR_SLOTS[c]), 0, false);
+  };
+  /** 쭉이를 왼쪽 시소 끝에 올리고 묵직이 쿵을 누른다(재생은 아직 안 함). */
+  function stompWithJjuk(): SceneState {
+    const s = ready();
+    pick(s, 'jjuk');
+    sceneTap(data, s, SEESAW_LEFT, 0, false);
+    idle(s);
+    pick(s, 'mukjik');
+    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
+    sceneTap(data, s, SEESAW_RIGHT, 0, false);
+    return s;
+  }
+
+  it('발사 연출이 끝나도 말풍선 동안 시소 위에서 마지막 장(launch_to_hook)을 유지하고, 고리에 놓이면 매달림으로 바뀐다', () => {
+    const s = stompWithJjuk();
+    while (!(s.current?.ev.type === 'anim' && s.current.ev.name === 'launch_to_hook')) sceneTick(data, s);
+    // 퍼즐 상태는 이미 고리지만 몸은 아직 시소다 → 매달림이 아니다(방향 고정 없음).
+    expect(s.puzzle.at.jjuk).toBe('hook');
+    expect(charPose(data, s, 'jjuk')).toMatchObject({ holding: false, event: { name: 'launch_to_hook', ms: 0 } });
+    while (now(s) !== 'say') sceneTick(data, s);
+    const seesaw = data.screen.spots.seesaw_left!;
+    expect([s.walkers.jjuk.x, s.walkers.jjuk.y]).toEqual([seesaw.x, seesaw.y]);
+    const pose = charPose(data, s, 'jjuk');
+    expect(pose.holding).toBe(false);
+    expect(pose.event?.name).toBe('launch_to_hook');
+    expect(pose.event!.ms).toBeGreaterThan(0);
+    while (now(s) !== 'place') sceneTick(data, s);
+    expect(charPose(data, s, 'jjuk')).toMatchObject({ holding: true, event: null });
+    idle(s);
+    expect(s.held).toEqual({});
+    expect(charPose(data, s, 'jjuk')).toMatchObject({ holding: true, event: null });
+  });
+
+  it('캐릭터 연출은 다른 대상의 연출 동안에도 붙들고, 물건 anim은 붙들지 않고, 같은 캐릭터의 다음 연출이 놓게 한다', () => {
+    const s = stompWithJjuk();
+    s.held.jjuk = { name: 'common.zap', ms: 500 }; // 앞에서 남은 연출이 있다고 치자
+    while (!animOn(s, 'seesaw_right')) sceneTick(data, s);
+    expect(charPose(data, s, 'mukjik').event?.name).toBe('common.stomp');
+    while (!animOn(s, 'jjuk')) sceneTick(data, s);
+    expect(s.held.jjuk).toBeUndefined();
+    while (now(s) !== 'say') sceneTick(data, s);
+    expect(Object.keys(s.held).sort()).toEqual(['jjuk', 'mukjik']);
+    expect(s.held.jjuk?.name).toBe('launch_to_hook');
+  });
+
+  it('둥지 뻗기: 매달린 채 reach_hang_up 마지막 장 + 대상 점(reachPoint)을 말풍선 동안 유지, 바닥에 떨어지면 놓는다', () => {
+    const s = ready();
+    const hook = data.screen.spots.hook!;
+    s.puzzle = { ...s.puzzle, at: { ...s.puzzle.at, jjuk: 'hook' }, flags: { ...s.puzzle.flags, 'magpie.on_ground': true } };
+    s.walkers.jjuk.x = hook.x;
+    s.walkers.jjuk.y = hook.y;
+    pick(s, 'jjuk');
+    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
+    sceneTap(data, s, NEST, 0, false);
+    const [rx, ry] = data.screen.hotspots.nest!.reachPoint!;
+    while (now(s) !== 'say') sceneTick(data, s);
+    expect(charPose(data, s, 'jjuk')).toMatchObject({ holding: true, event: { name: 'reach_hang_up' }, reach: { x: rx, y: ry } });
+    while (now(s) !== 'release' && now(s) !== 'place') sceneTick(data, s);
+    expect(charPose(data, s, 'jjuk')).toMatchObject({ holding: false, event: null });
+  });
+
+  it('reachPoint가 없는 대상에 행동하면 대상 점을 지운다', () => {
+    const s = ready();
+    s.reach.jjuk = { x: 1, y: 2 };
+    pick(s, 'jjuk');
+    sceneTap(data, s, SEESAW_LEFT, 0, false);
+    expect(charPose(data, s, 'jjuk').reach).toBeNull();
   });
 });

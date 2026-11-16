@@ -6,11 +6,11 @@
 // 예외: 바닥(`free`) 자리 캐릭터의 좌표는 퍼즐 상태에 없어서 엔진 걷기(walker)가 들고 있다.
 
 import { CHARACTERS, characterHitBox, characterDef, type CharacterId } from './characters';
-import { WALK_AREA, WALK_SPEED } from './config';
+import { TICK_MS, WALK_AREA, WALK_SPEED } from './config';
 import type { HitBox } from './hit';
 import { hotspotBox, hudTargets, tap, type Intent, type TapContext, type UiState } from './interact';
 import { animOf, animTicks, type SceneAnim, type SceneArtMeta } from './sceneArt';
-import type { SpriteMeta } from './sprite';
+import type { Pose, SpriteMeta } from './sprite';
 import { initialState, step } from './puzzle/step';
 import { GAUGE_MAX, type Action, type CharactersData, type PuzzleEvent, type PuzzleState, type ScreenData, type StepSource } from './puzzle/types';
 import type { Point } from './viewport';
@@ -95,6 +95,13 @@ export interface SceneState {
    * 클릭도 받는다(형식 기록 10절 2단계, 바구니 포개짐). 없으면 -1로 본다.
    */
   landed: Partial<Record<CharacterId, number>>;
+  /**
+   * 끝난 한 번 재생 캐릭터 연출(형식 기록 5절 "마지막 장 유지", #189). 그 캐릭터의 다음 `walk`·`release`·`place`·`anim`,
+   * 기절, 또는 대기열이 빌 때까지 마지막 장으로 그린다. `ms`는 끝난 시점(연출 길이). 그림 전용이다.
+   */
+  held: Partial<Record<CharacterId, { name: string; ms: number }>>;
+  /** 캐릭터가 마지막으로 한 행동의 대상 점(핫스팟 `reachPoint`). 장대 잇기(5-1절)가 쓴다. 없으면 키가 없다. */
+  reach: Partial<Record<CharacterId, Point>>;
   cleared: boolean;
 }
 
@@ -152,6 +159,8 @@ export function createScene(data: SceneData): SceneState {
     counts: {},
     floorTo: {},
     landed: {},
+    held: {},
+    reach: {},
     cleared: false,
   };
   // onEnter는 상태를 바꾸지 않는 연출이다(ADR-0065 5절). say 화자는 캐릭터 ID만 온다.
@@ -175,11 +184,11 @@ export function bodies(s: SceneState): Record<CharacterId, HitBox> {
 
 /**
  * 캐릭터 그리는 순서(뒤 → 앞). 엔진 그리기와 클릭 판정(`TapContext.order`)이 같이 쓴다(형식 기록 6절 2·3).
- * 1. `hold` 자리(고리)에 매달린 캐릭터는 맨 앞 2. 발 y가 작을수록 뒤 3. 같으면 나중에 떨어진 사람이 앞
+ * 1. `hold` 자리(고리)에 매달린 캐릭터(`isHanging`)는 맨 앞 2. 발 y가 작을수록 뒤 3. 같으면 나중에 떨어진 사람이 앞
  * 4. 그래도 같으면 CHARACTERS 순서의 앞쪽(쭉이)이 앞(예전 엔진 순서 그대로).
  */
 export function drawOrder(data: SceneData, s: SceneState): CharacterId[] {
-  const y = (c: CharacterId): number => (data.screen.spots[s.puzzle.at[c]]?.hold === true ? Infinity : Math.round(s.walkers[c].y));
+  const y = (c: CharacterId): number => (isHanging(data, s, c) ? Infinity : Math.round(s.walkers[c].y));
   const rank = (c: CharacterId): number => CHARACTERS.findIndex((d) => d.id === c);
   return CHARACTERS.map((c) => c.id).sort((a, b) => {
     const ya = y(a);
@@ -262,6 +271,9 @@ function runAction(data: SceneData, s: SceneState, action: Action, to: Point | n
   s.puzzle = r.state;
   deferShown(data, s, before, r.events);
   if (to) s.floorTo[action.char] = to;
+  const rp = data.screen.hotspots[action.target]?.reachPoint;
+  if (rp) s.reach[action.char] = { x: rp[0], y: rp[1] };
+  else delete s.reach[action.char];
   // 행동하는 캐릭터의 엔진 걷기는 멈춘다(그 자리에서 행동한다).
   const w = s.walkers[action.char];
   w.target = null;
@@ -320,6 +332,10 @@ function start(data: SceneData, s: SceneState, ev: PlayEvent): Playing {
 
 /** 즉시 끝나는 효과(배치·게이지 값)는 여기서 적용한다. */
 function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Playing {
+  // 그 캐릭터가 움직이거나 다른 연출을 시작하면 붙들고 있던 마지막 장을 놓는다(#189).
+  if (ev.type === 'walk' || ev.type === 'release' || ev.type === 'place') delete s.held[ev.char];
+  else if (ev.type === 'anim') delete s.held[ev.target as CharacterId];
+  else if (ev.type === 'faint') s.held = {};
   switch (ev.type) {
     case 'walk': {
       const w = s.walkers[ev.char];
@@ -374,6 +390,43 @@ function charAnimTicks(data: SceneData, target: string, name: string): number | 
   return a && 'ms' in a ? animTicks(a) : null;
 }
 
+const isCharacter = (id: string): id is CharacterId => CHARACTERS.some((c) => c.id === id);
+
+/** 캐릭터 대상 연출이 끝나면 마지막 장을 붙든다(형식 기록 5절). 물건 anim은 시트 갈래가 따로 멈춘 모습을 정한다. */
+function holdLast(s: SceneState, p: Playing): void {
+  if (p.ev.type !== 'anim' || p.art || !isCharacter(p.ev.target)) return;
+  s.held[p.ev.target] = { name: p.ev.name, ms: p.t * TICK_MS };
+}
+
+/** 이 캐릭터의 지금 연출: 재생 중이면 그것, 아니면 붙들고 있는 마지막 장. 없으면 null. */
+export function charEvent(s: SceneState, id: CharacterId): { name: string; ms: number } | null {
+  const ev = s.current?.ev;
+  if (ev?.type === 'anim' && ev.target === id) return { name: ev.name, ms: s.current!.t * TICK_MS };
+  return s.held[id] ?? null;
+}
+
+/**
+ * 몸이 `hold` 자리(고리) 점에 놓여 있다 = 그림상 매달려 있다. 퍼즐 상태(`at`)는 연출 전에 바뀌므로 보지 않는다(#189).
+ * 시소 발사 연출 동안은 `at`이 이미 고리지만 몸은 시소라 아니고, 둥지 뻗기 연출 동안은 `at`이 이미 바닥이지만 몸은 고리라 맞다.
+ * 바닥 걷기 영역(`WALK_AREA`)은 고리 높이에 닿지 않아서 걸어서 그 점에 설 수는 없다. busy가 아니면 `at`과 같다.
+ */
+export function isHanging(data: SceneData, s: SceneState, id: CharacterId): boolean {
+  const w = s.walkers[id];
+  return Object.values(data.screen.spots).some((spot) => spot.hold === true && spot.x === w.x && spot.y === w.y);
+}
+
+/** 장면 상태 → 시트 자세(engine/sprites.ts `drawSprite`). 연출은 이벤트로만 안다(ADR-0065 5절). */
+export function charPose(data: SceneData, s: SceneState, id: CharacterId): Pose {
+  const w = s.walkers[id];
+  return {
+    walkedPx: w.target ? w.walkTicks * WALK_SPEED : null,
+    holding: isHanging(data, s, id),
+    event: charEvent(s, id),
+    clockMs: s.tick * TICK_MS,
+    reach: s.reach[id] ?? null,
+  };
+}
+
 function finished(s: SceneState, p: Playing): boolean {
   if (p.ev.type === 'walk') return s.walkers[p.ev.char].target === null;
   return p.duration !== null && p.t >= p.duration;
@@ -388,13 +441,17 @@ export function sceneTick(data: SceneData, s: SceneState): void {
   for (let guard = 0; guard < 64; guard++) {
     if (s.current === null) {
       const next = s.queue.shift();
-      if (!next) return;
+      if (!next) {
+        s.held = {};
+        return;
+      }
       s.current = start(data, s, next);
     } else {
       s.current.t += 1;
     }
     if (!finished(s, s.current)) return;
     if (s.current.ev.type === 'faint') s.shownGauge = GAUGE_MAX;
+    holdLast(s, s.current);
     commitShown(s, s.current.seq, 'end');
     s.current = null;
   }
