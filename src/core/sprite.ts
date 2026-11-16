@@ -20,6 +20,12 @@ export type SpriteAnim = ({ frames: number[]; ms: number[] } | { frames: number[
   tip?: [x: number, y: number][];
   /** 프레임마다 집게 칸 번호(시트 최상위 `claw` 줄). */
   claw?: number[];
+  /**
+   * 칸 신호(파이프라인 기록 5-2절, #199). 이 연출의 몇 번째 칸(0부터)이 "박자" 칸인가.
+   * 화면 데이터 show에서 이 연출 바로 뒤에 이어진 `fx`들은 연출이 끝난 뒤가 아니라 이 칸이 시작될 때 뜬다.
+   * 무엇을 띄울지는 화면 데이터가, 언제인지만 시트가 정한다(시트는 fx 이름을 모른다). `ms` 자세에만 둔다.
+   */
+  cue?: number;
 };
 
 /** 장대 끝 집게 칸 줄(5-1절). `anchor`는 장대가 들어오는 아래 가운데(픽셀 경계). */
@@ -56,7 +62,7 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
   if (typeof m.anims !== 'object' || m.anims === null) fail('anims 없음');
   const claw = m.claw as Partial<ClawMeta> | undefined;
   if (claw !== undefined && (typeof claw.image !== 'string' || !intTuple(claw.cell, 2) || !intTuple(claw.anchor, 2))) fail('claw 형식');
-  type RawAnim = { frames?: unknown[]; ms?: unknown[]; by?: unknown; facing?: unknown; tip?: unknown; claw?: unknown };
+  type RawAnim = { frames?: unknown[]; ms?: unknown[]; by?: unknown; facing?: unknown; tip?: unknown; claw?: unknown; cue?: unknown };
   for (const [name, a] of Object.entries(m.anims as Record<string, RawAnim>)) {
     if (!Array.isArray(a.frames) || a.frames.length === 0 || !a.frames.every(isInt)) fail(`${name}.frames`);
     if ('by' in a) {
@@ -65,6 +71,7 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
       fail(`${name}.ms는 frames와 길이가 같은 양의 정수 배열`);
     }
     if ('facing' in a && a.facing !== 1 && a.facing !== -1) fail(`${name}.facing은 1 또는 -1`);
+    if ('cue' in a && (!('ms' in a) || !isInt(a.cue) || a.cue < 0 || a.cue >= a.frames!.length)) fail(`${name}.cue는 ms 자세의 칸 순서(0~${a.frames!.length - 1})`);
     if ('tip' in a || 'claw' in a) {
       const n = a.frames!.length;
       if (!claw) fail(`${name}.tip이 있는데 시트 claw가 없음`);
@@ -123,6 +130,15 @@ export function spriteFrame(meta: SpriteMeta, pose: Pose): number | null {
 export function spriteFacing(meta: SpriteMeta, pose: Pose, walking: Facing): Facing {
   const own = pose.event ? meta.anims[pose.event.name]?.facing : undefined;
   return own || (pose.holding && meta.anims.hold?.facing) || walking;
+}
+
+/**
+ * 칸 신호가 오는 시각(ms, 연출 시작 기준). 시트에 그 연출이나 `cue`가 없으면 null(→ 신호 없음, 연출 끝난 뒤 fx).
+ */
+export function cueMs(meta: SpriteMeta | undefined, name: string): number | null {
+  const a = meta?.anims[name];
+  if (!a || !('ms' in a) || a.cue === undefined) return null;
+  return a.ms.slice(0, a.cue).reduce((x, y) => x + y, 0);
 }
 
 /** `ms` 애니메이션의 지금 칸 순서(0부터). 반복하지 않으면 마지막 칸에 머문다. 거리 넘김 애니메이션은 첫 칸. */

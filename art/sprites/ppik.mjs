@@ -284,7 +284,7 @@ export function drawFrame(p) {
 }
 
 // ══════════ 화면 1 자세 (#142, 설계 docs/design/screens/magpie_nest.md) ══════════
-// common.squeeze_chicken  공용 "삑"(능력 동작). 까치·둥지·시소·바닥 어디에 삑 해도 같은 그림. "삑!" 글자는 엔진 fx(squeak_text)다.
+// common.squeeze_chicken  공용 "삑"(능력 동작). 까치·둥지·시소·바닥 어디에 삑 해도 같은 그림. "삑!" 글자는 엔진 fx(squeak_text)이고, 칸 신호 cue로 1번(꽉!) 칸에 뜬다.
 //   개그: 겁 많은 삑삑이가 자기가 낸 소리에 제일 놀란다.
 //   0 준비(닭을 가슴께로 끌어올리고 눈을 질끈, 무릎을 모은다) → 1 꽉!(닭이 납작해지고 목이 쭉, 부리가 쩍, 소리선)
 //   → 2 흐익(몸을 젖히고 안경이 튀어 오른다, 바늘 눈, 놀람선, 닭은 부풀며 머리가 늦게 내려온다). 합 1000ms ≤ 1500.
@@ -334,7 +334,8 @@ export const SHEET = {
   anims: [
     { name: 'idle', frames: 2, ms: [700, 450] },
     { name: 'walk', frames: 6, by: 'distance' },
-    { name: 'common.squeeze_chicken', frames: 3, ms: [200, 350, 450] },
+    // cue 1: "삑!" 글자(show의 fx)가 꽉! 칸에 뜬다. 없으면 흐익 칸까지 끝난 뒤에 떠서 개그 순서가 뒤집힌다(#199).
+    { name: 'common.squeeze_chicken', frames: 3, ms: [200, 350, 450], cue: 1 },
   ],
   pose,
   drawFrame,

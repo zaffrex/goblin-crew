@@ -61,6 +61,11 @@ function buildSheet(def) {
     }
     const idx = Array.from({ length: a.frames }, (_, i) => start + i);
     anims[a.name] = a.by === 'distance' ? { frames: idx, by: 'distance' } : { frames: idx, ms: a.ms };
+    // 칸 신호(시트 파이프라인 기록 5-2절, #199): show에서 이 연출 바로 뒤의 fx가 뜨는 칸. 칸 순서만 적고 fx 이름은 모른다.
+    if (a.cue !== undefined) {
+      if (a.by === 'distance' || !Number.isInteger(a.cue) || a.cue < 0 || a.cue >= a.frames) fail(`${def.name} ${a.name}: cue는 ms 자세의 칸 순서(0~${a.frames - 1})여야 한다`);
+      anims[a.name].cue = a.cue;
+    }
     // 매달린 자세(hold)는 손 기준점을 메타에 적는다(형식 기록 7절). 프레임마다 같아야 고리에서 손이 안 미끄러진다.
     const hands = idx.map((i) => frames[i].hand).filter(Boolean);
     if (a.name === 'hold' && hands.length !== a.frames) fail(`${def.name} hold: 프레임마다 손 기준점(hand)이 있어야 한다`);

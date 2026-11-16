@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 import charactersJson from '../../content/characters.json';
 import screenJson from '../../content/screens/magpie_nest.json';
 import jjukJson from '../../public/sprites/jjuk-base.json';
+import ppikJson from '../../public/sprites/ppik-base.json';
 import { hitTest, type HitBox } from './hit';
 import { CHAR_SLOTS, VERB_SLOTS } from './hud';
 import { worldTargets } from './interact';
-import { parseSpriteMeta, spriteBox } from './sprite';
+import { parseSpriteMeta, spriteBox, spriteFrame } from './sprite';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, isBusy, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
+import { activeFx, bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, isBusy, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
 import type { Point } from './viewport';
 
 const data: SceneData = { screen: screenJson as unknown as ScreenData, characters: charactersJson as CharactersData };
@@ -523,5 +524,112 @@ describe('매달린 캐릭터의 클릭 상자는 그리는 방향을 따른다 
     expect(charFacing(withSheet, s, 'jjuk')).toBe(1);
     s.walkers.jjuk.facing = -1;
     expect(charFacing(withSheet, s, 'jjuk')).toBe(-1);
+  });
+});
+
+describe('칸 신호: show의 fx를 연출 칸에 맞춰 띄운다 (#199, 형식 기록 5-2절)', () => {
+  const ppik = parseSpriteMeta(ppikJson);
+  const withSheet: SceneData = { ...data, sprites: { ppik } };
+  const SQUEEZE = 'common.squeeze_chicken';
+  /** 까치 삑 정답(magpie_squeak_down) show 그대로. */
+  function squeakShow(d: SceneData): SceneState {
+    const s = createScene(d);
+    while (isBusy(s)) sceneTick(d, s);
+    s.queue.push(
+      { type: 'anim', target: 'ppik', name: SQUEEZE },
+      { type: 'fx', effect: 'squeak_text', target: 'ppik' },
+      { type: 'anim', target: 'magpie', name: 'fly_down' },
+      { type: 'say', speaker: 'ppik', text: 'magpie_nest.squeak_down' },
+    );
+    return s;
+  }
+  /** fx가 처음 뜨는 틱까지 돌린다. 그때의 장면을 돌려준다. */
+  function untilFx(d: SceneData, s: SceneState, effect: string): void {
+    for (let i = 0; i < 2000; i++) {
+      sceneTick(d, s);
+      if (activeFx(s).some((f) => f.effect === effect)) return;
+    }
+    throw new Error(`${effect}가 안 떴다`);
+  }
+
+  it('삑삑이 시트의 squeeze_chicken은 1번(꽉!) 칸에 신호가 있다', () => {
+    expect(ppik.anims[SQUEEZE]).toMatchObject({ cue: 1 });
+  });
+
+  it('"삑!"은 꽉! 칸이 시작될 때 뜨고, 흐익 칸보다 먼저다', () => {
+    const s = squeakShow(withSheet);
+    untilFx(withSheet, s, 'squeak_text');
+    // 아직 삑삑이 연출 중이고, 그리는 칸은 1번(꽉!)이다. 0번 200ms = 12틱 뒤.
+    expect(s.current?.ev).toMatchObject({ type: 'anim', target: 'ppik', name: SQUEEZE });
+    expect(s.current?.t).toBe(12);
+    const frames = ppik.anims[SQUEEZE]!.frames;
+    expect(spriteFrame(ppik, charPose(withSheet, s, 'ppik'))).toBe(frames[1]);
+    // 흐익(2번) 칸이 시작될 때 "삑!"은 이미 떠 있다(30틱 중 21틱째).
+    while (spriteFrame(ppik, charPose(withSheet, s, 'ppik')) !== frames[2]) sceneTick(withSheet, s);
+    expect(activeFx(s)).toEqual([{ effect: 'squeak_text', target: 'ppik', t: 21 }]);
+  });
+
+  it('겹쳐 뜬 fx는 대기열에서 빠지고, 다음 이벤트(까치 연출)는 삑삑이 연출이 끝나자마자 시작한다', () => {
+    const s = squeakShow(withSheet);
+    untilFx(withSheet, s, 'squeak_text');
+    expect(s.queue.map((e) => e.type)).toEqual(['anim', 'say']);
+    while (s.current?.ev.type !== 'anim' || s.current.ev.target !== 'magpie') sceneTick(withSheet, s);
+    // 삑삑이 연출 1000ms = 60틱 뒤 바로. fx(30틱)는 그 전에 끝났다.
+    expect(s.current.t).toBe(0);
+    expect(activeFx(s)).toEqual([]);
+    expect(s.overlays).toEqual([]);
+  });
+
+  it('연출 뒤에 이어진 fx가 여럿이면 다 같이 뜨고, 사이에 다른 이벤트가 끼면 거기서 멈춘다(둥지 삑 show)', () => {
+    const s = createScene(withSheet);
+    while (isBusy(s)) sceneTick(withSheet, s);
+    s.queue.push(
+      { type: 'anim', target: 'ppik', name: SQUEEZE },
+      { type: 'fx', effect: 'squeak_text', target: 'nest' },
+      { type: 'fx', effect: 'small_squeak_text', target: 'ppik' },
+      { type: 'say', speaker: 'ppik', text: 'x' },
+      { type: 'fx', effect: 'later', target: 'ppik' },
+    );
+    untilFx(withSheet, s, 'squeak_text');
+    expect(activeFx(s).map((f) => f.effect)).toEqual(['squeak_text', 'small_squeak_text']);
+    expect(s.queue.map((e) => e.type)).toEqual(['say', 'fx']);
+  });
+
+  it('fx 순번(seq)은 대기열 순서 그대로다', () => {
+    const s = squeakShow(withSheet);
+    const first = s.started;
+    untilFx(withSheet, s, 'squeak_text');
+    expect(s.current?.seq).toBe(first);
+    expect(s.overlays[0]?.seq).toBe(first + 1);
+    while (s.current?.ev.type !== 'anim' || s.current.ev.target !== 'magpie') sceneTick(withSheet, s);
+    expect(s.current.seq).toBe(first + 2);
+  });
+
+  it('겹쳐 뜬 fx가 남아 있는 동안은 busy이고 탭을 받지 않는다(연출이 마지막 이벤트일 때)', () => {
+    const meta = parseSpriteMeta({ ...ppikJson, anims: { ...ppik.anims, [SQUEEZE]: { frames: [8, 9, 10], ms: [50, 50, 50], cue: 2 } } });
+    const d: SceneData = { ...data, sprites: { ppik: meta } };
+    const s = createScene(d);
+    while (isBusy(s)) sceneTick(d, s);
+    s.queue.push({ type: 'anim', target: 'ppik', name: SQUEEZE }, { type: 'fx', effect: 'squeak_text', target: 'ppik' });
+    untilFx(d, s, 'squeak_text');
+    while (s.current !== null) sceneTick(d, s);
+    expect(s.queue).toEqual([]);
+    expect(isBusy(s)).toBe(true);
+    expect(sceneTap(d, s, SEESAW_LEFT, 0, false)).toEqual({ kind: 'ignored' });
+    // 마지막 장 유지도 fx가 끝날 때까지 남는다.
+    expect(s.held.ppik).toMatchObject({ name: SQUEEZE });
+    while (isBusy(s)) sceneTick(d, s);
+    expect(activeFx(s)).toEqual([]);
+    sceneTick(d, s);
+    expect(s.held).toEqual({});
+  });
+
+  it('신호 없는 시트·실루엣이면 지금처럼 연출이 끝난 뒤 fx가 차례로 뜬다', () => {
+    for (const d of [data, { ...data, sprites: { ppik: parseSpriteMeta({ ...ppikJson, anims: { ...ppik.anims, [SQUEEZE]: { frames: [8, 9, 10], ms: [200, 350, 450] } } }) } }]) {
+      const s = squeakShow(d);
+      untilFx(d, s, 'squeak_text');
+      expect(s.current?.ev).toMatchObject({ type: 'fx', effect: 'squeak_text' });
+      expect(s.overlays).toEqual([]);
+    }
   });
 });

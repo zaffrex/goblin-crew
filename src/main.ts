@@ -13,7 +13,7 @@ import type { HitBox } from './core/hit';
 import { GAUGE_CELLS, HUD_AREA } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
-import { charPose, createScene, currentBubble, drawOrder, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
+import { activeFx, charPose, createScene, currentBubble, drawOrder, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
 import { coveredIds, litFrames, sceneDraws } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point } from './core/viewport';
 import { createDisplay } from './engine/display';
@@ -179,9 +179,9 @@ function render(): void {
     };
     for (const name of frameFallbacks(frame)) fallbacks.add(name);
   }
-  if (ev?.type === 'fx') {
-    const at = anchorOf(ev.target, layout);
-    if (at) drawSpark(ctx, at, scene.current?.t ?? 0);
+  for (const f of activeFx(scene)) {
+    const at = anchorOf(f.target, layout);
+    if (at) drawSpark(ctx, at, f.t);
   }
   if (!isBusy(scene) && !scene.cleared) {
     const box = layout.chars[scene.ui.active];
