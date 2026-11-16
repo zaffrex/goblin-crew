@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import charactersJson from '../../content/characters.json';
 import screenJson from '../../content/screens/magpie_nest.json';
 import jjukJson from '../../public/sprites/jjuk-base.json';
+import ppikJson from '../../public/sprites/ppik-base.json';
 import { hitTest, type HitBox } from './hit';
 import { CHAR_SLOTS, VERB_SLOTS } from './hud';
 import { worldTargets } from './interact';
@@ -497,13 +498,13 @@ describe('매달린 캐릭터의 클릭 상자는 그리는 방향을 따른다 
     return s;
   }
 
-  it('시트가 있으면 hold.facing(왼쪽)으로 상자를 만들고, 그림의 hit 열 범위와 같다', () => {
+  it('시트가 있으면 hold.facing(왼쪽)으로 상자를 만들고, 매달린 그림의 hit 열 범위와 같다(#203)', () => {
     expect(meta.anims.hold?.facing).toBe(-1);
     const s = hangingFacingRight(withSheet);
     expect(charFacing(withSheet, s, 'jjuk')).toBe(-1);
     const w = s.walkers.jjuk;
     const box = spriteBox(meta, w.x, w.y, -1);
-    const [hx, hy, hw, hh] = meta.hit;
+    const [hx, hy, hw, hh] = meta.anims.hold!.hit!;
     // 왼쪽을 보면 칸을 뒤집으니 hit 열 [hx, hx+hw)는 칸 안 [cw-hx-hw, cw-hx)로 간다.
     const left = box.left + (meta.cell[0] - hx - hw);
     expect(bodies(withSheet, s).jjuk).toEqual({ left, top: box.top + hy, width: hw, height: hh });
@@ -523,5 +524,53 @@ describe('매달린 캐릭터의 클릭 상자는 그리는 방향을 따른다 
     expect(charFacing(withSheet, s, 'jjuk')).toBe(1);
     s.walkers.jjuk.facing = -1;
     expect(charFacing(withSheet, s, 'jjuk')).toBe(-1);
+  });
+});
+
+describe('매달린 자세는 그 자세 그림 상자로 클릭한다 (#203)', () => {
+  const ppik = parseSpriteMeta(ppikJson);
+  const withSheet: SceneData = { ...data, sprites: { ppik } };
+  /** 후드로 고리에 매달린 삑삑이. 조작은 쭉이(삑삑이는 매달려 있어도 대상으로 들어온다). */
+  function hangingPpik(d: SceneData): SceneState {
+    const s = createScene(d);
+    idle(s);
+    const hook = d.screen.spots.hook!;
+    s.puzzle = { ...s.puzzle, at: { ...s.puzzle.at, ppik: 'hook' } };
+    s.walkers.ppik.x = hook.x;
+    s.walkers.ppik.y = hook.y;
+    s.ui.active = 'jjuk';
+    return s;
+  }
+  const hitAt = (d: SceneData, s: SceneState, p: Point): string | undefined => hitTest(worldTargets(tapContext(d, s), s.ui), p, 0)?.id;
+
+  it('클릭 상자가 매달린 그림(hold 모든 칸 합집합)과 같다', () => {
+    const s = hangingPpik(withSheet);
+    const hook = data.screen.spots.hook!;
+    const box = spriteBox(ppik, hook.x, hook.y, -1);
+    const [hx, hy, hw, hh] = ppik.anims.hold!.hit!;
+    expect(bodies(withSheet, s).ppik).toEqual({ left: box.left + (ppik.cell[0] - hx - hw), top: box.top + hy, width: hw, height: hh });
+  });
+
+  it('머리(서 있기 상자 위, 고리 상자 안)를 누르면 고리가 아니라 삑삑이가 잡힌다', () => {
+    const s = hangingPpik(withSheet);
+    const body = bodies(withSheet, s).ppik;
+    const standing = bodies(data, hangingPpik(data)).ppik;
+    const head: Point = { x: body.left + body.width / 2, y: body.top + 2 };
+    expect(head.y).toBeLessThan(standing.top); // 예전 상자로는 밖이었다
+    expect(hitAt(withSheet, s, head)).toBe('char:ppik');
+    expect(hitAt(data, hangingPpik(data), head)).toBe('spot:hook'); // 실루엣(시트 없음)은 예전 그대로
+  });
+
+  it('고리 상자 맨 위는 여전히 고리다(매달린 사람 머리 위)', () => {
+    const s = hangingPpik(withSheet);
+    expect(hitAt(withSheet, s, { x: HOOK.x, y: 85 })).toBe('spot:hook');
+  });
+
+  it('바닥에 서면 서 있기 상자로 돌아온다', () => {
+    const s = createScene(withSheet);
+    idle(s);
+    const w = s.walkers.ppik;
+    expect(bodies(withSheet, s).ppik).toEqual(bodies(data, s).ppik);
+    expect(w.y).toBeGreaterThan(160);
   });
 });

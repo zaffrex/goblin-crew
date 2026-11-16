@@ -44,6 +44,16 @@ function feetSpan(K, feet) {
   return { x0: x0 - 1, x1: x1 + 1, bottom: y1 + 1 };
 }
 
+/** 그림 상자 여러 개의 합집합 [x, y, w, h]. 최소 클릭 크기(characters.ts MIN_HIT_SIZE 24)보다 작으면 실패한다. */
+function unionBox(boxes) {
+  const x0 = Math.min(...boxes.map((b) => b.x));
+  const y0 = Math.min(...boxes.map((b) => b.y));
+  const x1 = Math.max(...boxes.map((b) => b.x + b.w));
+  const y1 = Math.max(...boxes.map((b) => b.y + b.h));
+  if (x1 - x0 < 24 || y1 - y0 < 24) fail(`매달린 자세 그림 상자 ${x1 - x0}×${y1 - y0}가 최소 클릭 크기 24×24보다 작다`);
+  return [x0, y0, x1 - x0, y1 - y0];
+}
+
 function buildSheet(def) {
   const [cw, ch] = def.cell ?? [48, 64];
   if (cw % 16 || ch % 16) fail(`${def.name}: 칸 ${cw}×${ch}는 16의 배수가 아니다`);
@@ -71,6 +81,9 @@ function buildSheet(def) {
       const facing = frames[idx[0]].facing;
       if (facing !== 1 && facing !== -1) fail(`${def.name} ${a.name}: 손 기준점이 있으면 facing(1 또는 -1)이 있어야 한다`);
       anims[a.name].facing = facing;
+      // 매달린 자세는 서 있기 hit과 몸 위치가 달라서(후드로 높이 매달린 삑삑이) 이 자세 모든 칸 그림 상자의 합집합을
+      // 클릭 상자로 적는다(#203). 엔진은 이 자세를 그리는 동안 서 있기 hit 대신 이 값을 쓴다.
+      anims[a.name].hit = unionBox(idx.map((i) => frames[i].K.bbox()));
     }
     // 칸 위로 나가는 장대(reach_hang_up 등): 프레임별 출구 점과 집게 칸(#187 Theo 초안, 시트 파이프라인 기록 5-1절).
     // 엔진은 tip에서 대상 점까지 장대를 잇고 끝에 claw 칸을 그린다. 한 프레임이라도 있으면 모든 프레임에 있어야 한다.
@@ -231,14 +244,17 @@ for (const S of SCENES) {
     const spot = screen.spots[spotId];
     if (!spot?.hold) fail(`화면 ${S.id} grips.${spotId}: hold 자리가 아니다`);
     for (const s of built) {
-      const h = s.meta.anims.hold?.hand;
-      if (!h) continue;
-      // 엔진 spriteBox와 같은 규칙: 왼쪽을 보면 칸 왼쪽 = 발 − (칸 폭 − anchor), 칸 안 x는 (칸 폭 − 1 − x)
-      const [cw] = s.meta.cell;
-      const [ax, ay] = s.meta.anchor;
-      const left = s.meta.anims.hold.facing === -1 ? spot.x - (cw - ax) + (cw - 1 - h[0]) : spot.x - ax + h[0];
-      const at = [left, spot.y + h[1] - ay];
-      if (at[0] !== grip[0] || at[1] !== grip[1]) fail(`${s.def.name} hold 손이 화면 ${S.id} ${spotId}에서 (${at})다(facing ${s.meta.anims.hold.facing}). 고리 손 기준점은 (${grip})`);
+      // hold뿐 아니라 손 기준점이 있는 모든 자세(매달린 채 하는 연출, 쭉이 reach_hang_up 등)를 본다(#203).
+      for (const [name, a] of Object.entries(s.meta.anims)) {
+        const h = a.hand;
+        if (!h) continue;
+        // 엔진 spriteBox와 같은 규칙: 왼쪽을 보면 칸 왼쪽 = 발 − (칸 폭 − anchor), 칸 안 x는 (칸 폭 − 1 − x)
+        const [cw] = s.meta.cell;
+        const [ax, ay] = s.meta.anchor;
+        const left = a.facing === -1 ? spot.x - (cw - ax) + (cw - 1 - h[0]) : spot.x - ax + h[0];
+        const at = [left, spot.y + h[1] - ay];
+        if (at[0] !== grip[0] || at[1] !== grip[1]) fail(`${s.def.name} ${name} 손이 화면 ${S.id} ${spotId}에서 (${at})다(facing ${a.facing}). 고리 손 기준점은 (${grip})`);
+      }
     }
   }
 }

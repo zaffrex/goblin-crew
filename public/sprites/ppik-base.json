@@ -70,7 +70,13 @@
         25,
         4
       ],
-      "facing": -1
+      "facing": -1,
+      "hit": [
+        10,
+        1,
+        37,
+        55
+      ]
     },
     "launch_to_hook": {
       "frames": [

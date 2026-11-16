@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WALK_SPEED } from './config';
 import jjukJson from '../../public/sprites/jjuk-base.json';
-import { frameSourceX, parseSpriteMeta, POLE_WIDTH, spriteBox, spriteFacing, spriteFrame, spritePole, type Pose, type SpriteMeta } from './sprite';
+import { frameSourceX, parseSpriteMeta, POLE_WIDTH, spriteBox, spriteFacing, spriteFrame, spriteHit, spritePole, type Pose, type SpriteMeta } from './sprite';
 
 const JJUK = parseSpriteMeta(jjukJson);
 const still: Pose = { walkedPx: null, holding: false, event: null, clockMs: 0 };
@@ -24,6 +24,8 @@ describe('parseSpriteMeta', () => {
     ['tip이 있는데 claw 번호 없음', { anims: { r: { frames: [0], ms: [50], tip: [[34, 0]] } } }],
     ['tip이 있는데 시트 claw 없음', { claw: undefined, anims: { r: { frames: [0], ms: [50], tip: [[34, 0]], claw: [0] } } }],
     ['시트 claw anchor 형식', { claw: { image: 'x.png', cell: [8, 8], anchor: [4] } }],
+    ['anim hit 형식', { anims: { hold: { frames: [0], ms: [450], hit: [0, 0, 30] } } }],
+    ['anim hit이 최소 클릭 크기보다 작음', { anims: { hold: { frames: [0], ms: [450], hit: [0, 0, 30, 23] } } }],
   ])('%s → 던진다(그 캐릭터는 실루엣으로 남는다)', (_, patch) => {
     expect(() => parseSpriteMeta({ ...JJUK, ...patch })).toThrow(/스프라이트 메타 오류/);
   });
@@ -172,5 +174,30 @@ describe('spritePole (5-1절 장대 잇기, #189)', () => {
     expect(spritePole(JJUK, pose(0, { event: null }), HOOK.x, HOOK.y, -1)).toBeNull();
     expect(spritePole(JJUK, pose(0, { reach: null }), HOOK.x, HOOK.y, -1)).toBeNull();
     expect(spritePole(JJUK, pose(0, { reach: { x: 150, y: 120 } }), HOOK.x, HOOK.y, -1)).toBeNull();
+  });
+});
+
+describe('spriteHit (자세별 클릭 상자, #203)', () => {
+  const hold = JJUK.anims.hold!;
+  const hanging: Pose = { ...still, holding: true };
+
+  it('매달린 자세는 시트 hold.hit을 그리는 칸 위치에 놓는다(오른쪽은 그대로, 왼쪽은 칸을 뒤집어)', () => {
+    const [hx, hy, hw, hh] = hold.hit!;
+    const right = spriteBox(JJUK, 160, 160, 1);
+    expect(spriteHit(JJUK, hanging, 160, 160, 1)).toEqual({ left: right.left + hx, top: right.top + hy, width: hw, height: hh });
+    const left = spriteBox(JJUK, 160, 160, -1);
+    expect(spriteHit(JJUK, hanging, 160, 160, -1)).toEqual({ left: left.left + (JJUK.cell[0] - hx - hw), top: left.top + hy, width: hw, height: hh });
+  });
+
+  it('자기 hit이 없는 자세(서 있기·걷기)와 시트에 없는 연출은 null(서 있기 기준 상자를 쓴다)', () => {
+    expect(spriteHit(JJUK, still, 160, 160, 1)).toBeNull();
+    expect(spriteHit(JJUK, { ...still, walkedPx: 3 }, 160, 160, 1)).toBeNull();
+    expect(spriteHit(JJUK, { ...hanging, event: { name: 'no_such_anim', ms: 0 } }, 160, 160, 1)).toBeNull();
+  });
+
+  it('매달린 채 재생하는 연출은 그 연출의 hit을 쓴다(연출이 hold보다 앞선다)', () => {
+    const reach = JJUK.anims.reach_hang_up!;
+    const box = spriteHit(JJUK, { ...hanging, event: { name: 'reach_hang_up', ms: 0 } }, 160, 160, -1)!;
+    expect([box.width, box.height]).toEqual([reach.hit![2], reach.hit![3]]);
   });
 });
