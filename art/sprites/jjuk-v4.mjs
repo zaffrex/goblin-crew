@@ -16,6 +16,7 @@
 
 import { Canvas, C } from '../lib/pixel.mjs';
 import { colorLines, rimShade, soles } from '../lib/finish.mjs';
+import { puff, streaks } from '../lib/fx.mjs';
 
 export const CELL = [48, 64];
 const S = 4 / 3;
@@ -471,28 +472,6 @@ function poleTip(K, pole) {
   return [Math.round((xs[0] + xs[xs.length - 1]) / 2), 0];
 }
 
-// ── 연출 효과(외곽선 없음). 칸 px 좌표.
-/** 바닥 먼지 한 덩이: 가운데 x, 바닥 행, 크기 0~2. 아래 행은 칸 마지막 행에 닿는다. */
-function puff(K, cx, size) {
-  const rows = [
-    ['..cww..', '.cwwwc.', 'clwwwlc', '.lllll.'],
-    ['...cww.cw...', '.cwwwwcwwwc.', 'cwwwwwwwwwlc', 'clwwlwwlwwll', '.llll.lllll.'],
-    ['.c....w..', '...c.....', 'c.....l.c', '..l.c....'],
-  ][size];
-  const legend = { c: C.cotton, w: C.white, l: C.lint };
-  const w = rows[0].length;
-  K.stamp(Math.round(cx - w / 2), K.h - rows.length, rows, legend);
-}
-/** 위로 솟는 속도선: [x, 위 행, 아래 행]. 위는 흰색, 아래로 갈수록 옅은 회색으로 끊긴다. */
-function streaks(K, lines) {
-  for (const [x, y0, y1] of lines)
-    for (let y = y0; y <= y1; y++) {
-      const t = (y - y0) / Math.max(1, y1 - y0);
-      if (t > 0.7 && (y % 2)) continue; // 꼬리는 점선
-      K.dot(x, y, t < 0.35 ? C.white : t < 0.7 ? C.cotton : C.lint);
-    }
-}
-
 // 손 stamp 왼쪽 위(칸 px): 손목 점에서 손 크기만큼
 const handAt = (wr, dx, dy) => [Math.round(wr[0] * S + OX) + dx, Math.round(wr[1] * S) + dy];
 
@@ -556,7 +535,8 @@ const POSES = {
 //   방향을 고정하지 않는다(시소에 어느 쪽에서 왔든 위로 솟는다).
 // U3 매달려 뻗어 열쇠 집기(reach_hang_up): 고리에 매달린 채(hold 자리, facing −1 고정) 재생된다.
 //   주먹은 hold와 같은 (26,4) → 고리에서 안 미끄러진다(build.mjs가 hand를 hold와 같이 적는다).
-//   장대는 앞손에서 칸 34열로 곧게 위로(ADR-0003 직선) 칸 위까지. 뒤집어 그리면 화면 x = 137 + 47 − 34 = 150 = 둥지 reachPoint.
+//   장대는 앞손에서 칸 33·34열(2px)로 곧게 위로(ADR-0003 직선) 칸 위까지. 뒤집으면 화면 150·151열이라 가운데선은 x 151이다.
+//   엔진은 tip x에서 수직으로 대상 점 y까지 잇고 대상 점 x는 쓰지 않는다(#188 Theo 리뷰 1). 둥지 reachPoint 150과 1px 차이는 집게 8px 안이다.
 //   칸 위 46px(칸 위 끝 y 96 → 둥지 34)는 엔진이 tip에서 이어 그린다. 집게는 claw(0 벌림 / 1 다묾) 칸.
 //   마지막 칸은 열쇠를 문 집게를 확 당기는 모습(형식 기록 4-2절 (b): 열쇠는 이 연출이 끝날 때 둥지에서 빠진다).
 const REACH_X = (34 - OX) / S; // 장대 축(① 좌표) = 칸 34열
@@ -633,15 +613,16 @@ Object.assign(POSES, {
 });
 
 // 장대 끝 집게 칸(8×8, 엔진이 tip에서 이은 장대 끝에 그린다). 기준점 (4,8) = 장대가 들어오는 아래 가운데.
-// 3·4열이 장대 2색(lint·dusk)과 같다. 0 벌림 / 1 다묾(열쇠 고리를 문다).
+// 줄기(5~7행) 3·4열은 lint 2px = 시트 장대 0행과 같은 색이라, 엔진이 tip 0행을 위로 복사해 이어도 이음매가 없다(#188 Theo 리뷰 2).
+// 0 벌림 / 1 다묾(열쇠 고리를 문다).
 const CLAW = {
   cell: [8, 8],
   anchor: [4, 8],
   frames: 2,
   legend: { k: C.ink, L: C.lint, D: C.dusk, d: C.plum, W: C.white },
   rows: [
-    ['kk....kk', 'kWk..kLk', 'kLk..kDk', 'kDLkkLdk', '.kDLLdk.', '..kLDk..', '..kLDk..', '..kLDk..'],
-    ['..kkkk..', '.kWLLDk.', 'kLk..kDk', 'kLk..kdk', '.kLkkdk.', '..kLDk..', '..kLDk..', '..kLDk..'],
+    ['kk....kk', 'kWk..kLk', 'kLk..kDk', 'kDLkkLdk', '.kDLLdk.', '..kLLk..', '..kLLk..', '..kLLk..'],
+    ['..kkkk..', '.kWLLDk.', 'kLk..kDk', 'kLk..kdk', '.kLkkdk.', '..kLLk..', '..kLLk..', '..kLLk..'],
   ],
 };
 

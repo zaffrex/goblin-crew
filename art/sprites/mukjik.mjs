@@ -15,6 +15,7 @@
 
 import { Canvas, C } from '../lib/pixel.mjs';
 import { colorLines, rimShade, soles } from '../lib/finish.mjs';
+import { puff } from '../lib/fx.mjs';
 
 export const CELL = [48, 64];
 const S = 4 / 3;
@@ -65,6 +66,7 @@ const lag = (arr, k) => arr[(k + 5) % 6];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export function pose(kind, k) {
+  if (kind === 'common.stomp') return STOMP[k];
   if (kind === 'idle') {
     return {
       chest: k, // 숨 들이쉬기(배가 나온다) / 내쉬기
@@ -146,6 +148,20 @@ const TAILS = [
   ['.W....', 'WWW...', 'eWWe..', '.lWWe.', '..leW.', '...le.'],
   ['.W...', 'WWe..', 'WWe..', 'eWe..', 'lWWe.', '.lWe.', '..le.'],
 ];
+// 얼굴 갈아 끼우기(쿵): 눈썹 9행, 눈 10~11행, 입 15~17행. 바꾸지 않은 줄은 HEAD 그대로.
+const FACE = {
+  brows: { furrow: ['.kdssBBBBBBsssBBBBBBs.'] }, // 일자 눈썹이 미간에서 내려앉는다(기합)
+  eyes: { shut: ['.kdssssBBsssssssBBsss.', '..dsssssBBsssssBBsss..'] }, // 질끈 감은 눈(\ /, 미간 쪽이 낮다)
+  mouth: { grit: ['...dssssssmmmmmmmmmm..', '...ddsssxsmTTTTTTTTm..', '....dsssxsxmmmmmmmmmm.'] }, // 이를 악묾
+};
+function face(f) {
+  const r = HEAD.slice();
+  if (f.brows) r.splice(9, 1, ...FACE.brows[f.brows]);
+  if (f.eyes) r.splice(10, 2, ...FACE.eyes[f.eyes]);
+  if (f.mouth) r.splice(15, 3, ...FACE.mouth[f.mouth]);
+  for (const row of r) if (row.length !== 22) throw new Error(`[mukjik] 얼굴 줄 길이 ${row.length}: ${row}`);
+  return r;
+}
 const HEAD_X = 13, HEAD_Y = 4;
 /** 머리 박스(② 칸 좌표, 서 있기 0번 기준). UI 초상화가 24×24로 자른다. */
 export const HEAD_BOX = [HEAD_X - 1, 2, 24, 24];
@@ -164,7 +180,8 @@ function drawLeg(K, side, a, d, bias) {
   const ax = hx + a.x;
   const ay = ANKLE_Y - a.lift;
   // 짧고 굵은 다리: 무릎은 가운데에서 살짝 앞으로
-  const kx = (hx + ax) / 2 + 0.5, ky = (hy + ay) / 2;
+  // a.knee [dx, dy]: 무릎을 골반 기준으로 직접 준다(쿵 무릎 들기). 없으면 서 있기·걷기와 같은 계산.
+  const kx = a.knee ? hx + a.knee[0] : (hx + ax) / 2 + 0.5, ky = a.knee ? hy + a.knee[1] : (hy + ay) / 2;
   const r = side === 'front' ? [3.1, 2.8, 2.6] : [2.9, 2.6, 2.5];
   const ramp = side === 'front' ? R4.overall : R4.overallBack;
   const leg = K.limb([[hx, hy, r[0]], [kx, ky, r[1]], [ax, ay - 0.6, r[2]]], ramp, { bias });
@@ -177,13 +194,14 @@ function drawLeg(K, side, a, d, bias) {
   return { leg, shoe };
 }
 
-function drawArm(K, side, sx, sy, swing, bias) {
+function drawArm(K, side, sx, sy, swing, bias, aim) {
   // 어깨 → 팔꿈치 → 손목. 짧은 소매(흰) 아래 굵은 팔뚝.
+  // aim [위팔 각, 아래팔 각](라디안, 0 = 오른쪽, 아래가 +): 쿵처럼 팔을 크게 드는 자세. 없으면 swing으로 흔든다.
   const dir = side === 'front' ? 1 : -1;
-  const a0 = Math.atan2(6.2, 2.0 * dir) - swing * 0.22 * dir;
+  const a0 = aim ? aim[0] : Math.atan2(6.2, 2.0 * dir) - swing * 0.22 * dir;
   const up = 6.2, lo = 5.0;
   const ex = sx + up * Math.cos(a0), ey = sy + up * Math.sin(a0);
-  const a1 = a0 - swing * 0.16 * dir;
+  const a1 = aim ? aim[1] : a0 - swing * 0.16 * dir;
   const wx = ex + lo * Math.cos(a1), wy = ey + lo * Math.sin(a1);
   K.limb([[sx, sy, 3.0], [sx + (ex - sx) * 0.55, sy + (ey - sy) * 0.55, 2.8]], R4.shirt, { bias });
   K.limb([[sx + (ex - sx) * 0.5, sy + (ey - sy) * 0.5, 2.4], [ex, ey, 2.5], [wx, wy, 2.3]], R4.skin, { bias });
@@ -201,7 +219,7 @@ export function drawFrame(p) {
 
   const feet = [];
   // 뒷팔(몸 뒤)
-  const bw = drawArm(K, 'back', bx(8.6, body(22.6)), body(22.6), p.armSwing.back, -0.3);
+  const bw = drawArm(K, 'back', bx(8.6, body(22.6)), body(22.6), p.armSwing.back, -0.3, p.aim?.back);
   // 뒷다리
   feet.push(drawLeg(K, 'back', p.legs.back, d, -0.3).shoe);
   // 앞다리
@@ -222,7 +240,7 @@ export function drawFrame(p) {
   // 굵은 목
   K.ball(bx(16.8, body(17.4)), body(17.4), 5.0, 2.6, R4.skin, { bias: -0.2 });
   // 앞팔
-  const fw = drawArm(K, 'front', bx(24.0, body(22.4)), body(22.4), p.armSwing.front, 0);
+  const fw = drawArm(K, 'front', bx(24.0, body(22.4)), body(22.4), p.armSwing.front, 0, p.aim?.front);
   colorLines(K, LINE);
 
   // 주먹(격자)
@@ -240,7 +258,7 @@ export function drawFrame(p) {
   const hx0 = HEAD_X + p.lean, hy0 = HEAD_Y + p.chest;
   const headPart = K.part(R4.skin);
   K.stamp(hx0 - 5, hy0 + 4, TAILS[clamp(p.tails, 0, 2)], HL, headPart);
-  K.stamp(hx0, hy0, HEAD, HL, headPart);
+  K.stamp(hx0, hy0, p.face ? face(p.face) : HEAD, HL, headPart);
   K.stamp(hx0 + NOSE[0], hy0 + NOSE[1], NOSE[2], HL, headPart);
   K.stamp(hx0 + EAR[0], hy0 + EAR[1], EAR[2], HL, headPart);
 
@@ -254,8 +272,68 @@ export function drawFrame(p) {
   rimShade(K, new Set([headPart, handPart]), DOWN);
   soles(K, feet, C.woodL);
   K.outline();
+  if (p.fx) p.fx(K); // 먼지·충격선: 외곽선 없이(ADR-0007 결정 3-1)
   return { K, feet, belly };
 }
+
+// ══════════ 화면 1 자세 (#142, 설계 docs/design/screens/magpie_nest.md 3·4절) ══════════
+// common.stomp  공용 "쿵"(능력 동작). 시소 끝·까치 앞·기둥 밑동·바구니·빨랫줄 기둥에서 같은 그림을 쓴다.
+//   발 구르기로 그린다(ADR-0003 "발을 구르거나 엉덩방아"). 엉덩방아는 실패 리액션 common.bump_bottom과 겹쳐서
+//   성공한 쿵이 넘어진 것처럼 읽히지 않게 뺐다.
+//   0 무릎 들기(상체 젖힘, 두 주먹 위로, 미간 찌푸림) → 1 내려찍기(배는 아직 위) → 2 쿵(쪼그라듦, 배 출렁 아래, 먼지·충격선)
+//   → 3 여운(배가 튀어 오름, 먼지 흩어짐, 무표정 복귀). 합 1100ms ≤ 연출 상한 1500(#187 busy = 시트 ms).
+//   서 있기·걷기와 같은 drawFrame에 무릎(knee)·팔 각도(aim)·얼굴(face)·효과(fx)만 더한다. 방향은 고정하지 않는다.
+const UP = -Math.PI / 2;
+/** 충격선(외곽선 없음): 두 발 바깥에서 비스듬히 위로 튀는 짧은 선 2개씩. 몸 위에는 그리지 않는다. */
+function impact(K) {
+  const rays = [
+    [[9, 55, C.white], [8, 54, C.white], [7, 53, C.cotton]],
+    [[12, 53, C.white], [12, 52, C.cotton]],
+    [[39, 55, C.white], [40, 54, C.white], [41, 53, C.cotton]],
+    [[36, 53, C.white], [36, 52, C.cotton]],
+  ];
+  for (const ray of rays) for (const [x, y, c] of ray) if (K.get(x, y) === -1) K.dot(x, y, c);
+}
+/** 내려찍는 발 뒤 속도선(외곽선 없음): 발 앞쪽 바깥에 세로로 짧게. */
+function drop(K) {
+  for (const [x, y0, y1] of [[42, 47, 53], [44, 50, 55]])
+    for (let y = y0; y <= y1; y++) if (K.get(x, y) === -1) K.dot(x, y, y - y0 < 2 ? C.lint : y - y0 < 4 ? C.cotton : C.white);
+}
+const STOMP = [
+  { // 0 무릎 들기: 앞 무릎을 배 높이로, 상체는 뒤로, 두 주먹을 머리 옆으로
+    chest: 0, belly: 0.6, jiggle: 0, lean: -2,
+    legs: { back: { x: -0.8, lift: 0, toe: false }, front: { x: 3.6, lift: 5.4, toe: false, knee: [5.2, -2.4] } },
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [UP - 0.75, UP - 0.35], front: [UP + 0.5, UP + 0.15] },
+    tails: 2,
+    face: { brows: 'furrow' },
+  },
+  { // 1 내려찍기: 발이 거의 바닥, 몸이 내려가는데 배는 아직 위(한 프레임 늦음), 주먹도 같이 내리친다
+    chest: 3, belly: 0.6, jiggle: -1, lean: 0,
+    legs: { back: { x: -1.2, lift: 0, toe: false }, front: { x: 3.0, lift: 0.8, toe: false } },
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [2.5, 2.1], front: [0.75, 1.25] },
+    tails: 0,
+    face: { brows: 'furrow', eyes: 'shut', mouth: 'grit' },
+    fx: drop,
+  },
+  { // 2 쿵: 다리를 벌리고 쪼그라든다. 배가 늦게 내려앉고 머리띠 꼬리가 튄다. 양옆 먼지 + 충격선
+    chest: 5, belly: 0.6, jiggle: 2, lean: 0,
+    legs: { back: { x: -2.8, lift: 0, toe: false }, front: { x: 4.0, lift: 0, toe: false } },
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [2.2, 1.95], front: [0.95, 1.3] },
+    tails: 0,
+    face: { brows: 'furrow', eyes: 'shut', mouth: 'grit' },
+    fx: (K) => { puff(K, 5, 1, { behind: true }); puff(K, 43, 1, { behind: true }); impact(K); },
+  },
+  { // 3 여운: 몸이 올라오는데 배는 한 번 더 튀어 오른다. 얼굴은 원래 무표정(비장)으로, 먼지는 흩어진다
+    chest: 2, belly: 0.6, jiggle: -2, lean: 0,
+    legs: { back: { x: -1.6, lift: 0, toe: false }, front: { x: 2.6, lift: 0, toe: false } },
+    armSwing: { back: 0, front: 0 },
+    tails: 1,
+    fx: (K) => { puff(K, 6, 2, { behind: true }); puff(K, 42, 2, { behind: true }); },
+  },
+];
 
 export const SHEET = {
   name: 'mukjik-base',
@@ -264,6 +342,7 @@ export const SHEET = {
   anims: [
     { name: 'idle', frames: 2, ms: [800, 600] },
     { name: 'walk', frames: 6, by: 'distance' },
+    { name: 'common.stomp', frames: 4, ms: [300, 100, 400, 300] },
   ],
   pose,
   drawFrame,

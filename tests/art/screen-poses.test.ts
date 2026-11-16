@@ -28,7 +28,6 @@ const MISSING: Record<string, string[]> = {
     'jjuk:common.stretch',
     'jjuk:common.wet',
     'mukjik:common.flatten',
-    'mukjik:common.stomp',
     'ppik:common.bump_bottom',
     'ppik:common.flatten',
     'ppik:common.shiver',
