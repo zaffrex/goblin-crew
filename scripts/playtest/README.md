@@ -24,6 +24,11 @@ node --import ./scripts/playtest/register.mjs scripts/playtest/replay.ts --url h
 
 결과: `<out>/report.md`, `report.json`, 뷰포트별 PNG. A4 콘솔 에러나 입력 경로 실패면 종료 코드 1, A5·A6는 경고만.
 
+**A7 임시 그림(#142, 판정 2 시작 조건)**: 재생 내내 엔진이 실제 그림 대신 임시 그림으로 그린 것을 `?playtest=1` 훅 `window.__gcFallbacks()`로 모아 `report.md`에 표로 적는다. 이름은 `bg`(임시 방, 배경 draft), `box:<대상 ID>`(물건 시트가 안 그리는 임시 상자), `char:<캐릭터>:<자세>`(실루엣, 시트에 그 자세가 없음). 그림이 읽히는 중인 프레임은 세지 않는다. 기본은 경고만이고, 판정 2 요청 전에는 `--require-art`로 돌려 하나라도 있으면 종료 코드 1을 받는다.
+
+- 한계: **재생이 지나간 자세만** 센다(정답 + A2·A3 오답). 사람이 아무 데나 눌러서 나오는 자세(예: 다른 캐릭터의 기본 실패 반응)는 안 잡힌다. 화면 1 전체 자세 목록은 `magpie_nest.json`의 `anim`에서 따로 뽑는다(#142 하위 작업).
+- 로드 실패(404)는 "읽히는 중"으로 남아 A7에 안 잡힌다. 그건 A4 콘솔 에러가 잡는다.
+
 | 파일 | 내용 |
 |---|---|
 | `coords.ts` | 화면 JSON 대상(핫스팟 `variants`, 서는 자리 `box`) → 내부 좌표 → CSS px. 게임 입력과 같은 `viewport.ts` 변환을 쓴다 |

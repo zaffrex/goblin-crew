@@ -3,6 +3,7 @@
 // 이미지 요청 자체를 안 한다(404 → 콘솔 에러 없음, M1 판정 A4). 새 캐릭터 시트는 json·png만 넣으면 붙는다.
 // 이미지는 assetUrl()로만 읽는다(ADR-0004 결정 8). 로드 전·실패면 null → 호출하는 쪽이 실루엣을 그린다.
 
+import type { Loaded } from '../core/fallbacks';
 import { frameSourceX, parseSpriteMeta, spriteBox, spriteFrame, type Pose, type SpriteMeta } from '../core/sprite';
 import type { Walker } from '../core/walk';
 import { assetUrl } from './assets';
@@ -38,6 +39,12 @@ function loadSheets(): Map<string, Sheet> {
 }
 
 const SHEETS = loadSheets();
+
+/** 캐릭터 시트 상태(임시 그림 세기 #142용). 시트가 없으면 none, 이미지가 아직이면 loading. */
+export function spriteState(id: string): Loaded {
+  const sheet = SHEETS.get(id);
+  return !sheet ? 'none' : sheet.ready ? 'ready' : 'loading';
+}
 
 /**
  * 시트 그림으로 그린다. 그렸으면 그림 꼭대기(내부 y, 메타 `hit` 위끝)를 돌려준다. 말풍선·▼ 위치용.
