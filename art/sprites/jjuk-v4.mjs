@@ -17,7 +17,7 @@
 import { Canvas, C } from '../lib/pixel.mjs';
 import { colorLines, rimShade, soles } from '../lib/finish.mjs';
 import { squash } from '../lib/squash.mjs';
-import { puff, streaks } from '../lib/fx.mjs';
+import { puff, shadow, streaks } from '../lib/fx.mjs';
 
 export const CELL = [48, 64];
 const S = 4 / 3;
@@ -414,7 +414,8 @@ const HAND_ROWS = { ...BACK_HAND, fist: HOOK_FIST, spread: SPREAD, grip: GRIP };
  * p.pole {top:[x,y], bot:[x,y]} 장대(위 끝에 집게), p.legs {back, front}: {x, lift, toe} (drawLeg와 같은 뜻)
  */
 function drawPose(p) {
-  const K = new Canvas(CELL[0], CELL[1], S, OX, 0);
+  const oy = p.oy ?? 0; // 몸 전체를 위로 올린다(칸 px, 음수 = 위). 엉덩방아 0번 칸(떨어지는 중)
+  const K = new Canvas(CELL[0], CELL[1], S, OX, oy);
   const stripes = (x, y) => (Math.floor(y * S) % 4 < 2 ? R4.stripe : undefined);
   const arm = (a, bias) => {
     const mid = [a.sh[0] + (a.el[0] - a.sh[0]) * 0.5, a.sh[1] + (a.el[1] - a.sh[1]) * 0.5];
@@ -450,9 +451,9 @@ function drawPose(p) {
   colorLines(K, LINE);
 
   const handPart = K.part(R4.skin);
-  for (const h of [p.back.hand, p.front.hand]) K.stamp(h.at[0], h.at[1], HAND_ROWS[h.rows], HAND, handPart);
+  for (const h of [p.back.hand, p.front.hand]) K.stamp(h.at[0], h.at[1] + oy, HAND_ROWS[h.rows], HAND, handPart);
 
-  const { x: hx0, y: hy0 } = p.head;
+  const hx0 = p.head.x, hy0 = p.head.y + oy;
   const headPart = K.part(R4.skin);
   if (typeof p.head.hair === 'number') K.stamp(hx0 + 4, hy0 - 1, TUFT[p.head.hair], HL, headPart);
   else K.stamp(hx0 + 2, hy0 - 3, SPIKES[p.head.hair === 's1' ? 1 : 0], HL, headPart);
@@ -638,6 +639,79 @@ Object.assign(POSES, {
   },
 });
 
+// common.bump_bottom  공용 "엉덩방아"(삑삑이 ppik.mjs와 같은 박자). 고리에서 손 놓기(3번, 바구니 착지 점)와 반대쪽 발사(14번)에서 나온다.
+//   엔진에 떨어지는 궤적이 없어서(release = 순간 배치) 0번 칸이 "위에서 앉은 자세로 떨어지는 중"을 맡는다.
+//   쭉이는 키가 칸을 다 써서 선 채로는 위로 못 올린다 → 앉은 몸(44행 높이)을 통째로 올린다(oy).
+//   0 낙하(앉은 몸이 칸 위쪽, 두 팔 허우적, 머리 곤두섬, 위로 끊기는 속도선, 착지 자리 그림자)
+//   → 1 쿵(엉덩이로 털썩 눌림, 다리가 위로 튀고 팔은 만세, 양옆 먼지) → 2 아야(뒤로 휘청, 뒷손으로 엉덩이 문지름, 이 악묾)
+//   → 3 멍(앉은 채 헤벌쭉 + 한 눈 풀림, 장대는 세워 쥠, 뒷손은 바닥을 짚음). 말풍선 동안 3번 칸이 남는다(#193).
+//   앉은 몸: 골반 (12.2, 44)이 바닥에, 상체는 서 있기보다 13.9 내려가고 3.6 뒤로. 다리는 앞으로 뻗고 무릎이 살짝 선다.
+const SIT_Y = 13.9; // 서 있기 어깨(19.5) → 앉은 어깨(33.4)
+const sitHead = (lean, h) => ({ x: 8 + Math.round(lean * S), y: 1 + Math.round(SIT_Y * S), ...h });
+function sitPose(o) {
+  const ln = o.lean ?? 0; // 뒤로 젖힘(① 좌표, 음수 = 뒤로): 어깨만 움직이고 골반은 바닥에 그대로
+  const t0 = [11.6 + ln, 33.4, 3.4], t1 = [11.9 + ln * 0.5, 38.8, 3.6], t2 = [12.2, 44.0, 3.4];
+  return {
+    kind: 'pose',
+    oy: o.oy ?? 0,
+    head: sitHead(ln, o.head),
+    neck: [[11.4 + ln, 27.9], [11.5 + ln, 32.4]],
+    torso: [t0, t1, t2],
+    hip: [12.2, 44.0],
+    hipSpread: 0.6,
+    back: o.back,
+    front: o.front,
+    pole: o.pole,
+    legs: o.legs,
+    flat: o.flat,
+    fx: o.fx,
+  };
+}
+const SIT_LEGS = { back: { x: 5.6, lift: 0, toe: false }, front: { x: 8.8, lift: 0, toe: false } };
+Object.assign(POSES, {
+  'common.bump_bottom'(k) {
+    if (k === 0) {
+      const fwr = [19.2, 27.0];
+      return sitPose({
+        oy: -16,
+        lean: 0.4,
+        head: { eyes: 'shock', mouth: 'ouch', brows: 'up', hair: 's1' },
+        back: { sh: [10.2, 34.0], el: [6.4, 29.6], wr: [5.0, 25.0], hand: { rows: 'spread', at: handAt([5.0, 25.0], -3, -2) } },
+        front: { sh: [13.4, 34.0], el: [17.0, 31.0], wr: fwr, hand: { rows: 'grip', at: handAt([21.4, fwr[1]], -3, -3) } },
+        pole: { top: [21.4, 18.0], bot: [21.4, 55.0] }, // 칸 위로 집게가 잘리지 않게 몸보다 아래로 늘어뜨려 쥔다
+        legs: { back: { x: 5.0, lift: 1.6, toe: true }, front: { x: 8.2, lift: 2.6, toe: true } },
+        fx: (K) => { streaks(K, [[3, 2, 22], [7, 0, 14], [41, 4, 20], [45, 0, 12]], { fall: true }); shadow(K, 26, 22); },
+      });
+    }
+    if (k === 1) {
+      const fwr = [19.6, 28.6];
+      return sitPose({
+        head: { eyes: 'squint', mouth: 'ouch', hair: 's0' },
+        back: { sh: [10.2, 34.0], el: [6.2, 30.4], wr: [4.6, 26.4], hand: { rows: 'spread', at: handAt([4.6, 26.4], -3, -2) } },
+        front: { sh: [13.4, 34.0], el: [17.2, 31.8], wr: fwr, hand: { rows: 'grip', at: handAt([21.8, fwr[1]], -3, -3) } },
+        pole: { top: [21.8, 8.0], bot: [21.8, 46.0] },
+        legs: { back: { x: 6.2, lift: 4.6, toe: true }, front: { x: 9.0, lift: 7.0, toe: true } },
+        flat: { sx: 1.1, sy: 0.86 },
+        fx: (K) => { puff(K, 6, 1, { behind: true }); puff(K, 42, 0, { behind: true }); },
+      });
+    }
+    // 2·3: 장대는 앞손으로 세워 짚는다(비스듬히 걸치면 얼굴을 가로지른다). 서 있기와 같은 실루엣 단서
+    const lean = k === 2 ? -1.2 : 0;
+    const fwr = [20.4, 37.0];
+    return sitPose({
+      lean,
+      head: k === 2 ? { eyes: 'squint', mouth: 'grit', hair: 1 } : { eyes: 'daze', mouth: 'open', hair: 0 },
+      back: k === 2
+        ? { sh: [9.6 + lean, 34.2], el: [6.4 + lean, 38.4], wr: [7.4, 42.6], hand: { rows: 'back', at: handAt([7.4, 42.6], -2, -2) } } // 엉덩이 문지르기
+        : { sh: [9.8, 34.2], el: [7.4, 38.6], wr: [6.6, 43.2], hand: { rows: 'mid', at: handAt([6.6, 43.2], -2, -1) } }, // 바닥 짚기
+      front: { sh: [13.2 + lean, 34.2], el: [16.8 + lean * 0.5, 38.4], wr: fwr, hand: { rows: 'grip', at: handAt([23.4, fwr[1]], -3, -3) } },
+      pole: { top: [23.4, 7.5], bot: [23.4, 46.5] },
+      legs: k === 2 ? { back: { x: 5.6, lift: 0, toe: false }, front: { x: 9.0, lift: 1.0, toe: true } } : SIT_LEGS,
+      fx: k === 2 ? (K) => puff(K, 26, 2, { behind: true }) : undefined,
+    });
+  },
+});
+
 // 장대 끝 집게 칸(8×8, 엔진이 tip에서 이은 장대 끝에 그린다). 기준점 (4,8) = 장대가 들어오는 아래 가운데.
 // 줄기(5~7행) 3·4열은 lint 2px = 시트 장대 0행과 같은 색이라, 엔진이 tip 0행을 위로 복사해 이어도 이음매가 없다(#188 Theo 리뷰 2).
 // 0 벌림 / 1 다묾(열쇠 고리를 문다).
@@ -678,6 +752,7 @@ export const SHEET = {
     { name: 'launch_to_hook', frames: 4, ms: [150, 100, 100, 150] },
     { name: 'reach_hang_up', frames: 3, ms: [350, 250, 400] },
     { name: 'common.flatten', frames: 4, ms: [100, 600, 150, 450] },
+    { name: 'common.bump_bottom', frames: 4, ms: [100, 400, 300, 500] },
   ],
   pose,
   drawFrame,
