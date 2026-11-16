@@ -1,7 +1,7 @@
 {
   "//": "node art/build.mjs로 만든 파일. 직접 고치지 않는다. 원본: art/scenes/magpie_nest.mjs. 형식: docs/decisions/2026-11-16-scene-art-format-v1.md. frames[i].src = 시트 안 [x,y,w,h], at = 화면 좌표(왼쪽 위).",
   "image": "magpie_nest-objects.png",
-  "bg": null,
+  "bg": "magpie_nest-bg.png",
   "screen": "magpie_nest",
   "frames": [
     {

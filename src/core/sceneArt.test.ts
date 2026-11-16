@@ -34,10 +34,10 @@ const view = (over: Partial<SceneView> = {}): SceneView => ({ flagsOf: () => scr
 const idx = (m: SceneArtMeta, key: string) => m.objects.findIndex((o) => o.key === key);
 
 describe('parseSceneArt', () => {
-  it('커밋된 화면 1 시트를 읽는다(draft라 bg 없음)', () => {
+  it('커밋된 화면 1 시트를 읽는다(배경 PNG 있음, #145 draft 해제)', () => {
     const m = parseSceneArt(sheetJson);
     expect(m.screen).toBe('magpie_nest');
-    expect(m.bg).toBeNull();
+    expect(m.bg).toBe('magpie_nest-bg.png');
     expect(m.objects.map((o) => o.key)).toEqual(['nest', 'magpie', 'hook', 'long_johns', 'seesaw', 'basket']);
   });
 
