@@ -740,7 +740,7 @@ function standPose(o) {
   return {
     kind: 'pose',
     chest: 0,
-    head: { x: 13 + Math.round(dx * S), y: 1 + Math.round(dy * S), ...o.head },
+    head: { x: 13 + Math.round(dx * S), y: Math.max(2, 1 + Math.round(dy * S)), ...o.head }, // 까치발(dy<0)에도 y 2 아래로 안 감 = 서 있기 0번처럼 가닥 1행, 외곽선 0행(#218 Theo 리뷰 1)
     neck: [[15.0 + dx, body(14)], [15.2 + dx, body(18.5)]],
     torso: STAND_TORSO(dx, dy),
     hip: [14.45 + dx * 0.4, 30 + dy * 0.6],
@@ -775,7 +775,7 @@ Object.assign(POSES, {
         legs: { back: { x: -2.6, lift: 0, toe: false }, front: { x: 2.9, lift: 0, toe: false } },
       });
     }
-    const wr = [26.4, 19.6], top = [31.2, 5.4]; // 위 끝 y 5.4 = 집게(위로 4.4)가 칸 0행 안에 다 들어오는 한계
+    const wr = [27.0, 19.6], top = [30.4, 5.4]; // 위 끝 y 5.4 = 집게(위로 4.4)가 칸 0행 안에, x 30.4 = 벌린 집게 오른쪽 외곽선이 47열 안에 들어오는 한계
     return standPose({
       dx: 0.6,
       dy: -0.6,
@@ -821,7 +821,7 @@ Object.assign(POSES, {
   //   → 2 부르르(몸을 털어 물이 양옆으로 튐) → 3 뚝뚝(여전히 앞머리에 눈이 가려진 채 입만 벌림 = "앞이 안 보여!", 코끝 방울).
   //   장대는 땅을 짚은 채(서 있기와 같은 실루엣 단서).
   'common.wet'(k) {
-    const dy = [0.6, 1.8, 1.2, 1.8][k];
+    const dy = [1.9, 1.8, 1.2, 1.8][k]; // 0번 곤두선 머리(SPIKES, 머리 위 3줄 + 외곽선)가 칸 안에 들어오려면 head y ≥ 4 → dy ≥ 1.9
     const dx = k === 2 ? 0.75 : 0;
     const wr = [22.8 + dx, 23.4 + dy];
     const slump = k === 0 ? 0 : 1.2; // 축 처진 뒷팔
