@@ -3,8 +3,8 @@
 // 밀도 기준은 사장님 OK를 받은 완성 밀도 샘플(#154, docs/design/screens/magpie_nest-density-sample.mjs)이다.
 // 그 샘플의 배경 코드를 여기로 옮기고, 띠별 PR로 나머지를 채운다.
 //   띠 ②(a) 하늘·먼 지붕·왼쪽 건물  ← 이 파일 첫 PR
-//   띠 ②(b) 담장·화단
-//   띠 ②(c) 바닥·오른쪽 빨랫줄·시소 받침·볼거리 소품
+//   띠 ②(b) 담장·화단(해바라기 셋·화단 상자)  ← #142 묶음 ② 뒤 PR
+//   띠 ②(c) 바닥·오른쪽 빨랫줄·시소 받침(세제 통)·볼거리 소품  ← 같은 PR
 // 물건(`objects`)은 art/scenes/magpie_nest.objects.mjs에 그린다(물건 시트 ③). 일시 연출(`anims`)은 ③-2에서 채운다.
 // 미리보기·검사: node docs/design/screens/magpie_nest-bg-preview.mjs (배경), node docs/design/screens/magpie_nest-objects-preview.mjs (물건)
 
@@ -103,6 +103,139 @@ function backDoor(bg) {
   // 문 옆 벽에 기대 둔 대걸레(빨래방 뒷문다운 물건, 판정 대상 아님)
   line(bg, X + DW + 6, Y0 + 8, X + DW + 9, BOT - 6, C.woodL); line(bg, X + DW + 7, Y0 + 8, X + DW + 10, BOT - 6, C.wood);
   stamp(bg, X + DW + 6, BOT - 6, ['.cccc.', 'ccccc', 'cLcLcc', 'c.c.c.c', 'L.L..L'], { c: C.cotton, L: C.lint });
+}
+
+/**
+ * ②(b) 담장 밑 화단 상자: 판자로 짠 낮은 상자에 흙 + 분홍·보라 꽃 + 새싹 팻말. 옆에 물뿌리개가 넘어져 물이 샌다.
+ * 노란 꽃은 쓰지 않는다(금색은 열쇠 전용). 시소 오른쪽 끝(288)과 빨랫줄 기둥(336) 사이 빈 담장 밑을 채운다.
+ */
+function flowerBed(bg) {
+  const X0 = 288, X1 = 318, TOP = 188, BOT = 201; // 물뿌리개(X1+2~X1+14)가 빨랫줄 기둥(335)에 가리지 않게
+  // 상자 판자 두 장(위 판은 빛, 아래 판은 그늘) + 모서리 기둥
+  fill(bg, X0, TOP + 4, X1 - X0, BOT - TOP - 4, (x, y) => {
+    const ly = y - TOP - 4, lx = x - X0;
+    if (lx === 0) return C.tan;
+    if (lx === X1 - X0 - 1) return C.woodD;
+    if (ly === 0) return C.tan;
+    if (ly === 4) return C.woodD; // 판자 사이 틈
+    if (ly === BOT - TOP - 5) return C.wood;
+    if ((lx + (ly > 4 ? 7 : 0)) % 11 === 5 && hash(lx, ly, 91) < 0.7) return C.wood; // 결
+    return ly > 4 ? C.wood : C.woodL;
+  });
+  for (const px of [X0 + 1, X1 - 2]) { bg.set(px, TOP + 6, C.lint); bg.set(px, TOP + 11, C.lint); } // 못
+  // 흙(위에서 살짝 보임)
+  R(bg, X0 + 1, TOP + 3, X1 - X0 - 2, 1, C.woodD);
+  // 꽃: 줄기 + 꽃송이(분홍·보라·흰), 왼쪽 위가 밝다. 키를 들쭉날쭉하게
+  const r = rng(92);
+  // 잎 덤불(흙을 덮는다)
+  for (let x = X0 + 1; x < X1 - 1; x++) { const h = 1 + Math.floor(r() * 3); for (let j = 0; j < h; j++) bg.set(x, TOP + 3 - j, j === h - 1 && x % 3 === 0 ? C.grnP : C.grn); }
+  for (let x = X0 + 2; x < X1 - 3; x += 4 + Math.floor(r() * 2)) {
+    const h = 4 + Math.floor(r() * 5), top = TOP + 2 - h;
+    R(bg, x, top + 2, 1, h - 1, C.grn);
+    bg.set(x + (r() < 0.5 ? 1 : -1), top + 3 + Math.floor(r() * 2), C.grnL); // 잎
+    const k = r(), [lit, mid] = k < 0.45 ? [C.pinkL, C.pink] : k < 0.8 ? [C.purL, C.pur] : [C.white, C.cotton];
+    // 꽃송이 3×3 십자 + 가운데, 왼쪽 위가 밝다
+    bg.set(x, top, lit); bg.set(x - 1, top + 1, lit); bg.set(x + 1, top + 1, mid); bg.set(x, top + 2, mid); bg.set(x, top + 1, C.redL);
+  }
+  // 새싹 팻말(막대 + 빈 판, 글자 없음): 씨앗 봉투를 꽂아 뒀다
+  R(bg, X1 - 7, TOP - 4, 1, 7, C.woodL);
+  R(bg, X1 - 9, TOP - 8, 5, 5, C.white); R(bg, X1 - 9, TOP - 4, 5, 1, C.cotton); R(bg, X1 - 5, TOP - 8, 1, 5, C.cotton);
+  bg.set(X1 - 8, TOP - 7, C.pink); bg.set(X1 - 7, TOP - 6, C.grn); bg.set(X1 - 7, TOP - 7, C.pinkL);
+  // 접지 그림자(오른쪽 아래)
+  for (let x = X0 + 2; x < X1 + 3; x++) for (const y of [BOT, BOT + 1]) if (y === BOT || x > X0 + 4) bg.set(x, y, darker(bg.get(x, y)));
+  // 넘어진 물뿌리개(청록 함석, 꼭지에서 물이 졸졸 = 바닥에 작은 물자국)
+  stamp(bg, X1 + 2, BOT - 8, ['...lll....', '..l...l...', '.lQQQQQl..', 'lQQqqqqqlL.', 'lQqqqqqqq.LL', 'lqqqqqqqp..aL', '.qqqqqqpp...a', '..ppppp......'],
+    { l: C.lint, Q: C.aqua, q: C.tealM, p: C.teal, L: C.lav, a: C.aqua });
+  for (const [dx, dy] of [[14, 0], [15, 1], [16, 1], [17, 2], [13, 1]]) bg.set(X1 + dx, BOT + dy, dx % 2 ? C.tealL : C.aqua); // 샌 물
+}
+
+/**
+ * ②(c) 오른쪽 빨랫줄(만질 수 없음): 쇠 기둥 둘(336·464) + 처진 줄(내복 집게 자리 y 110).
+ * 기둥은 빨랫대 기둥(나무, 굵고 따뜻함)과 헷갈리지 않게 3px 차가운 쇠색. 바닥엔 시멘트 받침.
+ * 줄에는 내복(물건) 말고 장식 빨래 둘: 납작한 줄무늬 수건, 크기가 전혀 다른 양말 한 켤레(짝짝이).
+ * 장식은 내복보다 약하게(차가운 색, 작게) 둬서 만질 수 있는 내복이 먼저 읽힌다(ADR-0007 읽기 규칙).
+ */
+const LINE_X0 = 336, LINE_X1 = 464;
+const lineY = (x) => 107 + Math.round(12 * ((x - LINE_X0) / (LINE_X1 - LINE_X0)) * (1 - (x - LINE_X0) / (LINE_X1 - LINE_X0)));
+function clothesline(bg) {
+  const FOOT = 238;
+  for (const px of [LINE_X0 - 1, LINE_X1 - 1]) {
+    // 기둥(왼쪽 빛, 오른쪽 그늘) + 꼭대기 갓 + 줄 거는 고리
+    R(bg, px, 100, 3, FOOT - 100, C.lav); R(bg, px, 100, 1, FOOT - 100, C.lint); R(bg, px + 2, 100, 1, FOOT - 100, C.dusk);
+    R(bg, px - 1, 98, 5, 2, C.lint); R(bg, px - 1, 98, 5, 1, C.cotton);
+    for (let y = 120; y < FOOT - 6; y += 29) bg.set(px + 1, y, C.dusk); // 이음매
+    for (let y = 166; y < 190; y++) if (hash(px, y, 93) < 0.35) bg.set(px + 1, y, C.woodD); // 녹물
+    // 시멘트 받침 + 그림자(오른쪽 아래)
+    R(bg, px - 3, FOOT - 4, 9, 4, C.lint); R(bg, px - 3, FOOT - 4, 9, 1, C.cotton); R(bg, px + 5, FOOT - 4, 1, 4, C.lav); R(bg, px - 3, FOOT - 1, 9, 1, C.lav);
+    ellipse(bg, px + 7, FOOT, 7, 1.6, (x, y) => darker(bg.get(x, y)));
+    const r = rng(px); tuft(bg, px - 4, FOOT, r, 0); tuft(bg, px + 6, FOOT + 1, r, 0);
+  }
+  // 줄(살짝 처짐). 내복 집게(377~399)에서 y 110이 되게 맞췄다
+  for (let x = LINE_X0 + 2; x < LINE_X1 - 1; x++) bg.set(x, lineY(x), C.dusk);
+  // 왼쪽 기둥에 걸린 빨래집게 주머니(꽃무늬 천, 집게 몇 개가 삐져나옴)
+  stamp(bg, LINE_X0 + 2, 118, ['l', 'l', 'l.', 'pPpPpp', 'PpqpPp', 'pPpPqp', 'PppPpP', '.pPpp.'], { l: C.lint, p: C.purL, P: C.pur, q: C.white });
+  stamp(bg, LINE_X0 + 3, 119, ['.t.t', '.w.w'], { t: C.tan, w: C.woodL });
+  // 수건(만질 수 없음): 차가운 청록 줄무늬, 바람에 아래 끝이 오른쪽으로 들림
+  {
+    const X = 410, top = lineY(410) + 1;
+    fill(bg, X, top, 16, 22, (x, y) => {
+      const ly = y - top, lx = x - X - Math.round((ly / 22) ** 2 * 3);
+      if (lx < 0 || lx > 15) return undefined;
+      if (ly === 21) return lx % 2 ? C.lint : undefined; // 술
+      if (lx === 0) return C.white;
+      if (lx === 15) return C.tealM;
+      return ly % 6 < 2 ? C.tealM : ly % 6 === 2 ? C.tealL : C.cotton;
+    });
+    for (const px of [X + 1, X + 13]) stamp(bg, px, top - 2, ['tw', 'tw', '.w'], { t: C.tan, w: C.woodL });
+  }
+  // 짝짝이 양말: 무릎까지 오는 긴 양말 하나 + 아기 양말 하나(같은 줄무늬라 한 켤레라고 우긴다)
+  {
+    const X = 436, top = lineY(436) + 1;
+    stamp(bg, X, top, ['ww', 'll', 'ww', 'll', 'ww', 'll', 'ww', 'll', 'ww', 'llL', 'wwwL', 'cccc'], { w: C.white, l: C.lav, L: C.lav, c: C.lint });
+    const X2 = 446, t2 = lineY(446) + 1;
+    stamp(bg, X2, t2, ['ww', 'll', 'wwl', 'ccc'], { w: C.white, l: C.lav, c: C.lint });
+    for (const [px, py] of [[X, top - 2], [X2, t2 - 2]]) stamp(bg, px, py, ['t', 't'], { t: C.tan });
+  }
+}
+
+/**
+ * ②(c) 시소 받침 = 세제 통(242,220 12×16, 설계 1-1절). 널빤지(물건)가 그 위 y 214~219에 얹힌다.
+ * 큰 청록 통 + 흰 라벨(거품 그림, 글자 없음) + 뚜껑 + 옆구리로 흘러내린 세제 자국. 넓어서 시소가 안 기운다는 설정(1-3절).
+ */
+function detergentTub(bg) {
+  const X = 242, Y = 220, TW = 12, TH = 16;
+  fill(bg, X, Y, TW, TH, (x, y) => {
+    const lx = x - X, ly = y - Y;
+    if (ly < 2) return ly === 0 ? C.lint : C.lav; // 뚜껑 테(널빤지 그늘이 덮는다)
+    if (lx === 0) return C.tealL;
+    if (lx >= TW - 2) return lx === TW - 1 ? C.tealD : C.teal;
+    if (ly === TH - 1) return C.tealD;
+    return C.tealM;
+  });
+  // 라벨: 흰 판 + 거품 세 알
+  R(bg, X + 2, Y + 5, 8, 7, C.white); R(bg, X + 9, Y + 5, 1, 7, C.cotton); R(bg, X + 2, Y + 11, 8, 1, C.cotton);
+  stamp(bg, X + 3, Y + 6, ['.a..', 'aAa.', '.a.a', '..aA'], { a: C.aqua, A: C.tealL });
+  // 흘러내린 세제(분홍 반투명 대신 pinkL 줄 두 가닥)
+  R(bg, X + 1, Y + 2, 1, 4, C.pinkL); bg.set(X + 1, Y + 6, C.pink); R(bg, X + 4, Y + 2, 1, 2, C.pinkL);
+  // 널빤지 그늘(통 위 1줄) + 접지 그림자(오른쪽 아래)
+  for (let x = X; x < X + TW; x++) bg.set(x, Y, C.lav);
+  ellipse(bg, X + TW / 2 + 4, Y + TH, 9, 1.8, (x, y) => (y >= Y + TH ? darker(bg.get(x, y)) : undefined));
+}
+
+/**
+ * ②(c) 바닥 소품: 빨랫줄 아래에서 시소 쪽으로 이어진 납작한 디딤돌 셋(사람 발 기준점 y 244·214를 피해 그 사이),
+ * 디딤돌 하나 옆 풀 속에 잃어버린 양말 한 짝(빨래방다운 볼거리, 작게).
+ */
+function yardProps(bg) {
+  const stone = (cx, cy, rx) => ellipse(bg, cx, cy, rx, 2.4, (x, y, dx, dy) => {
+    if (Math.hypot(dx, dy) > 0.9 && hash(x, y, 94) < 0.5) return undefined; // 풀이 가장자리를 먹었다
+    if (dy > 0.45) return C.lav; // 아래 두께
+    if (dx + dy < -0.6) return C.white;
+    return hash(x, y, 95) < 0.15 ? C.lint : C.cotton;
+  });
+  stone(302, 232, 6); stone(320, 238, 5.5); stone(338, 254, 6);
+  // 잃어버린 양말(뒤집혀 발가락이 하늘을 본다)
+  stamp(bg, 312, 251, ['..rr', '.wwr', 'wwr.', 'rr..'], { r: C.redL, w: C.white });
 }
 
 /** 480×270 배경. 순서 = 뒤 → 앞. */
@@ -257,6 +390,9 @@ function drawBg(bg) {
     });
   }
   sunflower(292, 140, false);
+  // ②(b) 해바라기 셋 중 오른쪽 하나가 고개를 꺾어 빨랫줄(내복) 쪽을 본다
+  sunflower(306, 134, false);
+  sunflower(320, 143, true);
 
   // 담장에 걸린 엉킨 호스 ⑦: 못에 걸린 고리 셋 + 놋쇠 꼭지
   R(bg, 103, 163, 3, 2, C.lint); bg.set(103, 165, C.lav);
@@ -308,6 +444,12 @@ function drawBg(bg) {
     }
   }
 
+  // ②(b)·(c) 담장 밑 화단, 바닥 소품, 빨랫줄, 시소 받침
+  flowerBed(bg);
+  yardProps(bg);
+  clothesline(bg);
+  detergentTub(bg);
+
   // ═════════════ 빨랫대 기둥(배경: 외곽선 없음) ═════════════
   const PX = 140, PW = 12, PTOP = 46;
   fill(bg, PX, PTOP, PW, POLE_FOOT - PTOP, (x, y) => {
@@ -357,7 +499,7 @@ function drawBg(bg) {
 
 export const SCENE = {
   id: 'magpie_nest',
-  // 띠 (b)·(c)가 아직이다. 빌드가 이 값을 보면 배포용 배경 PNG를 내보내지 않고 폴백(drawRoom)을 쓰게 하자고 제안(#145).
+  // 띠 (a)·(b)·(c)는 다 그렸다. 배포 전환(draft 해제)은 replay.ts --require-art로 배포본을 다시 재생하는 별도 PR에서 한다(#145).
   draft: true,
   bg(img) { drawBg(img); },
   objects: OBJECTS,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WALK_SPEED } from './config';
 import jjukJson from '../../public/sprites/jjuk-base.json';
-import { frameSourceX, parseSpriteMeta, POLE_WIDTH, spriteBox, spriteFacing, spriteFrame, spriteHit, spritePole, type Pose, type SpriteMeta } from './sprite';
+import { cueMs, frameSourceX, parseSpriteMeta, POLE_WIDTH, spriteBox, spriteFacing, spriteFrame, spriteHit, spritePole, type Pose, type SpriteMeta } from './sprite';
 
 const JJUK = parseSpriteMeta(jjukJson);
 const still: Pose = { walkedPx: null, holding: false, event: null, clockMs: 0 };
@@ -26,8 +26,24 @@ describe('parseSpriteMeta', () => {
     ['시트 claw anchor 형식', { claw: { image: 'x.png', cell: [8, 8], anchor: [4] } }],
     ['anim hit 형식', { anims: { hold: { frames: [0], ms: [450], hit: [0, 0, 30] } } }],
     ['anim hit이 최소 클릭 크기보다 작음', { anims: { hold: { frames: [0], ms: [450], hit: [0, 0, 30, 23] } } }],
+    ['cue가 칸 수 밖', { anims: { r: { frames: [0, 1], ms: [50, 50], cue: 2 } } }],
+    ['cue가 음수', { anims: { r: { frames: [0, 1], ms: [50, 50], cue: -1 } } }],
+    ['cue가 거리 넘김 자세에', { anims: { walk: { frames: [2, 3], by: 'distance', cue: 0 } } }],
   ])('%s → 던진다(그 캐릭터는 실루엣으로 남는다)', (_, patch) => {
     expect(() => parseSpriteMeta({ ...JJUK, ...patch })).toThrow(/스프라이트 메타 오류/);
+  });
+});
+
+describe('cueMs (칸 신호, #199)', () => {
+  const meta = parseSpriteMeta({ ...JJUK, anims: { ...JJUK.anims, r: { frames: [0, 1, 2], ms: [200, 350, 450], cue: 1 } } });
+  it('신호 칸 앞 칸들의 ms 합이다', () => {
+    expect(cueMs(meta, 'r')).toBe(200);
+    expect(cueMs(parseSpriteMeta({ ...JJUK, anims: { ...JJUK.anims, r: { frames: [0, 1], ms: [50, 50], cue: 0 } } }), 'r')).toBe(0);
+  });
+  it('신호 없는 자세, 시트에 없는 자세, 시트 없음 → null', () => {
+    expect(cueMs(meta, 'idle')).toBeNull();
+    expect(cueMs(meta, 'common.nope')).toBeNull();
+    expect(cueMs(undefined, 'r')).toBeNull();
   });
 });
 

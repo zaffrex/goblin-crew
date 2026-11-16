@@ -5,6 +5,7 @@
 //   magpie_nest-bg-2x.png          같은 그림 2배
 //   magpie_nest-bg-gray-2x.png     명도(흑백) 2배 (ADR-0007 결정 3-6)
 //   magpie_nest-bg-band-a-4x.png   띠 ②(a) 왼쪽 건물(창문·뒷문) 확대 4배
+//   magpie_nest-bg-band-bc-3x.png  띠 ②(b)·(c) 화단·빨랫줄·시소 받침·디딤돌 확대 3배
 //   magpie_nest-bg-vs-2x.png       위: 구도 시안(#149) / 아래: 지금 배경
 // 검사(어기면 종료 코드 1): 480×270, 빈 칸 없음, ink(0)·hint(31) 없음, 금색(yel 계열)은 열쇠 전용이라
 //   배경 하늘·건물·지붕 띠(y < FENCE_TOP)에 노란 덩어리를 두지 않음(해바라기·창문 불빛은 예외 영역),
@@ -40,13 +41,13 @@ const PEOPLE = { '쭉이 셔츠': C.red, '쭉이 바지': C.dusk, '묵직이 멜
 for (const [name, c] of Object.entries(PEOPLE)) check(Math.abs(Y[c] - Y[floorMain]) >= 30, `바닥 주색 #${floorMain}(Y${Y[floorMain]}) vs ${name}(Y${Y[c]}) 차 ${Math.abs(Y[c] - Y[floorMain])}`);
 const fenceMain = main(180, 160, 120, 30);
 for (const [name, c] of Object.entries({ '피부 밝은 단': C.tan, '피부 중간 단': C.woodL })) check(Math.abs(Y[c] - Y[fenceMain]) >= 30, `담장 주색 #${fenceMain}(Y${Y[fenceMain]}) vs ${name}(Y${Y[c]}) 차 ${Math.abs(Y[c] - Y[fenceMain])}`);
-// 금색은 열쇠 전용: 위쪽 띠에서 yel·yelL·yelD 픽셀은 해바라기(x 280~300)와 창문 불빛(1px짜리)만
+// 금색은 열쇠 전용: 위쪽 띠에서 yel·yelL·yelD 픽셀은 해바라기(x 280~330)와 창문 불빛(1px짜리)만
 {
   let stray = 0;
   for (let y = 0; y < FENCE_TOP; y++) for (let x = 0; x < W; x++) {
     const c = bg.get(x, y);
     if (c !== C.yel && c !== C.yelD) continue; // yelL(창문 불빛)은 노란 '덩어리'로 안 읽힌다
-    if (x >= 280 && x <= 300 && y >= 128) continue; // 해바라기 ⑥
+    if (x >= 280 && x <= 330 && y >= 126) continue; // 해바라기 ⑥ 세 송이
     stray++;
   }
   check(stray === 0, `위쪽 띠에 금색(yel·yelD) 덩어리 없음 (${stray}px)`);
@@ -60,6 +61,7 @@ const crop = (img, [x0, y0, w, h]) => { const o = new Image(w, h); for (let y = 
 writeFileSync(join(HERE, 'magpie_nest-bg-1x.png'), png1);
 writeFileSync(join(HERE, 'magpie_nest-bg-2x.png'), indexedPng(bg, 2));
 writeFileSync(join(HERE, 'magpie_nest-bg-band-a-4x.png'), indexedPng(crop(bg, [0, 0, 96, 210]), 4));
+writeFileSync(join(HERE, 'magpie_nest-bg-band-bc-3x.png'), indexedPng(crop(bg, [200, 96, 280, 174]), 3));
 
 /** 커밋된 인덱스/RGB PNG(필터 0)를 보송 인덱스로 읽는다. 구도 시안 비교용. */
 function readPng(file) {
