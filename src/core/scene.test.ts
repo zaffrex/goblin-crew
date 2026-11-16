@@ -8,7 +8,7 @@ import { CHAR_SLOTS, VERB_SLOTS } from './hud';
 import { worldTargets } from './interact';
 import { parseSpriteMeta, spriteBox, spriteFrame } from './sprite';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { activeFx, bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, isBusy, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
+import { activeFx, approachPoint, bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, isBusy, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
 import type { Point } from './viewport';
 
 const data: SceneData = { screen: screenJson as unknown as ScreenData, characters: charactersJson as CharactersData };
@@ -804,5 +804,139 @@ describe('칸 신호: show의 fx를 연출 칸에 맞춰 띄운다 (#199, 형식
       expect(s.current?.ev).toMatchObject({ type: 'fx', effect: 'squeak_text' });
       expect(s.overlays).toEqual([]);
     }
+  });
+});
+
+describe('대상 앞까지 걷기 (설계 5-1절, #219)', () => {
+  const start = (): SceneState => createScene(data);
+  const pick = (s: SceneState, c: 'jjuk' | 'mukjik' | 'ppik'): void => {
+    sceneTap(data, s, center(CHAR_SLOTS[c]), 0, false);
+  };
+  const ability = (s: SceneState): void => {
+    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
+  };
+  /** 5-1절 "화면 1 적용 결과" 표. 발밑 x 400(묵직이 시작 위치, 오른쪽)에서 계산한다. */
+  const standX = (s: SceneState, char: 'jjuk' | 'mukjik' | 'ppik', verb: 'stretch' | 'stomp' | 'hand', target: string, from = 400): number | undefined =>
+    approachPoint(data, s.puzzle, { char, verb, target }, { x: from, y: 244 })?.x;
+
+  it('표: 높은 대상은 reachPoint x 또는 상자 가운데 x 바로 아래', () => {
+    const s = start();
+    expect(standX(s, 'jjuk', 'stretch', 'nest')).toBe(150);
+    expect(standX(s, 'jjuk', 'stretch', 'magpie')).toBe(146);
+    expect(standX(s, 'jjuk', 'stretch', 'hook')).toBe(162);
+    expect(standX(s, 'mukjik', 'stomp', 'magpie')).toBe(146);
+    expect(standX(s, 'mukjik', 'stomp', 'nest')).toBe(146);
+    for (const verb of ['stretch', 'stomp', 'hand'] as const) expect(standX(s, 'mukjik', verb, 'long_johns')).toBe(388);
+  });
+
+  it('표: 바닥 대상은 가까운 쪽 가장자리 옆, 대상을 본 몸 상자가 2px 떨어진다', () => {
+    const s = start();
+    const gapTo = (char: 'jjuk' | 'mukjik' | 'ppik', target: string, box: HitBox, from: number): number => {
+      const ap = approachPoint(data, s.puzzle, { char, verb: 'stomp', target }, { x: from, y: 244 })!;
+      s.walkers[char].x = ap.x;
+      s.walkers[char].facing = ap.face!;
+      const body = bodies(data, s)[char];
+      return ap.face === -1 ? body.left - (box.left + box.width) : box.left - (body.left + body.width);
+    };
+    const right = { left: 250, top: 196, width: 38, height: 24 };
+    const left = { left: 208, top: 196, width: 38, height: 24 };
+    const basket = { left: 144, top: 212, width: 32, height: 24 };
+    expect(gapTo('mukjik', 'seesaw_right', right, 400)).toBe(2); // 오른쪽에서 오면 오른쪽 끝 옆
+    expect(standX(s, 'mukjik', 'stomp', 'seesaw_right')).toBe(307);
+    expect(gapTo('mukjik', 'seesaw_left', left, 100)).toBe(2); // 왼쪽에서 오면 왼쪽 끝 옆
+    expect(gapTo('jjuk', 'basket', basket, 400)).toBe(2);
+    expect(gapTo('ppik', 'basket', basket, 20)).toBe(2);
+  });
+
+  it('바닥의 까치는 variants 상자(88,212)로 바닥 대상이 된다', () => {
+    const s = start();
+    s.puzzle = { ...s.puzzle, flags: { ...s.puzzle.flags, 'magpie.on_ground': true } };
+    const ap = approachPoint(data, s.puzzle, { char: 'mukjik', verb: 'hand', target: 'magpie' }, { x: 400, y: 244 })!;
+    expect(ap).toEqual({ x: 88 + 24 + 2 + 17, face: -1 });
+  });
+
+  it('원거리 동사와 바닥이 아닌 캐릭터는 걷지 않는다. squeak·look은 대상 쪽으로 돌아서기만 한다', () => {
+    const s = start();
+    expect(approachPoint(data, s.puzzle, { char: 'ppik', verb: 'squeak', target: 'magpie' }, { x: 440, y: 244 })).toEqual({ x: 440, face: -1 });
+    expect(approachPoint(data, s.puzzle, { char: 'jjuk', verb: 'look', target: 'long_johns' }, { x: 360, y: 244 })).toEqual({ x: 360, face: 1 });
+    expect(approachPoint(data, s.puzzle, { char: 'jjuk', verb: 'move', target: 'seesaw_left' }, { x: 360, y: 244 })).toBeNull();
+    expect(approachPoint(data, s.puzzle, { char: 'jjuk', verb: 'hand', target: 'mukjik' }, { x: 360, y: 244 })).toBeNull(); // 캐릭터 대상: 상자 없음
+    const onSeesaw = { ...s.puzzle, at: { ...s.puzzle.at, jjuk: 'seesaw_left' } };
+    expect(approachPoint(data, onSeesaw, { char: 'jjuk', verb: 'stretch', target: 'nest' }, { x: 220, y: 214 })).toBeNull();
+  });
+
+  it('대상 approach가 그 동사에 stay면 걷지 않는다(화면 설계 우선)', () => {
+    const nest = { ...data.screen.hotspots.nest!, approach: { stretch: 'stay' } };
+    const d: SceneData = { ...data, screen: { ...data.screen, hotspots: { ...data.screen.hotspots, nest } } };
+    const s = createScene(d);
+    expect(approachPoint(d, s.puzzle, { char: 'jjuk', verb: 'stretch', target: 'nest' }, { x: 360, y: 244 })).toEqual({ x: 360, face: -1 });
+    expect(approachPoint(d, s.puzzle, { char: 'jjuk', verb: 'stomp', target: 'nest' }, { x: 360, y: 244 })?.x).toBe(146);
+  });
+
+  it('규칙 8: 쭉이가 둥지 밑(150)까지 걸어가 둥지 쪽을 보고 "높이가 모자라!". 퍼즐 상태는 걷기와 무관하다', () => {
+    const s = ready();
+    sceneTap(data, s, NEST, 0, false);
+    expect(isBusy(s)).toBe(true);
+    expect(s.queue[0]).toEqual({ type: 'walk', char: 'jjuk', from: 'floor', to: 'floor', face: -1 });
+    expect(s.puzzle.at.jjuk).toBe('floor');
+    expect(untilSay(s)).toBe('magpie_nest.nest_too_short');
+    expect([s.walkers.jjuk.x, s.walkers.jjuk.y]).toEqual([150, 244]);
+    expect(s.walkers.jjuk.facing).toBe(-1);
+    idle(s);
+    expect(s.walkers.jjuk.x).toBe(150); // 행동이 끝나도 돌아가지 않는다
+    expect(JSON.parse(JSON.stringify(s))).toEqual(s);
+  });
+
+  it('걷는 중 탭은 걷기만 건너뛰고, 행동 연출은 그대로 이어진다(5절 예외 둘)', () => {
+    const s = ready();
+    sceneTap(data, s, NEST, 0, false);
+    sceneTick(data, s);
+    expect(s.current?.ev.type).toBe('walk');
+    expect(sceneTap(data, s, MAGPIE, 0, false).kind).toBe('skipWalk');
+    expect(s.walkers.jjuk.x).toBe(150);
+    expect(untilSay(s)).toBe('magpie_nest.nest_too_short');
+    expect(s.walkers.jjuk.facing).toBe(-1);
+  });
+
+  it('정답 3번: 묵직이가 시소 오른쪽 끝 옆(307)까지 걸어가서 쿵 → 쭉이가 고리로', () => {
+    const s = ready();
+    pick(s, 'jjuk');
+    sceneTap(data, s, SEESAW_LEFT, 0, false);
+    idle(s);
+    pick(s, 'mukjik');
+    ability(s);
+    sceneTap(data, s, SEESAW_RIGHT, 0, false);
+    expect(s.queue[0]).toMatchObject({ type: 'walk', char: 'mukjik', face: -1 });
+    idle(s);
+    expect(s.walkers.mukjik.x).toBe(307);
+    expect(s.walkers.mukjik.facing).toBe(-1);
+    expect(s.puzzle.at.jjuk).toBe('hook');
+  });
+
+  it('이미 설 곳(±2px)이면 걷지 않고 방향만 대상 쪽으로 바꾼다', () => {
+    const s = ready();
+    s.walkers.jjuk.x = 151;
+    s.walkers.jjuk.facing = 1;
+    sceneTap(data, s, NEST, 0, false);
+    expect(s.queue.some((e) => e.type === 'walk')).toBe(false);
+    expect(s.walkers.jjuk.facing).toBe(-1);
+    expect(s.walkers.jjuk.x).toBe(151);
+  });
+
+  it('삑삑이 꽥은 걷지 않고 돌아서기만 한다', () => {
+    const s = ready();
+    pick(s, 'ppik');
+    expect(s.walkers.ppik.facing).toBe(1);
+    sceneTap(data, s, MAGPIE, 0, false);
+    expect(s.queue.some((e) => e.type === 'walk')).toBe(false);
+    expect(s.walkers.ppik.facing).toBe(-1);
+    idle(s);
+    expect(s.walkers.ppik.x).toBe(440);
+  });
+
+  it('step이 다른 자리로 가는 walk로 시작하면 엔진 걷기를 더하지 않는다(시소 올라서기)', () => {
+    const s = ready();
+    sceneTap(data, s, SEESAW_LEFT, 0, false);
+    expect(s.queue.filter((e) => e.type === 'walk')).toEqual([{ type: 'walk', char: 'jjuk', from: 'floor', to: 'seesaw_left' }]);
   });
 });
