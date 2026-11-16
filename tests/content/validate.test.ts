@@ -64,6 +64,18 @@ describe('validateScreen', () => {
     expect(r.errors).toContainEqual(expect.objectContaining({ code: 'dup-id', path: 'hotspots.hook' }));
   });
 
+  it('releasePoint is [x, y] on hold spots only; move.via names a hold spot with a releasePoint and the same releaseTo (#157)', () => {
+    expect(paths(mutate((s) => (s.spots.hook.releasePoint = [160])))).toEqual(['spots.hook.releasePoint']);
+    expect(paths(mutate((s) => (s.spots.seesaw_left.releasePoint = [220, 214])))).toEqual(['spots.seesaw_left.releasePoint']);
+    const bump = BASE.rules.findIndex((r: any) => r.id === 'seesaw_launch_bump');
+    const via = (fn: (m: any, s: Record<string, any>) => void): ValidationResult =>
+      mutate((s) => fn(s.rules[bump].do.move.find((m: any) => m.via !== undefined), s));
+    expect(codes(via((m) => (m.via = 'seesaw_right')))).toEqual(['move-via']);
+    expect(codes(via((m) => (m.via = 'nowhere')))).toEqual(['ref-spot']);
+    expect(codes(via((_m, s) => delete s.spots.hook.releasePoint))).toEqual(['move-via']);
+    expect(codes(via((m) => (m.to = 'seesaw_right')))).toEqual(['move-via']);
+  });
+
   it('hold spots need releaseTo pointing at a free spot', () => {
     expect(codes(mutate((s) => delete s.spots.hook.releaseTo))).toContain('hold-release');
     expect(codes(mutate((s) => (s.spots.hook.releaseTo = 'seesaw_left')))).toContain('hold-release');

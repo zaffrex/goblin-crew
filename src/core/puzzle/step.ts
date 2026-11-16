@@ -172,7 +172,7 @@ function applyEffect(screen: ScreenData, s: PuzzleState, actor: CharacterId, eff
         throw new PuzzleContentError(`정원 초과: ${screen.id}/${m.to}로 ${c}를 옮길 수 없음`);
       }
       s.at[c] = m.to;
-      events.push({ type: 'place', char: c, from, to: m.to });
+      events.push(m.via === undefined ? { type: 'place', char: c, from, to: m.to } : { type: 'place', char: c, from, to: m.to, via: m.via });
     }
   }
   applyGauge(s, eff.gauge ?? 0, events);

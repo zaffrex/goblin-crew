@@ -29,6 +29,11 @@ export interface TapContext {
   screen: Pick<ScreenData, 'spots' | 'hotspots'>;
   puzzle: PuzzleState;
   bodies: Readonly<Record<CharacterId, HitBox>>;
+  /**
+   * 캐릭터 그리는 순서(뒤 → 앞, `scene.ts` `drawOrder`). 있으면 겹친 캐릭터 중 나중에 그린 쪽이 클릭을 받는다.
+   * 없으면 몸 상자 아래 끝(발 y)이 큰 쪽이 앞이다.
+   */
+  order?: readonly CharacterId[];
 }
 
 /** 라벨에 쓰는 동사 이름. `climb` = 서는 자리로 `move`, `walk` = 바닥, `release` = 매달린 채 바닥. null = 이름만(캐릭터). */
@@ -102,7 +107,9 @@ export function worldTargets(ctx: TapContext, ui: UiState, withChars = true): Wo
     for (const c of CHARACTERS) {
       if (c.id === ui.active && !isHolding(ctx, c.id)) continue;
       const box = ctx.bodies[c.id];
-      out.push({ id: `char:${c.id}`, kind: 'char', ref: c.id, box, z: CHAR_Z_BASE + box.top + box.height });
+      const rank = ctx.order?.indexOf(c.id) ?? -1;
+      const z = CHAR_Z_BASE + (rank >= 0 ? rank : box.top + box.height);
+      out.push({ id: `char:${c.id}`, kind: 'char', ref: c.id, box, z });
     }
   }
   for (const [id, spot] of Object.entries(ctx.screen.spots)) {
