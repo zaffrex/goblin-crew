@@ -36,6 +36,9 @@ describe('validateScreen', () => {
       s.hotspots.nest.aproach = 'floor';
     });
     expect(r.errors).toEqual([expect.objectContaining({ code: 'unknown-key', path: 'hotspots.nest.aproach' })]);
+    // 쓸 수 있는 필드를 같이 알려 준다(#108).
+    expect(r.errors[0]!.message).toContain('approach');
+    expect(r.errors[0]!.message).toContain('note');
   });
 
   it('rejects `when.gauge`: the gauge is not a rule condition (#67, ADR-0096)', () => {
@@ -50,7 +53,7 @@ describe('validateScreen', () => {
       s.flags['Magpie.Up'] = false;
       s.rules[0].id = 'bad-id';
     });
-    expect(paths(r)).toEqual(expect.arrayContaining(['flags.Magpie.Up', 'rules[0].id']));
+    expect(paths(r)).toEqual(expect.arrayContaining(['flags["Magpie.Up"]', 'rules[0].id']));
     expect(codes(r).every((c) => c === 'id')).toBe(true);
   });
 
@@ -74,6 +77,45 @@ describe('validateScreen', () => {
     expect(codes(via((m) => (m.via = 'nowhere')))).toEqual(['ref-spot']);
     expect(codes(via((_m, s) => delete s.spots.hook.releasePoint))).toEqual(['move-via']);
     expect(codes(via((m) => (m.to = 'seesaw_right')))).toEqual(['move-via']);
+  });
+
+  it('writes dotted ID keys in brackets in paths (#108)', () => {
+    expect(paths(mutate((s) => (s.rules[0].do = { set: { 'magpie.dwn': true } })))).toEqual(['rules[0].do.set["magpie.dwn"]']);
+    expect(paths(mutate((s) => (s.rules[0].when = { occupied: { roof: true } })))).toEqual(['rules[0].when.occupied.roof']);
+  });
+
+  it('checks spot coordinates: off screen fails, inside the HUD warns (#108)', () => {
+    expect(codes(mutate((s) => (s.spots.seesaw_left.x = 481)))).toEqual(['point-offscreen']);
+    expect(codes(mutate((s) => (s.spots.floor.y = -1)))).toEqual(['point-offscreen']);
+    // box가 없는 자리도 본다(floor).
+    const hud = mutate((s) => Object.assign(s.spots.floor, { x: 320, y: 20 }));
+    expect(hud.errors).toEqual([]);
+    expect(hud.warnings).toEqual([expect.objectContaining({ code: 'hud-overlap', path: 'spots.floor' })]);
+    // 화면 끝 점은 화면 안이다.
+    expect(mutate((s) => Object.assign(s.spots.floor, { x: 480, y: 270 })).errors).toEqual([]);
+  });
+
+  it('releasePoint must be on screen and inside the walk area (#108, #173)', () => {
+    expect(codes(mutate((s) => (s.spots.hook.releasePoint = [160, 300])))).toEqual(['point-offscreen']);
+    expect(codes(mutate((s) => (s.spots.hook.releasePoint = [160, 150])))).toEqual(['release-point-area']);
+    expect(codes(mutate((s) => (s.spots.hook.releasePoint = [8, 235])))).toEqual(['release-point-area']);
+    expect(mutate((s) => (s.spots.hook.releasePoint = [16, 258])).errors).toEqual([]);
+  });
+
+  it('forbids move rules on hold spots: the UI never makes that action (#108, #115)', () => {
+    const r = mutate((s) => s.rules.push({ id: 'hook_walk', target: 'hook', verb: 'move' }));
+    expect(r.errors).toEqual([expect.objectContaining({ code: 'move-hold', path: `rules[${BASE.rules.length}].target` })]);
+  });
+
+  it('warns when no rule on the screen uses a hintAbility (#108)', () => {
+    // nest의 힌트를 squeak으로: squeak 규칙은 까치에 있으니 경고 없음(같은 대상까지는 보지 않는다).
+    expect(mutate((s) => (s.hotspots.nest.hintAbility = 'squeak')).warnings).toEqual([]);
+    const r = mutate((s) => {
+      s.rules = s.rules.filter((x: any) => x.verb !== 'squeak');
+      s.solution = s.solution.filter((a: any) => a.verb !== 'squeak');
+    });
+    expect(r.errors).toEqual([]);
+    expect(r.warnings).toEqual([expect.objectContaining({ code: 'hint-ability-unused', path: 'hotspots.magpie.hintAbility' })]);
   });
 
   it('hold spots need releaseTo pointing at a free spot', () => {
@@ -138,6 +180,10 @@ describe('validateScreen', () => {
     expect(codes(mutate((s) => (s.rules[0].show = [{ say: ['self', 'magpie_nest.nope'] }])))).toEqual(['ref-text']);
     expect(codes(mutate((s) => (s.onEnter = [{ say: ['self', 'magpie_nest.enter'] }])))).toEqual(['ref-self']);
     expect(codes(mutate((s) => (s.rules[0].show = [{ say: ['self', 'magpie_nest.enter'], anim: ['self', 'x'] }])))).toEqual(['schema']);
+    // say[1]이 문자열이 아니면 ID 문법 위반이 아니라 "텍스트 ID여야 한다"로 안내한다(#108).
+    const num = mutate((s) => (s.rules[0].show = [{ say: ['self', 3] }]));
+    expect(num.errors).toEqual([expect.objectContaining({ code: 'schema', path: 'rules[0].show[0].say[1]' })]);
+    expect(num.errors[0]!.message).toContain('텍스트 ID');
     const long = validateScreen({ ...structuredClone(BASE), onEnter: [{ say: ['ppik', 'x.long'] }] }, { texts: { ...texts, 'x.long': '가'.repeat(15) } });
     expect(codes(long)).toEqual(['text-long']);
   });
@@ -172,13 +218,25 @@ describe('validateTexts / validateCharacters / textFits', () => {
 
   it('texts: ID keys, string values', () => {
     expect(validateTexts({ 'a.b': 'x' }).errors).toEqual([]);
-    expect(validateTexts({ 'A.b': 'x', 'a.c': 1 }).errors.map((e) => e.path)).toEqual(['texts.A.b', 'texts.a.c']);
+    expect(validateTexts({ 'A.b': 'x', 'a.c': 1 }).errors.map((e) => e.path)).toEqual(['texts["A.b"]', 'texts["a.c"]']);
   });
 
   it('characters: hints need ability keys and existing text', () => {
-    expect(validateCharacters({ hints: { jjuk: { squeak: 'magpie_nest.enter' } } }, ctx).errors).toEqual([]);
-    const r = validateCharacters({ hints: { goblin: { look: 'nope.text' } } }, ctx);
+    const t = 'magpie_nest.enter';
+    const full = { jjuk: { squeak: t, stomp: t }, mukjik: { stretch: t, squeak: t }, ppik: { stretch: t, stomp: t } };
+    expect(validateCharacters({ hints: full }, ctx).errors).toEqual([]);
+    const r = validateCharacters({ hints: { ...full, goblin: { look: 'nope.text' } } }, ctx);
     expect(r.errors.map((e) => e.code)).toEqual(['ref-char', 'schema', 'ref-text']);
-    expect(validateCharacters({ fallbacks: { jjuk: { look: { show: [{ say: ['@hook', 'magpie_nest.enter'] }] } } } }, ctx).errors.map((e) => e.code)).toEqual(['ref-spot']);
+    const fb = { jjuk: { look: { show: [{ say: ['@hook', t] }] } } };
+    expect(validateCharacters({ fallbacks: fb, hints: full }, ctx).errors.map((e) => e.code)).toEqual(['ref-spot']);
+  });
+
+  it('characters: every character needs hints for both other abilities; own ability warns (#108)', () => {
+    const t = 'magpie_nest.enter';
+    const r = validateCharacters({ hints: { jjuk: { squeak: t, stretch: t }, mukjik: { stretch: t, squeak: t } } }, ctx);
+    expect(r.errors.map((e) => `${e.code} ${e.path}`)).toEqual(['hint-missing hints.jjuk.stomp', 'hint-missing hints.ppik.stretch', 'hint-missing hints.ppik.stomp']);
+    expect(r.warnings.map((e) => `${e.code} ${e.path}`)).toEqual(['hint-own-ability hints.jjuk.stretch']);
+    // hints가 통째로 없으면 6개 다 빠진 것이다.
+    expect(validateCharacters({}, ctx).errors.map((e) => e.code)).toEqual(Array(6).fill('hint-missing'));
   });
 });
