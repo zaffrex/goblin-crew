@@ -11,8 +11,8 @@ import type { HitBox } from './hit';
 import { hotspotBox, hudTargets, tap, type Intent, type TapContext, type UiState } from './interact';
 import { animOf, animTicks, type SceneAnim, type SceneArtMeta } from './sceneArt';
 import { cueMs, spriteFacing, spriteFrame, spriteHit, type Pose, type SpriteMeta } from './sprite';
-import { initialState, step } from './puzzle/step';
-import { GAUGE_MAX, type Action, type CharactersData, type PuzzleEvent, type PuzzleState, type ScreenData, type StepSource } from './puzzle/types';
+import { approachFor, initialState, step } from './puzzle/step';
+import { GAUGE_MAX, type Action, type CharactersData, type PuzzleEvent, type PuzzleState, type ScreenData, type StepSource, type Verb } from './puzzle/types';
 import type { Point } from './viewport';
 import { clampToArea, createWalker, stepWalker, walkTo, type Facing, type Walker } from './walk';
 
@@ -39,8 +39,14 @@ export const TIMING = {
   walkSpeed: WALK_SPEED,
 } as const;
 
-/** 재생 중인 이벤트. `say`는 고른 문구 ID 하나로 바꿔 둔다(배열 변형은 발동 횟수로 고른다). */
-export type PlayEvent = Exclude<PuzzleEvent, { type: 'say' }> | { type: 'say'; speaker: string; text: string };
+/**
+ * 재생 중인 이벤트. `say`는 고른 문구 ID 하나로 바꿔 둔다(배열 변형은 발동 횟수로 고른다).
+ * `walk.face`는 엔진이 넣은 "대상 앞까지 걷기"(설계 5-1절)에만 있다: 도착하면 그 방향(대상 쪽)을 본다.
+ */
+export type PlayEvent =
+  | Exclude<PuzzleEvent, { type: 'say' } | { type: 'walk' }>
+  | (Extract<PuzzleEvent, { type: 'walk' }> & { face?: Facing })
+  | { type: 'say'; speaker: string; text: string };
 
 export interface Playing {
   ev: PlayEvent;
@@ -298,19 +304,78 @@ function commitShown(s: SceneState, seq: number, edge: 'start' | 'end'): void {
   for (const [k, v] of Object.entries(s.shown)) if (v.seq === seq && v.edge === edge) delete s.shown[k];
 }
 
+/** 설계 5-1절: 바닥에서 대상 앞까지 걸어가는 동사. `move`는 `step`이 `walk`를 내서 뺀다. */
+const APPROACH_VERBS: ReadonlySet<Verb> = new Set<Verb>(['stretch', 'stomp', 'hand', 'item']);
+/** 원거리 동사(5-1절): 걷지 않고 대상 쪽으로 돌아서기만 한다(#219 Theo 코멘트). */
+const TURN_VERBS: ReadonlySet<Verb> = new Set<Verb>(['squeak', 'look']);
+/** 이만큼 가까우면 이미 설 곳이다(걷지 않음). 대상 가운데가 이만큼 가까우면 방향을 정하지 않는다(5-1절 ±2px). */
+const APPROACH_SLOP = 2;
+/** 바닥 대상 옆에 설 때 몸 상자와 대상 상자 사이 가로 틈(5-1절). */
+const APPROACH_GAP = 2;
+
+/** 행동 대상의 상자: 핫스팟(지금 `variants` 반영) 또는 상자 있는 서는 자리. 캐릭터·상자 없는 대상은 null. */
+function targetBox(screen: ScreenData, puzzle: PuzzleState, id: string): HitBox | null {
+  const hs = hotspotBox(screen, puzzle, id);
+  if (hs) return hs;
+  const b = screen.spots[id]?.box;
+  return b ? { left: b[0], top: b[1], width: b[2], height: b[3] } : null;
+}
+
+/**
+ * 설계 5-1절 "대상 앞까지 걷기"의 설 곳(발밑 x)과 도착 뒤 볼 방향. `puzzle`은 행동 **전** 상태다.
+ * 바닥이 아니거나 `move`이거나 상자 없는 대상(캐릭터)이면 null.
+ * 원거리 동사(`squeak`·`look`)와 대상 `approach`가 `stay`인 동사는 걷지 않는다(x = 지금 x) — 대상 쪽으로 돌아서기만 한다.
+ * `face`가 null이면 대상 가운데가 설 곳과 ±2px 안이라 방향을 바꾸지 않는다.
+ * - `stretch`: 높은 대상이면 `reachPoint` x, 없으면 상자 가운데 x. 바닥 대상이면 아래 줄과 같다(땅의 까치에 겹쳐 서지 않게, PR #221 Luna).
+ * - `stomp`·`hand`·`item`: 높은 대상(상자 아래쪽이 `WALK_AREA.top` 위)은 상자 가운데 x, 바닥 대상은 가까운 쪽 가장자리 옆
+ *   (대상을 바라본 몸 상자 `characterHitBox`가 대상 상자와 가로로 2px 떨어지는 가장 가까운 x).
+ * 설 곳은 걷기 영역 안으로 자른다. `step`·BFS와 무관한 연출 계산이다(퍼즐 상태를 바꾸지 않는다).
+ */
+export function approachPoint(data: SceneData, puzzle: PuzzleState, action: Action, from: Point): { x: number; face: Facing | null } | null {
+  const walks = APPROACH_VERBS.has(action.verb);
+  if ((!walks && !TURN_VERBS.has(action.verb)) || !isFree(data, puzzle.at[action.char] ?? '')) return null;
+  const box = targetBox(data.screen, puzzle, action.target);
+  if (!box) return null;
+  const mid = box.left + box.width / 2;
+  let x: number;
+  const rp = data.screen.hotspots[action.target]?.reachPoint;
+  if (!walks || approachFor(data.screen, puzzle, action.target, action.verb) === 'stay') x = from.x;
+  else if (action.verb === 'stretch' && rp) x = rp[0];
+  else if (box.top + box.height <= WALK_AREA.top) x = mid;
+  else {
+    const { dx, width } = characterDef(action.char).hit;
+    // 오른쪽에서 오면 왼쪽을 본다: 몸 왼쪽 = x - (dx + width). 왼쪽에서 오면 오른쪽을 본다: 몸 오른쪽 = x + dx + width.
+    x = from.x >= mid ? box.left + box.width + APPROACH_GAP + dx + width : box.left - APPROACH_GAP - dx - width;
+  }
+  x = clampToArea({ x, y: from.y }, WALK_AREA).x;
+  const face: Facing | null = Math.abs(mid - x) <= APPROACH_SLOP ? null : mid > x ? 1 : -1;
+  return { x, face };
+}
+
 function runAction(data: SceneData, s: SceneState, action: Action, to: Point | null): void {
   const before = s.puzzle.flags;
+  const prev = s.puzzle;
   const r = step(data.screen, s.puzzle, action, data.characters);
   s.puzzle = r.state;
+  // 행동하는 캐릭터의 엔진 걷기는 멈춘다. 바닥에 섰으면 대상 앞까지 걸어간 뒤 행동한다(설계 5-1절).
+  const w = s.walkers[action.char];
+  w.target = null;
+  w.walkTicks = 0;
+  const first = r.events[0];
+  const ap = first?.type === 'walk' && first.char === action.char ? null : approachPoint(data, prev, action, w);
+  if (ap && Math.abs(ap.x - w.x) > APPROACH_SLOP) {
+    // `floor`→`floor` 걷기. `walk` 이벤트와 똑같이 busy이고 탭으로 건너뛴다(5절 예외 둘). 설 점은 `floorPoint`가 쓴다.
+    const spot = prev.at[action.char]!;
+    s.floorTo[action.char] = { x: ap.x, y: w.y };
+    s.queue.push(ap.face === null ? { type: 'walk', char: action.char, from: spot, to: spot } : { type: 'walk', char: action.char, from: spot, to: spot, face: ap.face });
+  } else if (ap?.face != null) {
+    w.facing = ap.face;
+  }
   deferShown(data, s, before, r.events);
   if (to) s.floorTo[action.char] = to;
   const rp = data.screen.hotspots[action.target]?.reachPoint;
   if (rp) s.reach[action.char] = { x: rp[0], y: rp[1] };
   else delete s.reach[action.char];
-  // 행동하는 캐릭터의 엔진 걷기는 멈춘다(그 자리에서 행동한다).
-  const w = s.walkers[action.char];
-  w.target = null;
-  w.walkTicks = 0;
   const n = bump(s, variantKey(r.source, r.ruleId, action));
   for (const ev of r.events) s.queue.push(ev.type === 'say' ? { ...ev, text: pickText(ev.text, n) } : ev);
   const hint = hintEvent(data, s, r.source, action);
@@ -535,6 +600,7 @@ export function sceneTick(data: SceneData, s: SceneState): void {
     fireCue(data, s, s.current);
     if (!finished(s, s.current)) return;
     if (s.current.ev.type === 'faint') s.shownGauge = GAUGE_MAX;
+    if (s.current.ev.type === 'walk' && s.current.ev.face !== undefined) s.walkers[s.current.ev.char].facing = s.current.ev.face;
     holdLast(s, s.current);
     commitShown(s, s.current.seq, 'end');
     s.current = null;
