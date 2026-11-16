@@ -17,7 +17,7 @@
 import { Canvas, C } from '../lib/pixel.mjs';
 import { colorLines, rimShade, soles } from '../lib/finish.mjs';
 import { squash } from '../lib/squash.mjs';
-import { puff, shadow, streaks } from '../lib/fx.mjs';
+import { drops, puff, shadow, streaks } from '../lib/fx.mjs';
 
 export const CELL = [48, 64];
 const S = 4 / 3;
@@ -387,10 +387,22 @@ const MOUTHS = {
     '.....ddsmmmmmmmmm.....',
   ],
 };
+// 젖은 앞머리(common.wet): 머리가 이마에 착 달라붙어 눈썹·눈을 가닥으로 덮는다(4~11행). "앞이 안 보여!"
+const WET_BANGS = [
+  'XHHHHHHHHHHHHHHHHHHHH.',
+  'XHHHHHHHHHHHHHHHHHHHH.',
+  'XHHHHHHHHhHHHHHhHHHHH.',
+  'XHHHhHHDHHhHHHHhHHHHs.',
+  'XHHHhHHDHjHhHHjHhHHHs.',
+  'XHHdsdHDHsHsHjsHsHjHs.',
+  'XHdsDdsDsssHssssHssHs.',
+  'XHdsDdsdsssssssssssss.',
+];
 function face(eyes, mouth, brows) {
   const r = HEAD_OPEN.slice();
   if (brows === 'up') r.splice(5, 2, ...BROWS_UP);
-  if (eyes !== 'open') r.splice(8, 4, ...EYES[eyes]);
+  if (eyes === 'wet') r.splice(4, 8, ...WET_BANGS);
+  else if (eyes !== 'open') r.splice(8, 4, ...EYES[eyes]);
   r.splice(14, 4, ...MOUTHS[mouth]);
   for (const row of r) if (row.length !== 22) throw new Error(`[jjuk] 얼굴 줄 길이 ${row.length}: ${row}`);
   return r;
@@ -433,7 +445,10 @@ function drawPose(p) {
     });
     if (p.pole.claw !== false) {
       const hx = Math.round(K.X(top[0] - 1.6)), hy = Math.round(K.Y(top[1] - 4.4));
-      K.stamp(hx, hy, ['.LLLD.', 'L....D', 'L...LD', '.D..D.', '..LD..', '..LD..', '..dD..'], { L: C.lint, D: C.dusk, d: C.plum }, pole);
+      const rows = p.pole.shut // 다문 집게(딸깍, common.stretch 2번)
+        ? ['......', '.LLD..', 'L..LD.', '.LLD..', '..LD..', '..LD..', '..dD..']
+        : ['.LLLD.', 'L....D', 'L...LD', '.D..D.', '..LD..', '..LD..', '..dD..'];
+      K.stamp(hx, hy, rows, { L: C.lint, D: C.dusk, d: C.plum }, pole);
     }
   }
   const feet = [];
@@ -712,6 +727,128 @@ Object.assign(POSES, {
   },
 });
 
+// ── 묶음 ⑤ 쭉이 늘이기 계열 (#142). 셋 다 바닥에 선 채 재생되고 대상 점(reachPoint)까지 장대를 잇지 않는다:
+//   stretch는 빨랫대·시소·바구니·까치처럼 대상 점이 없는 곳에서, reach_wobble은 "모자라다"가 핵심이라 둥지까지 이으면 안 된다.
+//   그래서 tip 없이 장대와 집게가 칸 안에 다 들어온다(claw는 위 끝 stamp).
+const STAND_TORSO = (dx, dy) => [[15.2 + dx, 19.5 + dy, 3.4], [14.8 + dx, 25 + dy, 3.6], [14.6 + dx * 0.4, 30 + dy * 0.6, 3.4]];
+const STAND_LEGS = { back: { x: -2.05, lift: 0, toe: false }, front: { x: 2.4, lift: 0, toe: false } };
+const TIPTOE = { back: { x: -1.6, lift: 0, toe: true }, front: { x: 2.0, lift: 0, toe: true } };
+/** 서 있는 몸 + 앞손이 장대를 쥔 자세. 몸 dx·dy(① 좌표, dy 음수 = 위), 앞팔 el·wr, 장대 top·bot. */
+function standPose(o) {
+  const dx = o.dx ?? 0, dy = o.dy ?? 0;
+  const body = (y) => y + dy;
+  return {
+    kind: 'pose',
+    chest: 0,
+    head: { x: 13 + Math.round(dx * S), y: 1 + Math.round(dy * S), ...o.head },
+    neck: [[15.0 + dx, body(14)], [15.2 + dx, body(18.5)]],
+    torso: STAND_TORSO(dx, dy),
+    hip: [14.45 + dx * 0.4, 30 + dy * 0.6],
+    hipSpread: 1.85,
+    back: o.back,
+    front: { sh: [16.6 + dx, body(20)], el: o.el, wr: o.wr, hand: { rows: 'grip', at: handAt(o.grip ?? o.wr, -3, -3) } },
+    pole: o.pole,
+    legs: o.legs ?? STAND_LEGS,
+    fx: o.fx,
+  };
+}
+/** 장대 위 끝 top에서 손목 wr을 지나 손 아래로 len만큼 내려간 아래 끝. */
+const poleThrough = (top, wr, below) => {
+  const vx = wr[0] - top[0], vy = wr[1] - top[1], n = Math.hypot(vx, vy);
+  return [wr[0] + (vx / n) * below, wr[1] + (vy / n) * below];
+};
+
+Object.assign(POSES, {
+  // common.stretch  공용 "장대 뻗기"(대상 점 없는 곳). 0 끙(접힌 장대를 가슴 앞에서 겨눔, 무릎 굽힘) → 1 쭉!(까치발, 팔을 앞으로 뻗고
+  //   장대가 코 오른쪽으로 칸 위 끝까지, 집게 벌림, 속도선) → 2 딸깍(집게 다묾, 입 다문 웃음).
+  //   말풍선 동안 2번 칸이 남는다(#193) = 뻗은 채로 대사("어, 하이파이브? …아니구나").
+  //   손은 턱 아래 오른쪽(얼굴을 가리지 않게), 장대는 코(칸 30~38열) 오른쪽을 지나 위로 비스듬히 나간다. 집게는 칸 안에 다 들어온다.
+  'common.stretch'(k) {
+    if (k === 0) {
+      const wr = [22.0, 24.6], top = [29.6, 17.0];
+      return standPose({
+        dy: 0.8,
+        head: { eyes: 'squint', mouth: 'grit', hair: 1 },
+        back: { sh: [13, 20.8], el: [10.2, 25.0], wr: [9.4, 29.8], hand: { rows: 'back', at: handAt([9.4, 29.8], -2, -1) } },
+        el: [19.0, 27.4], wr, grip: wr,
+        pole: { top, bot: poleThrough(top, wr, 3) },
+        legs: { back: { x: -2.6, lift: 0, toe: false }, front: { x: 2.9, lift: 0, toe: false } },
+      });
+    }
+    const wr = [26.4, 19.6], top = [31.2, 5.4]; // 위 끝 y 5.4 = 집게(위로 4.4)가 칸 0행 안에 다 들어오는 한계
+    return standPose({
+      dx: 0.6,
+      dy: -0.6,
+      head: k === 1 ? { eyes: 'up', mouth: 'open', brows: 'up', hair: 0 } : { eyes: 'up', mouth: 'shut', hair: 1 },
+      back: { sh: [13.4, 19.4], el: [9.6, 21.6], wr: [6.6, 20.0], hand: { rows: 'spread', at: handAt([6.6, 20.0], -3, -2) } }, // 균형 잡는 뒷손
+      el: [21.8, 21.6], wr, grip: wr,
+      pole: { top, bot: poleThrough(top, wr, 5), shut: k === 2 },
+      legs: TIPTOE,
+      fx: k === 1 ? (K) => streaks(K, [[47, 10, 20], [39, 2, 8]]) : undefined,
+    });
+  },
+  // common.reach_wobble  "높이가 모자라!": 장대를 곧게 세워 치켜들고 까치발로 버틴다. 위로는 칸 끝까지만(대상까지 안 닿음).
+  //   0 쭉(까치발, 집게 벌림) → 1·2 휘청(장대 끝이 왼쪽 / 오른쪽으로 기울고 몸이 따라감) → 3 툭(무릎이 꺾이며 장대가 뒤로 넘어와
+  //   집게가 제 정수리를 친다, 별 대신 짧은 충격선). 3번 칸이 말풍선 동안 남는다: 둥지 "높이가 모자라!", 고리 "…아파."(self_smack).
+  //   장대는 코 오른쪽(칸 40열 근처)에 세워서 얼굴을 가리지 않는다. 손은 턱 오른쪽.
+  'common.reach_wobble'(k) {
+    if (k === 3) {
+      const d = 3.2; // 무릎 꺾임: 머리가 내려와 칸 위에 집게 자리가 생긴다
+      const wr = [24.6, 24.0 + d], top = [17.0, 5.4];
+      return standPose({
+        dy: d,
+        head: { eyes: 'squint', mouth: 'ouch', brows: 'up', hair: 2 },
+        back: { sh: [13, 20 + d], el: [11.8, 26.2 + d], wr: [12.2, 31.4 + d], hand: { rows: 'mid', at: handAt([12.2, 31.4 + d], -2, -1) } },
+        el: [20.6, 26.6 + d], wr, grip: wr,
+        pole: { top, bot: poleThrough(top, wr, 6) },
+        legs: { back: { x: -2.6, lift: 0, toe: false }, front: { x: 3.0, lift: 0, toe: false } },
+        fx: (K) => streaks(K, [[12, 0, 2], [32, 0, 2], [9, 5, 6], [35, 5, 6]]),
+      });
+    }
+    const sw = [0, -1, 1][k];
+    const wr = [27.6 + sw * 0.3, 18.2], top = [28.0 + sw * 1.8, 5.4];
+    return standPose({
+      dx: 0.8 + sw * 0.4,
+      dy: -0.6,
+      head: k === 0 ? { eyes: 'up', mouth: 'grit', hair: 0 } : { eyes: 'shock', mouth: 'grit', brows: 'up', hair: k === 1 ? 1 : 0 },
+      back: { sh: [13.6 + sw * 0.4, 19.4], el: [9.8 + sw, 22.0], wr: [6.6 + sw * 1.4, 20.6 - k], hand: { rows: 'spread', at: handAt([6.6 + sw * 1.4, 20.6 - k], -3, -2) } },
+      el: [22.4 + sw * 0.4, 21.4], wr, grip: wr,
+      pole: { top, bot: poleThrough(top, wr, 10) },
+      legs: k === 0 ? TIPTOE : { back: { x: -1.6 + sw * 0.6, lift: 0, toe: k !== 1 }, front: { x: 2.0 + sw * 0.6, lift: 0, toe: k !== 2 } },
+    });
+  },
+  // common.wet  공용 "젖음"(빨래·물줄기·연못). 0 철썩(물이 확 덮침, 눈 질끈, 물보라) → 1 흠뻑(앞머리가 눈을 덮고 어깨가 축 처짐, 물이 뚝뚝)
+  //   → 2 부르르(몸을 털어 물이 양옆으로 튐) → 3 뚝뚝(여전히 앞머리에 눈이 가려진 채 입만 벌림 = "앞이 안 보여!", 코끝 방울).
+  //   장대는 땅을 짚은 채(서 있기와 같은 실루엣 단서).
+  'common.wet'(k) {
+    const dy = [0.6, 1.8, 1.2, 1.8][k];
+    const dx = k === 2 ? 0.75 : 0;
+    const wr = [22.8 + dx, 23.4 + dy];
+    const slump = k === 0 ? 0 : 1.2; // 축 처진 뒷팔
+    return standPose({
+      dx,
+      dy,
+      head: [
+        { eyes: 'squint', mouth: 'ouch', brows: 'up', hair: 's0' },
+        { eyes: 'wet', mouth: 'grit', hair: 2 },
+        { eyes: 'wet', mouth: 'grit', hair: 2 },
+        { eyes: 'wet', mouth: 'open', hair: 2 },
+      ][k],
+      back: k === 0
+        ? { sh: [13, 20 + dy], el: [9.0, 17.6 + dy], wr: [8.2, 12.8 + dy], hand: { rows: 'spread', at: handAt([8.2, 12.8 + dy], -3, -2) } } // 화들짝 손
+        : { sh: [13 + dx, 20 + dy], el: [12.4 + dx, 26.4 + dy], wr: [12.8 + dx, 31.6 + dy + slump], hand: { rows: 'mid', at: handAt([12.8 + dx, 31.6 + dy + slump], -2, -1) } },
+      el: [19.6 + dx, 25.2 + dy], wr, grip: [24.2 + dx, wr[1]],
+      pole: { top: [24.2 + dx, 5 + dy], bot: [24.2 + dx, 45.5] },
+      fx: [
+        (K) => drops(K, [[4, 3, 2], [9, 0, 1], [15, 0, 0], [33, 0, 0], [39, 1, 2], [44, 6, 1], [2, 11, 1], [45, 13, 0], [6, 8, 0]]), // 물보라
+        (K) => drops(K, [[16, 26, 2], [22, 25, 1], [29, 26, 1], [35, 23, 2], [11, 43, 2], [27, 38, 0], [19, 52, 1], [31, 50, 0]]), // 앞머리·코·손끝에서 뚝뚝
+        (K) => drops(K, [[1, 12, 2], [4, 20, 1], [2, 28, 0], [7, 6, 0], [43, 12, 2], [46, 20, 1], [44, 28, 0], [40, 5, 0]]), // 털어서 양옆으로
+        (K) => drops(K, [[35, 22, 2], [17, 27, 1], [12, 46, 1], [28, 54, 0]]), // 코끝 방울
+      ][k],
+    });
+  },
+});
+
 // 장대 끝 집게 칸(8×8, 엔진이 tip에서 이은 장대 끝에 그린다). 기준점 (4,8) = 장대가 들어오는 아래 가운데.
 // 줄기(5~7행) 3·4열은 lint 2px = 시트 장대 0행과 같은 색이라, 엔진이 tip 0행을 위로 복사해 이어도 이음매가 없다(#188 Theo 리뷰 2).
 // 0 벌림 / 1 다묾(열쇠 고리를 문다).
@@ -753,6 +890,9 @@ export const SHEET = {
     { name: 'reach_hang_up', frames: 3, ms: [350, 250, 400] },
     { name: 'common.flatten', frames: 4, ms: [100, 600, 150, 450] },
     { name: 'common.bump_bottom', frames: 4, ms: [100, 400, 300, 500] },
+    { name: 'common.stretch', frames: 3, ms: [150, 300, 350] },
+    { name: 'common.reach_wobble', frames: 4, ms: [250, 200, 200, 450] },
+    { name: 'common.wet', frames: 4, ms: [100, 400, 300, 500] },
   ],
   pose,
   drawFrame,
