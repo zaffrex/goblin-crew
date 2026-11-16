@@ -16,6 +16,7 @@
 
 import { Canvas, C } from '../lib/pixel.mjs';
 import { colorLines, rimShade, soles } from '../lib/finish.mjs';
+import { squash } from '../lib/squash.mjs';
 import { puff, streaks } from '../lib/fx.mjs';
 
 export const CELL = [48, 64];
@@ -359,6 +360,12 @@ const EYES = {
     'XHdsDdsDWWPWWWlWWPWWs.',
     'XHdsDdsdslWWlsslWWlss.',
   ],
+  daze: [ // 어질(납작 뒤): 뒤 눈은 눈꺼풀이 반쯤 내려와 풀리고, 앞 눈은 동그랗게 뜬 채 멍하다
+    'XHHHhHHDsssssssWWWWss.',
+    'XHHdsdHDsPPPPsWWWWWWs.',
+    'XHdsDdsDslWWPssWWPWWs.',
+    'XHdsDdsdsslllsslWWlss.',
+  ],
 };
 const BROWS_UP = [ // 놀라서 눈썹이 한 줄 위로
   'XHHHHHHHHBBBBtHtBBBBH.',
@@ -459,6 +466,8 @@ function drawPose(p) {
 
   rimShade(K, new Set([headPart, handPart, ...(pole === undefined ? [] : [pole])]), DOWN);
   soles(K, feet);
+  // 납작(common.flatten): 눈(8~11행)과 입(14~17행)은 누르지 않고 그대로 옮긴다
+  if (p.flat) squash(K, { ...p.flat, keep: [[hy0 + 8, hy0 + 11], [hy0 + 14, hy0 + 17]] });
   K.outline();
   if (p.fx) p.fx(K); // 먼지·속도선: 외곽선 없이(ADR-0007 결정 3-1, 검은 테두리 = 만질 수 있음)
   return { K, feet, hand: p.hand, facing: p.facing, tip: p.pole?.claw === false ? poleTip(K, pole) : undefined, claw: p.claw };
@@ -525,6 +534,23 @@ const POSES = {
       front: { sh: [16.6 + j, body(20)], el: [19.6 + j, body(25.2)], wr: fwr, hand: { rows: 'grip', at: handAt([24.2 + j, fwr[1]], -3, -3) } },
       pole: zapped ? { top: [24.2 + j, 3.6], bot: [24.2 + j, 44.0] } : { top: [24.2, 5], bot: [24.2, 45.5] },
       legs: { back: { x: -2.05, lift: 0, toe: false }, front: { x: 2.4, lift: 0, toe: false } },
+    };
+  },
+  // common.flatten  공용 "납작"(묵직이 mukjik.mjs와 같은 박자, art/lib/squash.mjs). 찌릿 2번(움츠림) 몸을 바닥 기준으로 누른다.
+  //   0 꽝(반쯤, 비명) → 1 납작(가장 눌림, 장대도 접힌 것처럼 눌림, 먼지) → 2 뿅(가늘게, 머리가 곤두섬) → 3 어질(헤벌쭉 + 한 눈 풀림).
+  //   쭉이는 몸이 가늘어서 셋 중 가장 옆으로 퍼진다. 마지막 칸 어질은 낙천적인 쭉이답게 웃는 입이다(묵직이는 혀, 삑삑이는 덜덜).
+  'common.flatten'(k) {
+    const base = POSES['common.zap'](2);
+    return {
+      ...base,
+      head: [
+        { x: 13, y: 3, eyes: 'squint', mouth: 'ouch', hair: 0 },
+        { x: 13, y: 3, eyes: 'squint', mouth: 'ouch', hair: 0 },
+        { x: 13, y: 3, eyes: 'shock', mouth: 'ouch', brows: 'up', hair: 's0' },
+        { x: 13, y: 3, eyes: 'daze', mouth: 'open', hair: 1 },
+      ][k],
+      flat: [{ sx: 1.45, sy: 0.55 }, { sx: 1.6, sy: 0.36 }, { sx: 0.85, sy: 1.08 }, undefined][k],
+      fx: [undefined, (K) => { puff(K, 7, 0, { behind: true }); puff(K, 41, 0, { behind: true }); }, (K) => puff(K, 24, 2, { behind: true }), undefined][k],
     };
   },
 };
@@ -651,6 +677,7 @@ export const SHEET = {
     { name: 'common.zap', frames: 3, ms: [100, 100, 300] },
     { name: 'launch_to_hook', frames: 4, ms: [150, 100, 100, 150] },
     { name: 'reach_hang_up', frames: 3, ms: [350, 250, 400] },
+    { name: 'common.flatten', frames: 4, ms: [100, 600, 150, 450] },
   ],
   pose,
   drawFrame,

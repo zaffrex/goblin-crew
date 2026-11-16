@@ -16,6 +16,7 @@
 import { Canvas, C } from '../lib/pixel.mjs';
 import { colorLines, rimShade, soles } from '../lib/finish.mjs';
 import { puff } from '../lib/fx.mjs';
+import { squash } from '../lib/squash.mjs';
 
 export const CELL = [48, 64];
 const S = 4 / 3;
@@ -67,6 +68,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export function pose(kind, k) {
   if (kind === 'common.stomp') return STOMP[k];
+  if (kind === 'common.flatten') return FLATTEN[k];
   if (kind === 'idle') {
     return {
       chest: k, // 숨 들이쉬기(배가 나온다) / 내쉬기
@@ -151,8 +153,14 @@ const TAILS = [
 // 얼굴 갈아 끼우기(쿵): 눈썹 9행, 눈 10~11행, 입 15~17행. 바꾸지 않은 줄은 HEAD 그대로.
 const FACE = {
   brows: { furrow: ['.kdssBBBBBBsssBBBBBBs.'] }, // 일자 눈썹이 미간에서 내려앉는다(기합)
-  eyes: { shut: ['.kdssssBBsssssssBBsss.', '..dsssssBBsssssBBsss..'] }, // 질끈 감은 눈(\ /, 미간 쪽이 낮다)
-  mouth: { grit: ['...dssssssmmmmmmmmmm..', '...ddsssxsmTTTTTTTTm..', '....dsssxsxmmmmmmmmmm.'] }, // 이를 악묾
+  eyes: {
+    shut: ['.kdssssBBsssssssBBsss.', '..dsssssBBsssssBBsss..'], // 질끈 감은 눈(\ /, 미간 쪽이 낮다)
+    daze: ['.kdsssssssssssswPwsss.', '..dssssBBBssssswwwss..'], // 어질: 한 눈은 풀려 반쯤 감기고 한 눈은 동그랗게 뜬다
+  },
+  mouth: {
+    grit: ['...dssssssmmmmmmmmmm..', '...ddsssxsmTTTTTTTTm..', '....dsssxsxmmmmmmmmmm.'], // 이를 악묾
+    tongue: ['...dsssssssmmmmmmmm...', '...ddsssxsxsmkkkkmss..', '....dsssxsxssmrrmsss..'], // 어질: 입이 헤 벌어지고 혀가 빠진다
+  },
 };
 function face(f) {
   const r = HEAD.slice();
@@ -271,6 +279,8 @@ export function drawFrame(p) {
 
   rimShade(K, new Set([headPart, handPart]), DOWN);
   soles(K, feet, C.woodL);
+  // 납작(common.flatten): 눈썹·눈(9~11행)과 입(15~17행)은 덜 눌러서 얼굴이 남게 한다
+  if (p.flat) squash(K, { ...p.flat, keep: [[hy0 + 9, hy0 + 11], [hy0 + 15, hy0 + 17]] });
   K.outline();
   if (p.fx) p.fx(K); // 먼지·충격선: 외곽선 없이(ADR-0007 결정 3-1)
   return { K, feet, belly };
@@ -335,6 +345,41 @@ const STOMP = [
   },
 ];
 
+// common.flatten  공용 "납작". 위에서 무언가에 맞아 눌린다(화면 1: 튀어 오른 널빤지가 이마를 친다 #15, 발사된 사람이 부딪힌다 #13).
+//   몸을 새로 그리지 않고 서 있기 그림을 바닥 기준으로 누른다(art/lib/squash.mjs). 세 사람이 같은 박자를 쓴다.
+//   0 꽝(반쯤 눌림, 질끈) → 1 납작(가장 눌림, 옆으로 퍼짐, 먼지) → 2 뿅(가늘게 튀어 오름) → 3 어질(제 키, 한 눈 풀림 + 혀).
+//   합 1300ms ≤ 연출 상한 1500(#187 busy = 시트 ms). 마지막 칸 어질은 말풍선 동안 그대로 남는다(#193).
+//   묵직이는 이미 칸 폭에 가까워(39px) 옆으로 덜 퍼진다(squash가 칸 안으로 줄인다). 대신 세로를 가장 많이 누른다(무거운 사람이 제일 납작).
+//   별은 그리지 않는다: 화면 데이터가 fx stars를 따로 띄운다(#15).
+const FLAT_FACE = { brows: 'furrow', eyes: 'shut', mouth: 'grit' };
+const FLATTEN = [
+  { // 0 꽝: 반쯤 눌림
+    chest: 0, belly: 0.6, jiggle: 0, lean: 0,
+    legs: { back: { x: -1.6, lift: 0, toe: false }, front: { x: 2.6, lift: 0, toe: false } },
+    armSwing: { back: 0.6, front: 0.6 }, tails: 0, face: FLAT_FACE,
+    flat: { sx: 1.25, sy: 0.55 },
+  },
+  { // 1 납작: 가장 눌리고 옆으로 퍼진다. 양옆으로 먼지
+    chest: 0, belly: 0.6, jiggle: 0, lean: 0,
+    legs: { back: { x: -1.6, lift: 0, toe: false }, front: { x: 2.6, lift: 0, toe: false } },
+    armSwing: { back: 1, front: 1 }, tails: 2, face: FLAT_FACE,
+    flat: { sx: 1.3, sy: 0.36 },
+    fx: (K) => { puff(K, 4, 0, { behind: true }); puff(K, 44, 0, { behind: true }); },
+  },
+  { // 2 뿅: 가늘고 길게 튀어 오른다(칸 위 끝까지만), 놀란 눈
+    chest: 0, belly: 0, jiggle: -2, lean: 0,
+    legs: { back: { x: -0.4, lift: 0, toe: false }, front: { x: 1.4, lift: 0, toe: false } },
+    armSwing: { back: -0.4, front: -0.4 }, tails: 0, face: { brows: 'furrow' },
+    flat: { sx: 0.86, sy: 1.08 },
+    fx: (K) => puff(K, 24, 2, { behind: true }),
+  },
+  { // 3 어질: 제 키로 돌아왔지만 한 눈은 풀리고 입이 헤 벌어져 혀가 빠진다. 배가 늦게 한 번 출렁
+    chest: 1, belly: 0.6, jiggle: 1, lean: 1,
+    legs: { back: { x: -0.4, lift: 0, toe: false }, front: { x: 1.4, lift: 0, toe: false } },
+    armSwing: { back: 0.3, front: -0.3 }, tails: 1, face: { eyes: 'daze', mouth: 'tongue' },
+  },
+];
+
 export const SHEET = {
   name: 'mukjik-base',
   character: 'mukjik',
@@ -343,6 +388,7 @@ export const SHEET = {
     { name: 'idle', frames: 2, ms: [800, 600] },
     { name: 'walk', frames: 6, by: 'distance' },
     { name: 'common.stomp', frames: 4, ms: [300, 100, 400, 300] },
+    { name: 'common.flatten', frames: 4, ms: [100, 600, 150, 450] },
   ],
   pose,
   drawFrame,

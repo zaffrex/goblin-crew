@@ -16,6 +16,7 @@
 import { Canvas, C } from '../lib/pixel.mjs';
 import { colorLines, rimShade, soles } from '../lib/finish.mjs';
 import { puff, streaks } from '../lib/fx.mjs';
+import { squash } from '../lib/squash.mjs';
 
 export const CELL = [48, 64];
 const S = 4 / 3;
@@ -74,6 +75,7 @@ export function pose(kind, k) {
   if (kind === 'common.squeeze_chicken') return SQUEEZE[k];
   if (kind === 'hold') return HOLD[k];
   if (kind === 'launch_to_hook') return LAUNCH[k];
+  if (kind === 'common.flatten') return FLATTEN[k];
   if (kind === 'idle') {
     return {
       chest: k, // 숨 들이쉬기 / 내쉬기
@@ -151,6 +153,8 @@ const GLASSES = {
   shut: [11, 11, ['.FFF...FFF.', 'FawwFFFawwF', 'FPPPF.FPPPF', 'FlwlF.FlwlF', '.FFF...FFF.']],
   // 자기 소리에 놀란 눈: 렌즈 가운데 1px 눈동자(바늘 눈). 안경은 1px 튀어 오른다(glassesUp).
   wide: [11, 11, ['.FFF...FFF.', 'FawwFFFawwF', 'FwPwF.FwPwF', 'FwwwF.FwwwF', '.FFF...FFF.']],
+  // 어질(납작 뒤): 안경이 비뚤어져 뒤 렌즈가 1px 위, 앞 렌즈가 1px 아래. 눈동자는 왼쪽 위 / 오른쪽 아래로 따로 논다.
+  askew: [11, 10, ['.FFF.......', 'FPwwF..FFF.', 'FwwwFFFawwF', 'FlwwF.FwwwF', '.FFF..FwwPF', '.......FFF.']],
 };
 const TEMPLE = [10, 12, ['F']]; // 안경다리(후드 안으로)
 const NOSE = [20, 15, ['.tt.', 'tsss', 'ssdd', '.dD.']]; // 작은 단추 코(쭉이 코와 반대로 작다)
@@ -298,6 +302,8 @@ export function drawFrame(p) {
 
   rimShade(K, new Set([headPart, handPart]), DOWN);
   soles(K, feet, C.redD);
+  // 납작(common.flatten): 안경(10~15행)과 입(17~20행)은 누르지 않고 그대로 옮긴다
+  if (p.flat) squash(K, { ...p.flat, keep: [[hy0 + 10, hy0 + 15], [hy0 + 17, hy0 + 20]] });
   K.outline();
   if (p.fx) p.fx(K, { beak: P(hx, hy), head: [hx0, hy0] }); // 소리선·놀람선: 외곽선 없이(ADR-0007 결정 3-1)
   return { K, feet, hand: p.hand, facing: p.facing };
@@ -388,6 +394,35 @@ const LAUNCH = [
   { zip: 2 },
   { zip: 3 },
 ];
+// common.flatten  공용 "납작"(묵직이 mukjik.mjs와 같은 박자, art/lib/squash.mjs). 서 있기 몸을 바닥 기준으로 누른다.
+//   개그: 눌리는 순간 품에 안은 고무 닭도 같이 눌려 부리가 쩍 벌어진다(삑삑이는 납작해져도 닭부터 운다).
+//   0 꽝(반쯤, 닭 눌림) → 1 납작(가장 눌림, 먼지) → 2 뿅(가늘게 솟고 안경 튐) → 3 어질(제 키, 안경이 비뚤어지고 입은 덜덜).
+//   "삑!" 글자는 그리지 않는다(엔진 fx, #199 칸 신호). 화면 데이터가 필요하면 0번 칸에 신호를 단다.
+const FLAT_LEGS = { back: { x: -0.3, lift: 0, toe: false }, front: { x: 0.4, lift: 0, toe: false } };
+const FLATTEN = [
+  { // 0 꽝: 반쯤 눌림. 닭도 눌려 부리가 쩍
+    chest: 3, lean: 0, legs: FLAT_LEGS,
+    eyes: 'shut', mouth: 'clench', sweat: -1, chickHead: -3, chickUp: 2, squash: 1, beakOpen: true, flare: 1,
+    flat: { sx: 1.3, sy: 0.55 },
+  },
+  { // 1 납작: 가장 눌림. 우비 밑단이 옆으로 퍼지고 먼지
+    chest: 3, lean: 0, legs: FLAT_LEGS,
+    eyes: 'shut', mouth: 'clench', sweat: -1, chickHead: -3, chickUp: 2, squash: 1, beakOpen: true, flare: 1,
+    flat: { sx: 1.4, sy: 0.42 },
+    fx: (K) => { puff(K, 7, 0, { behind: true }); puff(K, 41, 0, { behind: true }); },
+  },
+  { // 2 뿅: 가늘고 길게 솟는다. 안경이 튀고 바늘 눈, 닭은 부풀며 머리가 늦게 내려온다
+    chest: 0, lean: 0, legs: { back: { x: -0.9, lift: 0, toe: false }, front: { x: 1.0, lift: 0, toe: false } },
+    eyes: 'wide', mouth: 'o', glassesUp: 1, sweat: -1, chickHead: 2, chickUp: 1, flare: 0,
+    flat: { sx: 0.86, sy: 1.12 },
+    fx: (K) => puff(K, 24, 2, { behind: true }),
+  },
+  { // 3 어질: 비뚤어진 안경, 따로 노는 눈동자, 덜덜 입, 땀 한 방울
+    chest: 1, lean: 0, legs: { back: { x: -0.9, lift: 0, toe: false }, front: { x: 1.0, lift: 0, toe: false } },
+    eyes: 'askew', mouth: 'shake', sweat: 0, chickHead: 1, chickUp: 0, flare: 0,
+  },
+];
+
 /** 사라진 칸(launch_to_hook 2·3): 속도선·먼지만(외곽선 없음). 3번 칸에는 남겨진 땀방울이 떨어진다. */
 function drawZip(p) {
   const K = new Canvas(CELL[0], CELL[1], S, OX, 0);
@@ -412,6 +447,7 @@ export const SHEET = {
     { name: 'common.squeeze_chicken', frames: 3, ms: [200, 350, 450] },
     { name: 'hold', frames: 2, ms: [300, 450] },
     { name: 'launch_to_hook', frames: 4, ms: [150, 100, 100, 150] },
+    { name: 'common.flatten', frames: 4, ms: [100, 600, 150, 450] },
   ],
   pose,
   drawFrame,

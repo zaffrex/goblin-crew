@@ -23,13 +23,10 @@ const characters = load('content', 'characters.json') as CharactersData;
 const MISSING: Record<string, string[]> = {
   magpie_nest: [
     'jjuk:common.bump_bottom',
-    'jjuk:common.flatten',
     'jjuk:common.reach_wobble',
     'jjuk:common.stretch',
     'jjuk:common.wet',
-    'mukjik:common.flatten',
     'ppik:common.bump_bottom',
-    'ppik:common.flatten',
     'ppik:common.shiver',
     'ppik:common.wag_finger',
     'ppik:hide_in_basket',
