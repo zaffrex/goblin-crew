@@ -19,7 +19,7 @@ export interface SceneSrc {
     states?: (Partial<Picture> & { when: { flags: Record<string, boolean> } })[];
     overlay?: { sortY: number; draw: Draw };
   } & Record<string, unknown>>;
-  anims?: Record<string, { ms: number | number[]; frames: Draw[]; layer?: 'back' | 'front' } & Record<string, unknown>>;
+  anims?: Record<string, { ms: number | number[]; frames: Draw[]; layer?: 'back' | 'front'; variants?: ({ when: { flags: Record<string, boolean> }; ms: number | number[]; frames: Draw[]; layer?: 'back' | 'front' } & Record<string, unknown>)[] } & Record<string, unknown>>;
 }
 export interface Frame { src: [number, number, number, number]; at: [number, number] }
 interface PicMeta { frame: number; layer: 'back' | 'front'; loop?: { frames: number[]; ms: number[] } }
@@ -28,7 +28,8 @@ export interface SceneMeta {
   screen: string;
   frames: Frame[];
   objects: { key: string; ids: string[]; default: PicMeta; states?: (PicMeta & { when: { flags: Record<string, boolean> } })[]; overlay?: { sortY: number; frame: number } }[];
-  anims: Record<string, { object: string | null; frames: number[]; ms: number[]; layer: 'back' | 'front' }>;
+  bg: string | null;
+  anims: Record<string, { object: string | null; frames: number[]; ms: number[]; layer: 'back' | 'front'; variants?: { when: { flags: Record<string, boolean> }; frames: number[]; ms: number[]; layer: 'back' | 'front' }[] }>;
 }
 export const SCREEN_W: number;
 export const SCREEN_H: number;

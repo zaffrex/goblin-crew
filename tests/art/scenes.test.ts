@@ -61,11 +61,13 @@ describe('scene build (format v1)', () => {
     expect(meta.image).toBe('magpie_nest-objects.png');
     expect(meta.objects.map((o) => o.key)).toEqual(['nest', 'magpie', 'seesaw', 'basket']); // 적은 순서 = 뒤 → 앞
     // nest: 기본 1 + loop 3 + state 1, magpie 2, seesaw 1, basket 1 + overlay 1, anims 3 + 2 = 15
-    expect(meta.frames).toHaveLength(15);
+    // 그중 nest loop 첫·끝 칸(기본과 같음), plank_bounce 끝 칸(첫 칸과 같음)은 같은 그림이라 합친다 → 12
+    expect(meta.frames).toHaveLength(12);
+    expect(meta.bg).toBe('magpie_nest-bg.png');
     // at은 그린 자리(화면 좌표), src는 시트 안 잘린 크기
     expect(meta.frames[0]).toEqual({ src: [0, 0, 30, 16], at: [130, 34] });
     const nest = meta.objects[0]!;
-    expect(nest.default.loop).toEqual({ frames: [1, 2, 3], ms: [1600, 120, 120] });
+    expect(nest.default.loop).toEqual({ frames: [0, 1, 0], ms: [1600, 120, 120] });
     expect(nest.states![0]!.when).toEqual({ flags: { 'nest.key_taken': true } });
     expect(meta.objects[1]!.states![0]!.layer).toBe('front');
     expect(meta.objects[1]!.default.layer).toBe('back');
@@ -174,8 +176,47 @@ describe('scene build (format v1)', () => {
     it('sortY가 히트 박스 세로 범위(212~236) 밖', () => {
       expect(problemsOf((s) => (s.objects!.basket!.overlay!.sortY = 244))).toEqual([expect.stringContaining('212~236')]);
     });
+    it('앞판 그림이 발 위 10px보다 높이 올라옴(위 끝 < sortY − 11)', () => {
+      expect(problemsOf((s) => (s.objects!.basket!.overlay!.draw = box(146, 224, 28, 12, LINT)))).toEqual([expect.stringContaining('sortY − 11(225)')]);
+      expect(problemsOf((s) => (s.objects!.basket!.overlay!.draw = box(146, 225, 28, 11, LINT)))).toEqual([]);
+    });
     it('layer는 back/front만', () => {
       expect(problemsOf((s) => (s.objects!.magpie!.layer = 'top' as never))).toEqual([expect.stringContaining("layer 'top'")]);
+    });
+  });
+  describe('anim 갈래(4-1절, 개정 1)·배경 이름', () => {
+    const withVariant = (s: SceneSrc) => {
+      s.anims!['magpie.ruffle'] = {
+        ms: [100, 150],
+        frames: [box(138, 8, 16, 18, INK), box(138, 10, 16, 18, INK)],
+        variants: [{ when: { flags: { 'magpie.on_ground': true } }, ms: 100, frames: [box(92, 218, 16, 16, INK)], layer: 'front' }],
+      };
+    };
+    it('갈래를 메타에 넣고, 갈래 layer는 기본을 물려받지 않는다', () => {
+      const s = goodScene();
+      withVariant(s);
+      s.anims!['magpie.ruffle']!.layer = 'front';
+      delete s.anims!['magpie.ruffle']!.variants![0]!.layer;
+      const r = buildScene(s, screen);
+      expect(r.problems).toEqual([]);
+      const a = r.meta!.anims['magpie.ruffle']!;
+      expect(a.layer).toBe('front');
+      expect(a.variants).toEqual([{ when: { flags: { 'magpie.on_ground': true } }, frames: [expect.any(Number)], ms: [100], layer: 'back' }]);
+    });
+    it('갈래 플래그가 화면 JSON에 없음', () => {
+      expect(problemsOf((s) => { withVariant(s); s.anims!['magpie.ruffle']!.variants![0]!.when = { flags: { 'magpie.asleep': true } }; })).toEqual([expect.stringContaining("'magpie.asleep'")]);
+    });
+    it('갈래마다 ms 합 1500 검사', () => {
+      expect(problemsOf((s) => { withVariant(s); s.anims!['magpie.ruffle']!.variants![0]!.ms = 1501; })).toEqual([expect.stringContaining('variants[0]: ms 합 1501')]);
+    });
+    it('갈래 필드 오타·빈 배열', () => {
+      expect(problemsOf((s) => { withVariant(s); (s.anims!['magpie.ruffle']!.variants![0] as Record<string, unknown>).wehn = 1; })).toEqual([expect.stringContaining("모르는 필드 'wehn'")]);
+      expect(problemsOf((s) => { withVariant(s); s.anims!['magpie.ruffle']!.variants = []; })).toEqual([expect.stringContaining('variants는 비어 있지 않은 배열')]);
+    });
+    it('draft면 메타 bg가 null(엔진이 배경을 요청하지 않는다)', () => {
+      const s = goodScene();
+      s.draft = true;
+      expect(buildScene(s, screen).meta!.bg).toBeNull();
     });
   });
 });

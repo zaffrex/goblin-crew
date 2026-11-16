@@ -9,6 +9,7 @@ import { CHARACTERS, characterHitBox, characterDef, type CharacterId } from './c
 import { WALK_AREA, WALK_SPEED } from './config';
 import type { HitBox } from './hit';
 import { hotspotBox, hudTargets, tap, type Intent, type TapContext, type UiState } from './interact';
+import { animOf, animTicks, type SceneAnim, type SceneArtMeta } from './sceneArt';
 import { initialState, step } from './puzzle/step';
 import { GAUGE_MAX, type Action, type CharactersData, type PuzzleEvent, type PuzzleState, type ScreenData, type StepSource } from './puzzle/types';
 import type { Point } from './viewport';
@@ -44,6 +45,20 @@ export interface Playing {
   t: number;
   /** 이 이벤트가 끝나는 틱 수. 걷기는 도착할 때 끝나서 null. */
   duration: number | null;
+  /** 몇 번째로 시작한 이벤트인가(0부터). 멈춘 모습이 바뀌는 시점(`shown`)을 맞추는 데 쓴다. */
+  seq: number;
+  /** 화면 시트에 있는 물건 anim이면 그 물건과 고른 갈래(형식 기록 4-1절). 엔진은 이걸 그린다. */
+  art?: { object: string; anim: SceneAnim };
+}
+
+/**
+ * 물건의 "보이는 플래그"가 진짜 플래그보다 늦게 바뀌는 동안의 기록(형식 기록 4-2절).
+ * `seq`번째 이벤트가 시작(`start`)하거나 끝날(`end`) 때 지운다 → 그때부터 진짜 플래그로 그린다.
+ */
+export interface ShownFlags {
+  flags: Record<string, boolean>;
+  seq: number;
+  edge: 'start' | 'end';
 }
 
 export interface SceneState {
@@ -64,6 +79,10 @@ export interface SceneState {
   faintCutUntil: number;
   /** 규칙·폴백별 발동 횟수(대사 변형 선택), 대상별 폴백 횟수(힌트 ②). UI 상태라 세이브·BFS에 넣지 않는다(ADR-0065 5절). */
   counts: Record<string, number>;
+  /** 지금까지 시작한 이벤트 수. 다음에 시작할 이벤트의 `seq`다. */
+  started: number;
+  /** 물건 키 → 아직 옛 플래그로 그리는 물건(4-2절). 없으면 진짜 플래그로 그린다. 그림 전용이고 판정·히트 박스는 안 쓴다. */
+  shown: Record<string, ShownFlags>;
   /** `move floor` 행동에서 걸어갈 바닥 점. 캐릭터별. */
   floorTo: Partial<Record<CharacterId, Point>>;
   cleared: boolean;
@@ -72,6 +91,8 @@ export interface SceneState {
 export interface SceneData {
   screen: ScreenData;
   characters?: CharactersData;
+  /** 화면 배경·물건 그림 메타(#157). 있으면 물건 anim 길이가 busy 길이가 되고, 보이는 플래그를 따로 센다. */
+  art?: SceneArtMeta;
 }
 
 /** busy = 재생할 이벤트가 하나라도 남아 있다(설계 5절). */
@@ -106,6 +127,8 @@ export function createScene(data: SceneData): SceneState {
     current: null,
     shownGauge: puzzle.gauge,
     faintCutUntil: 0,
+    started: 0,
+    shown: {},
     counts: {},
     floorTo: {},
     cleared: false,
@@ -163,9 +186,41 @@ function hintEvent(data: SceneData, s: SceneState, source: StepSource, a: Action
   return text ? { type: 'say', speaker: a.char, text } : null;
 }
 
+/**
+ * 형식 기록 4-2절: `step`은 이벤트 재생 전에 플래그를 바꾸지만, 그림은 그 행동의 이전 플래그로 그리다가
+ * (a) 그 물건(`ids` 포함)의 anim이 시작될 때, (b) 없으면 첫 anim이 끝날 때 바꾼다. anim이 하나도 없으면 바로 바꾼다.
+ * 시트에 그 anim이 있는지는 보지 않는다(그림이 붙는 순서와 상관없이 시점이 같다).
+ */
+function deferShown(data: SceneData, s: SceneState, before: Record<string, boolean>, events: readonly PuzzleEvent[]): void {
+  const art = data.art;
+  if (!art) return;
+  const after = s.puzzle.flags;
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  if ([...keys].every((k) => (before[k] ?? false) === (after[k] ?? false))) return;
+  // 지금 재생 중인 이벤트는 이미 `started`에 들어 있다. 새 이벤트는 대기열 뒤에 붙는다.
+  const base = s.started + s.queue.length;
+  const firstAnim = events.findIndex((e) => e.type === 'anim');
+  if (firstAnim < 0) return;
+  for (const o of art.objects) {
+    const own = events.findIndex((e) => e.type === 'anim' && o.ids.includes(e.target));
+    s.shown[o.key] = own >= 0 ? { flags: { ...before }, seq: base + own, edge: 'start' } : { flags: { ...before }, seq: base + firstAnim, edge: 'end' };
+  }
+}
+
+/** 물건 하나의 보이는 플래그(4-2절). 그림 전용. */
+export function shownFlags(s: SceneState, objectKey: string): Readonly<Record<string, boolean>> {
+  return s.shown[objectKey]?.flags ?? s.puzzle.flags;
+}
+
+function commitShown(s: SceneState, seq: number, edge: 'start' | 'end'): void {
+  for (const [k, v] of Object.entries(s.shown)) if (v.seq === seq && v.edge === edge) delete s.shown[k];
+}
+
 function runAction(data: SceneData, s: SceneState, action: Action, to: Point | null): void {
+  const before = s.puzzle.flags;
   const r = step(data.screen, s.puzzle, action, data.characters);
   s.puzzle = r.state;
+  deferShown(data, s, before, r.events);
   if (to) s.floorTo[action.char] = to;
   // 행동하는 캐릭터의 엔진 걷기는 멈춘다(그 자리에서 행동한다).
   const w = s.walkers[action.char];
@@ -202,40 +257,52 @@ function sayDuration(text: string): number {
   return Math.min(TIMING.sayMax, TIMING.sayBase + TIMING.sayPerChar * text.length);
 }
 
-/** 이벤트 하나를 시작한다. 즉시 끝나는 효과(배치·게이지 값)는 여기서 적용한다. */
+/** 이벤트 하나를 시작한다. `seq`는 시작 순번. 보이는 플래그(4-2절 (a))도 여기서 바꾼다. */
 function start(data: SceneData, s: SceneState, ev: PlayEvent): Playing {
+  const seq = s.started++;
+  const p = begin(data, s, ev, seq);
+  commitShown(s, seq, 'start');
+  return p;
+}
+
+/** 즉시 끝나는 효과(배치·게이지 값)는 여기서 적용한다. */
+function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Playing {
   switch (ev.type) {
     case 'walk': {
       const w = s.walkers[ev.char];
       const p = destination(data, s, ev.char, ev.to);
       if (p.x !== w.x) w.facing = p.x > w.x ? 1 : -1;
       w.target = p.x === w.x && p.y === w.y ? null : p;
-      return { ev, t: 0, duration: null };
+      return { ev, t: 0, duration: null, seq };
     }
     case 'release':
       teleport(s.walkers[ev.char], destination(data, s, ev.char, ev.to));
-      return { ev, t: 0, duration: TIMING.release };
+      return { ev, t: 0, duration: TIMING.release, seq };
     case 'place':
       teleport(s.walkers[ev.char], destination(data, s, ev.char, ev.to));
-      return { ev, t: 0, duration: TIMING.place };
+      return { ev, t: 0, duration: TIMING.place, seq };
     case 'faint':
       for (const c of CHARACTERS) teleport(s.walkers[c.id], destination(data, s, c.id, ev.to[c.id]));
       s.faintCutUntil = s.tick + TIMING.faintCut;
-      return { ev, t: 0, duration: TIMING.faint };
+      return { ev, t: 0, duration: TIMING.faint, seq };
     case 'gauge':
       s.shownGauge = ev.value;
-      return { ev, t: 0, duration: TIMING.gauge };
+      return { ev, t: 0, duration: TIMING.gauge, seq };
     case 'clear':
       s.cleared = true;
-      return { ev, t: 0, duration: 0 };
+      return { ev, t: 0, duration: 0, seq };
     case 'say':
-      return { ev, t: 0, duration: sayDuration(ev.text) };
-    case 'anim':
-      return { ev, t: 0, duration: TIMING.anim };
+      return { ev, t: 0, duration: sayDuration(ev.text), seq };
+    case 'anim': {
+      // 물건 anim은 갈래를 anim 직전 보이는 플래그로 고르고(4-1절), 그 길이가 busy 길이다(5절). 없으면 임시 길이.
+      const obj = data.art?.objects.find((o) => o.ids.includes(ev.target));
+      const art = data.art && obj ? animOf(data.art, ev.target, ev.name, shownFlags(s, obj.key)) : null;
+      return art ? { ev, t: 0, duration: animTicks(art.anim), seq, art } : { ev, t: 0, duration: TIMING.anim, seq };
+    }
     case 'fx':
-      return { ev, t: 0, duration: TIMING.fx };
+      return { ev, t: 0, duration: TIMING.fx, seq };
     case 'item':
-      return { ev, t: 0, duration: TIMING.item };
+      return { ev, t: 0, duration: TIMING.item, seq };
   }
 }
 
@@ -260,6 +327,7 @@ export function sceneTick(data: SceneData, s: SceneState): void {
     }
     if (!finished(s, s.current)) return;
     if (s.current.ev.type === 'faint') s.shownGauge = GAUGE_MAX;
+    commitShown(s, s.current.seq, 'end');
     s.current = null;
   }
 }

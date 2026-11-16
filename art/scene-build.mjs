@@ -19,7 +19,8 @@ const LAYERS = ['back', 'front'];
 const OBJECT_KEYS = ['ids', 'draw', 'loop', 'layer', 'states', 'overlay'];
 const STATE_KEYS = ['when', 'draw', 'loop', 'layer'];
 const OVERLAY_KEYS = ['sortY', 'draw'];
-const ANIM_KEYS = ['ms', 'frames', 'layer'];
+const ANIM_KEYS = ['ms', 'frames', 'layer', 'variants'];
+const VARIANT_KEYS = ['when', 'ms', 'frames', 'layer'];
 const LOOP_KEYS = ['ms', 'frames'];
 
 /** 화면 JSON의 [x, y, w, h] 두 개가 겹치나 */
@@ -117,7 +118,11 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
     if (hasColor(full, C.hint)) problems.push(`${where}: 31번 hint 픽셀이 있다(호버 외곽선은 엔진이 만든다)`);
     if (boxes?.length && !boxes.some((box) => box && overlaps(b, box)))
       problems.push(`${where}: 그림 [${b.x},${b.y},${b.w},${b.h}]이 히트 박스 ${boxes.map((x) => `[${x}]`).join(' / ')}와 겹치지 않는다`);
-    pics.push({ img: crop(full, b), at: [b.x, b.y], where });
+    const img = crop(full, b);
+    // 같은 자리·같은 픽셀이면 한 장으로 합친다(반복 첫 칸 = 멈춘 모습인 경우가 많다, PR #165 리뷰).
+    const same = pics.findIndex((p) => p.at[0] === b.x && p.at[1] === b.y && p.img.w === img.w && p.img.h === img.h && p.img.c.every((v, i) => v === img.c[i]));
+    if (same >= 0) return same;
+    pics.push({ img, at: [b.x, b.y], where });
     return pics.length - 1;
   }
 
@@ -185,10 +190,14 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
       const ow = `${w}.overlay`;
       unknownKeys(o.overlay, OVERLAY_KEYS, ow, problems);
       const sy = o.overlay.sortY;
+      const frame = picture(o.overlay.draw, `${ow}.draw`, baseBoxes);
       if (!Number.isInteger(sy)) problems.push(`${ow}: sortY는 정수여야 한다`);
       else if (!baseBoxes.some(([, by, , bh]) => by <= sy && sy <= by + bh))
         problems.push(`${ow}: sortY ${sy}가 히트 박스 세로 범위(${baseBoxes.map(([, by, , bh]) => `${by}~${by + bh}`).join(' / ')}) 밖이다`);
-      out.overlay = { sortY: sy, frame: picture(o.overlay.draw, `${ow}.draw`, baseBoxes) };
+      // 6절 개정 1: 앞판 불투명 영역은 발 위 10px 이하(위 끝 ≥ sortY − 11). sortY가 틀렸으면 위에서 이미 잡았다.
+      else if (frame >= 0 && pics[frame].at[1] < sy - 11)
+        problems.push(`${ow}: 그림 위 끝 y ${pics[frame].at[1]} < sortY − 11(${sy - 11}). 앞판은 발 위 10px 이하만 가린다(6절)`);
+      out.overlay = { sortY: sy, frame };
     }
     objects.push(out);
   }
@@ -209,13 +218,38 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
       problems.push(`${w}: frames가 비었다`);
       continue;
     }
-    const frames = a.frames.map((d, i) => picture(d, `${w}[${i}]`, null));
-    const ms = normMs(a.ms, frames.length, w, problems);
-    if (ms) {
-      const sum = ms.reduce((s, v) => s + v, 0);
-      if (sum > ANIM_MAX_MS) problems.push(`${w}: ms 합 ${sum} > ${ANIM_MAX_MS}(busy 길이 상한, 넘으면 L1로 올린다)`);
+    const one = (src, where) => {
+      const frames = src.frames.map((d, i) => picture(d, `${where}[${i}]`, null));
+      const ms = normMs(src.ms, frames.length, where, problems);
+      if (ms) {
+        const sum = ms.reduce((s, v) => s + v, 0);
+        if (sum > ANIM_MAX_MS) problems.push(`${where}: ms 합 ${sum} > ${ANIM_MAX_MS}(busy 길이 상한, 넘으면 L1로 올린다)`);
+      }
+      return { frames, ms: ms ?? [], layer: layerOf(src.layer, where) };
+    };
+    const out = { object: owner.get(target) ?? null, ...one(a, w) };
+    // 4-1절(개정 1): 갈래는 첫 일치, 없으면 기본. 갈래 layer는 기본을 물려받지 않는다(없으면 back).
+    if (a.variants !== undefined) {
+      const variants = [];
+      for (const [i, v] of (Array.isArray(a.variants) ? a.variants : []).entries()) {
+        const vw = `${w}.variants[${i}]`;
+        unknownKeys(v, VARIANT_KEYS, vw, problems);
+        const flags = v.when?.flags;
+        if (!flags || typeof flags !== 'object' || Object.keys(v.when).some((k) => k !== 'flags')) {
+          problems.push(`${vw}: when은 { flags: {...} } 모양이어야 한다(hotspot variants와 같다)`);
+          continue;
+        }
+        for (const f of Object.keys(flags)) if (!(f in screenFlags)) problems.push(`${vw}: 플래그 '${f}'가 화면 JSON flags에 없다`);
+        if (!Array.isArray(v.frames) || v.frames.length === 0) {
+          problems.push(`${vw}: frames가 비었다`);
+          continue;
+        }
+        variants.push({ when: { flags }, ...one(v, vw) });
+      }
+      if (!Array.isArray(a.variants) || variants.length === 0) problems.push(`${w}: variants는 비어 있지 않은 배열이어야 한다`);
+      else out.variants = variants;
     }
-    anims[name] = { object: owner.get(target) ?? null, frames, ms: ms ?? [], layer: layerOf(a.layer, w) };
+    anims[name] = out;
   }
 
   // ── 시트: 선반 쌓기(왼쪽 → 오른쪽, 폭 512 넘으면 다음 줄). 그림 순서는 위에서 만든 순서라 결정적이다.
@@ -243,6 +277,8 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
   const meta = sheet && {
     '//': `node art/build.mjs로 만든 파일. 직접 고치지 않는다. 원본: art/scenes/${id}.mjs. 형식: docs/decisions/2026-11-16-scene-art-format-v1.md. frames[i].src = 시트 안 [x,y,w,h], at = 화면 좌표(왼쪽 위).`,
     image: `${id}-objects.png`,
+    // 배경 PNG 파일 이름. draft면 null(내보내지 않음 → 엔진은 임시 방을 그린다, 9절). 엔진은 이 값으로만 배경을 요청한다(404 방지).
+    bg: SCENE.draft === true ? null : `${id}-bg.png`,
     screen: id,
     frames,
     objects,

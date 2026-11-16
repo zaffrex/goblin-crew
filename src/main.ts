@@ -1,5 +1,6 @@
 // 부트스트랩: 엔진(브라우저)과 코어(순수 로직)를 연결한다.
 // 화면 1(magpie_nest)을 탭으로 처음부터 끝까지 푼다(#68). 캐릭터는 시트가 있으면 시트 그림(#140), 없으면 임시 실루엣이다.
+// 배경·물건은 화면 시트가 있으면 시트 그림(#157), 없으면 임시 방·상자다(형식 기록 9절).
 // 진행 로직은 core/scene.ts에 있다. 여기서는 입력을 넘기고, 결과를 그리고, DOM 말풍선·라벨을 띄운다.
 
 import charactersJson from '../content/characters.json';
@@ -11,13 +12,15 @@ import type { HitBox } from './core/hit';
 import { GAUGE_CELLS, HUD_AREA } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
-import { createScene, currentBubble, isBusy, sceneLayout, sceneTap, sceneTick, tapContext, type SceneData } from './core/scene';
+import { createScene, currentBubble, isBusy, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
+import { coveredIds, sceneDraws } from './core/sceneArt';
 import type { Pose } from './core/sprite';
 import { internalToScreen, screenToInternal, type Point } from './core/viewport';
 import { createDisplay } from './engine/display';
 import { onPointerTap } from './engine/input';
 import { startLoop } from './engine/loop';
 import { drawActiveMarker, drawCharacter, drawHud, drawOutline, drawRoom, drawSpark, drawTarget, drawTargets } from './engine/placeholder';
+import { drawSceneBg, drawSceneFrame, loadSceneArt, sceneArtMeta } from './engine/sceneArt';
 import { drawSprite } from './engine/sprites';
 
 function need<T extends HTMLElement>(selector: string): T {
@@ -32,7 +35,11 @@ const label = need('#label');
 const clearCut = need('#clear');
 const faintCut = need('#faint');
 
-const data: SceneData = { screen: screenJson as unknown as ScreenData, characters: charactersJson as CharactersData };
+const screenData = screenJson as unknown as ScreenData;
+const data: SceneData = { screen: screenData, characters: charactersJson as CharactersData, art: sceneArtMeta(screenData.id) ?? undefined };
+const art = loadSceneArt(screenData.id);
+/** 시트가 그리는 대상. 이 밖의 대상만 임시 상자로 그린다. */
+const covered = art ? coveredIds(art.meta) : new Set<string>();
 const TEXT: Readonly<Record<string, string>> = texts;
 const t = (id: string): string => TEXT[id] ?? id;
 
@@ -103,11 +110,22 @@ function placeDom(el: HTMLElement, at: Point): void {
   el.style.top = `${Math.round(s.y)}px`;
 }
 
+/** 대상 상자 중 시트가 그리지 않는 것만. 시트 이미지가 아직이면 전부(임시 상자). */
+function uncovered(boxes: Record<string, HitBox>): Record<string, HitBox> {
+  if (!art?.objectsReady) return boxes;
+  return Object.fromEntries(Object.entries(boxes).filter(([id]) => !covered.has(id)));
+}
+
 function render(): void {
   const { ctx, internal } = display;
   const layout = sceneLayout(data, scene);
-  drawRoom(ctx, internal, WALK_AREA);
-  drawTargets(ctx, layout.spots, layout.hotspots);
+  if (!drawSceneBg(ctx, art)) drawRoom(ctx, internal, WALK_AREA);
+  drawTargets(ctx, uncovered(layout.spots), uncovered(layout.hotspots));
+
+  // 물건 그림(형식 기록 4·6절): 보이는 플래그로 멈춘 모습, 재생 중 물건 anim은 그 프레임.
+  const playing = scene.current?.art ? { ...scene.current.art, ms: scene.current.t * TICK_MS } : null;
+  const draws = art ? sceneDraws(art.meta, { flagsOf: (k) => shownFlags(scene, k), playing, clockMs: scene.tick * TICK_MS }) : null;
+  for (const f of draws?.back ?? []) drawSceneFrame(ctx, art!, f);
 
   const me = scene.walkers[scene.ui.active];
   if (me.target && !isBusy(scene)) drawTarget(ctx, me.target, scene.tick);
@@ -115,11 +133,22 @@ function render(): void {
   // 반응 애니메이션: 시트에 없는 연출(임시)은 대상 캐릭터 실루엣을 좌우로 1px 흔든다.
   const ev = scene.current?.ev;
   const shaking = ev?.type === 'anim' ? ev.target : null;
-  const order = CHARACTERS.map((c) => scene.walkers[c.id]).sort(
-    (a, b) => Math.round(a.y) - Math.round(b.y) || (a.id < b.id ? 1 : -1),
-  );
-  for (const w of order) {
-    const id = w.id as CharacterId;
+  // 6절 2·3: 캐릭터와 overlay(바구니 앞판)를 발 y로 섞는다. 발 y ≤ sortY면 조각 뒤. 고리에 매달린 캐릭터는 항상 맨 앞.
+  type Item = { y: number; id: string; char?: CharacterId; frame?: number };
+  const items: Item[] = CHARACTERS.map((c) => {
+    const w = scene.walkers[c.id];
+    const hanging = data.screen.spots[layout.at[c.id]]?.hold === true;
+    return { y: hanging ? Infinity : Math.round(w.y), id: c.id, char: c.id };
+  });
+  for (const o of draws?.overlays ?? []) items.push({ y: o.sortY + 0.5, id: '', frame: o.frame });
+  items.sort((a, b) => a.y - b.y || (a.id < b.id ? 1 : -1));
+  for (const it of items) {
+    if (it.char === undefined) {
+      drawSceneFrame(ctx, art!, it.frame!);
+      continue;
+    }
+    const id = it.char;
+    const w = scene.walkers[id];
     // 시트에 그 연출이 있으면 시트가 재생하고, 없으면 drawSprite가 null → 실루엣을 흔든다.
     const top = drawSprite(ctx, w, poseOf(id, layout));
     if (top === null) {
@@ -130,6 +159,7 @@ function render(): void {
       spriteTops[id] = top;
     }
   }
+  for (const f of draws?.front ?? []) drawSceneFrame(ctx, art!, f);
   if (ev?.type === 'fx') {
     const at = anchorOf(ev.target, layout);
     if (at) drawSpark(ctx, at, scene.current?.t ?? 0);
