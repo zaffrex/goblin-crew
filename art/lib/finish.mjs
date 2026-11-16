@@ -41,7 +41,10 @@ export function rimShade(K, skip, down) {
   K.c = out;
 }
 
-/** 신발 밑창: 신발 부품의 맨 아랫줄 바로 위 줄을 band 색(기본 lint, 운동화 밑창 띠)으로. 맨 아랫줄은 woodD(바닥 접지). */
+/**
+ * 신발 밑창: 신발 부품의 맨 아랫줄 바로 위 줄을 band 색으로. 맨 아랫줄은 woodD(바닥 접지).
+ * band 기본 lint = 운동화 밑창 띠(쭉이). 장화는 woodL(묵직이). 삑삑이 신발도 종류에 맞춰 넘긴다.
+ */
 export function soles(K, shoeParts, band = C.lint) {
   for (const pid of shoeParts) {
     for (let x = 0; x < K.w; x++) {
