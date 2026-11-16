@@ -499,8 +499,8 @@ function drawBg(bg) {
 
 export const SCENE = {
   id: 'magpie_nest',
-  // 띠 (a)·(b)·(c)는 다 그렸다. 배포 전환(draft 해제)은 replay.ts --require-art로 배포본을 다시 재생하는 별도 PR에서 한다(#145).
-  draft: true,
+  // 띠 (a)·(b)·(c)를 다 그려서 배포한다(#145). draft: true로 되돌리면 배경 PNG를 내보내지 않고 엔진은 임시 방을 그린다.
+  draft: false,
   bg(img) { drawBg(img); },
   objects: OBJECTS,
   grips: GRIPS,
