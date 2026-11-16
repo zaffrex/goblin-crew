@@ -1,0 +1,235 @@
+import { describe, expect, it } from 'vitest';
+import charactersJson from '../../content/characters.json';
+import screenJson from '../../content/screens/magpie_nest.json';
+import sheetJson from '../../public/scenes/magpie_nest-objects.json';
+import { CHAR_SLOTS } from './hud';
+import type { CharactersData, ScreenData } from './puzzle/types';
+import { createScene, isBusy, sceneTap, sceneTick, shownFlags, TIMING, type SceneData, type SceneState } from './scene';
+import { animOf, animTicks, coveredIds, objectOf, parseSceneArt, pictureOf, sceneDraws, timedFrame, type SceneArtMeta, type SceneView } from './sceneArt';
+
+const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+
+/** 커밋된 진짜 시트(③-1: 멈춘 모습·loop) + ③-2가 그릴 anim을 흉내 낸 것. 프레임 번호는 아무거나 시트 안의 것. */
+function meta(): SceneArtMeta {
+  const m = parseSceneArt(clone(sheetJson));
+  m.anims['magpie.fly_down'] = { object: 'magpie', frames: [5, 9], ms: [100, 100], layer: 'front' };
+  m.anims['magpie.ruffle'] = {
+    object: 'magpie',
+    frames: [5, 6, 5],
+    ms: [100, 150, 100],
+    layer: 'back',
+    variants: [{ when: { flags: { 'magpie.on_ground': true } }, frames: [9, 10], ms: [100, 100], layer: 'front' }],
+  };
+  m.anims['seesaw_right.plank_bounce'] = { object: 'seesaw', frames: [12, 12, 12], ms: [80, 80, 80], layer: 'back' };
+  return m;
+}
+
+const screen = screenJson as unknown as ScreenData;
+const characters = charactersJson as CharactersData;
+const view = (over: Partial<SceneView> = {}): SceneView => ({ flagsOf: () => screen.flags ?? {}, playing: null, clockMs: 0, ...over });
+const idx = (m: SceneArtMeta, key: string) => m.objects.findIndex((o) => o.key === key);
+
+describe('parseSceneArt', () => {
+  it('커밋된 화면 1 시트를 읽는다(draft라 bg 없음)', () => {
+    const m = parseSceneArt(sheetJson);
+    expect(m.screen).toBe('magpie_nest');
+    expect(m.bg).toBeNull();
+    expect(m.objects.map((o) => o.key)).toEqual(['nest', 'magpie', 'hook', 'long_johns', 'seesaw', 'basket']);
+  });
+
+  it('프레임 번호가 시트 밖이면 던진다(엔진은 그 화면 그림을 통째로 폴백)', () => {
+    const bad = clone(sheetJson) as { objects: { default: { frame: number } }[] };
+    bad.objects[0]!.default.frame = 99;
+    expect(() => parseSceneArt(bad)).toThrow('프레임 번호 99');
+  });
+
+  it('loop ms 길이가 frames와 다르면 던진다', () => {
+    const bad = clone(sheetJson) as { objects: { default: { loop?: { ms: number[] } } }[] };
+    bad.objects[0]!.default.loop!.ms = [1600];
+    expect(() => parseSceneArt(bad)).toThrow('loop: frames·ms');
+  });
+});
+
+describe('멈춘 모습·anim 고르기 (형식 기록 4·4-1절)', () => {
+  it('when 첫 일치, 없으면 default. 까치 바닥은 front', () => {
+    const m = meta();
+    const magpie = objectOf(m, 'magpie')!;
+    expect(pictureOf(magpie, { 'magpie.on_ground': false }).layer).toBe('back');
+    expect(pictureOf(magpie, { 'magpie.on_ground': true })).toBe(magpie.states![0]);
+    expect(magpie.states![0]!.layer).toBe('front');
+  });
+
+  it('ids 물건: seesaw_left·seesaw_right 모두 시소 하나, 모르는 대상은 null(임시 상자)', () => {
+    const m = meta();
+    expect(objectOf(m, 'seesaw_left')?.key).toBe('seesaw');
+    expect(objectOf(m, 'seesaw_right')?.key).toBe('seesaw');
+    expect(objectOf(m, 'nope')).toBeNull();
+    expect(coveredIds(m)).toEqual(new Set(['nest', 'magpie', 'hook', 'long_johns', 'seesaw_left', 'seesaw_right', 'basket']));
+  });
+
+  it('anim 갈래는 넘긴 플래그로 고르고, 갈래 layer를 쓴다', () => {
+    const m = meta();
+    expect(animOf(m, 'magpie', 'ruffle', { 'magpie.on_ground': false })!.anim).toMatchObject({ frames: [5, 6, 5], layer: 'back' });
+    expect(animOf(m, 'magpie', 'ruffle', { 'magpie.on_ground': true })!.anim).toMatchObject({ frames: [9, 10], layer: 'front' });
+    expect(animOf(m, 'magpie', 'peck', {})).toBeNull();
+    expect(animOf(m, 'jjuk', 'reach_hang_up', {})).toBeNull();
+  });
+
+  it('busy 길이 = ms 합을 60Hz 틱으로 올림', () => {
+    expect(animTicks({ frames: [0, 0, 0], ms: [80, 80, 80] })).toBe(15); // 240ms = 14.4틱 → 15
+    expect(animTicks({ frames: [0], ms: [100] })).toBe(6); // 딱 6틱(부동소수 오차로 7이 되지 않는다)
+    expect(animTicks({ frames: [0], ms: [1500] })).toBe(90);
+  });
+
+  it('timedFrame: 반복은 감고, 일회는 마지막 칸에 머문다', () => {
+    const t = { frames: [1, 2, 3], ms: [1600, 120, 120] };
+    expect([0, 1599, 1600, 1720, 1839, 1840].map((ms) => timedFrame(t, ms, true))).toEqual([1, 1, 2, 3, 3, 1]);
+    expect(timedFrame(t, 99999, false)).toBe(3);
+  });
+});
+
+describe('sceneDraws (6절 앞뒤)', () => {
+  it('처음 화면: 모두 back(적은 순서), 바구니 앞판은 overlay', () => {
+    const m = meta();
+    const d = sceneDraws(m, view());
+    expect(d.back).toHaveLength(6);
+    expect(d.front).toEqual([]);
+    expect(d.overlays).toEqual([{ sortY: 236, frame: m.objects[idx(m, 'basket')]!.overlay!.frame }]);
+  });
+
+  it('까치가 바닥이면 front, 둥지는 loop 시계로 반짝인다', () => {
+    const m = meta();
+    const nest = m.objects[idx(m, 'nest')]!.default.loop!;
+    const d = sceneDraws(m, view({ flagsOf: (k) => ({ 'magpie.on_ground': k === 'magpie', 'nest.key_taken': false }), clockMs: 1650 }));
+    expect(d.front).toEqual([m.objects[idx(m, 'magpie')]!.states![0]!.loop!.frames[0]]); // 바닥 대기 loop 첫 칸
+    expect(d.back[0]).toBe(nest.frames[1]); // 1600~1720ms는 두 번째 칸(작은 별)
+  });
+
+  it('anim 재생 중인 물건은 멈춘 모습 대신 anim 프레임(그 layer)을 그린다', () => {
+    const m = meta();
+    const a = animOf(m, 'magpie', 'fly_down', {})!;
+    const d = sceneDraws(m, view({ playing: { object: a.object, anim: a.anim, ms: 150 } }));
+    expect(d.front).toEqual([9]);
+    expect(d.back).toHaveLength(5); // 둥지 위 까치는 안 그린다
+  });
+});
+
+// ── 장면 연결: 보이는 플래그(4-2절)와 busy 길이(5절)
+const data: SceneData = { screen, characters, art: meta() };
+const center = (b: { left: number; top: number; width: number; height: number }) => ({ x: b.left + b.width / 2, y: b.top + b.height / 2 });
+const MAGPIE = center({ left: 134, top: 6, width: 24, height: 24 });
+const NEST = center({ left: 128, top: 30, width: 36, height: 24 });
+
+function ready(d: SceneData = data): SceneState {
+  const s = createScene(d);
+  while (isBusy(s)) sceneTick(d, s);
+  return s;
+}
+
+/** busy가 끝날 때까지 틱마다 (재생 중 이벤트, 그 물건의 보이는 플래그 값)을 모은다. 이벤트가 바뀔 때만 적는다. */
+function trace(s: SceneState, key: string, flag: string, d: SceneData = data): string[] {
+  const out: string[] = [];
+  let last = '';
+  while (isBusy(s)) {
+    sceneTick(d, s);
+    const ev = s.current?.ev;
+    const name = !ev ? 'idle' : ev.type === 'anim' ? `${ev.target}.${ev.name}` : ev.type;
+    const line = `${name}:${String(shownFlags(s, key)[flag])}`;
+    if (line !== last && ev) out.push(line);
+    last = line;
+  }
+  out.push(`end:${String(shownFlags(s, key)[flag])}`);
+  return out;
+}
+
+describe('보이는 플래그 (형식 기록 4-2절)', () => {
+  it('squeak_down (a): 닭 누르기 동안 까치는 둥지, fly_down 시작부터 바닥 → 끝나도 바닥', () => {
+    const s = ready();
+    sceneTap(data, s, center(CHAR_SLOTS.ppik), 0, false);
+    sceneTap(data, s, MAGPIE, 0, false);
+    expect(s.puzzle.flags['magpie.on_ground']).toBe(true); // 판정은 이미 새 플래그
+    expect(shownFlags(s, 'magpie')['magpie.on_ground']).toBe(false); // 그림은 아직 둥지
+    expect(trace(s, 'magpie', 'magpie.on_ground')).toEqual([
+      'ppik.common.squeeze_chicken:false',
+      'fx:false',
+      'magpie.fly_down:true',
+      'say:true',
+      'end:true',
+    ]);
+  });
+
+  it('fly_down이 시트에 있으면 그 길이(200ms → 12틱)가 busy이고 갈래·물건을 들고 있다', () => {
+    const s = ready();
+    sceneTap(data, s, center(CHAR_SLOTS.ppik), 0, false);
+    sceneTap(data, s, MAGPIE, 0, false);
+    while (!(s.current?.ev.type === 'anim' && s.current.ev.target === 'magpie')) sceneTick(data, s);
+    expect(s.current.duration).toBe(12);
+    expect(s.current.art).toMatchObject({ object: 'magpie', anim: { frames: [5, 9], layer: 'front' } });
+  });
+
+  it('시트에 없는 캐릭터 anim은 지금처럼 임시 길이', () => {
+    const s = ready();
+    sceneTap(data, s, center(CHAR_SLOTS.ppik), 0, false);
+    sceneTap(data, s, MAGPIE, 0, false);
+    sceneTick(data, s);
+    expect(s.current?.ev).toMatchObject({ type: 'anim', target: 'ppik' });
+    expect(s.current?.duration).toBe(TIMING.anim);
+    expect(s.current?.art).toBeUndefined();
+  });
+
+  it('ruffle 갈래: 처음(둥지 위)은 기본, 까치가 바닥이면 바닥 갈래', () => {
+    const s = createScene(data);
+    while (!(s.current?.ev.type === 'anim')) sceneTick(data, s);
+    expect(s.current.art?.anim.layer).toBe('back'); // onEnter ruffle
+    while (isBusy(s)) sceneTick(data, s);
+    sceneTap(data, s, center(CHAR_SLOTS.ppik), 0, false);
+    sceneTap(data, s, MAGPIE, 0, false); // 내려옴
+    while (isBusy(s)) sceneTick(data, s);
+    const ground = data.screen.hotspots.magpie!.variants![0]!.box!;
+    sceneTap(data, s, center({ left: ground[0], top: ground[1], width: ground[2], height: ground[3] }), 0, false); // 또 꽥
+    let ruffle: SceneState['current'] = null;
+    while (isBusy(s)) {
+      sceneTick(data, s);
+      if (s.current?.ev.type === 'anim' && s.current.ev.target === 'magpie') ruffle ??= s.current;
+    }
+    expect(ruffle?.art?.anim).toMatchObject({ frames: [9, 10], layer: 'front' });
+  });
+
+  it('nest_key (b): 열쇠는 reach_hang_up이 끝날 때 둥지에서 빠진다', () => {
+    const s = ready();
+    // 정답 직전 상태: 까치는 바닥, 쭉이는 고리
+    s.puzzle.flags['magpie.on_ground'] = true;
+    s.puzzle.at.jjuk = 'hook';
+    s.walkers.jjuk.x = data.screen.spots.hook!.x;
+    s.walkers.jjuk.y = data.screen.spots.hook!.y;
+    s.ui.active = 'jjuk';
+    sceneTap(data, s, NEST, 0, false);
+    expect(s.puzzle.flags['nest.key_taken']).toBe(true);
+    const t = trace(s, 'nest', 'nest.key_taken');
+    expect(t[0]).toBe('jjuk.reach_hang_up:false');
+    expect(t[1]).toMatch(/:true$/); // reach_hang_up 다음 이벤트부터 열쇠 없음
+    expect(t.at(-1)).toBe('end:true');
+  });
+
+  it('플래그를 안 바꾸는 행동, 그림 메타가 없는 장면은 기록이 없다(바로 진짜 플래그)', () => {
+    const s = ready();
+    sceneTap(data, s, center(CHAR_SLOTS.jjuk), 0, false);
+    sceneTap(data, s, MAGPIE, 0, false); // 둥지 위 까치에 뻗기: 플래그 그대로
+    expect(s.shown).toEqual({});
+
+    const plain: SceneData = { screen, characters };
+    const p = ready(plain);
+    sceneTap(plain, p, center(CHAR_SLOTS.ppik), 0, false);
+    sceneTap(plain, p, MAGPIE, 0, false);
+    expect(p.shown).toEqual({});
+    expect(shownFlags(p, 'magpie')['magpie.on_ground']).toBe(true);
+  });
+
+  it('상태는 JSON으로 왕복해도 같다(ADR-0004 결정 2)', () => {
+    const s = ready();
+    sceneTap(data, s, center(CHAR_SLOTS.ppik), 0, false);
+    sceneTap(data, s, MAGPIE, 0, false);
+    for (let i = 0; i < 40; i++) sceneTick(data, s);
+    expect(JSON.parse(JSON.stringify(s))).toEqual(s);
+  });
+});
