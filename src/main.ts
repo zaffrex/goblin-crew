@@ -8,6 +8,7 @@ import screenJson from '../content/screens/magpie_nest.json';
 import texts from '../content/text/ko.json';
 import { CHARACTERS, type CharacterId } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA, WALK_SPEED } from './core/config';
+import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
 import type { HitBox } from './core/hit';
 import { GAUGE_CELLS, HUD_AREA } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
@@ -21,7 +22,7 @@ import { onPointerTap } from './engine/input';
 import { startLoop } from './engine/loop';
 import { drawActiveMarker, drawCharacter, drawHud, drawOutline, drawRoom, drawSpark, drawTarget, drawTargets } from './engine/placeholder';
 import { drawSceneBg, drawSceneFrame, loadSceneArt, sceneArtMeta } from './engine/sceneArt';
-import { drawSprite } from './engine/sprites';
+import { drawSprite, spriteState } from './engine/sprites';
 
 function need<T extends HTMLElement>(selector: string): T {
   const el = document.querySelector<T>(selector);
@@ -47,8 +48,13 @@ const display = createDisplay(canvas, { width: INTERNAL_WIDTH, height: INTERNAL_
 const scene = createScene(data);
 
 // M1 판정 재생 도구(#101)용 읽기 전용 훅. 입력 판정이 쓰는 상자 그대로 돌려준다(scene.ts sceneLayout).
-if (new URLSearchParams(location.search).get('playtest') === '1') {
-  (window as unknown as { __gcLayout: () => unknown }).__gcLayout = () => sceneLayout(data, scene);
+const PLAYTEST = new URLSearchParams(location.search).get('playtest') === '1';
+/** 그림이 다 읽힌 뒤에도 임시 그림으로 그린 것(#142, 판정 2 시작 조건). `?playtest=1`일 때만 모은다. */
+const fallbacks = new Set<string>();
+if (PLAYTEST) {
+  const w = window as unknown as { __gcLayout: () => unknown; __gcFallbacks: () => string[] };
+  w.__gcLayout = () => sceneLayout(data, scene);
+  w.__gcFallbacks = () => [...fallbacks].sort();
 }
 
 /** 터치 첫 탭으로 고른 대상의 라벨. 실행하거나 다른 걸 누르면 지운다. */
@@ -120,7 +126,9 @@ function render(): void {
   const { ctx, internal } = display;
   const layout = sceneLayout(data, scene);
   if (!drawSceneBg(ctx, art)) drawRoom(ctx, internal, WALK_AREA);
-  drawTargets(ctx, uncovered(layout.spots), uncovered(layout.hotspots));
+  const boxSpots = uncovered(layout.spots);
+  const boxHotspots = uncovered(layout.hotspots);
+  drawTargets(ctx, boxSpots, boxHotspots);
 
   // 물건 그림(형식 기록 4·6절): 보이는 플래그로 멈춘 모습, 재생 중 물건 anim은 그 프레임.
   const playing = scene.current?.art ? { ...scene.current.art, ms: scene.current.t * TICK_MS } : null;
@@ -142,6 +150,7 @@ function render(): void {
   });
   for (const o of draws?.overlays ?? []) items.push({ y: o.sortY + 0.5, id: '', frame: o.frame });
   items.sort((a, b) => a.y - b.y || (a.id < b.id ? 1 : -1));
+  const charArt: FrameArt['chars'][number][] = [];
   for (const it of items) {
     if (it.char === undefined) {
       drawSceneFrame(ctx, art!, it.frame!);
@@ -150,7 +159,9 @@ function render(): void {
     const id = it.char;
     const w = scene.walkers[id];
     // 시트에 그 연출이 있으면 시트가 재생하고, 없으면 drawSprite가 null → 실루엣을 흔든다.
-    const top = drawSprite(ctx, w, poseOf(id, layout));
+    const pose = poseOf(id, layout);
+    const top = drawSprite(ctx, w, pose);
+    if (PLAYTEST) charArt.push({ id, sheet: spriteState(id), drawn: top !== null, pose });
     if (top === null) {
       const dx = w.id === shaking && Math.floor(scene.tick / 3) % 2 === 1 ? 1 : 0;
       delete spriteTops[id];
@@ -160,6 +171,16 @@ function render(): void {
     }
   }
   for (const f of draws?.front ?? []) drawSceneFrame(ctx, art!, f);
+  if (PLAYTEST) {
+    const loaded = (img: unknown, ready: boolean): Loaded => (!img ? 'none' : ready ? 'ready' : 'loading');
+    const frame: FrameArt = {
+      bg: loaded(art?.bg, art?.bgReady ?? false),
+      objects: loaded(art, art?.objectsReady ?? false),
+      boxes: [...Object.keys(boxSpots), ...Object.keys(boxHotspots)],
+      chars: charArt,
+    };
+    for (const name of frameFallbacks(frame)) fallbacks.add(name);
+  }
   if (ev?.type === 'fx') {
     const at = anchorOf(ev.target, layout);
     if (at) drawSpark(ctx, at, scene.current?.t ?? 0);
