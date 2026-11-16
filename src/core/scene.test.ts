@@ -580,7 +580,7 @@ describe('칸 신호: show의 fx를 연출 칸에 맞춰 띄운다 (#199, 형식
     expect(s.overlays).toEqual([]);
   });
 
-  it('연출 뒤에 이어진 fx가 여럿이면 다 같이 뜨고, 사이에 다른 이벤트가 끼면 거기서 멈춘다(둥지 삑 show)', () => {
+  it('신호는 연출 바로 뒤 fx 하나만 띄우고, 그 뒤 fx는 연출이 끝난 뒤 차례로 뜬다(둥지 삑 메아리, ADR-0003)', () => {
     const s = createScene(withSheet);
     while (isBusy(s)) sceneTick(withSheet, s);
     s.queue.push(
@@ -588,10 +588,30 @@ describe('칸 신호: show의 fx를 연출 칸에 맞춰 띄운다 (#199, 형식
       { type: 'fx', effect: 'squeak_text', target: 'nest' },
       { type: 'fx', effect: 'small_squeak_text', target: 'ppik' },
       { type: 'say', speaker: 'ppik', text: 'x' },
-      { type: 'fx', effect: 'later', target: 'ppik' },
     );
     untilFx(withSheet, s, 'squeak_text');
-    expect(activeFx(s).map((f) => f.effect)).toEqual(['squeak_text', 'small_squeak_text']);
+    // 꽉! 칸(12틱): 원래 삑만 뜬다. 메아리는 아직 대기열에 있다.
+    expect(s.current?.t).toBe(12);
+    expect(activeFx(s).map((f) => f.effect)).toEqual(['squeak_text']);
+    expect(s.queue.map((e) => e.type)).toEqual(['fx', 'say']);
+    // 연출이 끝나면(1000ms = 60틱) 메아리가 차례로 뜬다. 원래 삑(30틱)은 이미 내려갔다.
+    while (s.current?.ev.type !== 'fx') sceneTick(withSheet, s);
+    expect(activeFx(s).map((f) => f.effect)).toEqual(['small_squeak_text']);
+    expect(s.overlays).toEqual([]);
+    expect(s.queue.map((e) => e.type)).toEqual(['say']);
+  });
+
+  it('연출 바로 뒤가 fx가 아니면 신호는 아무것도 띄우지 않는다', () => {
+    const s = createScene(withSheet);
+    while (isBusy(s)) sceneTick(withSheet, s);
+    s.queue.push(
+      { type: 'anim', target: 'ppik', name: SQUEEZE },
+      { type: 'say', speaker: 'ppik', text: 'x' },
+      { type: 'fx', effect: 'later', target: 'ppik' },
+    );
+    sceneTick(withSheet, s);
+    while (s.current?.ev.type === 'anim' && s.current.t <= 12) sceneTick(withSheet, s);
+    expect(s.overlays).toEqual([]);
     expect(s.queue.map((e) => e.type)).toEqual(['say', 'fx']);
   });
 

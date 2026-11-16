@@ -54,7 +54,7 @@ export interface Playing {
   art?: { object: string; anim: SceneAnim };
   /** 이 이벤트가 도는 동안 화면 가운데 띄울 컷 글 ID(클리어 컷 L32). */
   cut?: string;
-  /** 캐릭터 연출의 칸 신호 시각(틱, 형식 기록 5-2절, #199). 이 틱에 대기열 앞의 `fx`들을 `overlays`로 띄운다. 띄웠으면 지운다. */
+  /** 캐릭터 연출의 칸 신호 시각(틱, 형식 기록 5-2절, #199). 이 틱에 대기열 맨 앞의 `fx` 하나를 `overlays`로 띄운다. 띄웠으면 지운다. */
   cueAt?: number;
 }
 
@@ -452,13 +452,14 @@ export function charPose(data: SceneData, s: SceneState, id: CharacterId): Pose 
 }
 
 /**
- * 칸 신호(#199): 재생 중인 캐릭터 연출이 신호 칸에 닿으면, 대기열 맨 앞에 이어진 `fx`들을 지금 띄운다.
- * show에서 그 연출 바로 뒤에 붙은 fx만 해당한다(사이에 다른 이벤트가 끼면 거기서 멈춘다). 순번(`seq`)은 대기열 순서 그대로다.
+ * 칸 신호(#199): 재생 중인 캐릭터 연출이 신호 칸에 닿으면, show에서 그 연출 바로 뒤에 붙은 `fx` **하나만** 지금 띄운다.
+ * 그 뒤의 fx는 지금처럼 연출이 끝난 뒤 차례로 뜬다(둥지 삑의 메아리가 원래 삑보다 늦게 와야 한다, ADR-0003). 신호 하나 = fx 하나.
+ * 바로 뒤가 fx가 아니면 아무것도 띄우지 않는다. 순번(`seq`)은 대기열 순서 그대로다.
  */
 function fireCue(data: SceneData, s: SceneState, p: Playing): void {
   if (p.cueAt === undefined || p.t < p.cueAt) return;
   delete p.cueAt;
-  while (s.queue[0]?.type === 'fx') s.overlays.push(start(data, s, s.queue.shift()!));
+  if (s.queue[0]?.type === 'fx') s.overlays.push(start(data, s, s.queue.shift()!));
 }
 
 /** 겹쳐 뜬 fx의 시간을 한 틱 보내고, 끝난 것을 내린다. */
