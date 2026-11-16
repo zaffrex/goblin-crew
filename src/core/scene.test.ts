@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import charactersJson from '../../content/characters.json';
 import screenJson from '../../content/screens/magpie_nest.json';
-import type { HitBox } from './hit';
-import { CHAR_SLOTS } from './hud';
+import { hitTest, type HitBox } from './hit';
+import { CHAR_SLOTS, VERB_SLOTS } from './hud';
+import { worldTargets } from './interact';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { createScene, currentBubble, currentCut, isBusy, sceneLayout, sceneTap, sceneTick, TIMING, type SceneData, type SceneState } from './scene';
+import { createScene, currentBubble, currentCut, drawOrder, isBusy, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
 import type { Point } from './viewport';
 
 const data: SceneData = { screen: screenJson as unknown as ScreenData, characters: charactersJson as CharactersData };
@@ -13,6 +14,7 @@ const MAGPIE = center({ left: 134, top: 6, width: 24, height: 24 });
 const NEST = center({ left: 128, top: 30, width: 36, height: 24 });
 const SEESAW_LEFT = center({ left: 208, top: 196, width: 38, height: 24 });
 const HOOK = center({ left: 150, top: 84, width: 24, height: 24 });
+const SEESAW_RIGHT = center({ left: 250, top: 196, width: 38, height: 24 });
 
 function idle(s: SceneState, max = 5000): number {
   let n = 0;
@@ -250,6 +252,104 @@ describe('게이지 0 (#129, ADR-0065 5절 6, ADR-0018 G2)', () => {
     const r = sceneTap(data, s, SEESAW_LEFT, 0, false);
     expect(r.kind).toBe('intent');
     expect(currentCut(s)).toBeNull();
+  });
+});
+
+describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단계, #157)', () => {
+  const BASKET = { x: 160, y: 235 };
+  const pick = (s: SceneState, c: 'jjuk' | 'mukjik' | 'ppik'): void => {
+    sceneTap(data, s, center(CHAR_SLOTS[c]), 0, false);
+  };
+  /** c를 왼쪽 시소 끝에 올리고 묵직이 쿵으로 발사한다. 고리가 비어 있으면 c가 고리에 매달린다. */
+  function launch(s: SceneState, c: 'jjuk' | 'ppik'): void {
+    pick(s, c);
+    sceneTap(data, s, SEESAW_LEFT, 0, false);
+    idle(s);
+    pick(s, 'mukjik');
+    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
+    sceneTap(data, s, SEESAW_RIGHT, 0, false);
+    idle(s);
+  }
+  /** 매달린 c에게 바닥을 누르게 해서 손을 놓게 한다(5절 1단계). */
+  function letGo(s: SceneState, c: 'jjuk' | 'ppik', floor: Point = { x: 400, y: 250 }): void {
+    pick(s, c);
+    sceneTap(data, s, floor, 0, false);
+    idle(s);
+  }
+  const at = (s: SceneState, c: 'jjuk' | 'mukjik' | 'ppik'): Point => ({ x: s.walkers[c].x, y: s.walkers[c].y });
+  /** 그리는 순서에서 두 사람만 뽑는다(뒤 → 앞). 묵직이는 바닥 어딘가에 서 있어서 비교에서 뺀다. */
+  const pair = (s: SceneState, a: 'jjuk' | 'ppik', b: 'jjuk' | 'ppik'): string[] => drawOrder(data, s).filter((c) => c === a || c === b);
+  const hitAt = (s: SceneState, p: Point): string | undefined => hitTest(worldTargets(tapContext(data, s), s.ui), p, 0)?.id;
+
+  it('고리에서 손을 놓으면 누른 바닥 점이 아니라 바구니 안 (160, 235)에 떨어진다', () => {
+    const s = ready();
+    launch(s, 'jjuk');
+    expect(s.puzzle.at.jjuk).toBe('hook');
+    letGo(s, 'jjuk');
+    expect(s.puzzle.at.jjuk).toBe('floor');
+    expect(at(s, 'jjuk')).toEqual(BASKET);
+    expect(s.floorTo.jjuk).toBeUndefined();
+  });
+
+  it('13번(포개짐): 고리의 사람과 시소에서 날아간 사람(via hook)이 둘 다 바구니에 떨어진다', () => {
+    const s = ready();
+    launch(s, 'jjuk');
+    launch(s, 'ppik');
+    expect(s.puzzle.at).toEqual({ jjuk: 'floor', mukjik: 'floor', ppik: 'floor' });
+    expect(at(s, 'jjuk')).toEqual(BASKET);
+    expect(at(s, 'ppik')).toEqual(BASKET);
+    // 규칙의 move 순서대로 떨어진다: 시소의 삑삑이 먼저, 고리의 쭉이가 위.
+    expect(pair(s, 'jjuk', 'ppik')).toEqual(['ppik', 'jjuk']);
+  });
+
+  it('14번(반대로 날아감)은 via가 없어서 지금처럼 그 자리 바로 아래 바닥에 선다', () => {
+    const s = ready();
+    pick(s, 'ppik');
+    sceneTap(data, s, SEESAW_RIGHT, 0, false);
+    idle(s);
+    pick(s, 'mukjik');
+    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
+    sceneTap(data, s, SEESAW_LEFT, 0, false);
+    idle(s);
+    expect(s.puzzle.at.ppik).toBe('floor');
+    expect(at(s, 'ppik')).toEqual({ x: data.screen.spots.seesaw_right!.x, y: data.screen.spots.floor!.y });
+  });
+
+  it('포개지면 나중에 떨어진 사람이 앞에 그려지고 클릭도 받는다(CHARACTERS 순서보다 우선)', () => {
+    const s = ready();
+    launch(s, 'jjuk');
+    letGo(s, 'jjuk');
+    launch(s, 'ppik');
+    letGo(s, 'ppik');
+    expect(at(s, 'ppik')).toEqual(BASKET);
+    expect(pair(s, 'jjuk', 'ppik')).toEqual(['jjuk', 'ppik']);
+    pick(s, 'mukjik'); // 지금 캐릭터 몸은 판정에서 빠지므로 제3자로 바꾼다
+    expect(hitAt(s, { x: 160, y: 225 })).toBe('char:ppik');
+    // 반대 순서면 쭉이가 위다(순번이 이긴다는 확인).
+    s.landed.jjuk = (s.landed.ppik ?? 0) + 1;
+    expect(pair(s, 'jjuk', 'ppik')).toEqual(['ppik', 'jjuk']);
+    expect(hitAt(s, { x: 160, y: 225 })).toBe('char:jjuk');
+  });
+
+  it('바구니 안 캐릭터 상자가 바구니 핫스팟을 덮고, 좌우 끝은 바구니가 받는다', () => {
+    const s = ready();
+    launch(s, 'jjuk');
+    letGo(s, 'jjuk');
+    pick(s, 'mukjik');
+    const [bx, by, bw] = data.screen.hotspots.basket!.box!;
+    expect(hitAt(s, { x: 160, y: 230 })).toBe('char:jjuk');
+    expect(hitAt(s, { x: bx, y: by + 12 })).toBe('hotspot:basket');
+    expect(hitAt(s, { x: bx + bw - 1, y: by + 12 })).toBe('hotspot:basket');
+  });
+
+  it('발 y가 다르면 착지 순번과 상관없이 발 y가 큰 쪽이 앞이다(바구니 앞을 지나는 사람)', () => {
+    const s = ready();
+    launch(s, 'jjuk');
+    letGo(s, 'jjuk');
+    s.walkers.ppik.x = 160;
+    s.walkers.ppik.y = 244;
+    s.landed.ppik = -1;
+    expect(pair(s, 'jjuk', 'ppik')).toEqual(['jjuk', 'ppik']);
   });
 });
 

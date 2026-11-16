@@ -89,6 +89,11 @@ export interface SceneState {
   shown: Record<string, ShownFlags>;
   /** `move floor` 행동에서 걸어갈 바닥 점. 캐릭터별. */
   floorTo: Partial<Record<CharacterId, Point>>;
+  /**
+   * 캐릭터가 순간 배치(손 놓기·`place`·기절)된 이벤트 순번. 발 y가 같으면 나중에 떨어진 사람이 앞에 그려지고
+   * 클릭도 받는다(형식 기록 10절 2단계, 바구니 포개짐). 없으면 -1로 본다.
+   */
+  landed: Partial<Record<CharacterId, number>>;
   cleared: boolean;
 }
 
@@ -140,6 +145,7 @@ export function createScene(data: SceneData): SceneState {
     shown: {},
     counts: {},
     floorTo: {},
+    landed: {},
     cleared: false,
   };
   // onEnter는 상태를 바꾸지 않는 연출이다(ADR-0065 5절). say 화자는 캐릭터 ID만 온다.
@@ -161,8 +167,27 @@ export function bodies(s: SceneState): Record<CharacterId, HitBox> {
   return out;
 }
 
+/**
+ * 캐릭터 그리는 순서(뒤 → 앞). 엔진 그리기와 클릭 판정(`TapContext.order`)이 같이 쓴다(형식 기록 6절 2·3).
+ * 1. `hold` 자리(고리)에 매달린 캐릭터는 맨 앞 2. 발 y가 작을수록 뒤 3. 같으면 나중에 떨어진 사람이 앞
+ * 4. 그래도 같으면 CHARACTERS 순서의 앞쪽(쭉이)이 앞(예전 엔진 순서 그대로).
+ */
+export function drawOrder(data: SceneData, s: SceneState): CharacterId[] {
+  const y = (c: CharacterId): number => (data.screen.spots[s.puzzle.at[c]]?.hold === true ? Infinity : Math.round(s.walkers[c].y));
+  const rank = (c: CharacterId): number => CHARACTERS.findIndex((d) => d.id === c);
+  return CHARACTERS.map((c) => c.id).sort((a, b) => {
+    const ya = y(a);
+    const yb = y(b);
+    if (ya !== yb) return ya - yb;
+    const la = s.landed[a] ?? -1;
+    const lb = s.landed[b] ?? -1;
+    if (la !== lb) return la - lb;
+    return rank(b) - rank(a);
+  });
+}
+
 export function tapContext(data: SceneData, s: SceneState): TapContext {
-  return { screen: data.screen, puzzle: s.puzzle, bodies: bodies(s) };
+  return { screen: data.screen, puzzle: s.puzzle, bodies: bodies(s), order: drawOrder(data, s) };
 }
 
 function pickText(text: string | string[], count: number): string {
@@ -255,6 +280,19 @@ function destination(data: SceneData, s: SceneState, char: CharacterId, to: stri
   return isFree(data, to) ? floorPoint(data, s, char, to) : spotPoint(data, to);
 }
 
+/**
+ * 순간 배치될 때 설 점. `hold` 자리(또는 `via`로 거친 자리)에서 그 `releaseTo`로 떨어지면 `releasePoint`(바구니 안 착지 점),
+ * 아니면 `destination`. 두 사람이 같은 점에 떨어져도 된다(포개짐, 형식 기록 6절 2번).
+ */
+function landing(data: SceneData, s: SceneState, char: CharacterId, from: string, to: string): Point {
+  const h = data.screen.spots[from];
+  if (h?.hold === true && h.releasePoint && h.releaseTo === to) {
+    delete s.floorTo[char];
+    return { x: h.releasePoint[0], y: h.releasePoint[1] };
+  }
+  return destination(data, s, char, to);
+}
+
 function teleport(w: Walker, p: Point): void {
   w.x = p.x;
   w.y = p.y;
@@ -285,13 +323,18 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
       return { ev, t: 0, duration: null, seq };
     }
     case 'release':
-      teleport(s.walkers[ev.char], destination(data, s, ev.char, ev.to));
+      teleport(s.walkers[ev.char], landing(data, s, ev.char, ev.from, ev.to));
+      s.landed[ev.char] = seq;
       return { ev, t: 0, duration: TIMING.release, seq };
     case 'place':
-      teleport(s.walkers[ev.char], destination(data, s, ev.char, ev.to));
+      teleport(s.walkers[ev.char], landing(data, s, ev.char, ev.via ?? ev.from, ev.to));
+      s.landed[ev.char] = seq;
       return { ev, t: 0, duration: TIMING.place, seq };
     case 'faint':
-      for (const c of CHARACTERS) teleport(s.walkers[c.id], destination(data, s, c.id, ev.to[c.id]));
+      for (const c of CHARACTERS) {
+        teleport(s.walkers[c.id], destination(data, s, c.id, ev.to[c.id]));
+        s.landed[c.id] = seq;
+      }
       s.faintCutUntil = s.tick + TIMING.faintCut;
       return { ev, t: 0, duration: TIMING.faint, seq };
     case 'gauge':

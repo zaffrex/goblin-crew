@@ -34,6 +34,11 @@ export interface SpotDef {
   hold?: boolean;
   /** `hold` 자리에서 손을 놓으면 갈 자리(`free` 자리). */
   releaseTo?: string;
+  /**
+   * `hold` 자리에서 `releaseTo`로 내려올 때 설 발 위치(엔진 전용, 코어 규칙은 안 쓴다). 없으면 "지금 x 바로 아래".
+   * 화면 1은 바구니 안 (160, 235)(형식 기록 6절 2번). 손 놓기·이 자리에서의 `move`·`via`로 이 자리를 지나는 `move`에 쓴다.
+   */
+  releasePoint?: [number, number];
   /** 손 놓기 연출. 캐릭터 ID 키가 있으면 그것, 없으면 `default`. */
   releaseShow?: Partial<Record<CharacterId | 'default', ShowItem[]>>;
   /** 정원이 차서 못 갈 때 연출. */
@@ -72,7 +77,11 @@ export interface Condition {
   occupied?: Record<string, boolean>;
 }
 
-export type MoveEffect = { who: CharacterId | 'self'; to: string } | { from: string; to: string };
+/**
+ * `via`: 이 `hold` 자리를 거쳐 떨어진 것으로 본다 → 엔진이 그 자리의 `releasePoint`에 세운다(연출 전용, 상태와 BFS는 같다).
+ * 화면 1의 13번(포개짐)에서 시소에서 날아간 사람이 고리에 부딪혀 바구니로 떨어지는 경우다.
+ */
+export type MoveEffect = ({ who: CharacterId | 'self'; to: string } | { from: string; to: string }) & { via?: string };
 
 /** 효과(ADR-0065 5절). set → give/take → move → gauge 순서로 적용한다. */
 export interface Effect {
@@ -146,7 +155,7 @@ export type PuzzleEvent =
   | { type: 'walk'; char: CharacterId; from: string; to: string }
   | { type: 'release'; char: CharacterId; from: string; to: string }
   /** 규칙 효과 `move`로 자리가 바뀜(시소 발사 등). 걷기가 아니라 순간 배치다. */
-  | { type: 'place'; char: CharacterId; from: string; to: string }
+  | { type: 'place'; char: CharacterId; from: string; to: string; via?: string }
   | { type: 'anim'; target: string; name: string }
   | { type: 'say'; speaker: string; text: string | string[] }
   | { type: 'fx'; effect: string; target: string }

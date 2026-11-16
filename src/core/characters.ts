@@ -19,14 +19,14 @@ export interface CharacterDef {
 
 export const MIN_HIT_SIZE = 24;
 
-// 시트가 있는 캐릭터는 시트 메타(`public/sprites/<id>-base.json`)의 `hit`·`anchor`와 같다(ADR-0007 결정 4:
+// 세 사람 모두 시트 메타(`public/sprites/<id>-base.json`)의 `hit`·`anchor`와 같다(ADR-0007 결정 4:
 // 서 있기 프레임 그림 박스). dx = hit[0] - anchor[0], dy = hit[1] - anchor[1]. 시트가 바뀌면
-// characters.test.ts가 맞출 숫자를 알려 준다. core는 Node 도구(BFS 검사·재생)에서도 돌아서 json을 직접 읽지 않는다.
-// 시트가 없는 캐릭터는 3차 샘플 잠정값: 삑삑이 18×25(anchorX 6)를 사방으로 넓혀 24px.
+// src/engine/sprites.test.ts가 맞출 숫자를 알려 준다. core는 Node 도구(BFS 검사·재생)에서도 돌아서 json을 직접 읽지 않는다.
+// 새 캐릭터를 시트 없이 넣을 때는 히트 박스가 MIN_HIT_SIZE 이상이어야 한다(실루엣이 히트 박스 높이를 다 쓴다).
 export const CHARACTERS: readonly CharacterDef[] = [
   { id: 'jjuk', ability: 'stretch', hit: { dx: -13, dy: -64, width: 28, height: 64 } },
   { id: 'mukjik', ability: 'stomp', hit: { dx: -22, dy: -61, width: 39, height: 61 } },
-  { id: 'ppik', ability: 'squeak', hit: { dx: -9, dy: -25, width: 24, height: 25 } },
+  { id: 'ppik', ability: 'squeak', hit: { dx: -14, dy: -50, width: 33, height: 50 } },
 ];
 
 export function characterDef(id: string): CharacterDef {

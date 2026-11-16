@@ -41,7 +41,7 @@ const CHAR_IDS: readonly CharacterId[] = CHARACTERS.map((c) => c.id);
 const ABILITIES: readonly AbilityVerb[] = CHARACTERS.map((c) => c.ability);
 
 const SCREEN_KEYS = ['id', 'spots', 'hotspots', 'flags', 'start', 'exitFlag', 'onEnter', 'rules', 'fallbacks', 'solution'];
-const SPOT_KEYS = ['x', 'y', 'free', 'capacity', 'box', 'hold', 'releaseTo', 'releaseShow', 'takenShow', 'approach', 'hintAbility'];
+const SPOT_KEYS = ['x', 'y', 'free', 'capacity', 'box', 'hold', 'releaseTo', 'releasePoint', 'releaseShow', 'takenShow', 'approach', 'hintAbility'];
 const HOTSPOT_KEYS = ['box', 'approach', 'variants', 'hintAbility', 'reachPoint'];
 const VARIANT_KEYS = ['when', 'box', 'approach'];
 const RULE_KEYS = ['id', 'target', 'verb', 'when', 'do', 'show'];
@@ -329,8 +329,11 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
       else if (spotRef(s.releaseTo, `${p}.releaseTo`) && !isFree(s.releaseTo)) {
         c.err(`${p}.releaseTo`, 'hold-release', `releaseTo는 free: true 자리여야 한다: ${s.releaseTo}`);
       }
+      if (s.releasePoint !== undefined && !(Array.isArray(s.releasePoint) && s.releasePoint.length === 2 && s.releasePoint.every(isNum))) {
+        c.err(`${p}.releasePoint`, 'schema', 'releasePoint는 [x, y]');
+      }
     } else {
-      for (const k of ['releaseTo', 'releaseShow']) if (s[k] !== undefined) c.err(`${p}.${k}`, 'schema', `${k}는 hold 자리에만`);
+      for (const k of ['releaseTo', 'releasePoint', 'releaseShow']) if (s[k] !== undefined) c.err(`${p}.${k}`, 'schema', `${k}는 hold 자리에만`);
     }
     if (s.releaseShow !== undefined) {
       for (const [k, list] of c.idMap(s.releaseShow, `${p}.releaseShow`)) {
@@ -455,11 +458,17 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
         c.arr(d.move, `${dp}.move`).forEach((m, j) => {
           const mp = `${dp}.move[${j}]`;
           if (!isObj(m)) return c.err(mp, 'schema', '{who, to} 또는 {from, to}');
-          const keys = Object.keys(m).filter((k) => k !== 'note').sort().join(',');
-          if (keys !== 'to,who' && keys !== 'from,to') return c.err(mp, 'schema', '{who, to} 또는 {from, to}');
+          const keys = Object.keys(m).filter((k) => k !== 'note' && k !== 'via').sort().join(',');
+          if (keys !== 'to,who' && keys !== 'from,to') return c.err(mp, 'schema', '{who, to} 또는 {from, to} (+via)');
           if ('who' in m) charRef(m.who, `${mp}.who`, true);
           else spotRef(m.from, `${mp}.from`);
           spotRef(m.to, `${mp}.to`);
+          // via: 그 hold 자리의 releasePoint로 떨어진다. 손 놓기와 같은 곳(releaseTo)으로 가는 move에만 뜻이 있다.
+          if (m.via !== undefined && spotRef(m.via, `${mp}.via`)) {
+            const v = spots.get(m.via as string);
+            if (v?.hold !== true || v.releasePoint === undefined) c.err(`${mp}.via`, 'move-via', `via는 releasePoint가 있는 hold 자리여야 한다: ${m.via}`);
+            else if (v.releaseTo !== m.to) c.err(`${mp}.via`, 'move-via', `via 자리의 releaseTo(${v.releaseTo})와 to(${m.to})가 다르다`);
+          }
         });
       }
     }

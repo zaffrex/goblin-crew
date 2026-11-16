@@ -6,14 +6,14 @@
 import charactersJson from '../content/characters.json';
 import screenJson from '../content/screens/magpie_nest.json';
 import texts from '../content/text/ko.json';
-import { CHARACTERS, type CharacterId } from './core/characters';
+import { type CharacterId } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA, WALK_SPEED } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
 import type { HitBox } from './core/hit';
 import { GAUGE_CELLS, HUD_AREA } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
-import { createScene, currentBubble, isBusy, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
+import { createScene, currentBubble, drawOrder, isBusy, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
 import { coveredIds, litFrames, sceneDraws } from './core/sceneArt';
 import type { Pose } from './core/sprite';
 import { internalToScreen, screenToInternal, type Point } from './core/viewport';
@@ -153,14 +153,14 @@ function render(): void {
   const ev = scene.current?.ev;
   const shaking = ev?.type === 'anim' ? ev.target : null;
   // 6절 2·3: 캐릭터와 overlay(바구니 앞판)를 발 y로 섞는다. 발 y ≤ sortY면 조각 뒤. 고리에 매달린 캐릭터는 항상 맨 앞.
-  type Item = { y: number; id: string; char?: CharacterId; frame?: number };
-  const items: Item[] = CHARACTERS.map((c) => {
-    const w = scene.walkers[c.id];
-    const hanging = data.screen.spots[layout.at[c.id]]?.hold === true;
-    return { y: hanging ? Infinity : Math.round(w.y), id: c.id, char: c.id };
+  // 캐릭터끼리는 `drawOrder`(클릭 판정과 같은 순서, 포개지면 나중에 떨어진 사람이 앞)를 그대로 쓴다.
+  type Item = { y: number; k: number; char?: CharacterId; frame?: number };
+  const items: Item[] = drawOrder(data, scene).map((id, k) => {
+    const hanging = data.screen.spots[layout.at[id]]?.hold === true;
+    return { y: hanging ? Infinity : Math.round(scene.walkers[id].y), k, char: id };
   });
-  for (const o of draws?.overlays ?? []) items.push({ y: o.sortY + 0.5, id: '', frame: o.frame });
-  items.sort((a, b) => a.y - b.y || (a.id < b.id ? 1 : -1));
+  for (const o of draws?.overlays ?? []) items.push({ y: o.sortY + 0.5, k: -1, frame: o.frame });
+  items.sort((a, b) => (a.y === b.y ? a.k - b.k : a.y - b.y));
   const charArt: FrameArt['chars'][number][] = [];
   for (const it of items) {
     if (it.char === undefined) {
