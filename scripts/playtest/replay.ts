@@ -2,9 +2,10 @@
 // 배포 URL을 `?playtest=1`로 열고, scenarios.ts의 행동을 plan.ts로 탭 목록으로 바꿔 **실제 마우스 클릭·터치 탭**으로 보낸다.
 // 게임 함수로 게임을 움직이지 않는다. 읽는 것은 읽기 전용 훅 `window.__gcLayout()`(#68)과 DOM `#bubble`뿐이다.
 // A5(첫 화면)·A6①(세로 안내)은 smoke.ts가 본다.
+// A7(임시 그림, #142): 재생 내내 실루엣·임시 방·임시 상자로 그린 것을 훅 `window.__gcFallbacks()`로 모은다. 판정 2 시작 조건.
 //
-// 사용: node --import ./scripts/playtest/register.mjs scripts/playtest/replay.ts [--url <URL>] [--out <폴더>] [--no-sandbox]
-// 종료 코드: A1~A4 중 하나라도 실패면 1. A6②는 판정 절차대로 경고만.
+// 사용: node --import ./scripts/playtest/register.mjs scripts/playtest/replay.ts [--url <URL>] [--out <폴더>] [--no-sandbox] [--require-art]
+// 종료 코드: A1~A4 중 하나라도 실패면 1. A6②는 판정 절차대로 경고만. A7은 경고만이고, `--require-art`면 임시 그림이 하나라도 있을 때 1.
 
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -21,6 +22,7 @@ const { values: args } = parseArgs({
     url: { type: 'string', default: 'https://zaffrex.github.io/goblin-crew/' },
     out: { type: 'string', default: 'playtest-out/replay' },
     'no-sandbox': { type: 'boolean', default: false },
+    'require-art': { type: 'boolean', default: false },
   },
 });
 
@@ -89,10 +91,19 @@ interface ViewportResult {
   steps: StepResult[];
   probes: ProbeResult[];
   errors: ConsoleError[];
+  /** A7: 임시 그림 이름(`bg`, `box:<id>`, `char:<캐릭터>:<자세>`). 훅이 없는 옛 빌드면 null. */
+  fallbacks: string[] | null;
+}
+
+/** A7 모음. `hook`: 훅 `__gcFallbacks`가 한 번이라도 답했나(옛 빌드 구별). */
+interface ArtSeen {
+  names: Set<string>;
+  hook: boolean;
 }
 
 const layoutOf = (page: Page) => page.evaluate<Layout>('window.__gcLayout()');
 const saidCount = (page: Page) => page.evaluate<number>('window.__ptSaid.length');
+const fallbacksOf = (page: Page) => page.evaluate<string[] | null>(`typeof window.__gcFallbacks === 'function' ? window.__gcFallbacks() : null`);
 const canvasRect = (page: Page) =>
   page.evaluate<Rect>(`(() => { const b = document.querySelector('#game').getBoundingClientRect(); return { left: b.left, top: b.top, width: b.width, height: b.height }; })()`);
 
@@ -139,7 +150,7 @@ async function send(page: Page, v: Viewport, at: { x: number; y: number }): Prom
   else await page.click(p);
 }
 
-async function runScenarios(browser: Browser, v: Viewport, outDir: string, errors: ConsoleError[]): Promise<StepResult[]> {
+async function runScenarios(browser: Browser, v: Viewport, outDir: string, errors: ConsoleError[], art: ArtSeen): Promise<StepResult[]> {
   const results: StepResult[] = [];
   for (const sc of scenarios(screen)) {
     const page = await browser.newPage();
@@ -178,6 +189,12 @@ async function runScenarios(browser: Browser, v: Viewport, outDir: string, error
           break; // 상태가 시나리오와 어긋났으니 이 시나리오의 나머지는 의미가 없다.
         }
       }
+      // A7: 이 시나리오에서 본 임시 그림을 모은다(A2·A3 실패 연출까지 들어간다).
+      const seen = await fallbacksOf(page);
+      if (seen) {
+        art.hook = true;
+        for (const name of seen) art.names.add(name);
+      }
     } finally {
       errors.push(...page.errors);
     }
@@ -206,19 +223,30 @@ async function runProbes(browser: Browser, v: Viewport, outDir: string, errors: 
   return out;
 }
 
-function verdict(r: ViewportResult, check: Step['check'] | 'A4' | 'A6'): string {
+function verdict(r: ViewportResult, check: Step['check'] | 'A4' | 'A6' | 'A7'): string {
   if (check === 'A4') return r.errors.length === 0 ? '✅' : `❌ ${r.errors.length}개`;
+  if (check === 'A7') return r.fallbacks === null ? '— (훅 없음)' : r.fallbacks.length === 0 ? '✅' : `⚠️ ${r.fallbacks.length}개`;
   if (check === 'A6') return r.probes.length === 0 ? '—' : r.probes.every((p) => p.ok) ? '✅' : '⚠️';
   const steps = r.steps.filter((s) => s.check === check);
   if (steps.length === 0) return '—';
   return steps.every((s) => s.problems.length === 0) ? '✅' : '❌';
 }
 
+/** A7 표: 임시 그림 이름마다 어느 뷰포트에서 봤는지. 실루엣 자세 목록이 곧 남은 그림 목록이다. */
+function fallbackTable(results: ViewportResult[]): string[] {
+  const names = [...new Set(results.flatMap((r) => r.fallbacks ?? []))].sort();
+  if (names.length === 0) return [];
+  const L = ['### A7 임시 그림 (`bg` 임시 방 / `box:` 임시 상자 / `char:캐릭터:자세` 실루엣)', '', '| 이름 | ' + results.map((r) => r.viewport.name).join(' | ') + ' |', '|---|' + results.map(() => '---').join('|') + '|'];
+  for (const n of names) L.push(`| \`${n}\` | ${results.map((r) => (r.fallbacks?.includes(n) ? '⚠️' : '')).join(' | ')} |`);
+  return L;
+}
+
 function toMarkdown(results: ViewportResult[], sha: string): string {
   const L: string[] = [`# playtest replay (${new Date().toISOString()})`, '', `- URL: ${playtestUrl(args.url!)}`, `- 시나리오·화면 데이터: 로컬 \`${sha}\` (배포본과 다르면 결과가 어긋날 수 있음)`, ''];
   L.push('| # | ' + results.map((r) => r.viewport.name).join(' | ') + ' |', '|---|' + results.map(() => '---').join('|') + '|');
-  for (const c of ['A1', 'A2', 'A3', 'A4', 'A6'] as const) L.push(`| ${c} | ${results.map((r) => verdict(r, c)).join(' | ')} |`);
-  L.push('', 'A5(첫 화면)·A6①(세로 안내)은 `smoke.ts` 결과를 본다.', '');
+  for (const c of ['A1', 'A2', 'A3', 'A4', 'A6', 'A7'] as const) L.push(`| ${c} | ${results.map((r) => verdict(r, c)).join(' | ')} |`);
+  L.push('', 'A5(첫 화면)·A6①(세로 안내)은 `smoke.ts` 결과를 본다. A7(임시 그림)은 판정 2 시작 조건이다(#142).', '');
+  L.push(...fallbackTable(results), '');
   for (const r of results) {
     L.push(`## ${r.viewport.name} (${r.viewport.width}×${r.viewport.height}, ${r.viewport.input})`, '');
     L.push('| 시나리오 | 칸 | 행동 | 탭 | 말풍선 | 게이지 | 결과 |', '|---|---|---|---|---|---|---|');
@@ -251,9 +279,10 @@ async function main(): Promise<number> {
   try {
     for (const v of VIEWPORTS) {
       const errors: ConsoleError[] = [];
-      const steps = await runScenarios(browser, v, outDir, errors);
+      const art: ArtSeen = { names: new Set(), hook: false };
+      const steps = await runScenarios(browser, v, outDir, errors, art);
       const probes = v.input === 'touch' ? await runProbes(browser, v, outDir, errors) : [];
-      results.push({ viewport: v, steps, probes, errors });
+      results.push({ viewport: v, steps, probes, errors, fallbacks: art.hook ? [...art.names].sort() : null });
     }
   } finally {
     await browser.close();
@@ -263,7 +292,9 @@ async function main(): Promise<number> {
   writeFileSync(join(outDir, 'report.json'), JSON.stringify({ url: args.url, sha, results }, null, 2));
   console.log(md);
   const failed = results.some((r) => r.errors.length > 0 || r.steps.some((s) => s.problems.length > 0));
-  return failed ? 1 : 0;
+  // --require-art: 판정 2 시작 조건 확인용. 훅이 없는 옛 빌드도 통과로 치지 않는다.
+  const artMissing = args['require-art'] && results.some((r) => r.fallbacks === null || r.fallbacks.length > 0);
+  return failed || artMissing ? 1 : 0;
 }
 
 process.exitCode = await main();
