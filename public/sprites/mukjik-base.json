@@ -1,0 +1,49 @@
+{
+  "//": "node art/build.mjs로 만든 파일. 직접 고치지 않는다. 원본: art/sprites/mukjik.mjs. 좌표는 칸 왼쪽 위 기준 px.",
+  "image": "mukjik-base.png",
+  "character": "mukjik",
+  "cell": [
+    48,
+    64
+  ],
+  "anchor": [
+    27,
+    64
+  ],
+  "hit": [
+    5,
+    3,
+    39,
+    61
+  ],
+  "head": [
+    12,
+    2,
+    24,
+    24
+  ],
+  "walkCycle": 24,
+  "anims": {
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "ms": [
+        800,
+        600
+      ]
+    },
+    "walk": {
+      "frames": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "by": "distance"
+    }
+  }
+}

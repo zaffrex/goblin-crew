@@ -11,7 +11,8 @@
 //      (피부 → 진갈색, 셔츠 → 진빨강, 바지 → plum) 바꾸고, 외곽선 바로 안쪽 어두운 쪽(오른쪽·아래)을 한 단 내려
 //      명암을 3~4단으로 만든다. 손은 손가락이 보이게 격자로 찍는다.
 
-import { Canvas, C, EMPTY } from '../lib/pixel.mjs';
+import { Canvas, C } from '../lib/pixel.mjs';
+import { colorLines, rimShade, soles } from '../lib/finish.mjs';
 
 export const CELL = [48, 64];
 const S = 4 / 3;
@@ -195,53 +196,6 @@ function drawLeg(K, side, hx, hy, a, bias) {
   return { shoe, sock };
 }
 
-/** 같은 부품 경계선(색별). 앞 부품과 맞닿은 뒤 부품 픽셀을 뒤 부품의 선 색으로 칠한다. */
-function colorLines(K) {
-  const out = K.c.slice();
-  for (let y = 0; y < K.h; y++)
-    for (let x = 0; x < K.w; x++) {
-      const i = y * K.w + x;
-      const a = K.p[i];
-      if (a < 0) continue;
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const j = K.idx(x + dx, y + dy);
-        if (j < 0) continue;
-        const b = K.p[j];
-        if (b > a && K.parts[b].line && K.parts[b].ramp !== K.parts[a].ramp) {
-          out[i] = LINE.get(K.parts[a].ramp[0]) ?? C.plum;
-          break;
-        }
-      }
-    }
-  K.c = out;
-}
-
-/** 외곽선 바로 안쪽, 빛 반대쪽(오른쪽·아래)이 비어 있는 픽셀을 한 단 내린다. 덩어리감이 생긴다. */
-function rimShade(K, skip) {
-  const out = K.c.slice();
-  for (let y = 0; y < K.h; y++)
-    for (let x = 0; x < K.w; x++) {
-      const c = K.get(x, y);
-      if (c === EMPTY || skip.has(K.p[y * K.w + x])) continue;
-      const open = (dx, dy) => K.get(x + dx, y + dy) === EMPTY;
-      if ((open(1, 0) || open(0, 1)) && DOWN.has(c)) out[y * K.w + x] = DOWN.get(c);
-    }
-  K.c = out;
-}
-
-/** 신발 밑창: 신발 부품의 맨 아랫줄 바로 위 줄을 lint로(운동화 밑창 띠). 맨 아랫줄은 어둡게 둔다(바닥 접지). */
-function soles(K, shoeParts) {
-  for (const pid of shoeParts) {
-    for (let x = 0; x < K.w; x++) {
-      let bottom = -1;
-      for (let y = 0; y < K.h; y++) if (K.p[y * K.w + x] === pid && K.get(x, y) !== EMPTY) bottom = y;
-      if (bottom < 1) continue;
-      if (K.p[(bottom - 1) * K.w + x] === pid) K.c[(bottom - 1) * K.w + x] = C.lint;
-      K.c[bottom * K.w + x] = C.woodD;
-    }
-  }
-}
-
 export function drawFrame(p) {
   const K = new Canvas(CELL[0], CELL[1], S, OX, 0);
   const d = u(p.chest);
@@ -321,7 +275,7 @@ export function drawFrame(p) {
     pattern: (x, y) => (Math.floor(y * S) % 4 < 2 ? R4.stripe : undefined),
   });
   K.limb([[bx(17.6, body(22.0)), body(22.0), 0.95], [19.6, body(25.2), 0.95], [px - 1.4, handY + 0.2, 0.9]], R4.skin);
-  colorLines(K);
+  colorLines(K, LINE);
 
   // 손: 격자로 찍는다(손가락). 부품 번호를 줘서 바깥 외곽선이 손 모양을 따라간다.
   const handPart = K.part(R4.skin);
@@ -346,7 +300,7 @@ export function drawFrame(p) {
   K.stamp(...P(bx(16.3, body(22.0)), body(22.0)), ['AAA', 'AtA'], { A: C.aqua, t: C.tealM });
 
   // 외곽선 안쪽 그늘(장대·머리는 이미 손으로 명암을 넣었으니 뺀다)
-  rimShade(K, new Set([headPart, handPart, pole]));
+  rimShade(K, new Set([headPart, handPart, pole]), DOWN);
   soles(K, feet);
   K.outline();
   return { K, feet, grip: P(px, handY) };
