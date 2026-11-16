@@ -10,7 +10,7 @@ import { TICK_MS, WALK_AREA, WALK_SPEED } from './config';
 import type { HitBox } from './hit';
 import { hotspotBox, hudTargets, tap, type Intent, type TapContext, type UiState } from './interact';
 import { animOf, animTicks, type SceneAnim, type SceneArtMeta } from './sceneArt';
-import { spriteFacing, spriteFrame, type Pose, type SpriteMeta } from './sprite';
+import { cueMs, spriteFacing, spriteFrame, type Pose, type SpriteMeta } from './sprite';
 import { initialState, step } from './puzzle/step';
 import { GAUGE_MAX, type Action, type CharactersData, type PuzzleEvent, type PuzzleState, type ScreenData, type StepSource } from './puzzle/types';
 import type { Point } from './viewport';
@@ -54,6 +54,8 @@ export interface Playing {
   art?: { object: string; anim: SceneAnim };
   /** 이 이벤트가 도는 동안 화면 가운데 띄울 컷 글 ID(클리어 컷 L32). */
   cut?: string;
+  /** 캐릭터 연출의 칸 신호 시각(틱, 형식 기록 5-2절, #199). 이 틱에 대기열 맨 앞의 `fx` 하나를 `overlays`로 띄운다. 띄웠으면 지운다. */
+  cueAt?: number;
 }
 
 /**
@@ -74,6 +76,11 @@ export interface SceneState {
   /** 아직 시작하지 않은 이벤트. */
   queue: PlayEvent[];
   current: Playing | null;
+  /**
+   * 칸 신호로 연출과 겹쳐 뜬 `fx`(#199). `current`와 따로 시간이 간다. 남아 있는 동안 busy다.
+   * 신호 없는 시트·실루엣에서는 늘 비어 있다(fx는 지금처럼 연출이 끝난 뒤 `current`로 돈다).
+   */
+  overlays: Playing[];
   /**
    * 화면에 보이는 게이지. `gauge` 이벤트가 올 때 바뀐다(퍼즐 상태는 이미 확정이라 연출보다 앞선다).
    * `faint`는 "자리 리셋 + 게이지 가득"이다(ADR-0065 5절 6). `step`은 `faint` 뒤에 `gauge` 이벤트를 따로 내지 않으므로
@@ -124,7 +131,7 @@ export interface SceneData {
 
 /** busy = 재생할 이벤트가 하나라도 남아 있다(설계 5절). */
 export function isBusy(s: SceneState): boolean {
-  return s.current !== null || s.queue.length > 0;
+  return s.current !== null || s.queue.length > 0 || s.overlays.length > 0;
 }
 
 function spotPoint(data: SceneData, spotId: string): Point {
@@ -152,6 +159,7 @@ export function createScene(data: SceneData): SceneState {
     walkers,
     queue: [],
     current: null,
+    overlays: [],
     shownGauge: puzzle.gauge,
     faintCutUntil: 0,
     started: 0,
@@ -385,7 +393,10 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
       const obj = data.art?.objects.find((o) => o.ids.includes(ev.target));
       const art = data.art && obj ? animOf(data.art, ev.target, ev.name, shownFlags(s, obj.key)) : null;
       if (art) return { ev, t: 0, duration: animTicks(art.anim), seq, art };
-      return { ev, t: 0, duration: charAnimTicks(data, ev.target, ev.name) ?? TIMING.anim, seq };
+      const p: Playing = { ev, t: 0, duration: charAnimTicks(data, ev.target, ev.name) ?? TIMING.anim, seq };
+      const cue = cueMs(data.sprites?.[ev.target], ev.name);
+      if (cue !== null) p.cueAt = Math.ceil(cue / TICK_MS - 1e-9);
+      return p;
     }
     case 'fx':
       return { ev, t: 0, duration: TIMING.fx, seq };
@@ -440,6 +451,34 @@ export function charPose(data: SceneData, s: SceneState, id: CharacterId): Pose 
   };
 }
 
+/**
+ * 칸 신호(#199): 재생 중인 캐릭터 연출이 신호 칸에 닿으면, show에서 그 연출 바로 뒤에 붙은 `fx` **하나만** 지금 띄운다.
+ * 그 뒤의 fx는 지금처럼 연출이 끝난 뒤 차례로 뜬다(둥지 삑의 메아리가 원래 삑보다 늦게 와야 한다, ADR-0003). 신호 하나 = fx 하나.
+ * 바로 뒤가 fx가 아니면 아무것도 띄우지 않는다. 순번(`seq`)은 대기열 순서 그대로다.
+ */
+function fireCue(data: SceneData, s: SceneState, p: Playing): void {
+  if (p.cueAt === undefined || p.t < p.cueAt) return;
+  delete p.cueAt;
+  if (s.queue[0]?.type === 'fx') s.overlays.push(start(data, s, s.queue.shift()!));
+}
+
+/** 겹쳐 뜬 fx의 시간을 한 틱 보내고, 끝난 것을 내린다. */
+function tickOverlays(s: SceneState): void {
+  s.overlays = s.overlays.filter((o) => {
+    o.t += 1;
+    if (!finished(s, o)) return true;
+    commitShown(s, o.seq, 'end');
+    return false;
+  });
+}
+
+/** 지금 화면에 뜬 효과(fx)들: 대기열 차례로 도는 것 + 칸 신호로 겹쳐 뜬 것. 엔진은 이것만 그린다. */
+export function activeFx(s: SceneState): { effect: string; target: string; t: number }[] {
+  const out: { effect: string; target: string; t: number }[] = [];
+  for (const p of [...s.overlays, s.current]) if (p?.ev.type === 'fx') out.push({ effect: p.ev.effect, target: p.ev.target, t: p.t });
+  return out;
+}
+
 function finished(s: SceneState, p: Playing): boolean {
   if (p.ev.type === 'walk') return s.walkers[p.ev.char].target === null;
   return p.duration !== null && p.t >= p.duration;
@@ -450,18 +489,20 @@ export function sceneTick(data: SceneData, s: SceneState): void {
   s.tick += 1;
   // 엔진 걷기와 자동 걷기 모두 같은 속도로 진행한다. 다른 캐릭터의 걷기는 연출 중에도 계속된다.
   for (const c of CHARACTERS) stepWalker(s.walkers[c.id], TIMING.walkSpeed);
+  tickOverlays(s);
   // 이벤트를 시작한 틱이 그 이벤트의 t=0 프레임이다. 길이 0 이벤트(clear)나 이미 도착한 걷기는 같은 틱에 다음으로 넘어간다.
   for (let guard = 0; guard < 64; guard++) {
     if (s.current === null) {
       const next = s.queue.shift();
       if (!next) {
-        s.held = {};
+        if (s.overlays.length === 0) s.held = {};
         return;
       }
       s.current = start(data, s, next);
     } else {
       s.current.t += 1;
     }
+    fireCue(data, s, s.current);
     if (!finished(s, s.current)) return;
     if (s.current.ev.type === 'faint') s.shownGauge = GAUGE_MAX;
     holdLast(s, s.current);
@@ -503,7 +544,7 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
     }
     return { kind: 'ignored' };
   }
-  if (s.queue.length > 0) return { kind: 'ignored' };
+  if (s.queue.length > 0 || s.overlays.length > 0) return { kind: 'ignored' };
 
   const r = tap(tapContext(data, s), s.ui, p, slop, touch);
   s.ui = r.ui;
