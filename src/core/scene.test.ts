@@ -377,6 +377,52 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
     expect(at(s, 'jjuk')).toEqual({ x: data.screen.spots.seesaw_left!.x, y: data.screen.spots.floor!.y });
   });
 
+  /** 까치를 바닥에 내리고 쭉이를 왼쪽 시소 끝에 올린 뒤, 게이지 1에서 바닥 까치를 뻗게 한다(규칙 7 → 기절). */
+  function peckFromSeesaw(s: SceneState): void {
+    pick(s, 'ppik');
+    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
+    sceneTap(data, s, MAGPIE, 0, false);
+    idle(s);
+    pick(s, 'jjuk');
+    sceneTap(data, s, SEESAW_LEFT, 0, false);
+    idle(s);
+    s.puzzle.gauge = 1;
+    s.shownGauge = 1;
+    const ground = data.screen.hotspots.magpie!.variants![0]!.box!;
+    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
+    sceneTap(data, s, center({ left: ground[0], top: ground[1], width: ground[2], height: ground[3] }), 0, false);
+  }
+
+  it('#215: 바닥을 걸어 (60, 210)에 선 사람은 남 때문에 기절해도 그 점에 그대로 있다', () => {
+    const s = ready();
+    pick(s, 'mukjik');
+    sceneTap(data, s, { x: 60, y: 210 }, 0, false);
+    for (let i = 0; i < 2000 && s.walkers.mukjik.target; i++) sceneTick(data, s);
+    expect(at(s, 'mukjik')).toEqual({ x: 60, y: 210 });
+    peckFromSeesaw(s);
+    const seen = trail(s, 'mukjik');
+    expect(s.puzzle.gauge).toBe(5);
+    expect(seen).toEqual(['60,210']);
+    // 행동한 쭉이(시소 끝)는 지금처럼 그 x의 바닥 y로 내려온다.
+    expect(at(s, 'jjuk')).toEqual({ x: data.screen.spots.seesaw_left!.x, y: data.screen.spots.floor!.y });
+  });
+
+  it('#215: 시소에서 `move floor`로 내려와 선 사람도 기절 때 그 점에 남는다', () => {
+    const s = ready();
+    pick(s, 'ppik');
+    sceneTap(data, s, SEESAW_RIGHT, 0, false);
+    idle(s);
+    expect(s.puzzle.at.ppik).toBe('seesaw_right');
+    sceneTap(data, s, { x: 440, y: 212 }, 0, false); // 시소에서 바닥 점으로(move floor). 묵직이와 안 겹치는 점
+    idle(s);
+    expect(s.puzzle.at.ppik).toBe('floor');
+    const stood = at(s, 'ppik');
+    peckFromSeesaw(s);
+    idle(s);
+    expect(s.puzzle.gauge).toBe(5);
+    expect(at(s, 'ppik')).toEqual(stood);
+  });
+
   it('포개지면 나중에 떨어진 사람이 앞에 그려지고 클릭도 받는다(CHARACTERS 순서보다 우선)', () => {
     const s = ready();
     launch(s, 'jjuk');
