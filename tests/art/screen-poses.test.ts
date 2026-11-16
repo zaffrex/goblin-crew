@@ -21,11 +21,7 @@ const characters = load('content', 'characters.json') as CharactersData;
 
 /** 화면별 아직 그림이 없는 `캐릭터:자세`. 정렬해 둔다. 줄을 지우는 건 그림을 넣은 PR의 몫이다. */
 const MISSING: Record<string, string[]> = {
-  magpie_nest: [
-    'ppik:common.shiver',
-    'ppik:common.wag_finger',
-    'ppik:hide_in_basket',
-  ],
+  magpie_nest: [],
 };
 
 /** 시트가 있는 캐릭터의 `anims` 키. 시트가 없으면 빈 집합(모든 자세가 실루엣). */
