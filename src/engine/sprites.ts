@@ -4,7 +4,7 @@
 // 이미지는 assetUrl()로만 읽는다(ADR-0004 결정 8). 로드 전·실패면 null → 호출하는 쪽이 실루엣을 그린다.
 
 import type { Loaded } from '../core/fallbacks';
-import { frameSourceX, parseSpriteMeta, spriteBox, spriteFacing, spriteFrame, type Pose, type SpriteMeta } from '../core/sprite';
+import { frameSourceX, parseSpriteMeta, spriteBox, spriteFacing, spriteFrame, spritePole, type PoleDraw, type Pose, type SpriteMeta } from '../core/sprite';
 import type { Walker } from '../core/walk';
 import { assetUrl } from './assets';
 import { buildOutlined } from './outline';
@@ -15,6 +15,8 @@ interface Sheet {
   ready: boolean;
   /** 칸마다 호버 외곽선을 칠한 시트(#157 10-1절). 못 만들면 null(외곽선 없음). */
   outlined: HTMLCanvasElement | null;
+  /** 장대 끝 집게 칸 줄(5-1절). 메타에 `claw`가 없으면 null. 아직 안 왔으면 장대도 잇지 않는다. */
+  claw: { image: HTMLImageElement; ready: boolean } | null;
 }
 
 const RAW = import.meta.glob<unknown>('../../public/sprites/*-base.json', { eager: true, import: 'default' });
@@ -31,7 +33,15 @@ function loadSheets(): Map<string, Sheet> {
       continue;
     }
     const image = new Image();
-    const sheet: Sheet = { meta, image, ready: false, outlined: null };
+    const sheet: Sheet = { meta, image, ready: false, outlined: null, claw: null };
+    if (meta.claw) {
+      const claw = { image: new Image(), ready: false };
+      claw.image.onload = () => {
+        claw.ready = true;
+      };
+      claw.image.src = assetUrl(`sprites/${meta.claw.image}`);
+      sheet.claw = claw;
+    }
     image.onload = () => {
       const [cw, ch] = meta.cell;
       const cells = Array.from({ length: Math.floor(image.naturalWidth / cw) }, (_, i) => [frameSourceX(meta, i), 0, cw, ch] as const);
@@ -84,5 +94,29 @@ export function drawSprite(ctx: CanvasRenderingContext2D, w: Walker, pose: Pose,
     ctx.drawImage(image, sx, 0, cw, ch, -ax, fy - ay, cw, ch);
     ctx.restore();
   }
+  const pole = sheet.claw?.ready ? spritePole(meta, pose, w.x, w.y, facing) : null;
+  if (pole) drawPole(ctx, sheet.image, sheet.claw!.image, meta, pole);
   return spriteBox(meta, w.x, w.y, facing).top + meta.hit[1];
+}
+
+/**
+ * 칸 위로 이은 장대(tip 0행 4px를 위로 늘림)와 끝 집게(파이프라인 기록 5-1절, #189).
+ * 장대 줄은 외곽선 시트가 아니라 원본에서 자른다(0행 잉크가 외곽선 주황으로 늘어나지 않게). 호버 외곽선은 몸에만 있다.
+ */
+function drawPole(ctx: CanvasRenderingContext2D, image: HTMLImageElement, clawImage: HTMLImageElement, meta: SpriteMeta, p: PoleDraw): void {
+  const [cw, ch] = meta.claw!.cell;
+  const { src } = p;
+  const blit = (img: HTMLImageElement, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dh: number): void => {
+    if (!p.flip) {
+      ctx.drawImage(img, sx, sy, sw, sh, dx, dy, sw, dh);
+      return;
+    }
+    ctx.save();
+    ctx.translate(dx + sw, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(img, sx, sy, sw, sh, 0, dy, sw, dh);
+    ctx.restore();
+  };
+  blit(image, src.x, src.y, src.width, 1, p.left, p.top, p.bottom - p.top);
+  blit(clawImage, p.claw * cw, 0, cw, ch, p.clawLeft, p.clawTop, ch);
 }

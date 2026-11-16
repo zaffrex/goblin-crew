@@ -7,15 +7,14 @@ import charactersJson from '../content/characters.json';
 import screenJson from '../content/screens/magpie_nest.json';
 import texts from '../content/text/ko.json';
 import { type CharacterId } from './core/characters';
-import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA, WALK_SPEED } from './core/config';
+import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
 import type { HitBox } from './core/hit';
 import { GAUGE_CELLS, HUD_AREA } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
-import { createScene, currentBubble, drawOrder, isBusy, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
+import { charPose, createScene, currentBubble, drawOrder, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
 import { coveredIds, litFrames, sceneDraws } from './core/sceneArt';
-import type { Pose } from './core/sprite';
 import { internalToScreen, screenToInternal, type Point } from './core/viewport';
 import { createDisplay } from './engine/display';
 import { onPointerTap } from './engine/input';
@@ -105,19 +104,6 @@ function anchorOf(target: string, layout: ReturnType<typeof sceneLayout>): Point
   return { x: box.left + box.width / 2, y: top };
 }
 
-/** 장면 상태 → 시트 자세. 퍼즐 상태는 자리(`at`)만 본다. 연출은 재생 중인 이벤트로만 안다(ADR-0065 5절). */
-function poseOf(id: CharacterId, layout: ReturnType<typeof sceneLayout>): Pose {
-  const w = scene.walkers[id];
-  const cur = scene.current;
-  const ev = cur?.ev.type === 'anim' && cur.ev.target === id ? cur.ev : null;
-  return {
-    walkedPx: w.target ? w.walkTicks * WALK_SPEED : null,
-    holding: data.screen.spots[layout.at[id]]?.hold === true,
-    event: ev ? { name: ev.name, ms: cur!.t * TICK_MS } : null,
-    clockMs: scene.tick * TICK_MS,
-  };
-}
-
 function placeDom(el: HTMLElement, at: Point): void {
   const s = internalToScreen(at, display.rect(), display.internal);
   el.style.left = `${Math.round(s.x)}px`;
@@ -157,7 +143,7 @@ function render(): void {
   // 캐릭터끼리는 `drawOrder`(클릭 판정과 같은 순서, 포개지면 나중에 떨어진 사람이 앞)를 그대로 쓴다.
   type Item = { y: number; k: number; char?: CharacterId; frame?: number };
   const items: Item[] = drawOrder(data, scene).map((id, k) => {
-    const hanging = data.screen.spots[layout.at[id]]?.hold === true;
+    const hanging = isHanging(data, scene, id);
     return { y: hanging ? Infinity : Math.round(scene.walkers[id].y), k, char: id };
   });
   for (const o of draws?.overlays ?? []) items.push({ y: o.sortY + 0.5, k: -1, frame: o.frame });
@@ -170,8 +156,8 @@ function render(): void {
     }
     const id = it.char;
     const w = scene.walkers[id];
-    // 시트에 그 연출이 있으면 시트가 재생하고, 없으면 drawSprite가 null → 실루엣을 흔든다.
-    const pose = poseOf(id, layout);
+    // 시트에 그 연출이 있으면 시트가 재생하고(끝나면 마지막 장 유지, #189), 없으면 drawSprite가 null → 실루엣을 흔든다.
+    const pose = charPose(data, scene, id);
     const top = drawSprite(ctx, w, pose, id === litTarget);
     if (PLAYTEST) charArt.push({ id, sheet: spriteState(id), drawn: top !== null, pose });
     if (top === null) {

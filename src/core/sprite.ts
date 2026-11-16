@@ -8,9 +8,26 @@ import type { HitBox } from './hit';
 import type { Facing } from './walk';
 
 export type SpriteAnim = ({ frames: number[]; ms: number[] } | { frames: number[]; by: 'distance' }) & {
-  /** 이 자세 동안 고정할 방향. 지금은 `hold`만 쓴다(고리 손 기준점이 이 방향으로 맞춰져 있다, #182). */
+  /**
+   * 이 자세 동안 고정할 방향. `hold`(고리 손 기준점이 이 방향으로 맞춰져 있다, #182)와,
+   * 매달린 채 재생하는 연출(`reach_hang_up`)에 쓴다. 연출의 `facing`은 그 연출 동안 `hold`보다 앞선다(#189).
+   */
   facing?: Facing;
+  /**
+   * 칸 위로 나가는 장대(파이프라인 기록 5-1절). 프레임마다 칸 안에서 장대가 나가는 점(오른쪽을 본 시트 기준).
+   * x는 픽셀 경계(연속 좌표)라 2px 장대의 가운데선이다. 있으면 `claw`도 프레임마다 있다.
+   */
+  tip?: [x: number, y: number][];
+  /** 프레임마다 집게 칸 번호(시트 최상위 `claw` 줄). */
+  claw?: number[];
 };
+
+/** 장대 끝 집게 칸 줄(5-1절). `anchor`는 장대가 들어오는 아래 가운데(픽셀 경계). */
+export interface ClawMeta {
+  image: string;
+  cell: [w: number, h: number];
+  anchor: [x: number, y: number];
+}
 
 export interface SpriteMeta {
   image: string;
@@ -20,6 +37,7 @@ export interface SpriteMeta {
   hit: [x: number, y: number, w: number, h: number];
   walkCycle: number;
   anims: Record<string, SpriteAnim>;
+  claw?: ClawMeta;
 }
 
 const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v);
@@ -36,7 +54,10 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
   if (!intTuple(m.cell, 2) || !intTuple(m.anchor, 2) || !intTuple(m.hit, 4)) fail('cell·anchor·hit 형식');
   if (!isInt(m.walkCycle) || m.walkCycle <= 0) fail('walkCycle');
   if (typeof m.anims !== 'object' || m.anims === null) fail('anims 없음');
-  for (const [name, a] of Object.entries(m.anims as Record<string, { frames?: unknown[]; ms?: unknown[]; by?: unknown; facing?: unknown }>)) {
+  const claw = m.claw as Partial<ClawMeta> | undefined;
+  if (claw !== undefined && (typeof claw.image !== 'string' || !intTuple(claw.cell, 2) || !intTuple(claw.anchor, 2))) fail('claw 형식');
+  type RawAnim = { frames?: unknown[]; ms?: unknown[]; by?: unknown; facing?: unknown; tip?: unknown; claw?: unknown };
+  for (const [name, a] of Object.entries(m.anims as Record<string, RawAnim>)) {
     if (!Array.isArray(a.frames) || a.frames.length === 0 || !a.frames.every(isInt)) fail(`${name}.frames`);
     if ('by' in a) {
       if (a.by !== 'distance') fail(`${name}.by`);
@@ -44,6 +65,12 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
       fail(`${name}.ms는 frames와 길이가 같은 양의 정수 배열`);
     }
     if ('facing' in a && a.facing !== 1 && a.facing !== -1) fail(`${name}.facing은 1 또는 -1`);
+    if ('tip' in a || 'claw' in a) {
+      const n = a.frames!.length;
+      if (!claw) fail(`${name}.tip이 있는데 시트 claw가 없음`);
+      if (!Array.isArray(a.tip) || a.tip.length !== n || !a.tip.every((t) => intTuple(t, 2))) fail(`${name}.tip은 프레임마다 [x, y]`);
+      if (!Array.isArray(a.claw) || a.claw.length !== n || !a.claw.every((c) => isInt(c) && c >= 0)) fail(`${name}.claw는 프레임마다 집게 칸 번호`);
+    }
   }
   return m as SpriteMeta;
 }
@@ -58,6 +85,8 @@ export interface Pose {
   event: { name: string; ms: number } | null;
   /** 전역 시간(ms). 서 있기 반복용. */
   clockMs: number;
+  /** 지금 행동의 대상 점(핫스팟 `reachPoint`). 장대를 칸 밖으로 이을 때 쓴다(5-1절). 없으면 잇지 않는다. */
+  reach?: { x: number; y: number } | null;
 }
 
 /**
@@ -68,11 +97,11 @@ export interface Pose {
 export function spriteFrame(meta: SpriteMeta, pose: Pose): number | null {
   if (pose.event) {
     const a = meta.anims[pose.event.name];
-    return a ? timedFrame(a, pose.event.ms, false) : null;
+    return a ? a.frames[timedIndex(a, pose.event.ms, false)]! : null;
   }
   if (pose.holding) {
     const a = meta.anims.hold;
-    return a ? timedFrame(a, pose.clockMs, true) : null;
+    return a ? a.frames[timedIndex(a, pose.clockMs, true)]! : null;
   }
   if (pose.walkedPx !== null) {
     const a = meta.anims.walk;
@@ -83,27 +112,79 @@ export function spriteFrame(meta: SpriteMeta, pose: Pose): number | null {
     return a.frames[i]!;
   }
   const a = meta.anims.idle;
-  return a ? timedFrame(a, pose.clockMs, true) : null;
+  return a ? a.frames[timedIndex(a, pose.clockMs, true)]! : null;
 }
 
 /**
- * 그릴 방향. 매달린 동안은 시트 `hold.facing`이 있으면 그 방향이다(걸어온 방향과 상관없이 주먹이 고리에 맞게).
- * 매달린 채 연출(찌릿 등)이 재생돼도 같은 자리에 있으니 방향을 바꾸지 않는다. 그 밖에는 걷는 방향 그대로.
+ * 그릴 방향. 연출 자세에 `facing`이 있으면 그 연출 동안 그 방향(#189, 둥지 뻗기).
+ * 매달린 동안은 시트 `hold.facing`이 있으면 그 방향이다(걸어온 방향과 상관없이 주먹이 고리에 맞게).
+ * 매달린 채 `facing` 없는 연출(찌릿 등)이 재생돼도 같은 자리에 있으니 방향을 바꾸지 않는다. 그 밖에는 걷는 방향 그대로.
  */
 export function spriteFacing(meta: SpriteMeta, pose: Pose, walking: Facing): Facing {
-  return (pose.holding && meta.anims.hold?.facing) || walking;
+  const own = pose.event ? meta.anims[pose.event.name]?.facing : undefined;
+  return own || (pose.holding && meta.anims.hold?.facing) || walking;
 }
 
-/** `ms` 애니메이션의 지금 프레임. 반복하지 않으면 마지막 프레임에 머문다. 거리 넘김 애니메이션은 첫 프레임. */
-function timedFrame(a: SpriteAnim, ms: number, loop: boolean): number {
-  if (!('ms' in a)) return a.frames[0]!;
+/** `ms` 애니메이션의 지금 칸 순서(0부터). 반복하지 않으면 마지막 칸에 머문다. 거리 넘김 애니메이션은 첫 칸. */
+function timedIndex(a: SpriteAnim, ms: number, loop: boolean): number {
+  if (!('ms' in a)) return 0;
   const total = a.ms.reduce((x, y) => x + y, 0);
   let t = loop ? ((ms % total) + total) % total : Math.max(0, ms);
   for (let i = 0; i < a.frames.length; i++) {
     t -= a.ms[i]!;
-    if (t < 0) return a.frames[i]!;
+    if (t < 0) return i;
   }
-  return a.frames[a.frames.length - 1]!;
+  return a.frames.length - 1;
+}
+
+/**
+ * 칸 위로 이은 장대와 끝 집게(파이프라인 기록 5-1절, #189). 모든 값은 내부 좌표 정수 px.
+ * - 장대: 시트 이미지의 `src` 칸(가로 `width`, 세로 1행 = tip 0행)을 화면 `left`, `top`~`bottom`(미포함)으로 늘려 붙인다.
+ * - 집게: 집게 줄의 `claw`번 칸을 `clawLeft`·`clawTop`에 그린다. `flip`이면 둘 다 좌우로 뒤집어 붙인다(그 칸 안에서).
+ */
+export interface PoleDraw {
+  src: { x: number; y: number; width: number };
+  left: number;
+  top: number;
+  bottom: number;
+  claw: number;
+  clawLeft: number;
+  clawTop: number;
+  flip: boolean;
+}
+
+/** 이은 장대 폭: 장대 2px + 양옆 잉크 1px. tip은 가운데선(픽셀 경계)이다. */
+export const POLE_WIDTH = 4;
+
+/**
+ * 지금 자세가 `tip` 있는 연출이고 대상 점이 칸 위에 있으면 이을 장대. 아니면 null.
+ * 장대는 직선(ADR-0003)이라 tip x에서 **수직으로** 대상 점 y까지 잇는다. 대상 점 x는 쓰지 않는다
+ * (2px 장대를 뒤집으면 가운데선이 1px 옮겨 가서, 대상 점으로 꺾으면 중간에 1px 꺾임이 생긴다, PR #188 리뷰).
+ */
+export function spritePole(meta: SpriteMeta, pose: Pose, x: number, y: number, facing: Facing): PoleDraw | null {
+  const name = pose.event?.name;
+  const a = name ? meta.anims[name] : undefined;
+  if (!a?.tip || !a.claw || !meta.claw || !pose.reach) return null;
+  const i = timedIndex(a, pose.event!.ms, false);
+  const [tx, ty] = a.tip[i]!;
+  const box = spriteBox(meta, x, y, facing);
+  // 칸 안 연속 좌표 c → 화면: 오른쪽이면 left + c, 왼쪽이면 칸을 뒤집어 left + (w − c).
+  const sx = facing === 1 ? box.left + tx : box.left + (meta.cell[0] - tx);
+  const bottom = box.top + ty;
+  const top = Math.round(pose.reach.y);
+  if (top >= bottom) return null;
+  const [cw] = meta.claw.cell;
+  const [cax, cay] = meta.claw.anchor;
+  return {
+    src: { x: frameSourceX(meta, a.frames[i]!) + tx - POLE_WIDTH / 2, y: ty, width: POLE_WIDTH },
+    left: sx - POLE_WIDTH / 2,
+    top,
+    bottom,
+    claw: a.claw[i]!,
+    clawLeft: facing === 1 ? sx - cax : sx - (cw - cax),
+    clawTop: top - cay,
+    flip: facing === -1,
+  };
 }
 
 /**

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WALK_SPEED } from './config';
 import jjukJson from '../../public/sprites/jjuk-base.json';
-import { frameSourceX, parseSpriteMeta, spriteBox, spriteFacing, spriteFrame, type Pose, type SpriteMeta } from './sprite';
+import { frameSourceX, parseSpriteMeta, POLE_WIDTH, spriteBox, spriteFacing, spriteFrame, spritePole, type Pose, type SpriteMeta } from './sprite';
 
 const JJUK = parseSpriteMeta(jjukJson);
 const still: Pose = { walkedPx: null, holding: false, event: null, clockMs: 0 };
@@ -20,6 +20,10 @@ describe('parseSpriteMeta', () => {
     ['by가 distance가 아님', { anims: { walk: { frames: [2], by: 'time' } } }],
     ['frames 비었음', { anims: { idle: { frames: [], ms: [] } } }],
     ['facing이 1·-1이 아님', { anims: { hold: { frames: [0], ms: [450], facing: 0 } } }],
+    ['tip 길이가 frames와 다름', { anims: { r: { frames: [0, 1], ms: [50, 50], tip: [[34, 0]], claw: [0, 1] } } }],
+    ['tip이 있는데 claw 번호 없음', { anims: { r: { frames: [0], ms: [50], tip: [[34, 0]] } } }],
+    ['tip이 있는데 시트 claw 없음', { claw: undefined, anims: { r: { frames: [0], ms: [50], tip: [[34, 0]], claw: [0] } } }],
+    ['시트 claw anchor 형식', { claw: { image: 'x.png', cell: [8, 8], anchor: [4] } }],
   ])('%s → 던진다(그 캐릭터는 실루엣으로 남는다)', (_, patch) => {
     expect(() => parseSpriteMeta({ ...JJUK, ...patch })).toThrow(/스프라이트 메타 오류/);
   });
@@ -120,8 +124,53 @@ describe('spriteFacing', () => {
     expect(spriteFacing(withHold(-1), { ...hanging, event: { name: 'common.zap', ms: 0 } }, 1)).toBe(-1);
   });
 
+  it('연출 자세에 facing이 있으면 그 연출 동안 그 방향이다(둥지 뻗기 reach_hang_up, #189)', () => {
+    const reachPose: Pose = { ...hanging, event: { name: 'reach_hang_up', ms: 0 } };
+    expect(JJUK.anims.reach_hang_up?.facing).toBe(-1);
+    expect(spriteFacing(JJUK, reachPose, 1)).toBe(-1);
+    expect(spriteFacing(JJUK, { ...reachPose, holding: false }, 1)).toBe(-1);
+    // 발사 연출은 방향을 고정하지 않는다(그림 주석 "시소에 어느 쪽에서 왔든").
+    expect(spriteFacing(JJUK, { ...still, event: { name: 'launch_to_hook', ms: 0 } }, 1)).toBe(1);
+  });
+
   it('매달리지 않았거나 시트에 hold.facing이 없으면 걷는 방향', () => {
     expect(spriteFacing(withHold(-1), { ...hanging, holding: false }, 1)).toBe(1);
     expect(spriteFacing(withHold(), hanging, 1)).toBe(1);
+  });
+});
+
+describe('spritePole (5-1절 장대 잇기, #189)', () => {
+  const reach = JJUK.anims.reach_hang_up!;
+  const HOOK = { x: 160, y: 160 };
+  const NEST = { x: 150, y: 34 };
+  const pose = (ms: number, extra: Partial<Pose> = {}): Pose => ({ ...still, holding: true, event: { name: 'reach_hang_up', ms }, reach: NEST, ...extra });
+
+  it('고리에서 왼쪽을 보면 tip x 34가 화면 151(장대 150·151열)이고, 칸 위 끝 96에서 둥지 y 34까지 수직으로 잇는다', () => {
+    const p = spritePole(JJUK, pose(0), HOOK.x, HOOK.y, -1)!;
+    expect(p).not.toBeNull();
+    expect(p.left).toBe(149); // 잉크 149, 장대 150·151, 잉크 152
+    expect([p.top, p.bottom]).toEqual([34, 96]);
+    expect(p.src).toEqual({ x: frameSourceX(JJUK, reach.frames[0]!) + 34 - POLE_WIDTH / 2, y: 0, width: POLE_WIDTH });
+    // 집게 8×8, anchor (4,8): 장대 가운데선에 맞추고 아래 끝이 대상 y.
+    expect([p.clawLeft, p.clawTop, p.flip]).toEqual([151 - 4, 26, true]);
+  });
+
+  it('오른쪽을 보면 뒤집지 않고 칸 왼쪽 + tip x', () => {
+    const p = spritePole(JJUK, pose(0), HOOK.x, HOOK.y, 1)!;
+    const left = HOOK.x - JJUK.anchor[0];
+    expect(p.left).toBe(left + 34 - 2);
+    expect([p.clawLeft, p.flip]).toEqual([left + 34 - 4, false]);
+  });
+
+  it('집게 칸은 프레임마다(벌림 → 다묾), 연출이 끝난 뒤(마지막 장 유지)에도 마지막 칸', () => {
+    const at = (ms: number): number => spritePole(JJUK, pose(ms), HOOK.x, HOOK.y, -1)!.claw;
+    expect([at(0), at(349), at(350), at(600), at(5000)]).toEqual([reach.claw![0], reach.claw![0], reach.claw![1], reach.claw![2], reach.claw![2]]);
+  });
+
+  it('tip 없는 자세, 대상 점 없음, 대상이 칸 위가 아님 → 잇지 않는다', () => {
+    expect(spritePole(JJUK, pose(0, { event: { name: 'common.zap', ms: 0 } }), HOOK.x, HOOK.y, -1)).toBeNull();
+    expect(spritePole(JJUK, pose(0, { event: null }), HOOK.x, HOOK.y, -1)).toBeNull();
+    expect(spritePole(JJUK, pose(0, { reach: null }), HOOK.x, HOOK.y, -1)).toBeNull();
+    expect(spritePole(JJUK, pose(0, { reach: { x: 150, y: 120 } }), HOOK.x, HOOK.y, -1)).toBeNull();
   });
 });
