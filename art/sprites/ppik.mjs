@@ -15,7 +15,7 @@
 
 import { Canvas, C } from '../lib/pixel.mjs';
 import { colorLines, rimShade, soles } from '../lib/finish.mjs';
-import { puff, streaks } from '../lib/fx.mjs';
+import { puff, shadow, streaks } from '../lib/fx.mjs';
 import { squash } from '../lib/squash.mjs';
 
 export const CELL = [48, 64];
@@ -76,6 +76,7 @@ export function pose(kind, k) {
   if (kind === 'hold') return HOLD[k];
   if (kind === 'launch_to_hook') return LAUNCH[k];
   if (kind === 'common.flatten') return FLATTEN[k];
+  if (kind === 'common.bump_bottom') return BUMP[k];
   if (kind === 'idle') {
     return {
       chest: k, // 숨 들이쉬기 / 내쉬기
@@ -423,6 +424,41 @@ const FLATTEN = [
   },
 ];
 
+// common.bump_bottom  공용 "엉덩방아"(쭉이 jjuk-v4.mjs와 같은 박자). 고리에서 손 놓기(3번, 바구니 착지 점)와
+//   반대쪽 발사(14번, 빨랫줄에 걸렸다 떨어짐)에서 나온다. 엔진에 떨어지는 궤적이 없어서(release = 순간 배치) 0번 칸이 "위에서 떨어지는 중"을 맡는다.
+//   개그: 엉덩이가 바닥에 닿는 순간 품의 고무 닭이 먼저 운다(납작과 같은 단서). 우비가 종처럼 내려앉아 앉은 삑삑이는 노란 텐트 + 장화 두 짝이 된다.
+//   0 낙하(몸은 칸 위쪽, 장화가 대롱대롱, 닭을 치켜든 비명, 위로 끊기는 속도선, 착지 자리 그림자)
+//   → 1 쿵(엉덩이로 앉으며 눌림, 장화가 튀어 오르고 닭 부리 쩍, 양옆 먼지) → 2 아야(뒤로 기울어 휘청, 바늘 눈 + 벌린 입)
+//   → 3 멍(앉은 채 비뚤어진 안경, 덜덜 입, 땀, 닭 머리 축 처짐). 말풍선 동안 3번 칸이 남는다(#193).
+//   앉은 몸 = 서 있기 몸을 chest 10(① 7.5)만큼 내린 것: 골반 45.5, 우비 밑단이 바닥 행에 닿는다. 방향은 고정하지 않는다.
+const SIT = 10;
+const BUMP = [
+  { // 0 낙하: 칸 위쪽에서 떨어진다(oy, 후드가 칸 위 끝에 닿는 만큼). 장화는 대롱대롱, 닭을 치켜들고 비명
+    chest: 0, lean: -1, oy: -14,
+    legs: { back: { x: -0.8, lift: 0.4, toe: true }, front: { x: 1.6, lift: 1.4, toe: true } },
+    eyes: 'wide', mouth: 'o', glassesUp: 1, sweat: -1, chickHead: -2, chickUp: 4, flare: 1,
+    fx: (K) => { streaks(K, [[5, 2, 22], [9, 0, 14], [40, 4, 20], [44, 0, 12]], { fall: true }); shadow(K, 24, 18); },
+  },
+  { // 1 쿵: 엉덩이로 털썩. 몸이 눌리고 장화가 튀어 오른다. 닭도 눌려 부리가 쩍
+    chest: SIT, lean: 0,
+    legs: { back: { x: 6.4, lift: 3.0, toe: true }, front: { x: 8.4, lift: 5.0, toe: true } },
+    eyes: 'shut', mouth: 'clench', sweat: -1, chickHead: -3, chickUp: 4, squash: 1, beakOpen: true, flare: 1,
+    flat: { sx: 1.12, sy: 0.84 },
+    fx: (K) => { puff(K, 6, 1, { behind: true }); puff(K, 41, 0, { behind: true }); },
+  },
+  { // 2 아야: 반동에 뒤로 휘청. 장화는 바닥에 털썩, 바늘 눈 + 벌린 입, 닭은 부풀며 머리가 늦게 내려온다
+    chest: SIT, lean: -2,
+    legs: { back: { x: 6.8, lift: 0, toe: false }, front: { x: 8.6, lift: 0.8, toe: true } },
+    eyes: 'wide', mouth: 'o', glassesUp: 1, sweat: 0, chickHead: 2, chickUp: 3, flare: 0,
+    fx: (K) => puff(K, 24, 2, { behind: true }),
+  },
+  { // 3 멍: 앉은 채 비뚤어진 안경, 덜덜 입, 땀. 닭 머리는 축 처진다
+    chest: SIT, lean: 0,
+    legs: { back: { x: 6.8, lift: 0, toe: false }, front: { x: 8.4, lift: 0, toe: false } },
+    eyes: 'askew', mouth: 'shake', sweat: 1, chickHead: 2, chickUp: 2, flare: 0,
+  },
+];
+
 /** 사라진 칸(launch_to_hook 2·3): 속도선·먼지만(외곽선 없음). 3번 칸에는 남겨진 땀방울이 떨어진다. */
 function drawZip(p) {
   const K = new Canvas(CELL[0], CELL[1], S, OX, 0);
@@ -449,6 +485,7 @@ export const SHEET = {
     { name: 'hold', frames: 2, ms: [300, 450] },
     { name: 'launch_to_hook', frames: 4, ms: [150, 100, 100, 150] },
     { name: 'common.flatten', frames: 4, ms: [100, 600, 150, 450] },
+    { name: 'common.bump_bottom', frames: 4, ms: [100, 400, 300, 500] },
   ],
   pose,
   drawFrame,

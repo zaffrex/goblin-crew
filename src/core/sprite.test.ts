@@ -71,7 +71,7 @@ describe('spriteFrame', () => {
   it('시트에 없는 자세는 null(실루엣): 매달림, 아직 안 그린 연출', () => {
     const noHold = Object.fromEntries(Object.entries(JJUK.anims).filter(([name]) => name !== 'hold'));
     expect(spriteFrame({ ...JJUK, anims: noHold }, { ...still, holding: true })).toBeNull();
-    expect(spriteFrame(JJUK, { ...still, event: { name: 'common.bump_bottom', ms: 0 } })).toBeNull();
+    expect(spriteFrame(JJUK, { ...still, event: { name: 'test.never_drawn', ms: 0 } })).toBeNull();
   });
 
   it('쭉이 시트의 화면 1 자세(#142): 매달림은 반복, 찌릿은 500ms 안에 끝나고 마지막 장에 머문다', () => {
