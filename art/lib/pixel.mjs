@@ -87,7 +87,7 @@ export class Canvas {
     this.parts.push({ ramp, line });
     return this.parts.length - 1;
   }
-  // 공: 중심·반지름은 ① 좌표
+  // 공: 중심·반지름은 ① 좌표. opt.clip(x, y)가 false인 ① 좌표 픽셀은 칠하지 않는다.
   ball(cx, cy, rx, ry, ramp, opt = {}) {
     const pid = this.part(ramp, opt.line ?? true);
     const s = this.s;
@@ -97,6 +97,7 @@ export class Canvas {
         const nx = (x + 0.5 - X) / RX, ny = (y + 0.5 - Y) / RY;
         const r2 = nx * nx + ny * ny;
         if (r2 > 1) continue;
+        if (opt.clip && !opt.clip((x + 0.5 - this.ox) / s, (y + 0.5 - this.oy) / s)) continue; // ① 좌표로 잘라 내기
         const nz = Math.sqrt(1 - r2);
         const d = nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2] + (opt.bias ?? 0);
         this.put(x, y, rampIndex(ramp, d, x, y, this.big), pid);
