@@ -27,8 +27,6 @@ const MISSING: Record<string, string[]> = {
     'jjuk:common.reach_wobble',
     'jjuk:common.stretch',
     'jjuk:common.wet',
-    'jjuk:launch_to_hook',
-    'jjuk:reach_hang_up',
     'mukjik:common.flatten',
     'mukjik:common.stomp',
     'ppik:common.bump_bottom',

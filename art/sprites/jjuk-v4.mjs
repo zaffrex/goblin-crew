@@ -221,6 +221,7 @@ function drawLeg(K, side, hx, hy, a, bias) {
 
 export function drawFrame(p) {
   if (p.kind === 'pose') return drawPose(p);
+  if (p.kind === 'zip') return drawZip(p);
   const K = new Canvas(CELL[0], CELL[1], S, OX, 0);
   const d = u(p.chest);
   const hipY = HIP_Y + p.hipDrop; // 걷기: 골반도 내려감(상체보다 덜, HIP_BOB) / 서 있기(숨쉬기): 상체만
@@ -345,6 +346,12 @@ const EYES = {
     'XHdsDdsDsssPPssPPssss.',
     'XHdsDdsdsPPssssssPPss.',
   ],
+  up: [ // 위를 올려다봄(둥지): 눈동자가 흰자 윗줄에 붙는다
+    'XHHHhHHDsWWPPssWWPPss.',
+    'XHHdsdHDWWWPPWWWWPPWs.',
+    'XHdsDdsDWWWWWWlWWWWWs.',
+    'XHdsDdsdslWWlsslWWlss.',
+  ],
   shock: [ // 눈이 커지고 눈동자가 점 하나
     'XHHHhHHDsWWWWssWWWWss.',
     'XHHdsdHDWWWWWWWWWWWWs.',
@@ -415,8 +422,10 @@ function drawPose(p) {
     pole = K.limb([[...top, 0.95], [...bot, 0.95]], R4.metal, {
       pattern: (x, y) => (Math.abs((Math.hypot(x - top[0], y - top[1]) % 6)) < 0.5 && Math.hypot(x - top[0], y - top[1]) < len - 1 ? [C.plum, C.dusk, C.lav] : undefined),
     });
-    const hx = Math.round(K.X(top[0] - 1.6)), hy = Math.round(K.Y(top[1] - 4.4));
-    K.stamp(hx, hy, ['.LLLD.', 'L....D', 'L...LD', '.D..D.', '..LD..', '..LD..', '..dD..'], { L: C.lint, D: C.dusk, d: C.plum }, pole);
+    if (p.pole.claw !== false) {
+      const hx = Math.round(K.X(top[0] - 1.6)), hy = Math.round(K.Y(top[1] - 4.4));
+      K.stamp(hx, hy, ['.LLLD.', 'L....D', 'L...LD', '.D..D.', '..LD..', '..LD..', '..dD..'], { L: C.lint, D: C.dusk, d: C.plum }, pole);
+    }
   }
   const feet = [];
   feet.push(drawLeg(K, 'back', p.hip[0] - (p.hipSpread ?? 0.5), p.hip[1], p.legs.back, -0.35).shoe);
@@ -450,7 +459,38 @@ function drawPose(p) {
   rimShade(K, new Set([headPart, handPart, ...(pole === undefined ? [] : [pole])]), DOWN);
   soles(K, feet);
   K.outline();
-  return { K, feet, hand: p.hand, facing: p.facing };
+  if (p.fx) p.fx(K); // 먼지·속도선: 외곽선 없이(ADR-0007 결정 3-1, 검은 테두리 = 만질 수 있음)
+  return { K, feet, hand: p.hand, facing: p.facing, tip: p.pole?.claw === false ? poleTip(K, pole) : undefined, claw: p.claw };
+}
+
+/** 칸 위로 나가는 장대의 출구(칸 px, 0행 장대 픽셀 가운데). 엔진이 여기서 대상 점까지 장대를 잇는다(#187 Theo 초안). */
+function poleTip(K, pole) {
+  const xs = [];
+  for (let x = 0; x < K.w; x++) if (K.p[x] === pole && K.c[x] !== C.ink) xs.push(x);
+  if (!xs.length) throw new Error('[jjuk] 장대가 칸 위로 나가지 않는다(claw: false인데 0행에 장대 없음)');
+  return [Math.round((xs[0] + xs[xs.length - 1]) / 2), 0];
+}
+
+// ── 연출 효과(외곽선 없음). 칸 px 좌표.
+/** 바닥 먼지 한 덩이: 가운데 x, 바닥 행, 크기 0~2. 아래 행은 칸 마지막 행에 닿는다. */
+function puff(K, cx, size) {
+  const rows = [
+    ['..cww..', '.cwwwc.', 'clwwwlc', '.lllll.'],
+    ['...cww.cw...', '.cwwwwcwwwc.', 'cwwwwwwwwwlc', 'clwwlwwlwwll', '.llll.lllll.'],
+    ['.c....w..', '...c.....', 'c.....l.c', '..l.c....'],
+  ][size];
+  const legend = { c: C.cotton, w: C.white, l: C.lint };
+  const w = rows[0].length;
+  K.stamp(Math.round(cx - w / 2), K.h - rows.length, rows, legend);
+}
+/** 위로 솟는 속도선: [x, 위 행, 아래 행]. 위는 흰색, 아래로 갈수록 옅은 회색으로 끊긴다. */
+function streaks(K, lines) {
+  for (const [x, y0, y1] of lines)
+    for (let y = y0; y <= y1; y++) {
+      const t = (y - y0) / Math.max(1, y1 - y0);
+      if (t > 0.7 && (y % 2)) continue; // 꼬리는 점선
+      K.dot(x, y, t < 0.35 ? C.white : t < 0.7 ? C.cotton : C.lint);
+    }
 }
 
 // 손 stamp 왼쪽 위(칸 px): 손목 점에서 손 크기만큼
@@ -510,6 +550,114 @@ const POSES = {
   },
 };
 
+// U2 발사 → 고리(launch_to_hook): 시소 왼쪽 끝 자리에서 재생된다(step은 연출을 먼저, 자리 이동을 뒤에 낸다).
+//   엔진에 날아가는 궤적이 없어서(teleport) "꾹 눌림 → 튕겨 솟음 → 속도선만 남고 사라짐 → 먼지" 네 칸으로 자리를 비운 뒤
+//   고리에서 hold로 나타난다. 칸 위로 잘린 몸이 화면 가운데에 보이지 않게, 몸은 칸 안에서만 움직이고 사라지는 칸은 속도선뿐이다.
+//   방향을 고정하지 않는다(시소에 어느 쪽에서 왔든 위로 솟는다).
+// U3 매달려 뻗어 열쇠 집기(reach_hang_up): 고리에 매달린 채(hold 자리, facing −1 고정) 재생된다.
+//   주먹은 hold와 같은 (26,4) → 고리에서 안 미끄러진다(build.mjs가 hand를 hold와 같이 적는다).
+//   장대는 앞손에서 칸 34열로 곧게 위로(ADR-0003 직선) 칸 위까지. 뒤집어 그리면 화면 x = 137 + 47 − 34 = 150 = 둥지 reachPoint.
+//   칸 위 46px(칸 위 끝 y 96 → 둥지 34)는 엔진이 tip에서 이어 그린다. 집게는 claw(0 벌림 / 1 다묾) 칸.
+//   마지막 칸은 열쇠를 문 집게를 확 당기는 모습(형식 기록 4-2절 (b): 열쇠는 이 연출이 끝날 때 둥지에서 빠진다).
+const REACH_X = (34 - OX) / S; // 장대 축(① 좌표) = 칸 34열
+Object.assign(POSES, {
+  launch_to_hook(k) {
+    if (k === 0) {
+      // 꾹: 널빤지가 눌린 반동에 무릎이 꺾이고 몸이 깊게 접힌다. 눈이 커지고 뒷손은 쫙.
+      const d = 4.2;
+      const body = (y) => y + d;
+      const fwr = [22.8, body(23.2)];
+      return {
+        kind: 'pose',
+        chest: Math.round(d * S),
+        head: { x: 14, y: 1 + Math.round(d * S), eyes: 'shock', mouth: 'grit', brows: 'up', hair: 's0' },
+        neck: [[15.4, body(14)], [15.4, body(18.5)]],
+        torso: [[15.6, body(19.5), 3.4], [15.0, body(25), 3.7], [14.4, 30 + d * 0.8, 3.5]],
+        hip: [14.45, 30 + d * 0.8],
+        hipSpread: 2.4,
+        back: { sh: [13.2, body(20)], el: [9.4, body(23.0)], wr: [6.6, body(25.4)], hand: { rows: 'spread', at: handAt([6.6, body(25.4)], -3, -1) } },
+        front: { sh: [16.8, body(20)], el: [19.8, body(24.6)], wr: fwr, hand: { rows: 'grip', at: handAt([24.2, fwr[1]], -3, -3) } },
+        pole: { top: [24.2, 5 + d], bot: [24.2, 45.5] },
+        legs: { back: { x: -3.2, lift: 0, toe: false }, front: { x: 3.6, lift: 0, toe: false } },
+        fx: (K) => puff(K, 9, 0),
+      };
+    }
+    if (k === 1) {
+      // 튕겨 솟음: 몸은 위로 다 펴지고 팔다리는 뒤처져 아래로 늘어진다(날아오르는 쪽은 머리). 입은 비명, 머리는 곤두섬.
+      // 장대는 앞손에 매달려 아래로. 발밑에 먼지가 터진다.
+      const up = -1.2;
+      const body = (y) => y + up;
+      const fwr = [20.6, body(30.6)];
+      return {
+        kind: 'pose',
+        chest: 0,
+        head: { x: 13, y: 0, eyes: 'shock', mouth: 'ouch', brows: 'up', hair: 's1' },
+        neck: [[15.0, body(14)], [15.0, body(18.5)]],
+        torso: [[15.0, body(19.5), 3.2], [14.8, body(25), 3.4], [14.6, 30 + up, 3.2]],
+        hip: [14.6, 30 + up],
+        hipSpread: 0.6,
+        back: { sh: [12.8, body(20)], el: [10.4, body(25.8)], wr: [9.2, body(31.4)], hand: { rows: 'spread', at: handAt([9.2, body(31.4)], -3, -1) } },
+        front: { sh: [16.6, body(20)], el: [19.0, body(25.4)], wr: fwr, hand: { rows: 'grip', at: handAt([22.4, fwr[1]], -3, -3) } },
+        pole: { top: [22.4, body(13.0)], bot: [22.4, 44.6] },
+        legs: { back: { x: -0.6, lift: 0.9, toe: true }, front: { x: 1.0, lift: 0.6, toe: true } },
+        fx: (K) => puff(K, 24, 1),
+      };
+    }
+    // 2 사라짐: 몸은 이미 칸 위로. 위로 갈수록 진한 속도선 + 먼지 / 3 먼지가 흩어진다
+    return { kind: 'zip', chest: 0, k };
+  },
+  reach_hang_up(k) {
+    const base = POSES.hold(k === 1 ? 1 : 0);
+    const yank = k === 2 ? 2.4 : 0; // 마지막 칸: 장대를 확 당겨 손이 내려온다
+    const fwr = [REACH_X, 13.4 + yank];
+    const sway = k === 0 ? 0.3 : k === 2 ? -0.3 : 0;
+    return {
+      ...base,
+      head: [
+        { x: 10, y: 10, eyes: 'squint', mouth: 'grit', hair: 0 }, // 끙: 이를 악물고 뻗기
+        { x: 10, y: 10, eyes: 'up', mouth: 'shut', hair: 1 }, // 집게가 닿았나 올려다봄
+        { x: 10, y: 9, eyes: 'up', mouth: 'open', brows: 'up', hair: 0 }, // 잡았다!
+      ][k],
+      torso: base.torso.map(([x, y, r]) => [x + sway, y, r]),
+      hip: [base.hip[0] + sway, base.hip[1]],
+      front: {
+        sh: [16.8 + sway, 23.8],
+        el: k === 2 ? [21.4, 21.4] : [20.4, 18.8],
+        wr: fwr,
+        hand: { rows: 'grip', at: handAt(fwr, -2, -3) },
+      },
+      pole: { top: [REACH_X, -4], bot: [REACH_X, fwr[1] + 12.5], claw: false },
+      claw: k === 0 ? 0 : 1,
+    };
+  },
+});
+
+// 장대 끝 집게 칸(8×8, 엔진이 tip에서 이은 장대 끝에 그린다). 기준점 (4,8) = 장대가 들어오는 아래 가운데.
+// 3·4열이 장대 2색(lint·dusk)과 같다. 0 벌림 / 1 다묾(열쇠 고리를 문다).
+const CLAW = {
+  cell: [8, 8],
+  anchor: [4, 8],
+  frames: 2,
+  legend: { k: C.ink, L: C.lint, D: C.dusk, d: C.plum, W: C.white },
+  rows: [
+    ['kk....kk', 'kWk..kLk', 'kLk..kDk', 'kDLkkLdk', '.kDLLdk.', '..kLDk..', '..kLDk..', '..kLDk..'],
+    ['..kkkk..', '.kWLLDk.', 'kLk..kDk', 'kLk..kdk', '.kLkkdk.', '..kLDk..', '..kLDk..', '..kLDk..'],
+  ],
+};
+
+/** 사라진 칸(launch_to_hook 2·3): 속도선과 먼지만. 몸이 없으니 외곽선도 없다. */
+function drawZip(p) {
+  const K = new Canvas(CELL[0], CELL[1], S, OX, 0);
+  if (p.k === 2) {
+    streaks(K, [[19, 0, 40], [24, 0, 52], [29, 2, 44], [34, 6, 30], [15, 10, 26]]);
+    puff(K, 24, 1);
+  } else {
+    streaks(K, [[22, 0, 14], [27, 0, 20], [32, 4, 10]]);
+    puff(K, 24, 2);
+  }
+  return { K, feet: [] };
+}
+
 export const SHEET = {
   name: 'jjuk-base',
   character: 'jjuk',
@@ -520,7 +668,10 @@ export const SHEET = {
     { name: 'walk', frames: 6, by: 'distance' },
     { name: 'hold', frames: 2, ms: [450, 450] },
     { name: 'common.zap', frames: 3, ms: [100, 100, 300] },
+    { name: 'launch_to_hook', frames: 4, ms: [150, 100, 100, 150] },
+    { name: 'reach_hang_up', frames: 3, ms: [350, 250, 400] },
   ],
   pose,
   drawFrame,
+  claw: CLAW,
 };
