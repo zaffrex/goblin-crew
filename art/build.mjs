@@ -72,6 +72,16 @@ function buildSheet(def) {
       if (facing !== 1 && facing !== -1) fail(`${def.name} ${a.name}: 손 기준점이 있으면 facing(1 또는 -1)이 있어야 한다`);
       anims[a.name].facing = facing;
     }
+    // 칸 위로 나가는 장대(reach_hang_up 등): 프레임별 출구 점과 집게 칸(#187 Theo 초안, 시트 파이프라인 기록 5-1절).
+    // 엔진은 tip에서 대상 점까지 장대를 잇고 끝에 claw 칸을 그린다. 한 프레임이라도 있으면 모든 프레임에 있어야 한다.
+    const tips = idx.map((i) => frames[i].tip);
+    if (tips.some(Boolean)) {
+      if (!tips.every(Boolean)) fail(`${def.name} ${a.name}: 장대 tip은 모든 프레임에 있어야 한다`);
+      const claws = idx.map((i) => frames[i].claw);
+      if (!claws.every((c) => Number.isInteger(c) && c >= 0 && c < (def.claw?.frames ?? 0))) fail(`${def.name} ${a.name}: 프레임마다 claw 칸 번호가 필요하다`);
+      anims[a.name].tip = tips;
+      anims[a.name].claw = claws;
+    }
   }
 
   // 기준점: 서 있기 0번의 두 발 가운데. 두 발 폭은 짝수여야 반전 축이 픽셀 경계에 온다(ADR-0007 결정 4).
@@ -101,7 +111,17 @@ function buildSheet(def) {
     walkCycle: def.walkCycle,
     anims,
   };
-  return { def, frames, img, meta, ax, cw, ch, feet: fs };
+  // 장대 끝 집게 칸(가로 한 줄). 시트 메타에 claw {image, cell, anchor}로 적는다.
+  let clawImg = null;
+  if (def.claw) {
+    const [kw, kh] = def.claw.cell;
+    clawImg = new Image(kw * def.claw.frames, kh);
+    def.claw.rows.forEach((rows, k) => rows.forEach((row, y) => [...row].forEach((ch, x) => {
+      if (def.claw.legend[ch] !== undefined) clawImg.set(k * kw + x, y, def.claw.legend[ch]);
+    })));
+    meta.claw = { image: `${def.name}-claw.png`, cell: def.claw.cell, anchor: def.claw.anchor };
+  }
+  return { def, frames, img, meta, ax, cw, ch, feet: fs, clawImg };
 }
 
 // ── 미리보기: 칸 테두리 + 바닥 위에 프레임을 놓는다. 위: 색 / 가운데: 실루엣 / 아래: 서 있기 0번과 좌우 반전(기준점 축) 겹치기
@@ -199,6 +219,7 @@ const built = SHEETS.map(buildSheet);
 for (const s of built) {
   outputs.push([join(OUT, `${s.def.name}.png`), indexedPng(s.img)]);
   outputs.push([join(OUT, `${s.def.name}.json`), Buffer.from(JSON.stringify(s.meta, null, 2) + '\n')]);
+  if (s.clawImg) outputs.push([join(OUT, `${s.def.name}-claw.png`), indexedPng(s.clawImg)]);
 }
 
 // ── 고리 손 기준점(형식 기록 7절): 발(hold 자리) + (손 − anchor) = 화면 grips. 시트에 hold.hand가 있을 때만 본다.
