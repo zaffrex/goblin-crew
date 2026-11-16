@@ -100,6 +100,17 @@ function buildSheet(def) {
       if (!claws.every((c) => Number.isInteger(c) && c >= 0 && c < (def.claw?.frames ?? 0))) fail(`${def.name} ${a.name}: 프레임마다 claw 칸 번호가 필요하다`);
       anims[a.name].tip = tips;
       anims[a.name].claw = claws;
+      // 마디 위상(#194, ADR-0007 장대 3조각 8px): 칸 0행부터 첫 마디 행까지 px. 엔진은 이은 구간에서 이 행을 8px마다 찍는다.
+      // 그래서 이 행의 tip 4px(잉크 · 장대 2px · 잉크)는 손 등에 가리지 않은 순수 마디 행이어야 한다.
+      const joints = idx.map((i) => frames[i].joint);
+      idx.forEach((i, j) => {
+        const f = frames[i], jy = joints[j], [tx, ty] = tips[j];
+        if (!Number.isInteger(jy) || jy < 0 || jy >= 8) fail(`${def.name} ${a.name}${j}: 장대 마디 위상(joint)은 0~7`);
+        const row = [-2, -1, 0, 1].map((dx) => f.K.get(tx + dx, ty + jy));
+        if (row[0] !== C.ink || row[3] !== C.ink || row[1] !== C.dusk || row[2] !== C.dusk)
+          fail(`${def.name} ${a.name}${j}: ${ty + jy}행 tip 4px가 마디(잉크·dusk·dusk·잉크)가 아니다`);
+      });
+      anims[a.name].joint = joints;
     }
   }
 

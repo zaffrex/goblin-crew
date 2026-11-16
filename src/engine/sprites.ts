@@ -100,7 +100,7 @@ export function drawSprite(ctx: CanvasRenderingContext2D, w: Walker, pose: Pose,
 }
 
 /**
- * 칸 위로 이은 장대(tip 0행 4px를 위로 늘림)와 끝 집게(파이프라인 기록 5-1절, #189).
+ * 칸 위로 이은 장대(tip 0행 4px를 위로 늘림)와 8px마다 마디(#194), 끝 집게(파이프라인 기록 5-1절, #189).
  * 장대 줄은 외곽선 시트가 아니라 원본에서 자른다(0행 잉크가 외곽선 주황으로 늘어나지 않게). 호버 외곽선은 몸에만 있다.
  */
 function drawPole(ctx: CanvasRenderingContext2D, image: HTMLImageElement, clawImage: HTMLImageElement, meta: SpriteMeta, p: PoleDraw): void {
@@ -118,5 +118,6 @@ function drawPole(ctx: CanvasRenderingContext2D, image: HTMLImageElement, clawIm
     ctx.restore();
   };
   blit(image, src.x, src.y, src.width, 1, p.left, p.top, p.bottom - p.top);
+  for (const jy of p.joints) blit(image, src.x, p.jointSrcY, src.width, 1, p.left, jy, 1); // 마디(#194): 시트 마디 행을 8px마다
   blit(clawImage, p.claw * cw, 0, cw, ch, p.clawLeft, p.clawTop, ch);
 }

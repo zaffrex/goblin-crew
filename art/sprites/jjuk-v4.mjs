@@ -14,7 +14,7 @@
 //      (피부 → 진갈색, 셔츠 → 진빨강, 바지 → plum) 바꾸고, 외곽선 바로 안쪽 어두운 쪽(오른쪽·아래)을 한 단 내려
 //      명암을 3~4단으로 만든다. 손은 손가락이 보이게 격자로 찍는다.
 
-import { Canvas, C } from '../lib/pixel.mjs';
+import { Canvas, C, EMPTY } from '../lib/pixel.mjs';
 import { colorLines, rimShade, soles } from '../lib/finish.mjs';
 import { squash } from '../lib/squash.mjs';
 import { drops, puff, shadow, streaks } from '../lib/fx.mjs';
@@ -238,9 +238,7 @@ export function drawFrame(p) {
   const poleBot = p.pole === 'ground' ? 45.5 : 45.5 + pd - 3.0;
   const px = 24.2 + (p.pole === 'ground' ? 0 : lean);
   const tilt = u(p.poleTilt);
-  const pole = K.limb([[px, poleTop, 0.95], [px, poleBot, 0.95]], R4.metal, {
-    pattern: (x, y) => (Math.abs((y - poleTop) % 6) < 0.5 ? [C.plum, C.dusk, C.lav] : undefined), // 마디 이음매
-  });
+  const pole = K.limb([[px, poleTop, 0.95], [px, poleBot, 0.95]], R4.metal); // 마디는 마감 전에 poleJoints가 찍는다
   // 집게 갈고리(장대 끝): 금속 4단, 걸을 때 1px 흔들린다
   {
     const hx = Math.round(K.X(px + tilt - 1.6)), hy = Math.round(K.Y(poleTop - 4.4));
@@ -328,6 +326,7 @@ export function drawFrame(p) {
 
   // 외곽선 안쪽 그늘(장대·머리는 이미 손으로 명암을 넣었으니 뺀다)
   rimShade(K, new Set([headPart, handPart, pole]), DOWN);
+  poleJoints(K, pole, poleTop);
   soles(K, feet);
   K.outline();
   return { K, feet, grip: P(px, handY) };
@@ -439,10 +438,7 @@ function drawPose(p) {
   let pole;
   if (p.pole) {
     const { top, bot } = p.pole;
-    const len = Math.hypot(bot[0] - top[0], bot[1] - top[1]);
-    pole = K.limb([[...top, 0.95], [...bot, 0.95]], R4.metal, {
-      pattern: (x, y) => (Math.abs((Math.hypot(x - top[0], y - top[1]) % 6)) < 0.5 && Math.hypot(x - top[0], y - top[1]) < len - 1 ? [C.plum, C.dusk, C.lav] : undefined),
-    });
+    pole = K.limb([[...top, 0.95], [...bot, 0.95]], R4.metal); // 마디는 마감 전에 poleJoints가 찍는다
     if (p.pole.claw !== false) {
       const hx = Math.round(K.X(top[0] - 1.6)), hy = Math.round(K.Y(top[1] - 4.4));
       const rows = p.pole.shut // 다문 집게(딸깍, common.stretch 2번)
@@ -481,12 +477,33 @@ function drawPose(p) {
   K.stamp(...P(t0[0] + 1.1, t0[1] + 2.5), ['AAA', 'AtA'], { A: C.aqua, t: C.tealM });
 
   rimShade(K, new Set([headPart, handPart, ...(pole === undefined ? [] : [pole])]), DOWN);
+  const joint = pole === undefined ? undefined : poleJoints(K, pole, p.pole.top[1]);
   soles(K, feet);
   // 납작(common.flatten): 눈(8~11행)과 입(14~17행)은 누르지 않고 그대로 옮긴다
   if (p.flat) squash(K, { ...p.flat, keep: [[hy0 + 8, hy0 + 11], [hy0 + 14, hy0 + 17]] });
   K.outline();
   if (p.fx) p.fx(K); // 먼지·속도선: 외곽선 없이(ADR-0007 결정 3-1, 검은 테두리 = 만질 수 있음)
-  return { K, feet, hand: p.hand, facing: p.facing, tip: p.pole?.claw === false ? poleTip(K, pole) : undefined, claw: p.claw };
+  return { K, feet, hand: p.hand, facing: p.facing, tip: p.pole?.claw === false ? poleTip(K, pole) : undefined, joint: p.pole?.claw === false ? joint : undefined, claw: p.claw };
+}
+
+/**
+ * 장대 마디(ADR-0007 "장대 3조각": 마디 이음매 한 주기 = 8px, #194). 장대 위 끝(집게가 붙는 점, ① y `topY`) 행에서
+ * 8px마다 한 행을, 장대 부품의 잉크 아닌 픽셀만 dusk로 칠한다(`#dd#`). 손·머리처럼 장대 앞에 그린 부품은 건드리지 않는다.
+ * 첫 마디는 위 끝에서 8px 아래다(집게 7행을 피한다). 마감(soles·squash·outline) 전에 불러서 납작 자세는 마디도 같이 눌린다.
+ * 돌려주는 값 = 위상: 칸 0행부터 아래로 첫 마디 행까지 px(0~7). 칸 위로 나가는 장대(tip)는 엔진이 이 위상으로
+ * 이은 구간에도 8px마다 마디를 찍는다(메타 `joint`, 파이프라인 기록 5-1절).
+ */
+export const POLE_JOINT = 8;
+function poleJoints(K, pole, topY) {
+  const top = Math.round(K.Y(topY));
+  for (let y = top + POLE_JOINT; y < K.h; y += POLE_JOINT) {
+    if (y < 0) continue;
+    for (let x = 0; x < K.w; x++) {
+      const i = y * K.w + x;
+      if (K.p[i] === pole && K.c[i] !== C.ink && K.c[i] !== EMPTY) K.c[i] = C.dusk;
+    }
+  }
+  return ((top % POLE_JOINT) + POLE_JOINT) % POLE_JOINT;
 }
 
 /** 칸 위로 나가는 장대의 출구(칸 px, 0행 장대 픽셀 가운데). 엔진이 여기서 대상 점까지 장대를 잇는다(#187 Theo 초안). */

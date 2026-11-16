@@ -22,6 +22,12 @@ export type SpriteAnim = ({ frames: number[]; ms: number[] } | { frames: number[
   /** 프레임마다 집게 칸 번호(시트 최상위 `claw` 줄). */
   claw?: number[];
   /**
+   * 프레임마다 장대 마디 위상(#194, ADR-0007 장대 3조각 "마디 이음매 한 주기 = 8px"): tip 행부터 아래로 첫 마디 행까지 px(0~7).
+   * 그 행(tip 4px)이 마디 그림이다. 엔진은 이은 구간에서 8px마다 이 행을 찍어 시트 장대의 마디 무늬를 위로 잇는다.
+   * 없으면 마디 없이 tip 행만 늘인다.
+   */
+  joint?: number[];
+  /**
    * 이 자세를 그리는 동안의 클릭 상자 [x, y, w, h](칸 왼쪽 위 기준, 오른쪽을 본 시트). 매달린 자세(`hand` 있음)에
    * `art/build.mjs`가 그 자세 모든 칸 그림 상자의 합집합으로 적는다(#203). 없으면 시트 최상위 `hit`(서 있기 0번).
    */
@@ -55,6 +61,9 @@ export interface SpriteMeta {
 const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v);
 const intTuple = (v: unknown, n: number): boolean => Array.isArray(v) && v.length === n && v.every(isInt);
 
+/** 장대 마디 주기(ADR-0007 장대 3조각: 마디 이음매 한 주기 = 8px). */
+export const POLE_JOINT = 8;
+
 /** 메타 JSON을 검사한다. 형식이 틀리면 그 캐릭터는 실루엣으로 남기도록 이유를 던진다. */
 export function parseSpriteMeta(raw: unknown): SpriteMeta {
   const m = raw as Partial<SpriteMeta>;
@@ -75,6 +84,7 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
     facing?: unknown;
     tip?: unknown;
     claw?: unknown;
+    joint?: unknown;
     hit?: unknown;
     cue?: unknown;
   };
@@ -92,6 +102,12 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
       if (!claw) fail(`${name}.tip이 있는데 시트 claw가 없음`);
       if (!Array.isArray(a.tip) || a.tip.length !== n || !a.tip.every((t) => intTuple(t, 2))) fail(`${name}.tip은 프레임마다 [x, y]`);
       if (!Array.isArray(a.claw) || a.claw.length !== n || !a.claw.every((c) => isInt(c) && c >= 0)) fail(`${name}.claw는 프레임마다 집게 칸 번호`);
+    }
+    if ('joint' in a) {
+      if (!('tip' in a)) fail(`${name}.joint는 tip 있는 자세에만`);
+      if (!Array.isArray(a.joint) || a.joint.length !== a.frames!.length || !a.joint.every((j) => isInt(j) && j >= 0 && j < POLE_JOINT)) {
+        fail(`${name}.joint는 프레임마다 0~${POLE_JOINT - 1}`);
+      }
     }
     if ('hit' in a) {
       const h = a.hit as number[];
@@ -196,6 +212,7 @@ function timedIndex(a: SpriteAnim, ms: number, loop: boolean): number {
 /**
  * 칸 위로 이은 장대와 끝 집게(파이프라인 기록 5-1절, #189). 모든 값은 내부 좌표 정수 px.
  * - 장대: 시트 이미지의 `src` 칸(가로 `width`, 세로 1행 = tip 0행)을 화면 `left`, `top`~`bottom`(미포함)으로 늘려 붙인다.
+ * - 마디(#194): 시트 이미지 `jointSrcY` 행(같은 `src.x`·`width`, 1행)을 화면 `joints`의 각 y에 1행씩 덮어 붙인다.
  * - 집게: 집게 줄의 `claw`번 칸을 `clawLeft`·`clawTop`에 그린다. `flip`이면 둘 다 좌우로 뒤집어 붙인다(그 칸 안에서).
  */
 export interface PoleDraw {
@@ -203,6 +220,8 @@ export interface PoleDraw {
   left: number;
   top: number;
   bottom: number;
+  jointSrcY: number;
+  joints: number[];
   claw: number;
   clawLeft: number;
   clawTop: number;
@@ -211,6 +230,7 @@ export interface PoleDraw {
 
 /** 이은 장대 폭: 장대 2px + 양옆 잉크 1px. tip은 가운데선(픽셀 경계)이다. */
 export const POLE_WIDTH = 4;
+
 
 /**
  * 지금 자세가 `tip` 있는 연출이고 대상 점이 칸 위에 있으면 이을 장대. 아니면 null.
@@ -231,11 +251,17 @@ export function spritePole(meta: SpriteMeta, pose: Pose, x: number, y: number, f
   if (top >= bottom) return null;
   const [cw] = meta.claw.cell;
   const [cax, cay] = meta.claw.anchor;
+  // 마디: 시트에서 tip 행 아래 joint px가 마디 행이고 8px마다 반복된다 → 이은 구간(top ≤ y < bottom)에서는 bottom + joint − 8m.
+  const jp = a.joint?.[i];
+  const joints: number[] = [];
+  if (jp !== undefined) for (let jy = bottom + jp - POLE_JOINT; jy >= top; jy -= POLE_JOINT) joints.push(jy);
   return {
     src: { x: frameSourceX(meta, a.frames[i]!) + tx - POLE_WIDTH / 2, y: ty, width: POLE_WIDTH },
     left: sx - POLE_WIDTH / 2,
     top,
     bottom,
+    jointSrcY: ty + (jp ?? 0),
+    joints,
     claw: a.claw[i]!,
     clawLeft: facing === 1 ? sx - cax : sx - (cw - cax),
     clawTop: top - cay,
