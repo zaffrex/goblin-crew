@@ -10,7 +10,7 @@ import { TICK_MS, WALK_AREA, WALK_SPEED } from './config';
 import type { HitBox } from './hit';
 import { hotspotBox, hudTargets, tap, type Intent, type TapContext, type UiState } from './interact';
 import { animOf, animTicks, type SceneAnim, type SceneArtMeta } from './sceneArt';
-import { cueMs, spriteFacing, spriteFrame, type Pose, type SpriteMeta } from './sprite';
+import { cueMs, spriteFacing, spriteFrame, spriteHit, type Pose, type SpriteMeta } from './sprite';
 import { initialState, step } from './puzzle/step';
 import { GAUGE_MAX, type Action, type CharactersData, type PuzzleEvent, type PuzzleState, type ScreenData, type StepSource } from './puzzle/types';
 import type { Point } from './viewport';
@@ -193,12 +193,18 @@ export function charFacing(data: SceneData, s: SceneState, id: CharacterId): Fac
   return spriteFrame(meta, pose) === null ? w.facing : spriteFacing(meta, pose, w.facing);
 }
 
-/** 판정용 캐릭터 몸 박스. 엔진이 그리는 위치·방향 그대로다(`charFacing`, #186). */
+/**
+ * 판정용 캐릭터 몸 박스. 엔진이 그리는 위치·방향 그대로다(`charFacing`, #186).
+ * 지금 자세에 시트 `hit`이 있으면(매달린 자세, #203) 그 상자, 없으면 서 있기 기준 `characterHitBox`.
+ */
 export function bodies(data: SceneData, s: SceneState): Record<CharacterId, HitBox> {
   const out = {} as Record<CharacterId, HitBox>;
   for (const c of CHARACTERS) {
     const w = s.walkers[c.id];
-    out[c.id] = characterHitBox(characterDef(c.id), w.x, w.y, charFacing(data, s, c.id));
+    const facing = charFacing(data, s, c.id);
+    const meta = data.sprites?.[c.id];
+    const own = meta ? spriteHit(meta, charPose(data, s, c.id), w.x, w.y, facing) : null;
+    out[c.id] = own ?? characterHitBox(characterDef(c.id), w.x, w.y, facing);
   }
   return out;
 }

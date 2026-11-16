@@ -4,6 +4,7 @@
 // 시트에 없는 자세는 null을 돌려준다. 엔진은 null이면 임시 실루엣을 그린다.
 // 그래서 한 캐릭터만, 한 자세만 그림이 생겨도 게임이 깨지지 않는다.
 
+import { MIN_HIT_SIZE } from './characters';
 import type { HitBox } from './hit';
 import type { Facing } from './walk';
 
@@ -20,6 +21,11 @@ export type SpriteAnim = ({ frames: number[]; ms: number[] } | { frames: number[
   tip?: [x: number, y: number][];
   /** 프레임마다 집게 칸 번호(시트 최상위 `claw` 줄). */
   claw?: number[];
+  /**
+   * 이 자세를 그리는 동안의 클릭 상자 [x, y, w, h](칸 왼쪽 위 기준, 오른쪽을 본 시트). 매달린 자세(`hand` 있음)에
+   * `art/build.mjs`가 그 자세 모든 칸 그림 상자의 합집합으로 적는다(#203). 없으면 시트 최상위 `hit`(서 있기 0번).
+   */
+  hit?: [x: number, y: number, w: number, h: number];
   /**
    * 칸 신호(파이프라인 기록 5-2절, #199). 이 연출의 몇 번째 칸(0부터)이 "박자" 칸인가.
    * 화면 데이터 show에서 이 연출 바로 뒤의 `fx` 하나는 연출이 끝난 뒤가 아니라 이 칸이 시작될 때 뜬다(그 뒤 fx는 연출이 끝난 뒤 차례로).
@@ -62,7 +68,16 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
   if (typeof m.anims !== 'object' || m.anims === null) fail('anims 없음');
   const claw = m.claw as Partial<ClawMeta> | undefined;
   if (claw !== undefined && (typeof claw.image !== 'string' || !intTuple(claw.cell, 2) || !intTuple(claw.anchor, 2))) fail('claw 형식');
-  type RawAnim = { frames?: unknown[]; ms?: unknown[]; by?: unknown; facing?: unknown; tip?: unknown; claw?: unknown; cue?: unknown };
+  type RawAnim = {
+    frames?: unknown[];
+    ms?: unknown[];
+    by?: unknown;
+    facing?: unknown;
+    tip?: unknown;
+    claw?: unknown;
+    hit?: unknown;
+    cue?: unknown;
+  };
   for (const [name, a] of Object.entries(m.anims as Record<string, RawAnim>)) {
     if (!Array.isArray(a.frames) || a.frames.length === 0 || !a.frames.every(isInt)) fail(`${name}.frames`);
     if ('by' in a) {
@@ -77,6 +92,10 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
       if (!claw) fail(`${name}.tip이 있는데 시트 claw가 없음`);
       if (!Array.isArray(a.tip) || a.tip.length !== n || !a.tip.every((t) => intTuple(t, 2))) fail(`${name}.tip은 프레임마다 [x, y]`);
       if (!Array.isArray(a.claw) || a.claw.length !== n || !a.claw.every((c) => isInt(c) && c >= 0)) fail(`${name}.claw는 프레임마다 집게 칸 번호`);
+    }
+    if ('hit' in a) {
+      const h = a.hit as number[];
+      if (!intTuple(h, 4) || h[2]! < MIN_HIT_SIZE || h[3]! < MIN_HIT_SIZE) fail(`${name}.hit은 [x, y, w, h], 폭·높이 ${MIN_HIT_SIZE} 이상`);
     }
   }
   return m as SpriteMeta;
@@ -94,6 +113,27 @@ export interface Pose {
   clockMs: number;
   /** 지금 행동의 대상 점(핫스팟 `reachPoint`). 장대를 칸 밖으로 이을 때 쓴다(5-1절). 없으면 잇지 않는다. */
   reach?: { x: number; y: number } | null;
+}
+
+/** 지금 그리는 자세. `spriteFrame`과 같은 우선순위이고, 시트에 없으면 undefined(실루엣). */
+function poseAnim(meta: SpriteMeta, pose: Pose): SpriteAnim | undefined {
+  if (pose.event) return meta.anims[pose.event.name];
+  if (pose.holding) return meta.anims.hold;
+  if (pose.walkedPx !== null) return meta.anims.walk;
+  return meta.anims.idle;
+}
+
+/**
+ * 지금 자세에 자기 클릭 상자(`hit`)가 있으면 화면 상자, 없으면 null(호출자가 서 있기 기준 상자를 쓴다, #203).
+ * 그리는 위치와 같은 규칙이다(`spriteBox`). 왼쪽을 보면 칸을 뒤집으니 열 [x, x+w)는 칸 안 [cw−x−w, cw−x)로 간다.
+ */
+export function spriteHit(meta: SpriteMeta, pose: Pose, x: number, y: number, facing: Facing): HitBox | null {
+  const hit = poseAnim(meta, pose)?.hit;
+  if (!hit) return null;
+  const [hx, hy, hw, hh] = hit;
+  const box = spriteBox(meta, x, y, facing);
+  const left = facing === 1 ? box.left + hx : box.left + (meta.cell[0] - hx - hw);
+  return { left, top: box.top + hy, width: hw, height: hh };
 }
 
 /**
