@@ -26,6 +26,8 @@ export const TIMING = {
   faint: 60,
   /** 게이지 0 컷 글(`ui.faint`)이 떠 있는 시간. `faint`(busy)보다 길고, 남는 동안은 입력을 막지 않는다(#129 Luna 제안 2). */
   faintCut: 90,
+  /** 클리어 컷 글(L32, 화면 `clearLine`)이 떠 있는 시간. 끝나면 클리어 카드. 설계 8절 "3초 안쪽"에서 카드 몫을 뺀 값. */
+  clearCut: 120,
   /** 말풍선: 기본 + 글자당. 상한을 둔다. */
   sayBase: 60,
   sayPerChar: 4,
@@ -49,6 +51,8 @@ export interface Playing {
   seq: number;
   /** 화면 시트에 있는 물건 anim이면 그 물건과 고른 갈래(형식 기록 4-1절). 엔진은 이걸 그린다. */
   art?: { object: string; anim: SceneAnim };
+  /** 이 이벤트가 도는 동안 화면 가운데 띄울 컷 글 ID(클리어 컷 L32). */
+  cut?: string;
 }
 
 /**
@@ -98,6 +102,11 @@ export interface SceneData {
   characters?: CharactersData;
   /** 화면 배경·물건 그림 메타(#157). 있으면 물건 anim 길이가 busy 길이가 되고, 보이는 플래그를 따로 센다. */
   art?: SceneArtMeta;
+  /**
+   * 클리어 컷 글 ID(L32, 설계 8절). 있으면 `clear` 이벤트가 이 글을 `TIMING.clearCut` 동안 띄우고(busy), 그 뒤 클리어 카드.
+   * 화면 문법에 클리어 연출 필드가 없어서(설계 14절) 엔진이 `<화면 ID>.clear` 텍스트가 있을 때 채운다.
+   */
+  clearLine?: string;
 }
 
 /** busy = 재생할 이벤트가 하나라도 남아 있다(설계 5절). */
@@ -333,7 +342,7 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
       return { ev, t: 0, duration: TIMING.gauge, seq };
     case 'clear':
       s.cleared = true;
-      return { ev, t: 0, duration: 0, seq };
+      return data.clearLine ? { ev, t: 0, duration: TIMING.clearCut, seq, cut: data.clearLine } : { ev, t: 0, duration: 0, seq };
     case 'say':
       return { ev, t: 0, duration: sayDuration(ev.text), seq };
     case 'anim': {
@@ -388,8 +397,14 @@ export type SceneTapResult =
  * - 말풍선이 뜬 뒤 0.4초가 지났으면: 그 말풍선만 끝낸다.
  */
 export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number, touch: boolean): SceneTapResult {
-  if (s.cleared) return { kind: 'ignored' };
   const cur = s.current;
+  // 클리어 컷은 말풍선처럼 0.4초 뒤 탭으로 넘긴다(설계 8절: 다시 볼 때 기다리지 않게). 클리어 뒤 다른 입력은 받지 않는다.
+  if (cur?.ev.type === 'clear') {
+    if (cur.t < TIMING.saySkipAfter) return { kind: 'ignored' };
+    cur.duration = cur.t;
+    return { kind: 'skipSay' };
+  }
+  if (s.cleared) return { kind: 'ignored' };
   if (cur) {
     if (cur.ev.type === 'walk') {
       const w = s.walkers[cur.ev.char];
@@ -422,6 +437,7 @@ export function currentBubble(s: SceneState): { speaker: string; text: string } 
 
 /** 지금 떠 있는 화면 가운데 컷 글 ID. 없으면 null. busy가 끝난 뒤에도 잠깐 남을 수 있다. */
 export function currentCut(s: SceneState): string | null {
+  if (s.current?.cut) return s.current.cut;
   return s.tick < s.faintCutUntil ? 'ui.faint' : null;
 }
 

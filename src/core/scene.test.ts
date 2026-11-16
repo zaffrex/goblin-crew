@@ -352,3 +352,54 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
     expect(pair(s, 'jjuk', 'ppik')).toEqual(['jjuk', 'ppik']);
   });
 });
+
+describe('클리어 컷 L32 (설계 8절, #68)', () => {
+  const withLine: SceneData = { ...data, clearLine: 'magpie_nest.clear' };
+
+  /** 쭉이가 고리에 매달려 있고 까치는 바닥 → 둥지 뻗기 한 번이면 클리어(정답 4번). */
+  function clearNow(d: SceneData): SceneState {
+    const s = createScene(d);
+    while (isBusy(s)) sceneTick(d, s);
+    s.puzzle = { ...s.puzzle, at: { ...s.puzzle.at, jjuk: 'hook' }, flags: { ...s.puzzle.flags, 'magpie.on_ground': true } };
+    const r = sceneTap(d, s, center(sceneLayout(d, s).hotspots.nest!), 0, false);
+    expect(r.kind).toBe('intent');
+    expect(s.puzzle.flags['nest.key_taken']).toBe(true);
+    return s;
+  }
+
+  it('clear 이벤트 동안 컷 글을 띄우고 busy다. 끝나면 컷이 사라지고 클리어 카드 조건(cleared && !busy)이 된다', () => {
+    const s = clearNow(withLine);
+    while (s.current?.ev.type !== 'clear') sceneTick(withLine, s);
+    expect(s.cleared).toBe(true);
+    expect(currentCut(s)).toBe('magpie_nest.clear');
+    expect(sceneLayout(withLine, s).cut).toBe('magpie_nest.clear');
+    expect(currentBubble(s)).toBeNull();
+    const from = s.tick;
+    while (isBusy(s)) sceneTick(withLine, s);
+    expect(s.tick - from).toBe(TIMING.clearCut);
+    expect(currentCut(s)).toBeNull();
+  });
+
+  it('컷은 0.4초 전 탭은 무시하고, 그 뒤 탭 한 번에 넘어간다. 클리어 뒤 다른 입력은 받지 않는다', () => {
+    const s = clearNow(withLine);
+    while (s.current?.ev.type !== 'clear') sceneTick(withLine, s);
+    expect(sceneTap(withLine, s, SEESAW_LEFT, 0, false).kind).toBe('ignored');
+    for (let i = 0; i < TIMING.saySkipAfter; i++) sceneTick(withLine, s);
+    expect(sceneTap(withLine, s, SEESAW_LEFT, 0, false).kind).toBe('skipSay');
+    sceneTick(withLine, s);
+    expect(isBusy(s)).toBe(false);
+    expect(currentCut(s)).toBeNull();
+    expect(sceneTap(withLine, s, SEESAW_LEFT, 0, false).kind).toBe('ignored');
+  });
+
+  it('clearLine이 없는 화면은 예전처럼 바로 카드(길이 0)', () => {
+    const s = clearNow(data);
+    let sawCut = false;
+    while (isBusy(s)) {
+      sceneTick(data, s);
+      if (currentCut(s) !== null) sawCut = true;
+    }
+    expect(s.cleared).toBe(true);
+    expect(sawCut).toBe(false);
+  });
+});

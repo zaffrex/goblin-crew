@@ -37,12 +37,19 @@ const clearCut = need('#clear');
 const faintCut = need('#faint');
 
 const screenData = screenJson as unknown as ScreenData;
-const data: SceneData = { screen: screenData, characters: charactersJson as CharactersData, art: sceneArtMeta(screenData.id) ?? undefined };
+const TEXT: Readonly<Record<string, string>> = texts;
+const t = (id: string): string => TEXT[id] ?? id;
+/** 클리어 컷 글(L32, 설계 8절). 화면 문법에 필드가 없어 `<화면 ID>.clear` 텍스트가 있으면 쓴다. */
+const clearLine = `${screenData.id}.clear` in TEXT ? `${screenData.id}.clear` : undefined;
+const data: SceneData = {
+  screen: screenData,
+  characters: charactersJson as CharactersData,
+  art: sceneArtMeta(screenData.id) ?? undefined,
+  clearLine,
+};
 const art = loadSceneArt(screenData.id);
 /** 시트가 그리는 대상. 이 밖의 대상만 임시 상자로 그린다. */
 const covered = art ? coveredIds(art.meta) : new Set<string>();
-const TEXT: Readonly<Record<string, string>> = texts;
-const t = (id: string): string => TEXT[id] ?? id;
 
 const display = createDisplay(canvas, { width: INTERNAL_WIDTH, height: INTERNAL_HEIGHT });
 const scene = createScene(data);
@@ -214,7 +221,7 @@ function render(): void {
   placeDom(label, { x: INTERNAL_WIDTH / 2, y: INTERNAL_HEIGHT - 4 });
 
   clearCut.hidden = !(scene.cleared && !isBusy(scene));
-  // 게이지 0 컷(#129, L33). 그림 없는 M1 임시 연출: 클리어 카드와 같은 DOM 글 한 줄.
+  // 게이지 0 컷(#129, L33)과 클리어 컷(L32). 그림 없는 M1 임시 연출: 클리어 카드와 같은 DOM 글 한 줄.
   const cut = layout.cut;
   faintCut.hidden = cut === null;
   if (cut !== null && faintCut.textContent !== t(cut)) faintCut.textContent = t(cut);
