@@ -14,7 +14,7 @@ import { GAUGE_CELLS, HUD_AREA } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { createScene, currentBubble, drawOrder, isBusy, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
-import { coveredIds, sceneDraws } from './core/sceneArt';
+import { coveredIds, litFrames, sceneDraws } from './core/sceneArt';
 import type { Pose } from './core/sprite';
 import { internalToScreen, screenToInternal, type Point } from './core/viewport';
 import { createDisplay } from './engine/display';
@@ -132,6 +132,9 @@ function uncovered(boxes: Record<string, HitBox>): Record<string, HitBox> {
 function render(): void {
   const { ctx, internal } = display;
   const layout = sceneLayout(data, scene);
+  // 라벨과 호버 외곽선(형식 기록 10-1절)은 같은 대상: 마우스 호버 또는 터치 첫 탭. busy·클리어 중에는 끈다.
+  const shown = isBusy(scene) || scene.cleared ? null : (touchLabel ?? hoverLabel);
+  const litTarget = shown?.target ?? null;
   if (!drawSceneBg(ctx, art)) drawRoom(ctx, internal, WALK_AREA);
   const boxSpots = uncovered(layout.spots);
   const boxHotspots = uncovered(layout.hotspots);
@@ -140,7 +143,8 @@ function render(): void {
   // 물건 그림(형식 기록 4·6절): 보이는 플래그로 멈춘 모습, 재생 중 물건 anim은 그 프레임.
   const playing = scene.current?.art ? { ...scene.current.art, ms: scene.current.t * TICK_MS } : null;
   const draws = art ? sceneDraws(art.meta, { flagsOf: (k) => shownFlags(scene, k), playing, clockMs: scene.tick * TICK_MS }) : null;
-  for (const f of draws?.back ?? []) drawSceneFrame(ctx, art!, f);
+  const lit = draws ? litFrames(art!.meta, draws, litTarget) : new Set<number>();
+  for (const f of draws?.back ?? []) drawSceneFrame(ctx, art!, f, lit.has(f));
 
   const me = scene.walkers[scene.ui.active];
   if (me.target && !isBusy(scene)) drawTarget(ctx, me.target, scene.tick);
@@ -160,14 +164,14 @@ function render(): void {
   const charArt: FrameArt['chars'][number][] = [];
   for (const it of items) {
     if (it.char === undefined) {
-      drawSceneFrame(ctx, art!, it.frame!);
+      drawSceneFrame(ctx, art!, it.frame!, lit.has(it.frame!));
       continue;
     }
     const id = it.char;
     const w = scene.walkers[id];
     // 시트에 그 연출이 있으면 시트가 재생하고, 없으면 drawSprite가 null → 실루엣을 흔든다.
     const pose = poseOf(id, layout);
-    const top = drawSprite(ctx, w, pose);
+    const top = drawSprite(ctx, w, pose, id === litTarget);
     if (PLAYTEST) charArt.push({ id, sheet: spriteState(id), drawn: top !== null, pose });
     if (top === null) {
       const dx = w.id === shaking && Math.floor(scene.tick / 3) % 2 === 1 ? 1 : 0;
@@ -177,7 +181,7 @@ function render(): void {
       spriteTops[id] = top;
     }
   }
-  for (const f of draws?.front ?? []) drawSceneFrame(ctx, art!, f);
+  for (const f of draws?.front ?? []) drawSceneFrame(ctx, art!, f, lit.has(f));
   if (PLAYTEST) {
     const loaded = (img: unknown, ready: boolean): Loaded => (!img ? 'none' : ready ? 'ready' : 'loading');
     const frame: FrameArt = {
@@ -199,7 +203,8 @@ function render(): void {
   if (scene.ui.selected) {
     const target = scene.ui.selected.split('|')[2] ?? '';
     const box = layout.hotspots[target] ?? layout.spots[target];
-    if (box) drawOutline(ctx, box, scene.tick);
+    // 시트 그림이 외곽선으로 켜졌으면 임시 상자 테두리는 겹쳐 그리지 않는다(폴백 상자에만).
+    if (box && !(art?.outlined && lit.size > 0)) drawOutline(ctx, box, scene.tick);
   }
   drawHud(ctx, layout.hud, GAUGE_CELLS, { active: layout.active, armed: layout.armed, gauge: layout.gauge });
   display.present();
@@ -214,7 +219,6 @@ function render(): void {
     placeDom(bubble, bubbleAt ?? { x: INTERNAL_WIDTH / 2, y: 60 });
   }
 
-  const shown = isBusy(scene) || scene.cleared ? null : (touchLabel ?? hoverLabel);
   const labelString = shown ? labelText(shown, data.screen.id, t) : '';
   label.hidden = labelString === '';
   if (label.textContent !== labelString) label.textContent = labelString;

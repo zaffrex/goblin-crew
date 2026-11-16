@@ -154,6 +154,8 @@ export interface SceneDraws {
   back: number[];
   front: number[];
   overlays: { sortY: number; frame: number }[];
+  /** 물건 키 → 이번 프레임에 그 물건이 그리는 프레임(앞판 포함). 호버 외곽선(10-1절)이 쓴다. */
+  byObject: Record<string, number[]>;
 }
 
 export interface SceneView {
@@ -170,18 +172,34 @@ export interface SceneView {
  * anim 재생 중인 물건은 멈춘 모습·`loop` 대신 anim 프레임을 그린다(4절). `overlay`(앞판)는 anim 중에도 그린다.
  */
 export function sceneDraws(meta: SceneArtMeta, view: SceneView): SceneDraws {
-  const out: SceneDraws = { back: [], front: [], overlays: [] };
+  const out: SceneDraws = { back: [], front: [], overlays: [], byObject: {} };
   for (const o of meta.objects) {
     const p = view.playing;
+    let frame: number;
     if (p && p.object === o.key) {
-      out[p.anim.layer].push(timedFrame(p.anim, p.ms, false));
+      frame = timedFrame(p.anim, p.ms, false);
+      out[p.anim.layer].push(frame);
     } else {
       const pic = pictureOf(o, view.flagsOf(o.key));
-      out[pic.layer].push(pic.loop ? timedFrame(pic.loop, view.clockMs, true) : pic.frame);
+      frame = pic.loop ? timedFrame(pic.loop, view.clockMs, true) : pic.frame;
+      out[pic.layer].push(frame);
     }
-    if (o.overlay) out.overlays.push({ sortY: o.overlay.sortY, frame: o.overlay.frame });
+    out.byObject[o.key] = [frame];
+    if (o.overlay) {
+      out.overlays.push({ sortY: o.overlay.sortY, frame: o.overlay.frame });
+      out.byObject[o.key]!.push(o.overlay.frame);
+    }
   }
   return out;
+}
+
+/**
+ * 호버 외곽선을 켤 프레임(10-1절). 대상(hotspot·spot ID)을 맡은 물건이 이번 프레임에 그리는 것 전부.
+ * 시소처럼 `ids`가 여럿이면 어느 쪽을 가리켜도 물건 전체가 켜진다(5절). 시트에 없는 대상(9절 폴백 상자)은 빈 집합.
+ */
+export function litFrames(meta: SceneArtMeta, draws: SceneDraws, target: string | null): Set<number> {
+  const o = target === null ? null : objectOf(meta, target);
+  return new Set(o ? (draws.byObject[o.key] ?? []) : []);
 }
 
 /** 시트가 그리는 대상 ID 전부. 엔진은 이 밖의 대상만 임시 상자로 그린다. */

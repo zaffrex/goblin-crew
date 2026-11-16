@@ -5,7 +5,7 @@ import sheetJson from '../../public/scenes/magpie_nest-objects.json';
 import { CHAR_SLOTS } from './hud';
 import type { CharactersData, ScreenData } from './puzzle/types';
 import { createScene, isBusy, sceneTap, sceneTick, shownFlags, TIMING, type SceneData, type SceneState } from './scene';
-import { animOf, animTicks, coveredIds, objectOf, parseSceneArt, pictureOf, sceneDraws, timedFrame, type SceneArtMeta, type SceneView } from './sceneArt';
+import { animOf, animTicks, coveredIds, litFrames, objectOf, parseSceneArt, pictureOf, sceneDraws, timedFrame, type SceneArtMeta, type SceneView } from './sceneArt';
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -231,5 +231,33 @@ describe('보이는 플래그 (형식 기록 4-2절)', () => {
     sceneTap(data, s, MAGPIE, 0, false);
     for (let i = 0; i < 40; i++) sceneTick(data, s);
     expect(JSON.parse(JSON.stringify(s))).toEqual(s);
+  });
+});
+
+describe('litFrames (10-1절 호버 외곽선 대상)', () => {
+  it('시소는 어느 끝을 가리켜도 널빤지 프레임 전체가 켜진다', () => {
+    const m = meta();
+    const d = sceneDraws(m, view());
+    expect(litFrames(m, d, 'seesaw_left')).toEqual(new Set([12]));
+    expect(litFrames(m, d, 'seesaw_right')).toEqual(new Set([12]));
+  });
+
+  it('바구니는 몸통과 앞판(overlay)이 함께 켜진다', () => {
+    const m = meta();
+    expect(litFrames(m, sceneDraws(m, view()), 'basket')).toEqual(new Set([13, 14]));
+  });
+
+  it('loop 물건은 지금 그리는 프레임만 켜진다(둥지 깜빡임 칸)', () => {
+    const m = meta();
+    // 둥지 loop [0,1,2] ms [1600,120,120] → 1650ms에는 1번 칸
+    expect(litFrames(m, sceneDraws(m, view({ clockMs: 1650 })), 'nest')).toEqual(new Set([1]));
+  });
+
+  it('시트에 없는 대상(폴백 상자)·캐릭터·대상 없음은 빈 집합', () => {
+    const m = meta();
+    const d = sceneDraws(m, view());
+    expect(litFrames(m, d, 'no_such_target').size).toBe(0);
+    expect(litFrames(m, d, 'jjuk').size).toBe(0);
+    expect(litFrames(m, d, null).size).toBe(0);
   });
 });
