@@ -77,6 +77,9 @@ export function pose(kind, k) {
   if (kind === 'launch_to_hook') return LAUNCH[k];
   if (kind === 'common.flatten') return FLATTEN[k];
   if (kind === 'common.bump_bottom') return BUMP[k];
+  if (kind === 'common.shiver') return SHIVER[k];
+  if (kind === 'common.wag_finger') return WAG[k];
+  if (kind === 'hide_in_basket') return HIDE[k];
   if (kind === 'idle') {
     return {
       chest: k, // 숨 들이쉬기 / 내쉬기
@@ -155,6 +158,10 @@ const GLASSES = {
   // 자기 소리에 놀란 눈: 렌즈 가운데 1px 눈동자(바늘 눈). 안경은 1px 튀어 오른다(glassesUp).
   wide: [11, 11, ['.FFF...FFF.', 'FawwFFFawwF', 'FwPwF.FwPwF', 'FwwwF.FwwwF', '.FFF...FFF.']],
   // 어질(납작 뒤): 안경이 비뚤어져 뒤 렌즈가 1px 위, 앞 렌즈가 1px 아래. 눈동자는 왼쪽 위 / 오른쪽 아래로 따로 논다.
+  // 올려다봄(몸서리 0번): 눈동자가 렌즈 위쪽에 붙는다
+  up: [11, 11, ['.FFF...FFF.', 'FwwPFFFwwPF', 'FwwPF.FwwPF', 'FlwwF.FlwwF', '.FFF...FFF.']],
+  // 내려다봄(빼꼼, "아, 내 닭이구나"): 눈동자가 렌즈 앞쪽 아래에 붙는다
+  down: [11, 11, ['.FFF...FFF.', 'FawwFFFawwF', 'FwwwF.FwwwF', 'FlwPF.FlwPF', '.FFF...FFF.']],
   askew: [11, 10, ['.FFF.......', 'FPwwF..FFF.', 'FwwwFFFawwF', 'FlwwF.FwwwF', '.FFF..FwwPF', '.......FFF.']],
 };
 const TEMPLE = [10, 12, ['F']]; // 안경다리(후드 안으로)
@@ -163,6 +170,7 @@ const MOUTHS = {
   shake: [13, 18, ['.m.m.m', 'm.m.m.']], // 덜덜 떨리는 입(기본)
   clench: [13, 18, ['mmmmmm', '.m..m.']], // 이를 악문 입(쥐어짜기)
   o: [14, 17, ['.mm.', 'mPPm', 'mPPm', '.mm.']], // 흐익(놀라 벌린 입)
+  prim: [14, 18, ['mmmm', '.DD.']], // 새침하게 다문 입(안 돼요)
 };
 const CHEEK = [11, 16, ['cc']];
 // 후드 꼭지(머리 격자 기준 (7,−6)에 찍는다): 꼭지 끝은 머리 (14,−6). 손 기준점 (14,−4)보다 2px 위로 솟아 고리 끝을 감싼다
@@ -191,6 +199,12 @@ const HAND = {
   // 뒷손: 닭 등 위로 손가락만 넘어온다
   back: ['tss.', 'sDsd', '.dd.'],
 };
+// 세운 검지(안 돼요). 주먹 4×3 위로 검지 2px, 끝 마디가 까딱인다. [뒤로 / 곧게 / 앞으로]
+const FINGER = [
+  ['tt...', '.st..', '.ss..', '.ss..', 'tsss.', 'tsssd', 'sDsDd', '.ddd.'],
+  ['.tt..', '.st..', '.ss..', '.ss..', 'tsss.', 'tsssd', 'sDsDd', '.ddd.'],
+  ['..tt.', '.st..', '.ss..', '.ss..', 'tsss.', 'tsssd', 'sDsDd', '.ddd.'],
+];
 // 고무 닭 세부: R red(볏) O hint(부리·다리) k ink(눈)
 const CHICK_L = { R: C.red, r: C.redD, O: C.hint, k: C.ink };
 
@@ -215,8 +229,10 @@ function drawLeg(K, side, a, d, bias) {
 
 export function drawFrame(p) {
   if (p.zip !== undefined) return drawZip(p);
+  if (p.hide !== undefined) return drawHide(p);
   const oy = p.oy ?? 0; // 몸 전체를 위로 올린다(px, 음수 = 위). 발사·매달림
-  const K = new Canvas(CELL[0], CELL[1], S, OX, oy);
+  const dx = p.dx ?? 0; // 몸 전체를 옆으로(px, 정수). 몸서리
+  const K = new Canvas(CELL[0], CELL[1], S, OX + dx, oy);
   const d = u(p.chest);
   const lean = u(p.lean);
   const body = (y) => y + d;
@@ -249,9 +265,12 @@ export function drawFrame(p) {
   K.limb([[cbx + 1.4, cby - 1.2, 1.15], [hx - 0.3, hy + 0.9, 1.0]], R4.chick, { line: false });
   const chickHead = K.ball(hx, hy, 1.75, 1.85, R4.chick);
 
-  // 앞팔 소매: 어깨 → 팔꿈치 → 닭 아래(소매가 길어 손등까지 덮는다)
+  // 앞팔 소매: 어깨 → 팔꿈치 → 닭 아래(소매가 길어 손등까지 덮는다).
+  // 손가락질(p.point)이면 닭은 뒷손에 맡기고 앞팔을 얼굴 앞으로 세운다(손은 머리 다음에 찍는다).
   const sx = bx(16.6, body(27.8)), sy = body(27.8);
-  K.limb([[sx, sy, 1.6], [bx(18.0, body(31.4)), body(31.4), 1.5], [cbx - 2.2, cby + 1.2, 1.55]], R4.coat);
+  const pt = p.point && { x: bx(28.2 + p.point.x, body(25.0)), y: body(25.0) };
+  if (pt) K.limb([[sx, sy, 1.6], [bx(22.0, body(31.2)), body(31.2), 1.5], [pt.x, pt.y, 1.45]], R4.coat);
+  else K.limb([[sx, sy, 1.6], [bx(18.0, body(31.4)), body(31.4), 1.5], [cbx - 2.2, cby + 1.2, 1.55]], R4.coat);
   colorLines(K, LINE);
 
   // 닭 세부: 볏·부리·눈·늘어진 다리
@@ -267,7 +286,7 @@ export function drawFrame(p) {
 
   // 손(격자): 앞손은 닭 배 아래, 뒷손은 닭 등 위
   const handPart = K.part(R4.skin);
-  {
+  if (!pt) {
     const [x, y] = P(cbx - 1.6, cby + 0.6 - 0.6 * sq);
     K.stamp(x - 2, y - 1, HAND.front, HAND_L, handPart);
   }
@@ -291,7 +310,7 @@ export function drawFrame(p) {
   K.stamp(...P(bx(15.4, body(28.2)), body(28.2)), ['AAA', 'AtA'], coatL); // 명찰(셋이 같은 직원 명찰)
 
   // 머리: 상체와 같은 정수 px만큼 내리고 lean만큼 앞으로
-  const hx0 = HEAD_X + p.lean, hy0 = HEAD_Y + p.chest + oy;
+  const hx0 = HEAD_X + p.lean + dx, hy0 = HEAD_Y + p.chest + oy;
   const headPart = K.part(R4.skin);
   K.stamp(hx0, hy0, HEAD, HL, headPart);
   // 고리에 걸린 후드 꼭지: 정수리 천이 텐트처럼 당겨져 손 기준점(hand)까지 솟는다. 당긴 주름이 정수리로 내려온다.
@@ -300,6 +319,11 @@ export function drawFrame(p) {
   for (const [cx2, cy2, rows] of [[BROWS[0], BROWS[1] - gUp, BROWS[2]], [...GLASSES[p.eyes].slice(0, 1), GLASSES[p.eyes][1] - gUp, GLASSES[p.eyes][2]], TEMPLE, NOSE, MOUTHS[p.mouth ?? 'shake'], CHEEK])
     K.stamp(hx0 + cx2, hy0 + cy2, rows, HL, headPart);
   if (p.sweat >= 0) K.stamp(hx0 + 21, hy0 + 1 + p.sweat, SWEAT, { A: C.tealM, W: C.white }, K.part(R4.chick));
+  // 세운 검지(머리 앞에 찍는다): 소매 끝에서 주먹, 그 위로 검지가 까딱(tilt −1 뒤 / 0 곧게 / 1 앞)
+  if (pt) {
+    const [x, y] = P(pt.x, pt.y);
+    K.stamp(x - 2, y - 8, FINGER[p.point.tilt + 1], HAND_L, handPart);
+  }
 
   rimShade(K, new Set([headPart, handPart]), DOWN);
   soles(K, feet, C.redD);
@@ -459,6 +483,124 @@ const BUMP = [
   },
 ];
 
+// ── 짧은 반응 3개(묶음 ⑥). 셋 다 삑삑이 능력(삑)을 장난감·고리에 썼을 때의 기본 반응이고, 삑 동작 대신 성격을 연기한다.
+//   설계 4절 표: 고리 L23 "몸서리", 내복 L31 "손가락을 흔들며 말린다", 바구니 L28 "자기 삑에 놀라 숨었다 고개만"(U9).
+//   마지막 칸이 말풍선 동안 남는다(#193). 그래서 마지막 칸 = 대사와 같은 표정이다.
+
+/** 덜덜 선(외곽선 없음): 몸 윤곽 양옆에 짧은 세로 선 두 줄씩. side 0/1로 위아래를 엇갈린다(떨림). rows = 몸 높이 중 어디에 둘지(② 행). */
+function tremble(K, side, rows = [30, 40]) {
+  const b = K.bbox(rows[0], rows[1]);
+  if (!b) return;
+  const o = side ? 2 : 0;
+  const y0 = rows[0] + 1;
+  const marks = [[b.x - 2, y0 + o, 4], [b.x - 4, y0 + 2 + o, 3], [b.x + b.w + 1, y0 + 2 - o, 4], [b.x + b.w + 3, y0 + 4 - o, 3]];
+  for (const [x, y, n] of marks)
+    for (let j = 0; j < n; j++) if (K.get(x, y + j) === -1) K.dot(x, y + j, j === 0 || j === n - 1 ? C.lint : C.white);
+}
+
+// common.shiver  공용 "몸서리"(무서운 것을 보거나 떠올림). 화면 1은 고리(L23 "저기 매달리면 / 무섭겠다…").
+//   0 올려다봄(무서운 쪽을 보고 굳는다, 닭을 끌어안음) → 1·2 부르르(몸 전체가 1px씩 좌우로 떨리고, 눈 질끈·이 악물기, 닭도 같이 눌린다)
+//   → 3 움츠림(닭을 턱밑까지 끌어안고 덜덜 입 + 땀, 말풍선 동안 남는 칸). 위를 보는 건 0번 칸뿐이라 다른 화면에서도 쓸 수 있다.
+const SHIVER_LEGS = { back: { x: -0.3, lift: 0, toe: false }, front: { x: 0.4, lift: 0, toe: false } }; // 무릎 모으기
+const SHIVER = [
+  { // 0 올려다봄: 상체를 살짝 젖히고 눈동자가 위로. 닭을 가슴께로
+    chest: 1, lean: -1, legs: SHIVER_LEGS,
+    eyes: 'up', mouth: 'shake', sweat: -1, chickHead: 0, chickUp: 2, flare: 0,
+  },
+  { // 1 부르르(뒤로 1px): 눈 질끈, 이 악물기, 닭 반쯤 눌림
+    chest: 2, lean: 0, dx: -1, legs: SHIVER_LEGS,
+    eyes: 'shut', mouth: 'clench', sweat: -1, chickHead: -1, chickUp: 3, squash: 0.5, flare: 1,
+    fx: (K) => tremble(K, 0),
+  },
+  { // 2 부르르(앞으로 1px)
+    chest: 2, lean: 0, dx: 1, legs: SHIVER_LEGS,
+    eyes: 'shut', mouth: 'clench', sweat: -1, chickHead: 1, chickUp: 3, squash: 0.5, flare: 1,
+    fx: (K) => tremble(K, 1),
+  },
+  { // 3 움츠림: 닭을 턱밑까지, 덜덜 입, 땀
+    chest: 3, lean: 0, legs: SHIVER_LEGS,
+    eyes: 'fwd', mouth: 'shake', sweat: 0, chickHead: 0, chickUp: 4, flare: 0,
+    fx: (K) => tremble(K, 0),
+  },
+];
+
+// common.wag_finger  공용 "안 돼요"(규칙 지키는 막내 알바). 화면 1은 내복(L31 "손님 빨래는 / 건드리면 안 돼요").
+//   닭을 처음으로 한 손에 맡기고(뒷손이 등을 꼭 쥔다) 앞손 검지를 얼굴 앞에 세운다. 눈은 새침하게 감고 입을 다문다.
+//   0 세움(곧게) → 1 까딱(뒤로) → 2 까딱(앞으로) → 3 곧게 + 실눈 뜨고 힐끔(말풍선 동안 남는 칸). 닭 머리는 손가락 반대로 까딱.
+const WAG_LEGS = { back: { x: -0.9, lift: 0, toe: false }, front: { x: 1.0, lift: 0, toe: false } };
+const WAG = [
+  { chest: 0, lean: -1, legs: WAG_LEGS, eyes: 'shut', mouth: 'prim', sweat: -1, chickHead: 0, chickUp: 1, flare: 0, point: { x: 0, tilt: 0 } },
+  { chest: 0, lean: -1, legs: WAG_LEGS, eyes: 'shut', mouth: 'prim', sweat: -1, chickHead: 1, chickUp: 1, flare: 0, point: { x: -0.8, tilt: -1 } },
+  { chest: 0, lean: -1, legs: WAG_LEGS, eyes: 'shut', mouth: 'prim', sweat: -1, chickHead: -1, chickUp: 1, flare: 0, point: { x: 0.8, tilt: 1 } },
+  { chest: 0, lean: -1, legs: WAG_LEGS, eyes: 'fwd', mouth: 'prim', sweat: -1, chickHead: 0, chickUp: 1, flare: 0, point: { x: 0, tilt: 0 } },
+];
+
+// hide_in_basket  U9 "자기 삑에 놀라 숨었다가 고개만 내밀기"(L28 "깜짝이야! / …아, 내 닭이구나").
+//   설계 7절 U9는 "바구니에 쏙"이었지만, 삑 행동은 대상 앞까지 걷지 않아서(ui-interaction 5-1절, #219) 삑삑이는 바구니에서 멀리 서 있을 수 있다.
+//   그래서 바구니 대신 **자기 우비 속으로** 거북이처럼 쏙 숨는다(어디서 삑 해도 같은 그림). 이름은 화면 데이터 키라 그대로 둔다.
+//   0 꽉!(닭을 쥐어짜 삑, 소리선) → 1 흐익(자기 소리에 놀라 젖힘) → 2 쏙(머리·닭이 우비 속으로, 후드 꼭대기와 장화 코만 보인다, 우비가 노란 텐트로 바닥까지)
+//   → 3 빼꼼(옷깃 위로 안경만 올라오고, 앞섶 사이로 닭 머리가 같이 빼꼼. 눈동자는 닭을 내려다본다 = "아, 내 닭이구나").
+const HIDE = [
+  { ...SQUEEZE[1] },
+  { ...SQUEEZE[2] },
+  { hide: 0 },
+  { hide: 1 },
+];
+
+/** 우비 속에 숨은 칸(hide_in_basket 2·3). 서 있기 몸을 쓰지 않고 텐트(우비) + 머리 윗부분 + 장화 코만 그린다. */
+function drawHide(p) {
+  const K = new Canvas(CELL[0], CELL[1], S, OX, 0);
+  const peek = p.hide === 1;
+  // 장화 코: 텐트 밑단 아래로 두 짝(앞 장화가 한 단 밝다)
+  const feet = [
+    K.ball(10.8, 46.0, 3.1, 2.0, R4.bootBack, { bias: -0.15 }),
+    K.ball(19.6, 46.0, 3.4, 2.0, R4.boot, { bias: 0.15 }),
+  ];
+  // 머리: 옷깃 선(collar, ② 행) 위로 visible 행만 남는다. 텐트를 머리 다음에 그려서 아래를 덮는다.
+  const collar = 44;
+  const visible = peek ? 16 : 8; // 쏙: 후드 꼭대기만 / 빼꼼: 안경까지
+  const hx0 = HEAD_X + (peek ? 0 : -1), hy0 = collar - visible;
+  const headPart = K.part(R4.skin);
+  K.stamp(hx0, hy0, HEAD, HL, headPart);
+  if (peek) {
+    for (const [cx, cy, rows] of [[BROWS[0], BROWS[1] - 1, BROWS[2]], GLASSES.down, TEMPLE])
+      K.stamp(hx0 + cx, hy0 + cy, rows, HL, headPart);
+  }
+  // 텐트(우비): 옷깃에서 바닥까지 종 모양. 쏙 칸은 한 번 더 웅크려 폭이 넓다.
+  const top = (collar - 0.5) / S; // ① 좌표
+  const rx = peek ? 8.6 : 9.2;
+  K.ball(14.8, 47.4, rx, 47.4 - top + 0.6, R4.coat, { clip: (x, y) => y >= top && y <= 45.2 });
+  // 닭 머리: 빼꼼 칸에서 앞섶 사이로 같이 내민다
+  let chickHead = -1;
+  if (peek) chickHead = K.ball(22.4, 38.6, 1.75, 1.85, R4.chick);
+  colorLines(K, LINE);
+  // 우비 세부: 앞섶 선과 토글 단추, 명찰(쏙 칸에서도 "같은 직원" 단서)
+  const coatL = { y: C.yelD, b: C.woodD, w: C.wood, A: C.aqua, t: C.tealM };
+  const P = (x, y) => [Math.round(K.X(x)), Math.round(K.Y(y))];
+  {
+    const [x0, y0] = P(21.0, top + 1.0);
+    for (let y = y0; y <= 61; y++) if (K.get(x0, y) !== -1 && K.get(x0, y) !== C.ink && K.p[y * K.w + x0] !== chickHead) K.dot(x0, y, C.yelD);
+    for (const ty of [41.6, 44.6]) {
+      const [x, y] = P(21.0, ty);
+      K.stamp(x - 1, y, ['bw'], coatL);
+    }
+  }
+  K.stamp(...P(13.0, top + 2.6), ['AAA', 'AtA'], coatL);
+  if (peek) {
+    const [x, y] = P(22.4, 38.6);
+    K.stamp(x - 1, y - 4, ['.R.R', 'RRrR'], CHICK_L, chickHead);
+    K.stamp(x + 2, y - 1, ['OO.', 'OOO', 'Or.'], CHICK_L, chickHead);
+    K.stamp(x, y - 1, ['k'], CHICK_L);
+  }
+  rimShade(K, new Set([headPart]), DOWN);
+  soles(K, feet, C.redD);
+  K.outline();
+  // 쏙 칸: 텐트가 떨리는 덜덜 선. 빼꼼 칸: 땀 한 방울(외곽선 없이)
+  if (!peek) tremble(K, 1, [46, 56]);
+  else K.stamp(hx0 + 21, hy0 + 2, SWEAT, { A: C.tealM, W: C.white });
+  return { K, feet };
+}
+
 /** 사라진 칸(launch_to_hook 2·3): 속도선·먼지만(외곽선 없음). 3번 칸에는 남겨진 땀방울이 떨어진다. */
 function drawZip(p) {
   const K = new Canvas(CELL[0], CELL[1], S, OX, 0);
@@ -486,6 +628,9 @@ export const SHEET = {
     { name: 'launch_to_hook', frames: 4, ms: [150, 100, 100, 150] },
     { name: 'common.flatten', frames: 4, ms: [100, 600, 150, 450] },
     { name: 'common.bump_bottom', frames: 4, ms: [100, 400, 300, 500] },
+    { name: 'common.shiver', frames: 4, ms: [400, 100, 100, 500] },
+    { name: 'common.wag_finger', frames: 4, ms: [250, 200, 200, 400] },
+    { name: 'hide_in_basket', frames: 4, ms: [200, 300, 350, 500] },
   ],
   pose,
   drawFrame,
