@@ -202,14 +202,27 @@ describe('보이는 플래그 (형식 기록 4-2절)', () => {
   });
 
   it('캐릭터 시트가 있어도 그 자세가 없으면 임시 길이', () => {
+    // 실제 시트에는 squeeze_chicken이 있다(#142). 그 자세만 뺀 시트로 "시트는 있고 자세는 없음"을 만든다.
+    const anims = Object.fromEntries(Object.entries(PPIK.anims).filter(([k]) => k !== 'common.squeeze_chicken'));
+    const noPose: SpriteMeta = { ...PPIK, anims };
+    const d: SceneData = { ...data, sprites: { ppik: noPose } };
+    const s = ready(d);
+    sceneTap(d, s, center(CHAR_SLOTS.ppik), 0, false);
+    sceneTap(d, s, MAGPIE, 0, false);
+    sceneTick(d, s);
+    expect(s.current?.ev).toMatchObject({ type: 'anim', target: 'ppik', name: 'common.squeeze_chicken' });
+    expect(noPose.anims['common.squeeze_chicken']).toBeUndefined();
+    expect(s.current?.duration).toBe(TIMING.anim);
+  });
+
+  it('실제 삑삑이 시트의 squeeze_chicken은 1000ms = 60틱이다(#142)', () => {
     const d: SceneData = { ...data, sprites: { ppik: PPIK } };
     const s = ready(d);
     sceneTap(d, s, center(CHAR_SLOTS.ppik), 0, false);
     sceneTap(d, s, MAGPIE, 0, false);
     sceneTick(d, s);
-    expect(s.current?.ev).toMatchObject({ type: 'anim', target: 'ppik' });
-    expect(PPIK.anims[(s.current?.ev as { name: string }).name]).toBeUndefined();
-    expect(s.current?.duration).toBe(TIMING.anim);
+    expect(s.current?.ev).toMatchObject({ type: 'anim', target: 'ppik', name: 'common.squeeze_chicken' });
+    expect(s.current?.duration).toBe(60);
   });
 
   it('ruffle 갈래: 처음(둥지 위)은 기본, 까치가 바닥이면 바닥 갈래', () => {

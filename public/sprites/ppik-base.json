@@ -44,6 +44,18 @@
         7
       ],
       "by": "distance"
+    },
+    "common.squeeze_chicken": {
+      "frames": [
+        8,
+        9,
+        10
+      ],
+      "ms": [
+        200,
+        350,
+        450
+      ]
     }
   }
 }
