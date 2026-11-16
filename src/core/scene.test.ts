@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import charactersJson from '../../content/characters.json';
 import screenJson from '../../content/screens/magpie_nest.json';
+import jjukJson from '../../public/sprites/jjuk-base.json';
 import { hitTest, type HitBox } from './hit';
 import { CHAR_SLOTS, VERB_SLOTS } from './hud';
 import { worldTargets } from './interact';
+import { parseSpriteMeta, spriteBox } from './sprite';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { charPose, createScene, currentBubble, currentCut, drawOrder, isBusy, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
+import { bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, isBusy, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
 import type { Point } from './viewport';
 
 const data: SceneData = { screen: screenJson as unknown as ScreenData, characters: charactersJson as CharactersData };
@@ -477,5 +479,49 @@ describe('한 번 재생 연출의 마지막 장 유지와 매달림 (#189, 형�
     pick(s, 'jjuk');
     sceneTap(data, s, SEESAW_LEFT, 0, false);
     expect(charPose(data, s, 'jjuk').reach).toBeNull();
+  });
+});
+
+describe('매달린 캐릭터의 클릭 상자는 그리는 방향을 따른다 (#186)', () => {
+  const meta = parseSpriteMeta(jjukJson);
+  const withSheet: SceneData = { ...data, sprites: { jjuk: meta } };
+  /** 오른쪽을 보며 고리에 놓인 쭉이(걸어온 방향 = 오른쪽, 시트 hold.facing = 왼쪽). */
+  function hangingFacingRight(d: SceneData): SceneState {
+    const s = createScene(d);
+    idle(s);
+    const hook = d.screen.spots.hook!;
+    s.puzzle = { ...s.puzzle, at: { ...s.puzzle.at, jjuk: 'hook' } };
+    s.walkers.jjuk.x = hook.x;
+    s.walkers.jjuk.y = hook.y;
+    s.walkers.jjuk.facing = 1;
+    return s;
+  }
+
+  it('시트가 있으면 hold.facing(왼쪽)으로 상자를 만들고, 그림의 hit 열 범위와 같다', () => {
+    expect(meta.anims.hold?.facing).toBe(-1);
+    const s = hangingFacingRight(withSheet);
+    expect(charFacing(withSheet, s, 'jjuk')).toBe(-1);
+    const w = s.walkers.jjuk;
+    const box = spriteBox(meta, w.x, w.y, -1);
+    const [hx, hy, hw, hh] = meta.hit;
+    // 왼쪽을 보면 칸을 뒤집으니 hit 열 [hx, hx+hw)는 칸 안 [cw-hx-hw, cw-hx)로 간다.
+    const left = box.left + (meta.cell[0] - hx - hw);
+    expect(bodies(withSheet, s).jjuk).toEqual({ left, top: box.top + hy, width: hw, height: hh });
+    expect(tapContext(withSheet, s).bodies.jjuk).toEqual(bodies(withSheet, s).jjuk);
+    expect(sceneLayout(withSheet, s).chars.jjuk).toEqual(bodies(withSheet, s).jjuk);
+  });
+
+  it('시트가 없으면 실루엣이라 걷는 방향 그대로다', () => {
+    const s = hangingFacingRight(data);
+    expect(charFacing(data, s, 'jjuk')).toBe(1);
+  });
+
+  it('바닥에 선 캐릭터는 시트가 있어도 걷는 방향이다', () => {
+    const s = createScene(withSheet);
+    idle(s);
+    s.walkers.jjuk.facing = 1;
+    expect(charFacing(withSheet, s, 'jjuk')).toBe(1);
+    s.walkers.jjuk.facing = -1;
+    expect(charFacing(withSheet, s, 'jjuk')).toBe(-1);
   });
 });
