@@ -97,7 +97,9 @@ function buildSheet(def) {
   const ax = fs.x0 + span / 2;
 
   // 딛은 발은 바닥에 닿아야 한다(발 맨 아랫줄 = 칸 마지막 행)
+  // 매달린 칸(hand가 있음)은 발이 공중이라 빼고, 대신 아래 "고리 손 기준점" 검사가 손 위치를 본다(삑삑이 hold).
   for (const f of frames) {
+    if (f.hand) continue;
     const b = f.K.bbox();
     if (b.y + b.h !== ch) fail(`${def.name} ${f.anim}${f.k}: 맨 아랫줄이 ${b.y + b.h - 1}행이다(바닥 ${ch - 1}행)`);
   }
