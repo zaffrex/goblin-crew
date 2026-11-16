@@ -3,11 +3,13 @@
 // - 8비트 인덱스 PNG, 팔레트는 보송 32색(+ 투명 1칸)뿐
 // - 메타데이터: 칸은 16의 배수, 이미지 폭 = 칸 × 프레임 수, 기준점은 칸 안
 // - 캐릭터 시트 합계 300KB 경고선
+// - 연출 자세 ms 합 ≤ 1500(캐릭터 연출도 시트 길이가 busy 길이다, scene.ts `charAnimTicks`)
 
 import { describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { ANIM_MAX_MS } from '../../art/scene-build.mjs';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const DIR = join(ROOT, 'public', 'sprites');
@@ -142,6 +144,13 @@ describe('sprite sheets', () => {
           if (!a.ms) continue;
           expect(a.ms).toHaveLength(a.frames.length);
           for (const ms of a.ms) expect(ms % 50).toBe(0);
+        }
+      });
+
+      it('연출 자세(서 있기·걷기·매달림 밖)의 ms 합은 1500 이하다(busy 길이, 형식 기록 8절과 같은 상한)', () => {
+        for (const [name, a] of Object.entries(meta.anims)) {
+          if (!a.ms || ['idle', 'walk', 'hold'].includes(name)) continue;
+          expect(a.ms.reduce((x, y) => x + y, 0), name).toBeLessThanOrEqual(ANIM_MAX_MS);
         }
       });
     });

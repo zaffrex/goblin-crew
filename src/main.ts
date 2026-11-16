@@ -22,7 +22,7 @@ import { onPointerTap } from './engine/input';
 import { startLoop } from './engine/loop';
 import { drawActiveMarker, drawCharacter, drawHud, drawOutline, drawRoom, drawSpark, drawTarget, drawTargets } from './engine/placeholder';
 import { drawSceneBg, drawSceneFrame, loadSceneArt, sceneArtMeta } from './engine/sceneArt';
-import { drawSprite, spriteState } from './engine/sprites';
+import { drawSprite, spriteMetas, spriteState } from './engine/sprites';
 
 function need<T extends HTMLElement>(selector: string): T {
   const el = document.querySelector<T>(selector);
@@ -45,6 +45,7 @@ const data: SceneData = {
   screen: screenData,
   characters: charactersJson as CharactersData,
   art: sceneArtMeta(screenData.id) ?? undefined,
+  sprites: spriteMetas(),
   clearLine,
 };
 const art = loadSceneArt(screenData.id);

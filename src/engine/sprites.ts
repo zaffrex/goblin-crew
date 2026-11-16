@@ -46,6 +46,11 @@ function loadSheets(): Map<string, Sheet> {
 
 const SHEETS = loadSheets();
 
+/** 캐릭터 ID → 시트 메타(동기, 번들에 들어 있음). 장면 로직의 캐릭터 연출 busy 길이에 넘긴다(scene.ts `SceneData.sprites`). */
+export function spriteMetas(): Record<string, SpriteMeta> {
+  return Object.fromEntries([...SHEETS].map(([id, sheet]) => [id, sheet.meta]));
+}
+
 /** 캐릭터 시트 상태(임시 그림 세기 #142용). 시트가 없으면 none, 이미지가 아직이면 loading. */
 export function spriteState(id: string): Loaded {
   const sheet = SHEETS.get(id);
