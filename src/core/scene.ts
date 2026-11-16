@@ -98,6 +98,11 @@ export interface SceneState {
   /** `move floor` 행동에서 걸어갈 바닥 점. 캐릭터별. */
   floorTo: Partial<Record<CharacterId, Point>>;
   /**
+   * 화면에 보이는 자리(재생이 끝난 이벤트 기준). `s.puzzle.at`은 `step` 때 이미 바뀌어서, 기절 연출이 시작될 때
+   * "기절 전에 어디 있었나"를 알려면 장면이 따로 들어야 한다(#215). `walk`·`release`·`place`·`faint`가 시작될 때 바뀐다.
+   */
+  spotOf: Record<CharacterId, string>;
+  /**
    * 캐릭터가 순간 배치(손 놓기·`place`·기절)된 이벤트 순번. 발 y가 같으면 나중에 떨어진 사람이 앞에 그려지고
    * 클릭도 받는다(형식 기록 10절 2단계, 바구니 포개짐). 없으면 -1로 본다.
    */
@@ -166,6 +171,7 @@ export function createScene(data: SceneData): SceneState {
     shown: {},
     counts: {},
     floorTo: {},
+    spotOf: { ...puzzle.at },
     landed: {},
     held: {},
     reach: {},
@@ -339,18 +345,15 @@ function landing(data: SceneData, s: SceneState, char: CharacterId, from: string
 }
 
 /**
- * 기절 리셋에서 설 점. 바구니 안 착지 점(`releasePoint`)에 그대로 서 있고 리셋 자리가 그 `hold`의 `releaseTo`면 거기 둔다.
- * 고리에서 맞아 게이지 0이 되면 `place`(바구니) 바로 뒤에 `faint`가 와서, 바닥 y로 한 번 더 튀던 것을 막는다(#176).
- * 바구니도 이미 그 바닥 자리라 옮길 이유가 없다. 그 밖에는 `destination`(지금과 같음).
+ * 기절 리셋에서 설 점. 기절 전에 이미 리셋 자리(`free`)에 있던 사람은 지금 점에 그대로 둔다(#215).
+ * 바닥을 걸어 (60, 210)에 선 사람이 남 때문에 기절해도 바닥 y로 튀지 않고, 고리에서 맞아 `place`(바구니) 바로 뒤에
+ * `faint`가 와도 바구니 착지 점에 남는다(#176, 바구니도 이미 그 바닥 자리). 그 밖(시소·고리에서 내려오는 사람)은 `destination`.
  */
 function faintPoint(data: SceneData, s: SceneState, char: CharacterId, to: string): Point {
   const w = s.walkers[char];
-  for (const spot of Object.values(data.screen.spots)) {
-    const rp = spot.hold === true && spot.releaseTo === to ? spot.releasePoint : undefined;
-    if (rp && w.x === rp[0] && w.y === rp[1]) {
-      delete s.floorTo[char];
-      return { x: rp[0], y: rp[1] };
-    }
+  if (s.spotOf[char] === to && isFree(data, to)) {
+    delete s.floorTo[char];
+    return { x: w.x, y: w.y };
   }
   return destination(data, s, char, to);
 }
@@ -386,19 +389,23 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
       const p = destination(data, s, ev.char, ev.to);
       if (p.x !== w.x) w.facing = p.x > w.x ? 1 : -1;
       w.target = p.x === w.x && p.y === w.y ? null : p;
+      s.spotOf[ev.char] = ev.to;
       return { ev, t: 0, duration: null, seq };
     }
     case 'release':
       teleport(s.walkers[ev.char], landing(data, s, ev.char, ev.from, ev.to));
+      s.spotOf[ev.char] = ev.to;
       s.landed[ev.char] = seq;
       return { ev, t: 0, duration: TIMING.release, seq };
     case 'place':
       teleport(s.walkers[ev.char], landing(data, s, ev.char, ev.via ?? ev.from, ev.to));
+      s.spotOf[ev.char] = ev.to;
       s.landed[ev.char] = seq;
       return { ev, t: 0, duration: TIMING.place, seq };
     case 'faint':
       for (const c of CHARACTERS) {
         teleport(s.walkers[c.id], faintPoint(data, s, c.id, ev.to[c.id]));
+        s.spotOf[c.id] = ev.to[c.id];
         s.landed[c.id] = seq;
       }
       s.faintCutUntil = s.tick + TIMING.faintCut;
