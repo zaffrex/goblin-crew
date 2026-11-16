@@ -4,7 +4,7 @@
 // 이미지는 assetUrl()로만 읽는다(ADR-0004 결정 8). 로드 전·실패면 null → 호출하는 쪽이 실루엣을 그린다.
 
 import type { Loaded } from '../core/fallbacks';
-import { frameSourceX, parseSpriteMeta, spriteBox, spriteFrame, type Pose, type SpriteMeta } from '../core/sprite';
+import { frameSourceX, parseSpriteMeta, spriteBox, spriteFacing, spriteFrame, type Pose, type SpriteMeta } from '../core/sprite';
 import type { Walker } from '../core/walk';
 import { assetUrl } from './assets';
 import { buildOutlined } from './outline';
@@ -69,7 +69,8 @@ export function drawSprite(ctx: CanvasRenderingContext2D, w: Walker, pose: Pose,
   const fx = Math.round(w.x);
   const fy = Math.round(w.y);
   const sx = frameSourceX(meta, frame);
-  if (w.facing === 1) {
+  const facing = spriteFacing(meta, pose, w.facing);
+  if (facing === 1) {
     ctx.drawImage(image, sx, 0, cw, ch, fx - ax, fy - ay, cw, ch);
   } else {
     ctx.save();
@@ -78,5 +79,5 @@ export function drawSprite(ctx: CanvasRenderingContext2D, w: Walker, pose: Pose,
     ctx.drawImage(image, sx, 0, cw, ch, -ax, fy - ay, cw, ch);
     ctx.restore();
   }
-  return spriteBox(meta, w.x, w.y, w.facing).top + meta.hit[1];
+  return spriteBox(meta, w.x, w.y, facing).top + meta.hit[1];
 }

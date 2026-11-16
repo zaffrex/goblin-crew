@@ -7,7 +7,10 @@
 import type { HitBox } from './hit';
 import type { Facing } from './walk';
 
-export type SpriteAnim = { frames: number[]; ms: number[] } | { frames: number[]; by: 'distance' };
+export type SpriteAnim = ({ frames: number[]; ms: number[] } | { frames: number[]; by: 'distance' }) & {
+  /** 이 자세 동안 고정할 방향. 지금은 `hold`만 쓴다(고리 손 기준점이 이 방향으로 맞춰져 있다, #182). */
+  facing?: Facing;
+};
 
 export interface SpriteMeta {
   image: string;
@@ -33,13 +36,14 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
   if (!intTuple(m.cell, 2) || !intTuple(m.anchor, 2) || !intTuple(m.hit, 4)) fail('cell·anchor·hit 형식');
   if (!isInt(m.walkCycle) || m.walkCycle <= 0) fail('walkCycle');
   if (typeof m.anims !== 'object' || m.anims === null) fail('anims 없음');
-  for (const [name, a] of Object.entries(m.anims as Record<string, { frames?: unknown[]; ms?: unknown[]; by?: unknown }>)) {
+  for (const [name, a] of Object.entries(m.anims as Record<string, { frames?: unknown[]; ms?: unknown[]; by?: unknown; facing?: unknown }>)) {
     if (!Array.isArray(a.frames) || a.frames.length === 0 || !a.frames.every(isInt)) fail(`${name}.frames`);
     if ('by' in a) {
       if (a.by !== 'distance') fail(`${name}.by`);
     } else if (!Array.isArray(a.ms) || a.ms.length !== a.frames!.length || !a.ms.every((t) => isInt(t) && t > 0)) {
       fail(`${name}.ms는 frames와 길이가 같은 양의 정수 배열`);
     }
+    if ('facing' in a && a.facing !== 1 && a.facing !== -1) fail(`${name}.facing은 1 또는 -1`);
   }
   return m as SpriteMeta;
 }
@@ -80,6 +84,14 @@ export function spriteFrame(meta: SpriteMeta, pose: Pose): number | null {
   }
   const a = meta.anims.idle;
   return a ? timedFrame(a, pose.clockMs, true) : null;
+}
+
+/**
+ * 그릴 방향. 매달린 동안은 시트 `hold.facing`이 있으면 그 방향이다(걸어온 방향과 상관없이 주먹이 고리에 맞게).
+ * 매달린 채 연출(찌릿 등)이 재생돼도 같은 자리에 있으니 방향을 바꾸지 않는다. 그 밖에는 걷는 방향 그대로.
+ */
+export function spriteFacing(meta: SpriteMeta, pose: Pose, walking: Facing): Facing {
+  return (pose.holding && meta.anims.hold?.facing) || walking;
 }
 
 /** `ms` 애니메이션의 지금 프레임. 반복하지 않으면 마지막 프레임에 머문다. 거리 넘김 애니메이션은 첫 프레임. */
