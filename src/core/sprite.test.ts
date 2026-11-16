@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WALK_SPEED } from './config';
 import jjukJson from '../../public/sprites/jjuk-base.json';
-import { frameSourceX, parseSpriteMeta, spriteBox, spriteFrame, type Pose, type SpriteMeta } from './sprite';
+import { frameSourceX, parseSpriteMeta, spriteBox, spriteFacing, spriteFrame, type Pose, type SpriteMeta } from './sprite';
 
 const JJUK = parseSpriteMeta(jjukJson);
 const still: Pose = { walkedPx: null, holding: false, event: null, clockMs: 0 };
@@ -19,6 +19,7 @@ describe('parseSpriteMeta', () => {
     ['ms 길이가 frames와 다름', { anims: { idle: { frames: [0, 1], ms: [700] } } }],
     ['by가 distance가 아님', { anims: { walk: { frames: [2], by: 'time' } } }],
     ['frames 비었음', { anims: { idle: { frames: [], ms: [] } } }],
+    ['facing이 1·-1이 아님', { anims: { hold: { frames: [0], ms: [450], facing: 0 } } }],
   ])('%s → 던진다(그 캐릭터는 실루엣으로 남는다)', (_, patch) => {
     expect(() => parseSpriteMeta({ ...JJUK, ...patch })).toThrow(/스프라이트 메타 오류/);
   });
@@ -100,5 +101,27 @@ describe('spriteBox', () => {
   it('프레임 n은 가로 한 줄의 n번째 칸', () => {
     expect(frameSourceX(JJUK, 0)).toBe(0);
     expect(frameSourceX(JJUK, 7)).toBe(7 * 48);
+  });
+});
+
+describe('spriteFacing', () => {
+  const withHold = (facing?: 1 | -1): SpriteMeta => ({
+    ...JJUK,
+    anims: { ...JJUK.anims, hold: { frames: [0, 1], ms: [450, 450], ...(facing ? { facing } : {}) } },
+  });
+  const hanging: Pose = { walkedPx: null, holding: true, event: null, clockMs: 0 };
+
+  it('매달린 동안은 시트 hold.facing으로 고정한다: 오른쪽으로 걸어와 발사돼도 고리 쪽을 본다(#182)', () => {
+    expect(spriteFacing(withHold(-1), hanging, 1)).toBe(-1);
+    expect(spriteFacing(withHold(-1), hanging, -1)).toBe(-1);
+  });
+
+  it('매달린 채 연출(찌릿)이 재생돼도 방향은 그대로', () => {
+    expect(spriteFacing(withHold(-1), { ...hanging, event: { name: 'common.zap', ms: 0 } }, 1)).toBe(-1);
+  });
+
+  it('매달리지 않았거나 시트에 hold.facing이 없으면 걷는 방향', () => {
+    expect(spriteFacing(withHold(-1), { ...hanging, holding: false }, 1)).toBe(1);
+    expect(spriteFacing(withHold(), hanging, 1)).toBe(1);
   });
 });
