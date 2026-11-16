@@ -326,7 +326,7 @@ function targetBox(screen: ScreenData, puzzle: PuzzleState, id: string): HitBox 
  * 바닥이 아니거나 `move`이거나 상자 없는 대상(캐릭터)이면 null.
  * 원거리 동사(`squeak`·`look`)와 대상 `approach`가 `stay`인 동사는 걷지 않는다(x = 지금 x) — 대상 쪽으로 돌아서기만 한다.
  * `face`가 null이면 대상 가운데가 설 곳과 ±2px 안이라 방향을 바꾸지 않는다.
- * - `stretch`: 대상 `reachPoint` x, 없으면 상자 가운데 x.
+ * - `stretch`: 높은 대상이면 `reachPoint` x, 없으면 상자 가운데 x. 바닥 대상이면 아래 줄과 같다(땅의 까치에 겹쳐 서지 않게, PR #221 Luna).
  * - `stomp`·`hand`·`item`: 높은 대상(상자 아래쪽이 `WALK_AREA.top` 위)은 상자 가운데 x, 바닥 대상은 가까운 쪽 가장자리 옆
  *   (대상을 바라본 몸 상자 `characterHitBox`가 대상 상자와 가로로 2px 떨어지는 가장 가까운 x).
  * 설 곳은 걷기 영역 안으로 자른다. `step`·BFS와 무관한 연출 계산이다(퍼즐 상태를 바꾸지 않는다).
@@ -340,7 +340,7 @@ export function approachPoint(data: SceneData, puzzle: PuzzleState, action: Acti
   let x: number;
   const rp = data.screen.hotspots[action.target]?.reachPoint;
   if (!walks || approachFor(data.screen, puzzle, action.target, action.verb) === 'stay') x = from.x;
-  else if (action.verb === 'stretch') x = rp ? rp[0] : mid;
+  else if (action.verb === 'stretch' && rp) x = rp[0];
   else if (box.top + box.height <= WALK_AREA.top) x = mid;
   else {
     const { dx, width } = characterDef(action.char).hit;

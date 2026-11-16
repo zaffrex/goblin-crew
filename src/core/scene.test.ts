@@ -855,6 +855,15 @@ describe('대상 앞까지 걷기 (설계 5-1절, #219)', () => {
     expect(ap).toEqual({ x: 88 + 24 + 2 + 17, face: -1 });
   });
 
+  it('바닥 대상에 stretch는 가까운 쪽 가장자리 옆(규칙 7 땅의 까치, 바구니). 대상 위에 겹쳐 서지 않는다', () => {
+    const s = start();
+    s.puzzle = { ...s.puzzle, flags: { ...s.puzzle.flags, 'magpie.on_ground': true } };
+    const ap = (target: string, from: number) => approachPoint(data, s.puzzle, { char: 'jjuk', verb: 'stretch', target }, { x: from, y: 244 });
+    expect(ap('magpie', 360)).toEqual({ x: 112 + 2 + 15, face: -1 });
+    expect(ap('basket', 400)).toEqual({ x: 176 + 2 + 15, face: -1 });
+    expect(ap('basket', 20)).toEqual({ x: 144 - 2 - 15, face: 1 });
+  });
+
   it('원거리 동사와 바닥이 아닌 캐릭터는 걷지 않는다. squeak·look은 대상 쪽으로 돌아서기만 한다', () => {
     const s = start();
     expect(approachPoint(data, s.puzzle, { char: 'ppik', verb: 'squeak', target: 'magpie' }, { x: 440, y: 244 })).toEqual({ x: 440, face: -1 });
