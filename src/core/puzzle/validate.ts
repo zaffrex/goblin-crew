@@ -4,7 +4,24 @@
 // 상태 그래프가 필요한 검사(정답 도달, S3, 필수 능력, 정원 초과 경로)는 bfs.ts(#67) 몫이다.
 
 import { CHARACTERS } from '../characters';
-import { FLOOR, STAY, VERBS, type AbilityVerb, type CharacterId, type Verb } from './types';
+import { WALK_AREA } from '../config';
+import {
+  FLOOR,
+  STAY,
+  VERBS,
+  type AbilityVerb,
+  type Action,
+  type CharacterId,
+  type CharactersData,
+  type Condition,
+  type Effect,
+  type HotspotDef,
+  type HotspotVariant,
+  type RuleDef,
+  type ScreenData,
+  type SpotDef,
+  type Verb,
+} from './types';
 
 export type IssueLevel = 'error' | 'warning';
 
@@ -40,14 +57,52 @@ export const HUD_BOX: readonly [number, number, number, number] = [300, 4, 176, 
 const CHAR_IDS: readonly CharacterId[] = CHARACTERS.map((c) => c.id);
 const ABILITIES: readonly AbilityVerb[] = CHARACTERS.map((c) => c.ability);
 
-const SCREEN_KEYS = ['id', 'spots', 'hotspots', 'flags', 'start', 'exitFlag', 'onEnter', 'rules', 'fallbacks', 'solution'];
-const SPOT_KEYS = ['x', 'y', 'free', 'capacity', 'box', 'hold', 'releaseTo', 'releasePoint', 'releaseShow', 'takenShow', 'approach', 'hintAbility'];
-const HOTSPOT_KEYS = ['box', 'approach', 'variants', 'hintAbility', 'reachPoint'];
-const VARIANT_KEYS = ['when', 'box', 'approach'];
-const RULE_KEYS = ['id', 'target', 'verb', 'when', 'do', 'show'];
-const COND_KEYS = ['who', 'at', 'flags', 'has', 'lacks', 'item', 'occupied'];
-const EFFECT_KEYS = ['set', 'give', 'take', 'move', 'gauge'];
-const ACTION_KEYS = ['char', 'verb', 'target', 'item'];
+/**
+ * 타입 T가 가진 필드 목록(`note` 빼고). 객체 리터럴로 받아서 types.ts에 필드를 더하거나 지우거나
+ * 이름을 바꾸면 여기서 typecheck가 실패한다(빠진 키 = 필수 속성 누락, 남는 키 = 초과 속성).
+ */
+const fieldsOf = <T>(keys: { [K in Exclude<keyof T, 'note'>]: true }): readonly string[] => Object.keys(keys);
+
+const SCREEN_KEYS = fieldsOf<ScreenData>({
+  id: true,
+  spots: true,
+  hotspots: true,
+  flags: true,
+  start: true,
+  exitFlag: true,
+  onEnter: true,
+  rules: true,
+  fallbacks: true,
+  solution: true,
+});
+const START_KEYS = fieldsOf<ScreenData['start']>({ at: true, items: true });
+const SPOT_KEYS = fieldsOf<SpotDef>({
+  x: true,
+  y: true,
+  free: true,
+  capacity: true,
+  box: true,
+  hold: true,
+  releaseTo: true,
+  releasePoint: true,
+  releaseShow: true,
+  takenShow: true,
+  approach: true,
+  hintAbility: true,
+});
+const HOTSPOT_KEYS = fieldsOf<HotspotDef>({ box: true, approach: true, variants: true, hintAbility: true, reachPoint: true });
+const VARIANT_KEYS = fieldsOf<HotspotVariant>({ when: true, box: true, approach: true });
+const RULE_KEYS = fieldsOf<RuleDef>({ id: true, target: true, verb: true, when: true, do: true, show: true });
+const COND_KEYS = fieldsOf<Condition>({ who: true, at: true, flags: true, has: true, lacks: true, item: true, occupied: true });
+const EFFECT_KEYS = fieldsOf<Effect>({ set: true, give: true, take: true, move: true, gauge: true });
+const ACTION_KEYS = fieldsOf<Action>({ char: true, verb: true, target: true, item: true });
+const CHARACTERS_KEYS = fieldsOf<CharactersData>({ fallbacks: true, hints: true });
+
+/**
+ * 경로에 키를 붙인다. ID 키는 점을 품을 수 있어서(`magpie.down`) 점이 있으면 대괄호로 쓴다:
+ * `do.set["magpie.down"]`. 점 없는 키는 그대로 `spots.floor`.
+ */
+export const keyPath = (path: string, k: string): string => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(k) ? `${path}.${k}` : `${path}[${JSON.stringify(k)}]`);
 
 type Obj = Record<string, unknown>;
 
@@ -74,7 +129,9 @@ class Checker {
       return false;
     }
     for (const k of Object.keys(v)) {
-      if (k !== 'note' && !keys.includes(k)) this.err(`${path}.${k}`, 'unknown-key', `모르는 필드: ${k}`);
+      if (k !== 'note' && !keys.includes(k)) {
+        this.err(keyPath(path, k), 'unknown-key', `모르는 필드: ${k} (쓸 수 있는 필드: ${[...keys, 'note'].join(', ')})`);
+      }
     }
     if ('note' in v && typeof v.note !== 'string') this.err(`${path}.note`, 'schema', 'note는 문자열');
     return true;
@@ -88,15 +145,16 @@ class Checker {
     return true;
   }
 
-  /** 키가 ID인 맵. 키 문법을 검사하고 [키, 값] 목록을 돌려준다. */
-  idMap(v: unknown, path: string): [string, unknown][] {
+  /** 키가 ID인 맵. 키 문법을 검사하고 [키, 값, 경로] 목록을 돌려준다. 경로는 `keyPath` 규칙을 따른다. */
+  idMap(v: unknown, path: string): [string, unknown, string][] {
     if (!isObj(v)) {
       this.err(path, 'schema', '객체여야 한다');
       return [];
     }
-    const out: [string, unknown][] = [];
+    const out: [string, unknown, string][] = [];
     for (const [k, x] of Object.entries(v)) {
-      if (this.id(k, `${path}.${k}`)) out.push([k, x]);
+      const p = keyPath(path, k);
+      if (this.id(k, p)) out.push([k, x, p]);
     }
     return out;
   }
@@ -144,36 +202,55 @@ export function textFits(text: string): boolean {
 /** `content/text/*.json` 자체 검사: 키 문법, 값은 문자열. 길이는 실제로 쓰는 곳(화면·힌트)에서 본다. */
 export function validateTexts(raw: unknown): ValidationResult {
   const c = new Checker();
-  for (const [k, v] of c.idMap(raw, 'texts')) {
-    if (typeof v !== 'string') c.err(`texts.${k}`, 'schema', '문자열이어야 한다');
+  for (const [, v, p] of c.idMap(raw, 'texts')) {
+    if (typeof v !== 'string') c.err(p, 'schema', '문자열이어야 한다');
   }
   return { errors: c.errors, warnings: c.warnings };
 }
 
 function checkTextRef(c: Checker, ctx: ValidateContext, v: unknown, path: string): void {
+  if (typeof v !== 'string') {
+    c.err(path, 'schema', `텍스트 ID(content/text의 키, 문자열)여야 한다: ${JSON.stringify(v)}`);
+    return;
+  }
   if (!c.id(v, path)) return;
   const t = ctx.texts[v];
   if (t === undefined) c.err(path, 'ref-text', `없는 텍스트 ID: ${v}`);
   else if (!textFits(t)) c.err(path, 'text-long', `말풍선 한계(${LINE_MAX}자×${LINES_MAX}줄) 초과: ${v}`);
 }
 
-/** `content/characters.json` 검사: 힌트 대사는 화자 = 캐릭터, 키 = 능력, 값 = 텍스트 ID. */
+/**
+ * `content/characters.json` 검사: 힌트 대사는 화자 = 캐릭터, 키 = 능력, 값 = 텍스트 ID.
+ * 힌트 ②(ADR-0018 F3)는 지금 캐릭터 자기 능력이면 띄우지 않으니, 캐릭터마다 **남의 능력 전부**의
+ * 힌트가 있어야 한다(없으면 힌트가 조용히 안 뜬다). 자기 능력 키는 쓰이지 않아 경고(ADR-0065 116행).
+ */
 export function validateCharacters(raw: unknown, ctx: ValidateContext): ValidationResult {
   const c = new Checker();
-  if (c.obj(raw, 'characters', ['fallbacks', 'hints'])) {
+  if (c.obj(raw, 'characters', CHARACTERS_KEYS)) {
     for (const field of ['fallbacks', 'hints'] as const) {
       if (raw[field] === undefined) continue;
-      for (const [who, m] of c.idMap(raw[field], field)) {
-        const p = `${field}.${who}`;
+      for (const [who, m, p] of c.idMap(raw[field], field)) {
         if (!(CHAR_IDS as readonly string[]).includes(who)) c.err(p, 'ref-char', `없는 캐릭터: ${who}`);
         const keys: readonly string[] = field === 'hints' ? ABILITIES : VERBS;
-        for (const [k, v] of c.idMap(m, p)) {
-          if (!keys.includes(k)) c.err(`${p}.${k}`, 'schema', `여기에 올 수 없는 동사: ${k}`);
-          if (field === 'hints') checkTextRef(c, ctx, v, `${p}.${k}`);
-          else if (c.obj(v, `${p}.${k}`, ['show'])) {
+        for (const [k, v, kp] of c.idMap(m, p)) {
+          if (!keys.includes(k)) c.err(kp, 'schema', `여기에 올 수 없는 동사: ${k}`);
+          if (field === 'hints') checkTextRef(c, ctx, v, kp);
+          else if (c.obj(v, kp, ['show'])) {
             // 공통 실패 리액션: 행동한 캐릭터가 화자라 `self`·캐릭터만. 자리 정보가 없으니 `@자리`는 못 쓴다.
-            showList(c, ctx, v.show, `${p}.${k}.show`, { spots: new Set(), targets: new Set(), self: true });
+            showList(c, ctx, v.show, `${kp}.show`, { spots: new Set(), targets: new Set(), self: true });
           }
+        }
+      }
+    }
+    const hints = isObj(raw.hints) ? raw.hints : {};
+    for (const ch of CHARACTERS) {
+      const m = isObj(hints[ch.id]) ? (hints[ch.id] as Obj) : {};
+      for (const ab of ABILITIES) {
+        const p = `hints.${ch.id}.${ab}`;
+        if (ab === ch.ability) {
+          if (m[ab] !== undefined) c.warn(p, 'hint-own-ability', `자기 능력 힌트는 띄우지 않는다(ADR-0065 4절 hintAbility): ${ab}`);
+        } else if (m[ab] === undefined) {
+          c.err(p, 'hint-missing', `${ch.id}의 ${ab} 힌트 대사가 없다. 이 대상에서 힌트 ②가 안 뜬다(ADR-0018 F3)`);
         }
       }
     }
@@ -255,16 +332,16 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
   // --- 선언: 서는 자리, 핫스팟, 플래그 ---
   const spotEntries = c.idMap(raw.spots, 'spots');
   const hotspotEntries = c.idMap(raw.hotspots, 'hotspots');
-  const spots = new Map(spotEntries.filter((e): e is [string, Obj] => isObj(e[1])));
+  const spots = new Map(spotEntries.flatMap(([k, v]): [string, Obj][] => (isObj(v) ? [[k, v]] : [])));
   const spotIds = new Set(spotEntries.map(([k]) => k));
   const targetIds = new Set([...spotIds, ...hotspotEntries.map(([k]) => k)]);
   const flagIds = new Set<string>();
-  for (const [k, v] of c.idMap(raw.flags, 'flags')) {
-    c.bool(v, `flags.${k}`);
+  for (const [k, v, p] of c.idMap(raw.flags, 'flags')) {
+    c.bool(v, p);
     flagIds.add(k);
   }
-  for (const [k] of hotspotEntries) {
-    if (spotIds.has(k)) c.err(`hotspots.${k}`, 'dup-id', `핫스팟과 서는 자리 ID가 같다(같은 이름공간): ${k}`);
+  for (const [k, , p] of hotspotEntries) {
+    if (spotIds.has(k)) c.err(p, 'dup-id', `핫스팟과 서는 자리 ID가 같다(같은 이름공간): ${k}`);
   }
   if (spotIds.has(STAY)) c.err(`spots.${STAY}`, 'reserved', `\`${STAY}\`는 예약어라 자리 ID로 못 쓴다`);
 
@@ -283,17 +360,30 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
     if (!flagIds.has(v)) c.err(path, 'ref-flag', `선언 안 된 플래그: ${v}`);
   };
   const flagMap = (v: unknown, path: string): void => {
-    for (const [k, x] of c.idMap(v, path)) {
-      flagRef(k, `${path}.${k}`);
-      c.bool(x, `${path}.${k}`);
+    for (const [k, x, p] of c.idMap(v, path)) {
+      flagRef(k, p);
+      c.bool(x, p);
     }
   };
   const charRef = (v: unknown, path: string, allowSelf: boolean): void => {
     if (allowSelf && v === 'self') return;
     if (!(CHAR_IDS as readonly unknown[]).includes(v)) c.err(path, 'ref-char', `없는 캐릭터: ${JSON.stringify(v)}`);
   };
+  /** 쓰인 hintAbility [경로, 능력]. 규칙을 다 읽은 뒤 그 능력이 실제로 쓰이는지 본다. */
+  const hintUses: [string, string][] = [];
   const ability = (v: unknown, path: string): void => {
     if (!(ABILITIES as readonly unknown[]).includes(v)) c.err(path, 'hint-ability', `hintAbility는 능력 동사(${ABILITIES.join('/')})`);
+    else hintUses.push([path, v as string]);
+  };
+  /** 점 [x, y]가 화면 안인지(오류), HUD와 겹치는지(경고). 서는 자리 x, y와 releasePoint에 쓴다. */
+  const point = (x: number, y: number, path: string): boolean => {
+    if (x < 0 || y < 0 || x > SCREEN_W || y > SCREEN_H) {
+      c.err(path, 'point-offscreen', `좌표 (${x}, ${y})가 화면(${SCREEN_W}×${SCREEN_H}) 밖이다`);
+      return false;
+    }
+    const [hx, hy, hw, hh] = HUD_BOX;
+    if (x >= hx && x < hx + hw && y >= hy && y < hy + hh) c.warn(path, 'hud-overlap', 'HUD 영역 안이다(ui-interaction.md 6절)');
+    return true;
   };
   /** 걸어갈 자리: 있는 자리거나 `stay`. `hold` 자리는 걸어서 못 가니(`goTo` invalid) `step`이 예외를 던진다. */
   const approachDest = (v: unknown, path: string): void => {
@@ -305,9 +395,10 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
     if (typeof v === 'string') return approachDest(v, path);
     if (!isObj(v)) return c.err(path, 'schema', 'approach는 자리 ID 또는 동사별 맵');
     for (const [k, x] of Object.entries(v)) {
-      if (k !== 'default' && !(VERBS as readonly string[]).includes(k)) c.err(`${path}.${k}`, 'approach-verb', `approach 맵의 키는 동사나 default: ${k}`);
-      if (k === 'move' || k === 'look') c.warn(`${path}.${k}`, 'approach-unused', `${k}는 approach를 쓰지 않는다(ADR-0065 5절 2단계)`);
-      approachDest(x, `${path}.${k}`);
+      const kp = keyPath(path, k);
+      if (k !== 'default' && !(VERBS as readonly string[]).includes(k)) c.err(kp, 'approach-verb', `approach 맵의 키는 동사나 default: ${k}`);
+      if (k === 'move' || k === 'look') c.warn(kp, 'approach-unused', `${k}는 approach를 쓰지 않는다(ADR-0065 5절 2단계)`);
+      approachDest(x, kp);
     }
   };
 
@@ -315,10 +406,10 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
   const floor = spots.get(FLOOR);
   if (!floor) c.err(`spots.${FLOOR}`, 'floor', `\`${FLOOR}\` 자리가 없다(화면마다 하나, free: true)`);
   else if (floor.free !== true) c.err(`spots.${FLOOR}.free`, 'floor', `\`${FLOOR}\`는 free: true여야 한다`);
-  for (const [id, s] of spotEntries) {
-    const p = `spots.${id}`;
+  for (const [, s, p] of spotEntries) {
     if (!c.obj(s, p, SPOT_KEYS)) continue;
     if (!isNum(s.x) || !isNum(s.y)) c.err(p, 'schema', 'x, y는 숫자');
+    else point(s.x, s.y, p);
     if (s.free !== undefined) c.bool(s.free, `${p}.free`);
     if (s.hold !== undefined) c.bool(s.hold, `${p}.hold`);
     if (s.capacity !== undefined && (!isInt(s.capacity) || s.capacity < 1)) c.err(`${p}.capacity`, 'schema', 'capacity는 1 이상 정수');
@@ -329,16 +420,26 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
       else if (spotRef(s.releaseTo, `${p}.releaseTo`) && !isFree(s.releaseTo)) {
         c.err(`${p}.releaseTo`, 'hold-release', `releaseTo는 free: true 자리여야 한다: ${s.releaseTo}`);
       }
-      if (s.releasePoint !== undefined && !(Array.isArray(s.releasePoint) && s.releasePoint.length === 2 && s.releasePoint.every(isNum))) {
-        c.err(`${p}.releasePoint`, 'schema', 'releasePoint는 [x, y]');
+      if (s.releasePoint !== undefined) {
+        const rp = s.releasePoint;
+        const rpp = `${p}.releasePoint`;
+        if (!(Array.isArray(rp) && rp.length === 2 && rp.every(isNum))) c.err(rpp, 'schema', 'releasePoint는 [x, y]');
+        else {
+          // 손 놓으면 releaseTo(free 자리 = 바닥)에 그 점으로 떨어지고, 거기서 다시 걷는다. 바닥 영역 밖이면
+          // 다음 걷기 첫 틱에 영역 안으로 튄다(scene.ts clampToArea).
+          const [x, y] = rp as [number, number];
+          if (point(x, y, rpp) && (x < WALK_AREA.left || x > WALK_AREA.right || y < WALK_AREA.top || y > WALK_AREA.bottom)) {
+            c.err(rpp, 'release-point-area', `releasePoint (${x}, ${y})가 걷기 영역 밖이다(x ${WALK_AREA.left}~${WALK_AREA.right}, y ${WALK_AREA.top}~${WALK_AREA.bottom})`);
+          }
+        }
       }
     } else {
       for (const k of ['releaseTo', 'releasePoint', 'releaseShow']) if (s[k] !== undefined) c.err(`${p}.${k}`, 'schema', `${k}는 hold 자리에만`);
     }
     if (s.releaseShow !== undefined) {
-      for (const [k, list] of c.idMap(s.releaseShow, `${p}.releaseShow`)) {
-        if (k !== 'default') charRef(k, `${p}.releaseShow.${k}`, false);
-        showList(c, ctx, list, `${p}.releaseShow.${k}`, scope(true));
+      for (const [k, list, kp] of c.idMap(s.releaseShow, `${p}.releaseShow`)) {
+        if (k !== 'default') charRef(k, kp, false);
+        showList(c, ctx, list, kp, scope(true));
       }
     }
     showList(c, ctx, s.takenShow, `${p}.takenShow`, scope(true));
@@ -347,8 +448,7 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
   }
 
   // --- 핫스팟 ---
-  for (const [id, h] of hotspotEntries) {
-    const p = `hotspots.${id}`;
+  for (const [, h, p] of hotspotEntries) {
     if (!c.obj(h, p, HOTSPOT_KEYS)) continue;
     c.box(h.box, `${p}.box`);
     approach(h.approach, `${p}.approach`);
@@ -384,7 +484,7 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
   };
 
   // --- 시작 상태, 출구 ---
-  if (c.obj(raw.start, 'start', ['at', 'items'])) {
+  if (c.obj(raw.start, 'start', START_KEYS)) {
     const start = raw.start;
     if (start.items !== undefined) collectItems(start.items, 'start.items');
     else c.err('start.items', 'schema', '필수 필드 없음: items');
@@ -426,6 +526,10 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
     if (!verbOk) c.err(`${p}.verb`, 'schema', `모르는 동사: ${JSON.stringify(r.verb)}`);
     if (typeof r.target !== 'string' || !targetIds.has(r.target)) c.err(`${p}.target`, 'ref-target', `없는 대상: ${JSON.stringify(r.target)}`);
     else if (r.verb === 'move' && !spotIds.has(r.target)) c.err(`${p}.target`, 'move-target', 'move 규칙의 대상은 서는 자리여야 한다');
+    else if (r.verb === 'move' && isHold(r.target)) {
+      // UI는 hold 자리 탭을 move로 만들지 않는다(기본 탭 = 능력, #115). BFS는 이 간선을 봐서 "BFS로는 풀리는데 UI로는 못 푸는" 화면이 된다.
+      c.err(`${p}.target`, 'move-hold', `hold 자리에는 move 규칙을 둘 수 없다(UI가 만들지 않는 행동): ${r.target}`);
+    }
 
     if (r.when !== undefined && c.obj(r.when, `${p}.when`, COND_KEYS)) {
       const w = r.when;
@@ -441,9 +545,9 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
         if (r.verb !== 'item') c.err(`${wp}.item`, 'schema', 'when.item은 verb가 item인 규칙에만');
       }
       if (w.occupied !== undefined) {
-        for (const [k, x] of c.idMap(w.occupied, `${wp}.occupied`)) {
-          spotRef(k, `${wp}.occupied.${k}`);
-          c.bool(x, `${wp}.occupied.${k}`);
+        for (const [k, x, kp] of c.idMap(w.occupied, `${wp}.occupied`)) {
+          spotRef(k, kp);
+          c.bool(x, kp);
         }
       }
     }
@@ -475,13 +579,19 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
     showList(c, ctx, r.show, `${p}.show`, scope(true));
   });
 
+  // --- hintAbility가 가리키는 능력이 이 화면에서 쓰이는지 ---
+  // 같은 대상(target)의 규칙까지는 요구하지 않는다. 힌트는 "그 대상을 향한 다음 수"를 가리킬 수 있다.
+  // 화면 1 `hook`의 hintAbility는 stomp지만 stomp 규칙은 시소에 있다(고리에 가려면 시소를 밟는다).
+  const ruleVerbs = new Set(ruleList.filter(isObj).map((r) => r.verb));
+  for (const [path, ab] of hintUses) {
+    if (!ruleVerbs.has(ab)) c.warn(path, 'hint-ability-unused', `이 화면의 어떤 규칙도 ${ab}를 쓰지 않는다. 힌트가 헛다리를 짚게 한다`);
+  }
+
   // --- 폴백 ①: 상태를 바꾸지 않는다. gauge만 예외 ---
   if (raw.fallbacks !== undefined) {
-    for (const [t, m] of c.idMap(raw.fallbacks, 'fallbacks')) {
-      const p = `fallbacks.${t}`;
+    for (const [t, m, p] of c.idMap(raw.fallbacks, 'fallbacks')) {
       if (!targetIds.has(t)) c.err(p, 'ref-target', `없는 대상: ${t}`);
-      for (const [verb, fb] of c.idMap(m, p)) {
-        const fp = `${p}.${verb}`;
+      for (const [verb, fb, fp] of c.idMap(m, p)) {
         if (!(VERBS as readonly string[]).includes(verb)) c.err(fp, 'schema', `모르는 동사: ${verb}`);
         if (!c.obj(fb, fp, ['do', 'show'])) continue;
         if (fb.do !== undefined && c.obj(fb.do, `${fp}.do`, ['gauge']) && fb.do.gauge !== undefined && !isInt(fb.do.gauge)) {
