@@ -318,6 +318,65 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
     expect(at(s, 'ppik')).toEqual({ x: data.screen.spots.seesaw_right!.x, y: data.screen.spots.floor!.y });
   });
 
+  /** 끝날 때까지 틱을 돌리며 c가 서 있던 점을 모두 모은다(같은 점은 한 번). */
+  function trail(s: SceneState, c: 'jjuk' | 'mukjik' | 'ppik'): string[] {
+    const seen = new Set<string>();
+    while (isBusy(s)) {
+      sceneTick(data, s);
+      seen.add(`${s.walkers[c].x},${s.walkers[c].y}`);
+    }
+    return [...seen];
+  }
+
+  it('#176: 고리에서 맞아 기절하면 바구니 안 착지 점에 서고 바닥 y로 튀지 않는다', () => {
+    const s = ready();
+    launch(s, 'jjuk');
+    s.puzzle.gauge = 1;
+    s.shownGauge = 1;
+    pick(s, 'jjuk');
+    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
+    sceneTap(data, s, NEST, 0, false); // 까치가 둥지에 있어서 쪼임(게이지 -1) → place 뒤 faint
+    const seen = trail(s, 'jjuk');
+    expect(s.puzzle.gauge).toBe(5);
+    expect(s.puzzle.at.jjuk).toBe('floor');
+    // 매달린 채 쪼이고(고리 점) → 바구니 착지. 바닥 y(244)는 한 번도 지나지 않는다.
+    const hook = data.screen.spots.hook!;
+    expect(seen).toEqual([`${hook.x},${hook.y}`, `${BASKET.x},${BASKET.y}`]);
+    expect(at(s, 'jjuk')).toEqual(BASKET);
+  });
+
+  it('#176: 13번(포개짐)이 게이지 0이면 두 사람 다 바구니에 남는다', () => {
+    const s = ready();
+    launch(s, 'jjuk');
+    s.puzzle.gauge = 1;
+    s.shownGauge = 1;
+    launch(s, 'ppik');
+    expect(s.puzzle.gauge).toBe(5);
+    expect(at(s, 'jjuk')).toEqual(BASKET);
+    expect(at(s, 'ppik')).toEqual(BASKET);
+  });
+
+  it('#176: 고리 아닌 곳(시소 끝)에서 기절하면 지금처럼 그 x의 바닥 y에 선다', () => {
+    const s = ready();
+    pick(s, 'ppik');
+    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
+    sceneTap(data, s, MAGPIE, 0, false); // 삑삑이 꽥: 까치가 바닥으로
+    idle(s);
+    pick(s, 'jjuk');
+    sceneTap(data, s, SEESAW_LEFT, 0, false);
+    idle(s);
+    expect(s.puzzle.at.jjuk).toBe('seesaw_left');
+    s.puzzle.gauge = 1;
+    s.shownGauge = 1;
+    const ground = data.screen.hotspots.magpie!.variants![0]!.box!;
+    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
+    sceneTap(data, s, center({ left: ground[0], top: ground[1], width: ground[2], height: ground[3] }), 0, false); // 규칙 7: 쪼임 → 0
+    idle(s);
+    expect(s.puzzle.gauge).toBe(5);
+    expect(s.puzzle.at.jjuk).toBe('floor');
+    expect(at(s, 'jjuk')).toEqual({ x: data.screen.spots.seesaw_left!.x, y: data.screen.spots.floor!.y });
+  });
+
   it('포개지면 나중에 떨어진 사람이 앞에 그려지고 클릭도 받는다(CHARACTERS 순서보다 우선)', () => {
     const s = ready();
     launch(s, 'jjuk');

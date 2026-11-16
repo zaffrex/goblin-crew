@@ -338,6 +338,23 @@ function landing(data: SceneData, s: SceneState, char: CharacterId, from: string
   return destination(data, s, char, to);
 }
 
+/**
+ * 기절 리셋에서 설 점. 바구니 안 착지 점(`releasePoint`)에 그대로 서 있고 리셋 자리가 그 `hold`의 `releaseTo`면 거기 둔다.
+ * 고리에서 맞아 게이지 0이 되면 `place`(바구니) 바로 뒤에 `faint`가 와서, 바닥 y로 한 번 더 튀던 것을 막는다(#176).
+ * 바구니도 이미 그 바닥 자리라 옮길 이유가 없다. 그 밖에는 `destination`(지금과 같음).
+ */
+function faintPoint(data: SceneData, s: SceneState, char: CharacterId, to: string): Point {
+  const w = s.walkers[char];
+  for (const spot of Object.values(data.screen.spots)) {
+    const rp = spot.hold === true && spot.releaseTo === to ? spot.releasePoint : undefined;
+    if (rp && w.x === rp[0] && w.y === rp[1]) {
+      delete s.floorTo[char];
+      return { x: rp[0], y: rp[1] };
+    }
+  }
+  return destination(data, s, char, to);
+}
+
 function teleport(w: Walker, p: Point): void {
   w.x = p.x;
   w.y = p.y;
@@ -381,7 +398,7 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
       return { ev, t: 0, duration: TIMING.place, seq };
     case 'faint':
       for (const c of CHARACTERS) {
-        teleport(s.walkers[c.id], destination(data, s, c.id, ev.to[c.id]));
+        teleport(s.walkers[c.id], faintPoint(data, s, c.id, ev.to[c.id]));
         s.landed[c.id] = seq;
       }
       s.faintCutUntil = s.tick + TIMING.faintCut;
