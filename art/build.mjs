@@ -61,6 +61,17 @@ function buildSheet(def) {
     }
     const idx = Array.from({ length: a.frames }, (_, i) => start + i);
     anims[a.name] = a.by === 'distance' ? { frames: idx, by: 'distance' } : { frames: idx, ms: a.ms };
+    // 매달린 자세(hold)는 손 기준점을 메타에 적는다(형식 기록 7절). 프레임마다 같아야 고리에서 손이 안 미끄러진다.
+    const hands = idx.map((i) => frames[i].hand).filter(Boolean);
+    if (a.name === 'hold' && hands.length !== a.frames) fail(`${def.name} hold: 프레임마다 손 기준점(hand)이 있어야 한다`);
+    if (hands.length) {
+      if (hands.some((h) => h[0] !== hands[0][0] || h[1] !== hands[0][1])) fail(`${def.name} ${a.name}: 프레임마다 손 기준점이 다르다 ${JSON.stringify(hands)}`);
+      anims[a.name].hand = hands[0];
+      // 매달린 동안 고정할 방향(1 오른쪽 / -1 왼쪽). 손 기준점은 이 방향으로 그렸을 때 맞춘다.
+      const facing = frames[idx[0]].facing;
+      if (facing !== 1 && facing !== -1) fail(`${def.name} ${a.name}: 손 기준점이 있으면 facing(1 또는 -1)이 있어야 한다`);
+      anims[a.name].facing = facing;
+    }
   }
 
   // 기준점: 서 있기 0번의 두 발 가운데. 두 발 폭은 짝수여야 반전 축이 픽셀 경계에 온다(ADR-0007 결정 4).
@@ -188,6 +199,25 @@ const built = SHEETS.map(buildSheet);
 for (const s of built) {
   outputs.push([join(OUT, `${s.def.name}.png`), indexedPng(s.img)]);
   outputs.push([join(OUT, `${s.def.name}.json`), Buffer.from(JSON.stringify(s.meta, null, 2) + '\n')]);
+}
+
+// ── 고리 손 기준점(형식 기록 7절): 발(hold 자리) + (손 − anchor) = 화면 grips. 시트에 hold.hand가 있을 때만 본다.
+for (const S of SCENES) {
+  const screen = JSON.parse(readFileSync(join(ROOT, 'content', 'screens', `${S.id}.json`), 'utf8'));
+  for (const [spotId, grip] of Object.entries(S.grips ?? {})) {
+    const spot = screen.spots[spotId];
+    if (!spot?.hold) fail(`화면 ${S.id} grips.${spotId}: hold 자리가 아니다`);
+    for (const s of built) {
+      const h = s.meta.anims.hold?.hand;
+      if (!h) continue;
+      // 엔진 spriteBox와 같은 규칙: 왼쪽을 보면 칸 왼쪽 = 발 − (칸 폭 − anchor), 칸 안 x는 (칸 폭 − 1 − x)
+      const [cw] = s.meta.cell;
+      const [ax, ay] = s.meta.anchor;
+      const left = s.meta.anims.hold.facing === -1 ? spot.x - (cw - ax) + (cw - 1 - h[0]) : spot.x - ax + h[0];
+      const at = [left, spot.y + h[1] - ay];
+      if (at[0] !== grip[0] || at[1] !== grip[1]) fail(`${s.def.name} hold 손이 화면 ${S.id} ${spotId}에서 (${at})다(facing ${s.meta.anims.hold.facing}). 고리 손 기준점은 (${grip})`);
+    }
+  }
 }
 
 // ── 화면: 검사 → 출력. 내보내지 않는 파일(draft 배경, 물건이 없을 때 시트)은 커밋돼 있으면 안 된다(낡은 그림).
