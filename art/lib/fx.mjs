@@ -50,3 +50,14 @@ export function shadow(K, cx, w) {
   const q = Math.round(w / 4);
   for (let i = q; i < w - q; i += 2) K.dot(x0 + i, y - 1, C.lav);
 }
+
+/**
+ * 물방울(외곽선 없음): [x, y, 크기] 목록. 크기 0 = 한 점(튀는 물), 1 = 세로 2px(떨어지는 방울), 2 = 3×3 둥근 방울(왼쪽이 반짝).
+ * 청록 중간·밝은 단(tealM·tealL)이라 배경 벽(크림)과 하늘 어디서나 1배에서 보인다(aqua는 크림 위에서 안 보였다).
+ * 이미 칠한 픽셀도 덮는다(몸 위를 흐르는 물). 쭉이 `common.wet`에서 만들었고 다른 사람의 젖음도 같이 쓴다.
+ */
+export function drops(K, pts) {
+  const rows = [['M'], ['L', 'M'], ['.L.', 'WLM', '.M.']];
+  const legend = { W: C.white, L: C.tealL, M: C.tealM };
+  for (const [x, y, s] of pts) K.stamp(x, y, rows[s], legend);
+}
