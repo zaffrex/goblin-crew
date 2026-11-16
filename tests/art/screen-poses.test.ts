@@ -33,8 +33,6 @@ const MISSING: Record<string, string[]> = {
     'ppik:common.shiver',
     'ppik:common.wag_finger',
     'ppik:hide_in_basket',
-    'ppik:hold',
-    'ppik:launch_to_hook',
   ],
 };
 

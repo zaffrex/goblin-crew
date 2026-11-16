@@ -15,6 +15,7 @@
 
 import { Canvas, C } from '../lib/pixel.mjs';
 import { colorLines, rimShade, soles } from '../lib/finish.mjs';
+import { puff, streaks } from '../lib/fx.mjs';
 
 export const CELL = [48, 64];
 const S = 4 / 3;
@@ -71,6 +72,8 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export function pose(kind, k) {
   if (kind === 'common.squeeze_chicken') return SQUEEZE[k];
+  if (kind === 'hold') return HOLD[k];
+  if (kind === 'launch_to_hook') return LAUNCH[k];
   if (kind === 'idle') {
     return {
       chest: k, // 숨 들이쉬기 / 내쉬기
@@ -157,6 +160,19 @@ const MOUTHS = {
   o: [14, 17, ['.mm.', 'mPPm', 'mPPm', '.mm.']], // 흐익(놀라 벌린 입)
 };
 const CHEEK = [11, 16, ['cc']];
+// 후드 꼭지(머리 격자 기준 (7,−6)에 찍는다): 꼭지 끝은 머리 (14,−6). 손 기준점 (14,−4)보다 2px 위로 솟아 고리 끝을 감싼다
+// (쭉이 주먹이 고리와 겹치는 것과 같은 정도). 8·9줄은 정수리로 내려오는 당김 주름.
+const SNAG = [
+  '.......Y',
+  '.......Yy',
+  '......LYy',
+  '.....LYYy',
+  '....LLYYy',
+  '..LLLyYYy',
+  '.......Yy',
+  '....y....',
+  '...y.....',
+];
 const SWEAT = ['.A.', 'AAA', 'AWA', '.A.'];
 const HEAD_X = 11, HEAD_Y = 15;
 /** 머리 박스(② 칸 좌표, 서 있기 0번 기준). UI 초상화가 24×24로 자른다. */
@@ -193,7 +209,9 @@ function drawLeg(K, side, a, d, bias) {
 }
 
 export function drawFrame(p) {
-  const K = new Canvas(CELL[0], CELL[1], S, OX, 0);
+  if (p.zip !== undefined) return drawZip(p);
+  const oy = p.oy ?? 0; // 몸 전체를 위로 올린다(px, 음수 = 위). 발사·매달림
+  const K = new Canvas(CELL[0], CELL[1], S, OX, oy);
   const d = u(p.chest);
   const lean = u(p.lean);
   const body = (y) => y + d;
@@ -268,9 +286,11 @@ export function drawFrame(p) {
   K.stamp(...P(bx(15.4, body(28.2)), body(28.2)), ['AAA', 'AtA'], coatL); // 명찰(셋이 같은 직원 명찰)
 
   // 머리: 상체와 같은 정수 px만큼 내리고 lean만큼 앞으로
-  const hx0 = HEAD_X + p.lean, hy0 = HEAD_Y + p.chest;
+  const hx0 = HEAD_X + p.lean, hy0 = HEAD_Y + p.chest + oy;
   const headPart = K.part(R4.skin);
   K.stamp(hx0, hy0, HEAD, HL, headPart);
+  // 고리에 걸린 후드 꼭지: 정수리 천이 텐트처럼 당겨져 손 기준점(hand)까지 솟는다. 당긴 주름이 정수리로 내려온다.
+  if (p.snag) K.stamp(hx0 + 7, hy0 - 6, SNAG, HL, headPart);
   const gUp = p.glassesUp ?? 0; // 안경·눈썹이 튀어 오른다(놀람)
   for (const [cx2, cy2, rows] of [[BROWS[0], BROWS[1] - gUp, BROWS[2]], [...GLASSES[p.eyes].slice(0, 1), GLASSES[p.eyes][1] - gUp, GLASSES[p.eyes][2]], TEMPLE, NOSE, MOUTHS[p.mouth ?? 'shake'], CHEEK])
     K.stamp(hx0 + cx2, hy0 + cy2, rows, HL, headPart);
@@ -280,7 +300,7 @@ export function drawFrame(p) {
   soles(K, feet, C.redD);
   K.outline();
   if (p.fx) p.fx(K, { beak: P(hx, hy), head: [hx0, hy0] }); // 소리선·놀람선: 외곽선 없이(ADR-0007 결정 3-1)
-  return { K, feet };
+  return { K, feet, hand: p.hand, facing: p.facing };
 }
 
 // ══════════ 화면 1 자세 (#142, 설계 docs/design/screens/magpie_nest.md) ══════════
@@ -327,6 +347,61 @@ const SQUEEZE = [
   },
 ];
 
+// hold  U7 매달려 삑삑삑(대기, 설계 7절). 짧은 팔로는 고리에 손이 안 닿는다 → 날아가다 **후드 꼭지가 고리에 꿰여** 대롱대롱.
+//   두 손은 여전히 고무 닭(캐릭터 단서 그대로). 겁에 질려 닭을 쥐어짰다 놨다 → 삑! 삑! 다리는 번갈아 허우적.
+//   "잘못 고른 사람" 단서(C5): 매달린 삑삑이는 아무것도 못 하고 삑삑대기만 한다. 손 놓기(3번)는 후드가 빠지는 것으로 읽힌다(L04 "떨어진다!").
+//   손 기준점 = 후드 꼭지 (25,4). 왼쪽(기둥·둥지)을 본다(쭉이와 같은 방향): 뒤집으면 47 − 25 = 22열 → 화면 136 + 22 = 158 = 고리 손 기준점.
+//   몸이 짧아 발이 바닥 행에 안 닿는다(매달린 칸은 build.mjs 바닥 검사 대신 손 기준점 검사).
+export const HOLD_HAND = [25, 4];
+export const HOLD_FACING = -1;
+const HANG = -7; // 후드 꼭대기 15행 → 8행
+const HOLD = [
+  { // 0 꽉! 삑: 닭을 쥐어짜 부리가 쩍, 바늘 눈 + 벌린 입. 앞발을 차 올린다
+    chest: 0, lean: 0, oy: HANG, snag: true, hand: HOLD_HAND, facing: HOLD_FACING,
+    legs: { back: { x: -0.4, lift: 0, toe: true }, front: { x: 1.4, lift: 2.4, toe: true } },
+    eyes: 'wide', mouth: 'o', glassesUp: 1, sweat: 0, chickHead: -3, chickUp: 2, squash: 1, beakOpen: true, flare: 1,
+    fx: soundLines,
+  },
+  { // 1 놓음: 닭이 부풀고 머리가 까딱, 눈 질끈 + 덜덜 입, 땀이 흘러내린다. 뒷발을 찬다
+    chest: 0, lean: 0, oy: HANG, snag: true, hand: HOLD_HAND, facing: HOLD_FACING,
+    legs: { back: { x: 0.6, lift: 2.0, toe: true }, front: { x: 0.2, lift: 0, toe: true } },
+    eyes: 'shut', mouth: 'shake', sweat: 1, chickHead: 1, chickUp: 1, flare: 0,
+  },
+];
+
+// launch_to_hook  공용 발사 포즈 이동(설계 12번, 쭉이 U2와 같은 박자 150/100/100/150).
+//   0 꾹: 널빤지 반동에 깊게 주저앉고 놀라 닭을 쥐어짠다 → 1 솟음: 몸이 위로, 닭을 머리 위로 치켜들고 비명, 장화는 처진다
+//   → 2 사라짐: 속도선만 → 3 먼지 + 남겨진 땀방울 하나가 떨어진다. 고리에서 hold로 나타난다. 방향은 고정하지 않는다.
+const LAUNCH = [
+  {
+    chest: 6, lean: 0,
+    legs: { back: { x: -2.0, lift: 0, toe: false }, front: { x: 2.2, lift: 0, toe: false } },
+    eyes: 'wide', mouth: 'clench', glassesUp: 1, sweat: -1, chickHead: -2, chickUp: 0, squash: 1, beakOpen: true, flare: 1,
+    fx: (K) => puff(K, 6, 0),
+  },
+  {
+    chest: 0, lean: -1, oy: -6,
+    legs: { back: { x: -0.6, lift: 0.8, toe: true }, front: { x: 0.8, lift: 0.4, toe: true } },
+    eyes: 'wide', mouth: 'o', glassesUp: 1, sweat: -1, chickHead: -3, chickUp: 4, flare: 1,
+    fx: (K, at) => { startle(K, at); puff(K, 24, 1); },
+  },
+  { zip: 2 },
+  { zip: 3 },
+];
+/** 사라진 칸(launch_to_hook 2·3): 속도선·먼지만(외곽선 없음). 3번 칸에는 남겨진 땀방울이 떨어진다. */
+function drawZip(p) {
+  const K = new Canvas(CELL[0], CELL[1], S, OX, 0);
+  if (p.zip === 2) {
+    streaks(K, [[17, 0, 36], [22, 0, 48], [27, 0, 42], [32, 4, 28]]);
+    puff(K, 24, 1);
+  } else {
+    streaks(K, [[20, 0, 12], [25, 0, 18], [30, 2, 9]]);
+    K.stamp(23, 30, SWEAT, { A: C.tealM, W: C.white });
+    puff(K, 24, 2);
+  }
+  return { K, feet: [] };
+}
+
 export const SHEET = {
   name: 'ppik-base',
   character: 'ppik',
@@ -335,6 +410,8 @@ export const SHEET = {
     { name: 'idle', frames: 2, ms: [700, 450] },
     { name: 'walk', frames: 6, by: 'distance' },
     { name: 'common.squeeze_chicken', frames: 3, ms: [200, 350, 450] },
+    { name: 'hold', frames: 2, ms: [300, 450] },
+    { name: 'launch_to_hook', frames: 4, ms: [150, 100, 100, 150] },
   ],
   pose,
   drawFrame,
