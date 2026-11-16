@@ -621,7 +621,7 @@ Object.assign(POSES, {
         back: { sh: [12.8, body(20)], el: [10.4, body(25.8)], wr: [9.2, body(31.4)], hand: { rows: 'spread', at: handAt([9.2, body(31.4)], -3, -1) } },
         front: { sh: [16.6, body(20)], el: [19.0, body(25.4)], wr: fwr, hand: { rows: 'grip', at: handAt([22.4, fwr[1]], -3, -3) } },
         pole: { top: [22.4, body(13.0)], bot: [22.4, 44.6] },
-        legs: { back: { x: -0.6, lift: 0.9 + up, toe: true }, front: { x: 1.0, lift: 0.6 + up, toe: true } },
+        legs: { back: { x: -0.6, lift: 0.9, toe: true }, front: { x: 1.0, lift: 0.6, toe: true } },
         fx: (K) => puff(K, 24, 1),
       };
     }
