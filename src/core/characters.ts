@@ -2,7 +2,7 @@
 // 그림이 24px보다 좁거나 낮아도 히트 영역은 최소 24×24로 키운다.
 
 import type { HitBox } from './hit';
-import type { Facing, Walker } from './walk';
+import type { Facing } from './walk';
 
 export type CharacterId = 'jjuk' | 'mukjik' | 'ppik';
 
@@ -42,8 +42,4 @@ export function characterHitBox(def: CharacterDef, x: number, y: number, facing:
   const { dx, dy, width, height } = def.hit;
   const left = facing === 1 ? fx + dx : fx - (dx + width);
   return { left, top: fy + dy, width, height };
-}
-
-export function walkerHitBox(w: Walker): HitBox {
-  return characterHitBox(characterDef(w.id), w.x, w.y, w.facing);
 }

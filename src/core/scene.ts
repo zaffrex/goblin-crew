@@ -10,11 +10,11 @@ import { TICK_MS, WALK_AREA, WALK_SPEED } from './config';
 import type { HitBox } from './hit';
 import { hotspotBox, hudTargets, tap, type Intent, type TapContext, type UiState } from './interact';
 import { animOf, animTicks, type SceneAnim, type SceneArtMeta } from './sceneArt';
-import type { Pose, SpriteMeta } from './sprite';
+import { spriteFacing, spriteFrame, type Pose, type SpriteMeta } from './sprite';
 import { initialState, step } from './puzzle/step';
 import { GAUGE_MAX, type Action, type CharactersData, type PuzzleEvent, type PuzzleState, type ScreenData, type StepSource } from './puzzle/types';
 import type { Point } from './viewport';
-import { clampToArea, createWalker, stepWalker, walkTo, type Walker } from './walk';
+import { clampToArea, createWalker, stepWalker, walkTo, type Facing, type Walker } from './walk';
 
 /** 연출 시간(틱, 60Hz). 임시값이다. 실제 애니메이션 프레임 수가 나오면 그 길이로 바꾼다(ADR-0007). */
 export const TIMING = {
@@ -172,12 +172,25 @@ export function createScene(data: SceneData): SceneState {
   return s;
 }
 
-/** 판정용 캐릭터 몸 박스. 엔진이 그리는 위치 그대로다. */
-export function bodies(s: SceneState): Record<CharacterId, HitBox> {
+/**
+ * 그리는 방향. engine/sprites.ts `drawSprite`와 같은 규칙이다: 시트에 지금 자세가 있으면 `spriteFacing`
+ * (매달린 동안 `hold.facing`, 연출 자세의 `facing`), 없으면 실루엣이라 걷는 방향(#186).
+ * 시트 이미지가 아직 로드 중인 몇 프레임은 실루엣이 걷는 방향으로 그려져 어긋날 수 있다(core는 로드 상태를 모른다).
+ */
+export function charFacing(data: SceneData, s: SceneState, id: CharacterId): Facing {
+  const w = s.walkers[id];
+  const meta = data.sprites?.[id];
+  if (!meta) return w.facing;
+  const pose = charPose(data, s, id);
+  return spriteFrame(meta, pose) === null ? w.facing : spriteFacing(meta, pose, w.facing);
+}
+
+/** 판정용 캐릭터 몸 박스. 엔진이 그리는 위치·방향 그대로다(`charFacing`, #186). */
+export function bodies(data: SceneData, s: SceneState): Record<CharacterId, HitBox> {
   const out = {} as Record<CharacterId, HitBox>;
   for (const c of CHARACTERS) {
     const w = s.walkers[c.id];
-    out[c.id] = characterHitBox(characterDef(c.id), w.x, w.y, w.facing);
+    out[c.id] = characterHitBox(characterDef(c.id), w.x, w.y, charFacing(data, s, c.id));
   }
   return out;
 }
@@ -202,7 +215,7 @@ export function drawOrder(data: SceneData, s: SceneState): CharacterId[] {
 }
 
 export function tapContext(data: SceneData, s: SceneState): TapContext {
-  return { screen: data.screen, puzzle: s.puzzle, bodies: bodies(s), order: drawOrder(data, s) };
+  return { screen: data.screen, puzzle: s.puzzle, bodies: bodies(data, s), order: drawOrder(data, s) };
 }
 
 function pickText(text: string | string[], count: number): string {
@@ -559,7 +572,7 @@ export function sceneLayout(data: SceneData, s: SceneState): SceneLayout {
     gauge: s.shownGauge,
     cut: currentCut(s),
     at: { ...s.puzzle.at },
-    chars: bodies(s),
+    chars: bodies(data, s),
     spots,
     hotspots,
     hud,
