@@ -10,6 +10,7 @@ import { WALK_AREA, WALK_SPEED } from './config';
 import type { HitBox } from './hit';
 import { hotspotBox, hudTargets, tap, type Intent, type TapContext, type UiState } from './interact';
 import { animOf, animTicks, type SceneAnim, type SceneArtMeta } from './sceneArt';
+import type { SpriteMeta } from './sprite';
 import { initialState, step } from './puzzle/step';
 import { GAUGE_MAX, type Action, type CharactersData, type PuzzleEvent, type PuzzleState, type ScreenData, type StepSource } from './puzzle/types';
 import type { Point } from './viewport';
@@ -102,6 +103,11 @@ export interface SceneData {
   characters?: CharactersData;
   /** 화면 배경·물건 그림 메타(#157). 있으면 물건 anim 길이가 busy 길이가 되고, 보이는 플래그를 따로 센다. */
   art?: SceneArtMeta;
+  /**
+   * 캐릭터 ID → 시트 메타(#140). 있으면 캐릭터 연출(`anim` 대상이 캐릭터)도 시트 `ms` 합이 busy 길이다(#182 질문 3).
+   * 엔진은 `public/sprites/*-base.json`을 그대로 넣는다(engine/sprites.ts `spriteMetas`). 없으면 `TIMING.anim`.
+   */
+  sprites?: Readonly<Record<string, SpriteMeta>>;
   /**
    * 클리어 컷 글 ID(L32, 설계 8절). 있으면 `clear` 이벤트가 이 글을 `TIMING.clearCut` 동안 띄우고(busy), 그 뒤 클리어 카드.
    * 화면 문법에 클리어 연출 필드가 없어서(설계 14절) 엔진이 `<화면 ID>.clear` 텍스트가 있을 때 채운다.
@@ -349,13 +355,23 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
       // 물건 anim은 갈래를 anim 직전 보이는 플래그로 고르고(4-1절), 그 길이가 busy 길이다(5절). 없으면 임시 길이.
       const obj = data.art?.objects.find((o) => o.ids.includes(ev.target));
       const art = data.art && obj ? animOf(data.art, ev.target, ev.name, shownFlags(s, obj.key)) : null;
-      return art ? { ev, t: 0, duration: animTicks(art.anim), seq, art } : { ev, t: 0, duration: TIMING.anim, seq };
+      if (art) return { ev, t: 0, duration: animTicks(art.anim), seq, art };
+      return { ev, t: 0, duration: charAnimTicks(data, ev.target, ev.name) ?? TIMING.anim, seq };
     }
     case 'fx':
       return { ev, t: 0, duration: TIMING.fx, seq };
     case 'item':
       return { ev, t: 0, duration: TIMING.item, seq };
   }
+}
+
+/**
+ * 캐릭터 연출의 busy 길이: 시트에 시간으로 넘기는 그 자세가 있으면 `ms` 합(물건 anim과 같은 올림, 형식 기록 5절).
+ * 시트·자세가 없거나 거리로 넘기는 자세면 null(→ 임시 길이). 그림이 그 길이 동안 마지막 장까지 다 보인다.
+ */
+function charAnimTicks(data: SceneData, target: string, name: string): number | null {
+  const a = data.sprites?.[target]?.anims[name];
+  return a && 'ms' in a ? animTicks(a) : null;
 }
 
 function finished(s: SceneState, p: Playing): boolean {

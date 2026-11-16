@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest';
 import charactersJson from '../../content/characters.json';
 import screenJson from '../../content/screens/magpie_nest.json';
 import sheetJson from '../../public/scenes/magpie_nest-objects.json';
+import ppikJson from '../../public/sprites/ppik-base.json';
 import { CHAR_SLOTS } from './hud';
 import type { CharactersData, ScreenData } from './puzzle/types';
 import { createScene, isBusy, sceneTap, sceneTick, shownFlags, TIMING, type SceneData, type SceneState } from './scene';
 import { animOf, animTicks, coveredIds, litFrames, objectOf, parseSceneArt, pictureOf, sceneDraws, timedFrame, type SceneArtMeta, type SceneView } from './sceneArt';
+import { parseSpriteMeta, type SpriteMeta } from './sprite';
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+/** 커밋된 삑삑이 시트(서 있기·걷기만, 화면 1 자세는 아직). */
+const PPIK = parseSpriteMeta(clone(ppikJson));
 
 /** 커밋된 진짜 시트(③-1: 멈춘 모습·loop) + ③-2가 그릴 anim을 흉내 낸 것. 프레임 번호는 아무거나 시트 안의 것. */
 function meta(): SceneArtMeta {
@@ -175,6 +179,37 @@ describe('보이는 플래그 (형식 기록 4-2절)', () => {
     expect(s.current?.ev).toMatchObject({ type: 'anim', target: 'ppik' });
     expect(s.current?.duration).toBe(TIMING.anim);
     expect(s.current?.art).toBeUndefined();
+  });
+
+  it('캐릭터 시트에 그 자세가 있으면 시트 ms 합이 busy 길이다(#182 질문 3)', () => {
+    const probe = ready();
+    sceneTap(data, probe, center(CHAR_SLOTS.ppik), 0, false);
+    sceneTap(data, probe, MAGPIE, 0, false);
+    sceneTick(data, probe);
+    const name = (probe.current?.ev as { name: string }).name;
+    // 750ms = 45틱. 50ms 배수가 아닌 값도 물건 anim과 같이 올림(130ms → 7.8 → 8틱).
+    const sheet = (ms: number[]): SpriteMeta => ({ ...PPIK, anims: { ...PPIK.anims, [name]: { frames: ms.map((_, i) => i), ms } } });
+    for (const [ms, ticks] of [[[250, 250, 250], 45], [[130], 8]] as const) {
+      const d: SceneData = { ...data, sprites: { ppik: sheet([...ms]) } };
+      const s = ready(d);
+      sceneTap(d, s, center(CHAR_SLOTS.ppik), 0, false);
+      sceneTap(d, s, MAGPIE, 0, false);
+      sceneTick(d, s);
+      expect(s.current?.ev).toMatchObject({ type: 'anim', target: 'ppik', name });
+      expect(s.current?.duration).toBe(ticks);
+      expect(s.current?.art).toBeUndefined();
+    }
+  });
+
+  it('캐릭터 시트가 있어도 그 자세가 없으면 임시 길이', () => {
+    const d: SceneData = { ...data, sprites: { ppik: PPIK } };
+    const s = ready(d);
+    sceneTap(d, s, center(CHAR_SLOTS.ppik), 0, false);
+    sceneTap(d, s, MAGPIE, 0, false);
+    sceneTick(d, s);
+    expect(s.current?.ev).toMatchObject({ type: 'anim', target: 'ppik' });
+    expect(PPIK.anims[(s.current?.ev as { name: string }).name]).toBeUndefined();
+    expect(s.current?.duration).toBe(TIMING.anim);
   });
 
   it('ruffle 갈래: 처음(둥지 위)은 기본, 까치가 바닥이면 바닥 갈래', () => {
