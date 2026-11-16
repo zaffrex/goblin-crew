@@ -18,13 +18,14 @@ import console from 'node:console';
 import { Image, C, EMPTY, indexedPng, animatedPng } from './lib/pixel.mjs';
 import { SHEET as JJUK, HEAD_BOX as JJUK_HEAD } from './sprites/jjuk-v4.mjs';
 import { SHEET as MUKJIK, HEAD_BOX as MUKJIK_HEAD } from './sprites/mukjik.mjs';
+import { SHEET as PPIK, HEAD_BOX as PPIK_HEAD } from './sprites/ppik.mjs';
 import { SCENE as MAGPIE_NEST } from './scenes/magpie_nest.mjs';
 import { buildScene } from './scene-build.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'public', 'sprites');
 const PREVIEW = join(ROOT, 'docs', 'design', 'art');
-const SHEETS = [{ ...JJUK, head: JJUK_HEAD }, { ...MUKJIK, head: MUKJIK_HEAD }];
+const SHEETS = [{ ...JJUK, head: JJUK_HEAD }, { ...MUKJIK, head: MUKJIK_HEAD }, { ...PPIK, head: PPIK_HEAD }];
 const SCENE_OUT = join(ROOT, 'public', 'scenes');
 const SCENES = [MAGPIE_NEST];
 

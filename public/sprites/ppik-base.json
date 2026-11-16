@@ -1,0 +1,49 @@
+{
+  "//": "node art/build.mjs로 만든 파일. 직접 고치지 않는다. 원본: art/sprites/ppik.mjs. 좌표는 칸 왼쪽 위 기준 px.",
+  "image": "ppik-base.png",
+  "character": "ppik",
+  "cell": [
+    48,
+    64
+  ],
+  "anchor": [
+    24,
+    64
+  ],
+  "hit": [
+    10,
+    14,
+    33,
+    50
+  ],
+  "head": [
+    11,
+    15,
+    24,
+    24
+  ],
+  "walkCycle": 24,
+  "anims": {
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "ms": [
+        700,
+        450
+      ]
+    },
+    "walk": {
+      "frames": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "by": "distance"
+    }
+  }
+}
