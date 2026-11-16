@@ -1,5 +1,5 @@
 {
-  "//": "node art/build.mjs로 만든 파일. 직접 고치지 않는다. 원본: art/sprites/jjuk.mjs. 좌표는 칸 왼쪽 위 기준 px.",
+  "//": "node art/build.mjs로 만든 파일. 직접 고치지 않는다. 원본: art/sprites/jjuk-v4.mjs. 좌표는 칸 왼쪽 위 기준 px.",
   "image": "jjuk-base.png",
   "character": "jjuk",
   "cell": [
@@ -17,10 +17,10 @@
     64
   ],
   "head": [
-    14,
+    13,
     0,
-    19,
-    21
+    24,
+    24
   ],
   "walkCycle": 36,
   "anims": {

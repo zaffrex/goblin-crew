@@ -16,7 +16,7 @@ import process from 'node:process';
 import { Buffer } from 'node:buffer';
 import console from 'node:console';
 import { Image, C, EMPTY, indexedPng, animatedPng } from './lib/pixel.mjs';
-import { SHEET as JJUK, HEAD_BOX as JJUK_HEAD } from './sprites/jjuk.mjs';
+import { SHEET as JJUK, HEAD_BOX as JJUK_HEAD } from './sprites/jjuk-v4.mjs';
 import { SHEET as MUKJIK, HEAD_BOX as MUKJIK_HEAD } from './sprites/mukjik.mjs';
 import { SCENE as MAGPIE_NEST } from './scenes/magpie_nest.mjs';
 import { buildScene } from './scene-build.mjs';
@@ -79,7 +79,7 @@ function buildSheet(def) {
   frames.forEach((f, i) => img.blit(f.K, i * cw, 0));
   const hb = stand.K.bbox();
   const meta = {
-    '//': `node art/build.mjs로 만든 파일. 직접 고치지 않는다. 원본: art/sprites/${def.character}.mjs. 좌표는 칸 왼쪽 위 기준 px.`,
+    '//': `node art/build.mjs로 만든 파일. 직접 고치지 않는다. 원본: art/sprites/${def.source ?? def.character}.mjs. 좌표는 칸 왼쪽 위 기준 px.`,
     image: `${def.name}.png`,
     character: def.character,
     cell: [cw, ch],

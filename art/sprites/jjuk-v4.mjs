@@ -1,5 +1,8 @@
-// 쭉이 기본 시트 — 새 밀도 샘플 (#142, 사장님 결정 11/16 "세 사람 그림도 같이 더").
-// 사장님 OK 전에는 엔진에 붙이지 않는다(art/build.mjs의 SHEETS는 아직 jjuk.mjs). OK가 나면 build.mjs에서 import만 바꾼다.
+// 쭉이 기본 시트 — 새 밀도 (#142, 사장님 결정 11/16 "세 사람 그림도 같이 더", #156 OK "우스꽝스러운게 좋아").
+// 엔진 시트(public/sprites/jjuk-base.*)의 원본이다(art/build.mjs). 옛 쭉이 jjuk.mjs(#114)는 비교 미리보기용으로만 남긴다.
+//
+// #156 리뷰 반영(시트 교체 때): 지나가는 칸(걷기 1·4번) 다리 뭉침 → 뒷발 들림 2.6 → 1.2, 골반은 상체 출렁임의 절반만 내려간다.
+//   서 있기 1번(내쉬기)은 입을 다문다(두 칸 모두 입 벌림이던 것).
 // 칸 48×64, 시트 이름·애니 이름·walkCycle은 jjuk.mjs와 같다 → #150 엔진 연결은 json·png 교체만으로 붙는다.
 //
 // jjuk.mjs(#114)에서 바꾼 것 (PM 지적 3가지, #142 코멘트)
@@ -57,6 +60,10 @@ const LEG_DX = { idle: 1.85, walk: 0.5 };
 const legDx = (kind, side) => (side === 'back' ? -1 : 1) * LEG_DX[kind];
 const STEP_PX = 6;
 const CONTACT_PX = 9;
+// 지나가는 칸(뒷발이 디딤발 옆을 지날 때) 발 들림(①). #156에서 2.6이라 무릎 아래가 바지 한 덩어리로 뭉쳤다 → 1.2.
+const LIFT_PASS = 1.2;
+// 걷기 때 골반은 상체 출렁임의 이만큼만 내려간다. 나머지는 몸통이 눌려서 받는다(쭈그려 앉은 다리 방지).
+const HIP_BOB = 0.5;
 
 function knee(hx, hy, ax, ay) {
   const dx = ax - hx, dy = ay - hy;
@@ -70,7 +77,7 @@ function walkAnkle(phase) {
   const p = ((phase % 6) + 6) % 6;
   if (p <= 3) return { x: u(CONTACT_PX - STEP_PX * p), lift: 0, toe: p === 3 };
   const x = -CONTACT_PX + (2 * CONTACT_PX * (p - 3)) / 3;
-  return { x: u(x), lift: p === 4 ? 2.6 : 1.5, toe: false };
+  return { x: u(x), lift: p === 4 ? LIFT_PASS : 1.5, toe: false };
 }
 
 // 걷기 출렁임(② px, 상체가 내려가는 양). 0 = 딛기(다리 벌어짐), 1 = 내려앉기(가장 낮음), 2 = 올라서기(가장 높음).
@@ -83,12 +90,14 @@ export function pose(kind, k) {
   if (kind === 'idle') {
     return {
       chest: k, // 숨 들이쉬기 / 내쉬기
+      hipDrop: 0, // 숨쉬기는 상체만
       lean: 0,
       legs: { back: { x: -2.05, lift: 0, toe: false }, front: { x: 2.4, lift: 0, toe: false } },
       armSwing: 0,
       pole: 'ground',
       poleDy: 0,
       poleTilt: 0,
+      mouth: k === 0 ? 'open' : 'shut', // 내쉴 때 입을 다문다(#156 리뷰: 서 있기 두 칸 모두 입 벌림)
       tuft: k === 0 ? 2 : 1, // 칸 맨 윗줄(0행)엔 외곽선을 못 달아서 들이쉴 때는 눌린 가닥, 내쉴 때 처진 가닥
       legDx: { back: legDx('idle', 'back'), front: legDx('idle', 'front') },
     };
@@ -104,6 +113,8 @@ export function pose(kind, k) {
   const chest = Math.max(BOB[k], Math.ceil(need * S));
   return {
     chest,
+    hipDrop: Math.max(need, u(chest) * HIP_BOB), // 벌린 다리가 바닥에 닿을 만큼은 꼭 내려간다
+    mouth: 'open',
     lean: 1, // 상체·머리가 앞으로 1px
     legs: { back, front },
     armSwing: front.x / u(CONTACT_PX),
@@ -124,7 +135,7 @@ const HL = {
   D: C.wood, d: C.woodL, s: C.tan, t: C.yelL,
   W: C.white, l: C.lint, P: C.ink, B: C.plum, m: C.redD, k: C.ink, T: C.white, r: C.red, c: C.pink,
 };
-const HEAD = [
+const HEAD_OPEN = [
   '.....XHHHH.HHH........',
   '...XHHHhhHHHHhHH......',
   '.XHHhjHHHHHHHHHhHHH...',
@@ -146,6 +157,17 @@ const HEAD = [
   '......ddssssssssd.....',
   '........dddddddd......',
 ];
+// 입 다문 얼굴(서 있기 1번): 14~17행만 바꾼다. 입꼬리는 올라가고 튀어나온 앞니 하나는 입술 아래로 그대로 보인다.
+const MOUTH_SHUT = [
+  '...xdsssmssssssssm....',
+  '....dssssmmmmmmmm.....',
+  '....ddssssssTsssss....',
+  '.....ddssssssssss.....',
+];
+const HEAD = {
+  open: HEAD_OPEN,
+  shut: [...HEAD_OPEN.slice(0, 14), ...MOUTH_SHUT, ...HEAD_OPEN.slice(18)],
+};
 // 코: 크고 처져서 얼굴 밖으로 튀어나온다(가장 웃긴 곳). 먼 쪽 눈 아래에서 시작한다. 머리 왼쪽 위 기준 위치.
 const NOSE = [16, 11, [
   '..ttss..',
@@ -199,7 +221,7 @@ function drawLeg(K, side, hx, hy, a, bias) {
 export function drawFrame(p) {
   const K = new Canvas(CELL[0], CELL[1], S, OX, 0);
   const d = u(p.chest);
-  const hipY = HIP_Y + (p.pole === 'ground' ? 0 : d); // 걷기: 골반도 같이 내려감 / 서 있기(숨쉬기): 상체만
+  const hipY = HIP_Y + p.hipDrop; // 걷기: 골반도 내려감(상체보다 덜, HIP_BOB) / 서 있기(숨쉬기): 상체만
   const lean = u(p.lean);
   const body = (y) => y + d;
   // 상체 기울기: 위로 갈수록 앞으로(① 좌표 y 14에서 lean, 골반에서 0)
@@ -288,7 +310,7 @@ export function drawFrame(p) {
   const headPart = K.part(R4.skin);
   const t = TUFT[Math.max(0, Math.min(2, p.tuft))];
   K.stamp(hx0 + 4, hy0 - 1, t, HL, headPart);
-  K.stamp(hx0, hy0, HEAD, HL, headPart);
+  K.stamp(hx0, hy0, HEAD[p.mouth], HL, headPart);
   K.stamp(hx0 + NOSE[0], hy0 + NOSE[1], NOSE[2], HL, headPart);
   // 큰 귀(머리카락 옆으로 나온다)
   K.stamp(hx0 + 3, hy0 + 8, ['.ts', 'tsd', 'sDd', 'sdd', '.d.'], HL, headPart);
@@ -309,6 +331,7 @@ export function drawFrame(p) {
 export const SHEET = {
   name: 'jjuk-base',
   character: 'jjuk',
+  source: 'jjuk-v4', // 메타 json의 원본 파일 표시
   walkCycle: 36,
   anims: [
     { name: 'idle', frames: 2, ms: [700, 500] },
