@@ -26,7 +26,7 @@ export const MIN_HIT_SIZE = 24;
 export const CHARACTERS: readonly CharacterDef[] = [
   { id: 'jjuk', ability: 'stretch', hit: { dx: -13, dy: -64, width: 28, height: 64 } },
   { id: 'mukjik', ability: 'stomp', hit: { dx: -22, dy: -61, width: 39, height: 61 } },
-  { id: 'ppik', ability: 'squeak', hit: { dx: -9, dy: -25, width: 24, height: 25 } },
+  { id: 'ppik', ability: 'squeak', hit: { dx: -14, dy: -50, width: 33, height: 50 } },
 ];
 
 export function characterDef(id: string): CharacterDef {
