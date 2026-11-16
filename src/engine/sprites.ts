@@ -7,11 +7,14 @@ import type { Loaded } from '../core/fallbacks';
 import { frameSourceX, parseSpriteMeta, spriteBox, spriteFrame, type Pose, type SpriteMeta } from '../core/sprite';
 import type { Walker } from '../core/walk';
 import { assetUrl } from './assets';
+import { buildOutlined } from './outline';
 
 interface Sheet {
   meta: SpriteMeta;
   image: HTMLImageElement;
   ready: boolean;
+  /** 칸마다 호버 외곽선을 칠한 시트(#157 10-1절). 못 만들면 null(외곽선 없음). */
+  outlined: HTMLCanvasElement | null;
 }
 
 const RAW = import.meta.glob<unknown>('../../public/sprites/*-base.json', { eager: true, import: 'default' });
@@ -28,8 +31,11 @@ function loadSheets(): Map<string, Sheet> {
       continue;
     }
     const image = new Image();
-    const sheet: Sheet = { meta, image, ready: false };
+    const sheet: Sheet = { meta, image, ready: false, outlined: null };
     image.onload = () => {
+      const [cw, ch] = meta.cell;
+      const cells = Array.from({ length: Math.floor(image.naturalWidth / cw) }, (_, i) => [frameSourceX(meta, i), 0, cw, ch] as const);
+      sheet.outlined = buildOutlined(image, cells);
       sheet.ready = true;
     };
     image.src = assetUrl(`sprites/${meta.image}`);
@@ -49,13 +55,15 @@ export function spriteState(id: string): Loaded {
 /**
  * 시트 그림으로 그린다. 그렸으면 그림 꼭대기(내부 y, 메타 `hit` 위끝)를 돌려준다. 말풍선·▼ 위치용.
  * 시트가 없거나 아직 안 왔거나 그 자세가 없으면 아무것도 안 그리고 null(→ 실루엣).
+ * `outlined`면 호버 외곽선 시트에서 자른다(실루엣에는 외곽선이 없다).
  */
-export function drawSprite(ctx: CanvasRenderingContext2D, w: Walker, pose: Pose): number | null {
+export function drawSprite(ctx: CanvasRenderingContext2D, w: Walker, pose: Pose, outlined = false): number | null {
   const sheet = SHEETS.get(w.id);
   if (!sheet?.ready) return null;
   const frame = spriteFrame(sheet.meta, pose);
   if (frame === null) return null;
-  const { meta, image } = sheet;
+  const { meta } = sheet;
+  const image = outlined && sheet.outlined ? sheet.outlined : sheet.image;
   const [cw, ch] = meta.cell;
   const [ax, ay] = meta.anchor;
   const fx = Math.round(w.x);

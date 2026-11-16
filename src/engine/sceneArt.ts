@@ -5,12 +5,15 @@
 
 import { parseSceneArt, type SceneArtMeta } from '../core/sceneArt';
 import { assetUrl } from './assets';
+import { buildOutlined } from './outline';
 
 export interface SceneArt {
   meta: SceneArtMeta;
   /** 물건 시트. 다 읽히면 `objectsReady`. */
   objects: HTMLImageElement;
   objectsReady: boolean;
+  /** 프레임마다 호버 외곽선을 칠한 시트(10-1절). 시트가 읽힐 때 한 번 만든다. 못 만들면 null(외곽선 없음). */
+  outlined: HTMLCanvasElement | null;
   /** 배경. 메타에 `bg`가 없으면 null. */
   bg: HTMLImageElement | null;
   bgReady: boolean;
@@ -45,8 +48,9 @@ function load(path: string, onReady: () => void): HTMLImageElement {
 export function loadSceneArt(screenId: string): SceneArt | null {
   const meta = METAS.get(screenId);
   if (!meta) return null;
-  const art: SceneArt = { meta, objects: null as unknown as HTMLImageElement, objectsReady: false, bg: null, bgReady: false };
+  const art: SceneArt = { meta, objects: null as unknown as HTMLImageElement, objectsReady: false, outlined: null, bg: null, bgReady: false };
   art.objects = load(meta.image, () => {
+    art.outlined = buildOutlined(art.objects, meta.frames.map((f) => f.src));
     art.objectsReady = true;
   });
   if (meta.bg)
@@ -63,11 +67,12 @@ export function drawSceneBg(ctx: CanvasRenderingContext2D, art: SceneArt | null)
   return true;
 }
 
-/** 시트 프레임 하나를 제자리(`at`)에 그린다. 시트가 아직이면 아무것도 안 한다. */
-export function drawSceneFrame(ctx: CanvasRenderingContext2D, art: SceneArt, frame: number): void {
+/** 시트 프레임 하나를 제자리(`at`)에 그린다. `outlined`면 호버 외곽선 시트에서 자른다. 시트가 아직이면 아무것도 안 한다. */
+export function drawSceneFrame(ctx: CanvasRenderingContext2D, art: SceneArt, frame: number, outlined = false): void {
   if (!art.objectsReady) return;
   const f = art.meta.frames[frame];
   if (!f) return;
   const [sx, sy, w, h] = f.src;
-  ctx.drawImage(art.objects, sx, sy, w, h, f.at[0], f.at[1], w, h);
+  const source = outlined && art.outlined ? art.outlined : art.objects;
+  ctx.drawImage(source, sx, sy, w, h, f.at[0], f.at[1], w, h);
 }
