@@ -56,3 +56,19 @@ export function soles(K, shoeParts, band = C.lint) {
     }
   }
 }
+
+/**
+ * 칸 가장자리(위 0행, 왼·오른쪽 끝 열)에 있는 부품 픽셀 중 외곽선(ink)이 아닌 것의 "x,y" 목록(#220).
+ * 이런 픽셀은 바깥 외곽선이 칸 밖으로 나가 잘린다(ADR-0007 결정 3). fx처럼 부품 없이 dot·stamp한 픽셀은 안 센다.
+ * top: false면 위 0행은 안 본다(칸 위로 나가는 장대 tip이 있는 칸).
+ */
+export function clippedEdge(K, { top = true } = {}) {
+  const bad = [];
+  const check = (x, y) => {
+    const i = y * K.w + x;
+    if (K.p[i] >= 0 && K.c[i] !== C.ink) bad.push(`${x},${y}`);
+  };
+  if (top) for (let x = 0; x < K.w; x++) check(x, 0);
+  for (let y = top ? 1 : 0; y < K.h; y++) { check(0, y); check(K.w - 1, y); }
+  return bad;
+}

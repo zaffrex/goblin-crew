@@ -548,7 +548,7 @@ const POSES = {
         ? { sh: [13 + j, body(20)], el: [9.6 + j, body(23.6) - k], wr: [7.4 + j, body(26.4) - 2 * k], hand: { rows: 'spread', at: handAt([7.4 + j, body(26.4) - 2 * k], -3, -1) } }
         : { sh: [13, body(20)], el: [12.0, body(26.4)], wr: [12.4, body(31.8)], hand: { rows: 'mid', at: handAt([12.4, body(31.8)], -2, -1) } },
       front: { sh: [16.6 + j, body(20)], el: [19.6 + j, body(25.2)], wr: fwr, hand: { rows: 'grip', at: handAt([24.2 + j, fwr[1]], -3, -3) } },
-      pole: zapped ? { top: [24.2 + j, 3.6], bot: [24.2 + j, 44.0] } : { top: [24.2, 5], bot: [24.2, 45.5] },
+      pole: zapped ? { top: [24.2 + j, 4.8], bot: [24.2 + j, 44.0] } : { top: [24.2, 5], bot: [24.2, 45.5] },
       legs: { back: { x: -2.05, lift: 0, toe: false }, front: { x: 2.4, lift: 0, toe: false } },
     };
   },
@@ -607,13 +607,13 @@ Object.assign(POSES, {
     if (k === 1) {
       // 튕겨 솟음: 몸은 위로 다 펴지고 팔다리는 뒤처져 아래로 늘어진다(날아오르는 쪽은 머리). 입은 비명, 머리는 곤두섬.
       // 장대는 앞손에 매달려 아래로. 발밑에 먼지가 터진다.
-      const up = -1.2;
+      const up = 2.25;
       const body = (y) => y + up;
       const fwr = [20.6, body(30.6)];
       return {
         kind: 'pose',
         chest: 0,
-        head: { x: 13, y: 0, eyes: 'shock', mouth: 'ouch', brows: 'up', hair: 's1' },
+        head: { x: 13, y: 1 + Math.round(up * S), eyes: 'shock', mouth: 'ouch', brows: 'up', hair: 's1' },
         neck: [[15.0, body(14)], [15.0, body(18.5)]],
         torso: [[15.0, body(19.5), 3.2], [14.8, body(25), 3.4], [14.6, 30 + up, 3.2]],
         hip: [14.6, 30 + up],
@@ -621,7 +621,7 @@ Object.assign(POSES, {
         back: { sh: [12.8, body(20)], el: [10.4, body(25.8)], wr: [9.2, body(31.4)], hand: { rows: 'spread', at: handAt([9.2, body(31.4)], -3, -1) } },
         front: { sh: [16.6, body(20)], el: [19.0, body(25.4)], wr: fwr, hand: { rows: 'grip', at: handAt([22.4, fwr[1]], -3, -3) } },
         pole: { top: [22.4, body(13.0)], bot: [22.4, 44.6] },
-        legs: { back: { x: -0.6, lift: 0.9, toe: true }, front: { x: 1.0, lift: 0.6, toe: true } },
+        legs: { back: { x: -0.6, lift: 0.9 + up, toe: true }, front: { x: 1.0, lift: 0.6 + up, toe: true } },
         fx: (K) => puff(K, 24, 1),
       };
     }

@@ -156,3 +156,29 @@ describe('sprite sheets', () => {
     });
   }
 });
+
+// 칸 가장자리 잘림 검사(#220). build.mjs가 모든 칸에 돌리고, 여기서는 규칙 자체를 작은 가짜 칸으로 확인한다.
+describe('clippedEdge (칸 가장자리 잘림)', () => {
+  interface Cnv { w: number; h: number; part(ramp: number[]): number; stamp(x: number, y: number, rows: string[], legend: Record<string, number>, part?: number): void; dot(x: number, y: number, c: number): void }
+  type Mods = {
+    pixel: { Canvas: new (w: number, h: number, s: number) => Cnv; C: { tan: number; ink: number; white: number } };
+    finish: { clippedEdge: (K: Cnv, o?: { top?: boolean }) => string[] };
+  };
+  // 그림 라이브러리는 타입이 없는 .mjs라 경로를 변수로 둬서 동적으로 읽는다
+  const load = async (): Promise<Mods> => {
+    const p = '../../art/lib/pixel.mjs', f = '../../art/lib/finish.mjs';
+    return { pixel: (await import(p)) as Mods['pixel'], finish: (await import(f)) as Mods['finish'] };
+  };
+
+  it('부품 픽셀이 위 0행·옆 끝 열에 있으면 잡고, 외곽선(ink)·fx·tip 칸 0행은 넘긴다', async () => {
+    const { pixel: { Canvas, C }, finish: { clippedEdge } } = await load();
+    const K = new Canvas(8, 8, 1);
+    const body = K.part([C.tan]);
+    K.stamp(3, 0, ['t'], { t: C.tan }, body); // 머리카락이 0행에 닿음 → 잘림
+    K.stamp(7, 4, ['t'], { t: C.tan }, body); // 오른쪽 끝 열 → 잘림
+    K.stamp(5, 0, ['k'], { k: C.ink }, body); // 0행이 외곽선이면 괜찮다
+    K.dot(1, 0, C.white); // fx(속도선)는 부품이 없어서 안 센다
+    expect(clippedEdge(K)).toEqual(['3,0', '7,4']);
+    expect(clippedEdge(K, { top: false })).toEqual(['7,4']);
+  });
+});

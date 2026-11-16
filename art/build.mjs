@@ -21,6 +21,7 @@ import { SHEET as MUKJIK, HEAD_BOX as MUKJIK_HEAD } from './sprites/mukjik.mjs';
 import { SHEET as PPIK, HEAD_BOX as PPIK_HEAD } from './sprites/ppik.mjs';
 import { SCENE as MAGPIE_NEST } from './scenes/magpie_nest.mjs';
 import { buildScene } from './scene-build.mjs';
+import { clippedEdge } from './lib/finish.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'public', 'sprites');
@@ -115,6 +116,14 @@ function buildSheet(def) {
     if (f.hand) continue;
     const b = f.K.bbox();
     if (b.y + b.h !== ch) fail(`${def.name} ${f.anim}${f.k}: 맨 아랫줄이 ${b.y + b.h - 1}행이다(바닥 ${ch - 1}행)`);
+  }
+
+  // 칸 가장자리에서 몸이 잘리면 안 된다(ADR-0007 결정 3 외곽선, #220): 위 0행과 왼·오른쪽 끝 열에 부품(몸·머리·장대) 픽셀이
+  // 있으면 그 바깥 외곽선이 칸 밖으로 나가 잘린다. 부품 픽셀은 외곽선(ink)이어야 한다. fx(속도선·먼지·물방울)는 부품이 없어서 안 센다.
+  // 칸 위로 나가는 장대(tip이 있는 칸)는 엔진이 이어 그리니 위 0행만 뺀다. 아래 행은 신발 밑창 자리라 검사하지 않는다(위 "딛은 발" 검사).
+  for (const f of frames) {
+    const bad = clippedEdge(f.K, { top: !f.tip });
+    if (bad.length) fail(`${def.name} ${f.anim}${f.k}: 칸 가장자리에서 그림이 잘린다(외곽선 없음) ${bad.slice(0, 6).join(' ')}${bad.length > 6 ? ' …' : ''}`);
   }
 
   const img = new Image(cw * frames.length, ch);
