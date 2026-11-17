@@ -32,6 +32,14 @@
         font: 14px/1.3 system-ui, sans-serif; color: #fffdf5;
         background: rgb(0 0 0 / 0.6); padding: 2px 8px; border-radius: 4px;
       }
+      /* HUD 이름표(#255, 설계 6-1-2절): #label과 같은 모양. 글자 크기는 main.ts가 배율로 정한다(최소 11px).
+         line-height 1·padding 1px 4px: 휴대폰 가로에서도 아래끝이 HUD 영역(y 76) 안에 들어가게(PR #259 리뷰). */
+      .hudtag {
+        position: fixed; margin: 0; pointer-events: none; white-space: nowrap;
+        transform: translateX(-50%);
+        font: 11px/1 system-ui, sans-serif; color: #fffdf5;
+        background: rgb(0 0 0 / 0.6); padding: 1px 4px; border-radius: 3px;
+      }
       #clear, #faint {
         left: 50%; top: 50%; transform: translate(-50%, -50%);
         font: 700 28px/1.4 system-ui, sans-serif; color: #fffdf5;
@@ -44,6 +52,7 @@
     <p id="hud" aria-live="polite"></p>
     <p id="bubble" aria-live="polite" hidden></p>
     <p id="label" hidden></p>
+    <div id="hudtags"></div>
     <p id="clear" role="status" hidden></p>
     <p id="faint" role="status" hidden></p>
     <script type="module" src="/src/main.ts"></script>

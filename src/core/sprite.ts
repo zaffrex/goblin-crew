@@ -53,6 +53,8 @@ export interface SpriteMeta {
   cell: [w: number, h: number];
   anchor: [x: number, y: number];
   hit: [x: number, y: number, w: number, h: number];
+  /** UI 초상화(HUD 얼굴 칸)로 자를 칸 안 사각형 [x, y, w, h]. `idle` 첫 칸에서 자른다(ADR-0007 결정 4, 설계 6-1절). */
+  head?: [x: number, y: number, w: number, h: number];
   walkCycle: number;
   anims: Record<string, SpriteAnim>;
   claw?: ClawMeta;
@@ -73,6 +75,10 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
   if (typeof m !== 'object' || m === null) return fail('객체가 아님');
   if (typeof m.image !== 'string' || typeof m.character !== 'string') fail('image·character 없음');
   if (!intTuple(m.cell, 2) || !intTuple(m.anchor, 2) || !intTuple(m.hit, 4)) fail('cell·anchor·hit 형식');
+  if (m.head !== undefined) {
+    const [hx, hy, hw, hh] = (intTuple(m.head, 4) ? m.head : fail('head는 [x, y, w, h]')) as number[];
+    if (hx! < 0 || hy! < 0 || hw! <= 0 || hh! <= 0 || hx! + hw! > m.cell![0] || hy! + hh! > m.cell![1]) fail('head가 칸 밖');
+  }
   if (!isInt(m.walkCycle) || m.walkCycle <= 0) fail('walkCycle');
   if (typeof m.anims !== 'object' || m.anims === null) fail('anims 없음');
   const claw = m.claw as Partial<ClawMeta> | undefined;
@@ -283,6 +289,17 @@ export function spriteBox(meta: SpriteMeta, x: number, y: number, facing: Facing
 }
 
 /** 프레임 번호 → 시트 이미지 안의 원본 x(가로 한 줄 배치). */
+/**
+ * HUD 얼굴 칸에 그릴 시트 사각형(설계 6-1-1절). `idle` 첫 칸의 `head` 박스다.
+ * `head`나 `idle`이 없으면 null(얼굴 대신 임시 색 칸).
+ */
+export function headSource(meta: SpriteMeta): { x: number; y: number; width: number; height: number } | null {
+  const frame = meta.anims.idle?.frames[0];
+  if (!meta.head || frame === undefined) return null;
+  const [x, y, width, height] = meta.head;
+  return { x: frameSourceX(meta, frame) + x, y, width, height };
+}
+
 export function frameSourceX(meta: SpriteMeta, frame: number): number {
   return frame * meta.cell[0];
 }
