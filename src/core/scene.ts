@@ -28,7 +28,7 @@ export const TIMING = {
   faint: 60,
   /** 게이지 0 컷 글(`ui.faint`)이 떠 있는 시간. `faint`(busy)보다 길고, 남는 동안은 입력을 막지 않는다(#129 Luna 제안 2). */
   faintCut: 90,
-  /** 클리어 컷 글(L32, 화면 `clearLine`)이 떠 있는 시간. 끝나면 클리어 카드. 설계 8절 "3초 안쪽"에서 카드 몫을 뺀 값. */
+  /** 클리어 컷 글(L32, 화면 `clearLine`)이 떠 있는 시간. 끝나면 클리어 카드. `magpie_nest.md` 8절 "3초 안쪽"에서 카드 몫을 뺀 값. */
   clearCut: 120,
   /** 말풍선: 기본 + 글자당. 상한을 둔다. */
   sayBase: 60,
@@ -135,7 +135,7 @@ export interface SceneData {
    */
   sprites?: Readonly<Record<string, SpriteMeta>>;
   /**
-   * 클리어 컷 글 ID(L32, 설계 8절). 있으면 `clear` 이벤트가 이 글을 `TIMING.clearCut` 동안 띄우고(busy), 그 뒤 클리어 카드.
+   * 클리어 컷 글 ID(L32, `magpie_nest.md` 8절). 있으면 `clear` 이벤트가 이 글을 `TIMING.clearCut` 동안 띄우고(busy), 그 뒤 클리어 카드.
    * 화면 문법에 클리어 연출 필드가 없어서(설계 14절) 엔진이 `<화면 ID>.clear` 텍스트가 있을 때 채운다.
    */
   clearLine?: string;
@@ -631,7 +631,7 @@ export type SceneTapResult =
  */
 export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number, touch: boolean): SceneTapResult {
   const cur = s.current;
-  // 클리어 컷은 말풍선처럼 0.4초 뒤 탭으로 넘긴다(설계 8절: 다시 볼 때 기다리지 않게). 클리어 뒤 다른 입력은 받지 않는다.
+  // 클리어 컷은 말풍선처럼 0.4초 뒤 탭으로 넘긴다(`magpie_nest.md` 8절·`ui-interaction.md` 11-1절: 다시 볼 때 기다리지 않게). 클리어 뒤 다른 입력은 받지 않는다.
   if (cur?.ev.type === 'clear') {
     if (cur.t < TIMING.saySkipAfter) return { kind: 'ignored' };
     cur.duration = cur.t;
