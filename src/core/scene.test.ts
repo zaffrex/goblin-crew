@@ -4,7 +4,7 @@ import screenJson from '../../content/screens/magpie_nest.json';
 import jjukJson from '../../public/sprites/jjuk-base.json';
 import ppikJson from '../../public/sprites/ppik-base.json';
 import { hitTest, type HitBox } from './hit';
-import { CHAR_SLOTS, VERB_SLOTS } from './hud';
+import { CHAR_SLOTS, GAUGE_BOX, HUD_AREA, VERB_SLOTS } from './hud';
 import { worldTargets } from './interact';
 import { parseSpriteMeta, spriteBox, spriteFrame } from './sprite';
 import type { CharactersData, ScreenData } from './puzzle/types';
@@ -76,12 +76,13 @@ describe('createScene', () => {
 });
 
 describe('busy 중 입력 (설계 5절)', () => {
-  it('반응 재생 중에는 전환·행동을 받지 않는다(줄도 안 세움)', () => {
+  it('반응 재생 중에는 월드 탭 전환·행동을 받지 않는다(줄도 안 세움)', () => {
     const s = ready();
     sceneTap(data, s, NEST, 0, false); // 쭉이 뻗기: 둥지 → 높이가 모자라
     expect(isBusy(s)).toBe(true);
     const before = JSON.stringify(s.puzzle);
-    expect(sceneTap(data, s, center(CHAR_SLOTS.ppik), 0, false).kind).toBe('ignored');
+    expect(sceneTap(data, s, center(bodies(data, s).ppik), 0, false).kind).toBe('ignored');
+    expect(sceneTap(data, s, SEESAW_LEFT, 0, false).kind).toBe('ignored');
     expect(s.ui.active).toBe('jjuk');
     idle(s);
     expect(JSON.stringify(s.puzzle)).toBe(before);
@@ -119,6 +120,87 @@ describe('busy 중 입력 (설계 5절)', () => {
     expect(r).toMatchObject({ kind: 'intent', intent: { kind: 'walk' } });
     expect(isBusy(s)).toBe(false);
     expect(s.walkers.jjuk.target).toEqual({ x: 300, y: 250 });
+  });
+});
+
+describe('busy 중 HUD 칸 탭 (설계 5절 예외 셋, #266)', () => {
+  /** 이벤트 진행 상태 스냅숏: 탭이 연출을 건드리지 않았는지 본다. */
+  const playback = (s: SceneState): string => JSON.stringify({ tick: s.tick, current: s.current, queue: s.queue, overlays: s.overlays, walkers: s.walkers, puzzle: s.puzzle });
+
+  it('onEnter 첫 틱(말풍선 전)에 얼굴 탭: 바로 전환되고 연출은 그대로다', () => {
+    const s = createScene(data);
+    expect(isBusy(s)).toBe(true);
+    const before = playback(s);
+    const r = sceneTap(data, s, center(CHAR_SLOTS.ppik), 0, false);
+    expect(r).toMatchObject({ kind: 'intent', intent: { kind: 'switch', char: 'ppik' } });
+    expect(s.ui.active).toBe('ppik');
+    expect(playback(s)).toBe(before);
+    // 터치도 첫 탭에 바로(HUD는 2번 탭 규칙이 없다).
+    expect(sceneTap(data, s, center(CHAR_SLOTS.mukjik), 8, true)).toMatchObject({ kind: 'intent', intent: { kind: 'switch', char: 'mukjik' } });
+    expect(s.ui.active).toBe('mukjik');
+    expect(untilSay(s)).toBe('magpie_nest.enter');
+  });
+
+  it('말풍선 0.4초 전·후 HUD 탭은 말풍선을 넘기지 않는다. 같은 때 월드 탭은 지금처럼 skipSay', () => {
+    const s = createScene(data);
+    untilSay(s);
+    expect(sceneTap(data, s, center(CHAR_SLOTS.ppik), 0, false).kind).toBe('intent');
+    for (let i = 0; i < TIMING.saySkipAfter; i++) sceneTick(data, s);
+    const before = playback(s);
+    expect(sceneTap(data, s, center(VERB_SLOTS.look), 0, false)).toMatchObject({ kind: 'intent', intent: { kind: 'arm', armed: { verb: 'look' } } });
+    expect(sceneTap(data, s, center(CHAR_SLOTS.jjuk), 0, false)).toMatchObject({ kind: 'intent', intent: { kind: 'switch', char: 'jjuk' } });
+    expect(playback(s)).toBe(before);
+    expect(currentBubble(s)?.text).toBe('magpie_nest.enter');
+    expect(sceneTap(data, s, NEST, 0, false).kind).toBe('skipSay');
+    sceneTick(data, s);
+    expect(currentBubble(s)).toBeNull();
+  });
+
+  it('자동 걷기 중 HUD 탭은 걷기를 건너뛰지 않는다', () => {
+    const s = ready();
+    sceneTap(data, s, SEESAW_LEFT, 0, false); // 쭉이 올라서기
+    sceneTick(data, s);
+    expect(s.current?.ev.type).toBe('walk');
+    const before = playback(s);
+    expect(sceneTap(data, s, center(CHAR_SLOTS.mukjik), 0, false)).toMatchObject({ kind: 'intent', intent: { kind: 'switch', char: 'mukjik' } });
+    expect(playback(s)).toBe(before);
+    expect(s.current?.ev.type).toBe('walk');
+    idle(s);
+    expect([s.walkers.jjuk.x, s.walkers.jjuk.y]).toEqual([220, 214]);
+  });
+
+  it('busy 중 동사 무장은 busy가 끝난 뒤 월드 탭에 그대로 쓰인다', () => {
+    const s = ready();
+    sceneTap(data, s, NEST, 0, false); // 쭉이 뻗기: 둥지 → 높이가 모자라
+    expect(isBusy(s)).toBe(true);
+    sceneTap(data, s, center(VERB_SLOTS.look), 0, false);
+    expect(s.ui.armed).toEqual({ verb: 'look' });
+    idle(s);
+    const r = sceneTap(data, s, MAGPIE, 0, false);
+    expect(r).toMatchObject({ kind: 'intent', intent: { kind: 'act', action: { char: 'jjuk', verb: 'look', target: 'magpie' } } });
+  });
+
+  it('busy 중 같은 동사 다시 탭은 무장 해제, 내 얼굴 탭은 아무 일 없음', () => {
+    const s = createScene(data);
+    sceneTap(data, s, center(VERB_SLOTS.hand), 0, false);
+    expect(s.ui.armed).toEqual({ verb: 'hand' });
+    sceneTap(data, s, center(VERB_SLOTS.hand), 0, false);
+    expect(s.ui.armed).toBeNull();
+    expect(sceneTap(data, s, center(CHAR_SLOTS.jjuk), 0, false)).toMatchObject({ kind: 'intent', intent: { kind: 'none' } });
+    expect(s.ui.active).toBe('jjuk');
+  });
+
+  it('busy 중 게이지·HUD 빈 띠 탭은 무시한다(말풍선도 안 넘긴다)', () => {
+    const s = createScene(data);
+    untilSay(s);
+    for (let i = 0; i < TIMING.saySkipAfter; i++) sceneTick(data, s);
+    const blank = { x: HUD_AREA.left + 14, y: HUD_AREA.top + HUD_AREA.height - 4 }; // 동사 이름표 띠
+    expect(Object.values(sceneLayout(data, s).hud).some((b) => hitTest([{ id: 'b', box: b, z: 0 }], blank, 0))).toBe(false);
+    const before = JSON.stringify(s);
+    expect(sceneTap(data, s, center(GAUGE_BOX), 0, false).kind).toBe('ignored');
+    expect(sceneTap(data, s, blank, 0, false).kind).toBe('ignored');
+    expect(JSON.stringify(s)).toBe(before);
+    expect(currentBubble(s)?.text).toBe('magpie_nest.enter');
   });
 });
 
@@ -498,6 +580,18 @@ describe('클리어 컷 L32 (설계 8절, #68)', () => {
     expect(isBusy(s)).toBe(false);
     expect(currentCut(s)).toBeNull();
     expect(sceneTap(withLine, s, SEESAW_LEFT, 0, false).kind).toBe('ignored');
+  });
+
+  it('클리어 컷 중·클리어 뒤 HUD 탭은 전환·무장을 하지 않는다(#266 규칙 5)', () => {
+    const s = clearNow(withLine);
+    while (s.current?.ev.type !== 'clear') sceneTick(withLine, s);
+    const ui = JSON.stringify(s.ui);
+    expect(sceneTap(withLine, s, center(CHAR_SLOTS.ppik), 0, false).kind).toBe('ignored');
+    expect(sceneTap(withLine, s, center(VERB_SLOTS.look), 0, false).kind).toBe('ignored');
+    expect(JSON.stringify(s.ui)).toBe(ui);
+    while (isBusy(s)) sceneTick(withLine, s);
+    expect(sceneTap(withLine, s, center(CHAR_SLOTS.ppik), 0, false).kind).toBe('ignored');
+    expect(JSON.stringify(s.ui)).toBe(ui);
   });
 
   it('clearLine이 없는 화면은 예전처럼 바로 카드(길이 0)', () => {
