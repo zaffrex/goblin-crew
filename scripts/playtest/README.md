@@ -37,5 +37,6 @@ node --import ./scripts/playtest/register.mjs scripts/playtest/replay.ts --url h
 | `scenarios.ts` | 2부-b: 판정 시나리오(A1 정답, A2 규칙 2·7 두 번씩, A3 게이지 0 → 리셋 → 클리어, A6② 8px/9px 탭)와 행동별 확인 함수. `scenarios.test.ts`가 같은 시나리오를 실제 `scene.ts`에 넣어 Chrome 없이 먼저 확인한다 |
 | `replay.ts` | 2부-b: `?playtest=1`로 열어 시나리오를 실제 클릭·탭으로 재생. 행동마다 `busy`가 거짓이 될 때까지 기다리고, 새 말풍선이 뜰 때마다 스크린샷. `report.md`에 판정 표(A1~A4, A6②)와 행동별 말풍선 글·게이지 |
 | `smoke.ts` | 1부: 데스크톱 1280×720(마우스, dpr 1), 모바일 844×390(터치, dpr 3), 세로 390×844(스크린샷) |
+| `frames.ts` | 특기 연출 프레임(#284, 판정 2 시작 조건 8번): 처음 상태에서 세 사람 특기를 대상 7개에 실제 클릭으로 쓰고, 마지막 탭부터 120ms마다 찍어 사례별 모음 PNG를 만든다. 자동 판정 없음, 사람이 본다. `--mobile`이면 휴대폰 가로 |
 
 재생은 말풍선 넘기기를 쓰지 않는다(ui-interaction 5절). 그래서 "걷는 중 누른 탭이 씹힌다" 같은 문제는 판정 1에서 안 보이고 판정 2(사람)에서 본다. A5(첫 화면)·A6①(세로 안내)은 `smoke.ts`가 본다.
