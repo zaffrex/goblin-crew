@@ -8,7 +8,7 @@ import type { ScreenData } from '../../src/core/puzzle/types';
 // 모든 행동이 rule 또는 기본 move, 게이지 0 없음, 마지막 행동에서 clear.
 const load = (rel: string): unknown => JSON.parse(readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8'));
 const screen = load('../../content/screens/magpie_nest.json') as ScreenData;
-const text = load('../../content/text/ko.json') as Record<string, string>;
+const text = load('../../content/text/ja.json') as Record<string, string>;
 
 describe('magpie_nest solution playthrough', () => {
   it('clears with rule/move actions only and never faints', () => {
@@ -26,7 +26,7 @@ describe('magpie_nest solution playthrough', () => {
     expect(s.items).toContain('item.shop_key');
   });
 
-  it('every say text ID exists in content/text/ko.json', () => {
+  it('every say text ID exists in content/text/ja.json', () => {
     const ids = new Set<string>();
     const walk = (v: unknown): void => {
       if (Array.isArray(v)) v.forEach(walk);

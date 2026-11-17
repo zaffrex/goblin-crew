@@ -22,8 +22,8 @@ const C = {
 /** 얼굴 시트가 아직 없을 때 캐릭터 칸 임시 색(팔레트 안). */
 const FACE_FALLBACK: Record<CharacterId, string> = { jjuk: '#4f7a52', mukjik: '#c2404a', ppik: '#f2d65c' };
 
-/** 아이콘 시트가 없을 때 임시 한 글자. 능력은 그 캐릭터 동사 첫 글자다(이름표와 같은 낱말). 아이템 칸은 아직 늘 이 글자다. */
-const GLYPH: Record<string, string> = { 'verb.hand': '손', 'verb.look': '눈', 'item.0': '물' };
+/** 아이콘 시트가 없을 때 임시 한 글자(뜻을 나타내는 한자 한 글자). 능력은 그 캐릭터 동사 첫 글자다. 아이템 칸은 아직 늘 이 글자다. */
+const GLYPH: Record<string, string> = { 'verb.hand': '手', 'verb.look': '目', 'item.0': '物' };
 
 export interface HudView {
   active: CharacterId;

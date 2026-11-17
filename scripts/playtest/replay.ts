@@ -27,7 +27,7 @@ const { values: args } = parseArgs({
 });
 
 const screen = JSON.parse(readFileSync('content/screens/magpie_nest.json', 'utf8')) as ScreenData;
-const TEXT = JSON.parse(readFileSync('content/text/ko.json', 'utf8')) as Record<string, string>;
+const TEXT = JSON.parse(readFileSync('content/text/ja.json', 'utf8')) as Record<string, string>;
 const text = (id: string): string => TEXT[id] ?? id;
 
 /**

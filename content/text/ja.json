@@ -65,7 +65,7 @@
   "ui.verb.look": "みる",
   "ui.verb.item": "{item}を使う",
   "ui.hud.gauge": "ふわふわゲージ",
-  "ui.hud.char_hover": "{name}にかえる",
+  "ui.hud.char_hover": "{name}に交代",
   "ui.hud.ability_hover": "{name}の特技: {verb}",
   "ui.hud.hand_hover": "さわる: 動かす・拾う",
   "ui.hud.look_hover": "みる: よく調べる",
