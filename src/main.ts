@@ -6,6 +6,7 @@
 import charactersJson from '../content/characters.json';
 import screenJson from '../content/screens/magpie_nest.json';
 import texts from '../content/text/ja.json';
+import { sayText } from './core/sayText';
 import { characterDef, type CharacterId } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
@@ -281,7 +282,7 @@ function render(): void {
   const bubbleAt = b ? anchorOf(b.speaker, layout) : null;
   bubble.hidden = !b;
   if (b) {
-    const text = t(b.text);
+    const text = sayText(TEXT, b.text, b.speaker);
     if (bubble.textContent !== text) bubble.textContent = text;
     placeDom(bubble, bubbleAt ?? { x: INTERNAL_WIDTH / 2, y: 60 });
   }

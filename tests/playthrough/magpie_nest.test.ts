@@ -40,4 +40,14 @@ describe('magpie_nest solution playthrough', () => {
     walk(screen);
     expect([...ids].filter((id) => !(id in text))).toEqual([]);
   });
+
+  // #286: 대상별 みる는 화자 `self` 한 줄이라, 세 사람 말투는 글 파일의 `<id>.<화자>` 변형으로 나눈다(src/core/sayText.ts).
+  it('every target look line has a variant for each of the three characters', () => {
+    const lookIds = Object.values(screen.fallbacks ?? {}).flatMap((byVerb) =>
+      (byVerb.look?.show ?? []).flatMap((item) => ('say' in item ? [item.say[1]].flat() : [])),
+    );
+    expect(lookIds.length).toBeGreaterThan(0);
+    const missing = lookIds.flatMap((id) => ['jjuk', 'mukjik', 'ppik'].map((c) => `${id}.${c}`)).filter((k) => !(k in text));
+    expect(missing).toEqual([]);
+  });
 });

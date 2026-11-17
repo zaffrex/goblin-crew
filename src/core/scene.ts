@@ -297,7 +297,8 @@ function bump(s: SceneState, key: string): number {
  * 먼저 세면 자기 능력 캐릭터가 2번째를 써 버려 그 대상의 힌트가 다시는 안 뜬다(#122 리뷰).
  */
 function hintEvent(data: SceneData, s: SceneState, source: StepSource, a: Action): PlayEvent | null {
-  if (source !== 'hotspotFallback') return null;
+  // みる는 대상별 폴백(①)이어도 세지 않는다(#286). 조사만 반복해도 힌트가 앞당겨지지 않게 한다(ADR-0065 5절 취지).
+  if (source !== 'hotspotFallback' || a.verb === 'look') return null;
   const ability = data.screen.hotspots[a.target]?.hintAbility ?? data.screen.spots[a.target]?.hintAbility;
   if (!ability || ability === characterDef(a.char).ability) return null;
   if (bump(s, `hint:${a.target}`) !== 2) return null;
