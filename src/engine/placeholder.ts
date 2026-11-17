@@ -174,7 +174,7 @@ export function drawTargets(ctx: CanvasRenderingContext2D, spots: Record<string,
 /** 고른(터치 첫 탭) 대상 외곽선. */
 export function drawOutline(ctx: CanvasRenderingContext2D, b: HitBox, tick: number): void {
   if (Math.floor(tick / 15) % 2 === 1) return;
-  ctx.strokeStyle = '#edf2f4';
+  ctx.strokeStyle = WHITE;
   ctx.lineWidth = 1;
   ctx.strokeRect(b.left - 1.5, b.top - 1.5, b.width + 3, b.height + 3);
 }
