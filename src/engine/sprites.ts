@@ -4,7 +4,7 @@
 // 이미지는 assetUrl()로만 읽는다(ADR-0004 결정 8). 로드 전·실패면 null → 호출하는 쪽이 실루엣을 그린다.
 
 import type { Loaded } from '../core/fallbacks';
-import { frameSourceX, parseSpriteMeta, spriteBox, spriteFacing, spriteFrame, spritePole, type PoleDraw, type Pose, type SpriteMeta } from '../core/sprite';
+import { frameSourceX, headSource, parseSpriteMeta, spriteBox, spriteFacing, spriteFrame, spritePole, type PoleDraw, type Pose, type SpriteMeta } from '../core/sprite';
 import type { Walker } from '../core/walk';
 import { assetUrl } from './assets';
 import { buildOutlined } from './outline';
@@ -65,6 +65,18 @@ export function spriteMetas(): Record<string, SpriteMeta> {
 export function spriteState(id: string): Loaded {
   const sheet = SHEETS.get(id);
   return !sheet ? 'none' : sheet.ready ? 'ready' : 'loading';
+}
+
+/**
+ * HUD 얼굴 칸(#255, 설계 6-1-1절): 시트 `idle` 첫 칸의 `head` 박스를 `at`(왼쪽 위)에 그대로 그린다.
+ * 시트가 없거나 아직이거나 `head`가 없으면 false(→ 임시 색 칸).
+ */
+export function drawHead(ctx: CanvasRenderingContext2D, id: string, at: { x: number; y: number }): boolean {
+  const sheet = SHEETS.get(id);
+  const src = sheet?.ready ? headSource(sheet.meta) : null;
+  if (!src) return false;
+  ctx.drawImage(sheet!.image, src.x, src.y, src.width, src.height, at.x, at.y, src.width, src.height);
+  return true;
 }
 
 /**

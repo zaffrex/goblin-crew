@@ -179,33 +179,6 @@ export function drawOutline(ctx: CanvasRenderingContext2D, b: HitBox, tick: numb
   ctx.strokeRect(b.left - 1.5, b.top - 1.5, b.width + 3, b.height + 3);
 }
 
-const VERB_GLYPH: Record<string, string> = { 'verb.ability': '능', 'verb.hand': '손', 'verb.look': '눈', 'item.0': '물' };
-const CHAR_COLOR: Record<string, string> = { 'char.jjuk': '#2a9d8f', 'char.mukjik': '#e76f51', 'char.ppik': '#a8dadc' };
-
-/** 임시 HUD: 캐릭터 칸·동사 버튼·아이템 칸, 게이지 5칸. 배치는 hud.ts 숫자 그대로. */
-export function drawHud(
-  ctx: CanvasRenderingContext2D,
-  hud: Record<string, HitBox>,
-  gauge: readonly HitBox[],
-  state: { active: string; armed: string | null; gauge: number },
-): void {
-  ctx.font = '10px system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  for (const [id, b] of Object.entries(hud)) {
-    const on = id === `char.${state.active}` || id === state.armed;
-    ctx.fillStyle = on ? '#edf2f4' : '#3d405b';
-    ctx.fillRect(...hb(b));
-    ctx.fillStyle = CHAR_COLOR[id] ?? (on ? '#2b2d42' : '#edf2f4');
-    if (id in CHAR_COLOR) ctx.fillRect(b.left + 8, b.top + 6, b.width - 16, b.height - 12);
-    else ctx.fillText(VERB_GLYPH[id] ?? '?', b.left + b.width / 2, b.top + b.height / 2 + 1);
-  }
-  gauge.forEach((b, i) => {
-    ctx.fillStyle = i < state.gauge ? '#f2cc8f' : '#3d405b';
-    ctx.fillRect(...hb(b));
-  });
-}
-
 /** 효과(fx) 임시 표시: 대상 위의 작은 별. */
 export function drawSpark(ctx: CanvasRenderingContext2D, at: Point, t: number): void {
   const y = Math.round(at.y) - 4 - Math.floor(t / 6);

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { WALK_SPEED } from './config';
 import jjukJson from '../../public/sprites/jjuk-base.json';
-import { cueMs, frameSourceX, parseSpriteMeta, POLE_JOINT, POLE_WIDTH, spriteBox, spriteFacing, spriteFrame, spriteHit, spritePole, type Pose, type SpriteMeta } from './sprite';
+import mukjikJson from '../../public/sprites/mukjik-base.json';
+import ppikJson from '../../public/sprites/ppik-base.json';
+import { cueMs, frameSourceX, headSource, parseSpriteMeta, POLE_JOINT, POLE_WIDTH, spriteBox, spriteFacing, spriteFrame, spriteHit, spritePole, type Pose, type SpriteMeta } from './sprite';
 
 const JJUK = parseSpriteMeta(jjukJson);
 const still: Pose = { walkedPx: null, holding: false, event: null, clockMs: 0 };
@@ -32,8 +34,30 @@ describe('parseSpriteMeta', () => {
     ['joint가 8 이상(#194)', { anims: { r: { frames: [0], ms: [50], tip: [[34, 0]], claw: [0], joint: [8] } } }],
     ['joint 길이가 frames와 다름', { anims: { r: { frames: [0, 1], ms: [50, 50], tip: [[34, 0], [34, 0]], claw: [0, 1], joint: [3] } } }],
     ['tip 없는 자세에 joint', { anims: { r: { frames: [0], ms: [50], joint: [3] } } }],
+    ['head 형식(#255)', { head: [13, 0, 24] }],
+    ['head가 칸 밖(#255)', { head: [30, 0, 24, 24] }],
   ])('%s → 던진다(그 캐릭터는 실루엣으로 남는다)', (_, patch) => {
     expect(() => parseSpriteMeta({ ...JJUK, ...patch })).toThrow(/스프라이트 메타 오류/);
+  });
+});
+
+describe('headSource (HUD 얼굴 칸, #255)', () => {
+  it('idle 첫 칸의 head 박스를 시트 좌표로 돌려준다', () => {
+    const idle0 = JJUK.anims.idle!.frames[0]!;
+    const [x, y, w, h] = JJUK.head!;
+    expect(headSource(JJUK)).toEqual({ x: frameSourceX(JJUK, idle0) + x, y, width: w, height: h });
+  });
+
+  it('세 시트 모두 head가 24×24다(ADR-0007 결정 4 초상화)', () => {
+    for (const raw of [jjukJson, mukjikJson, ppikJson]) {
+      const src = headSource(parseSpriteMeta(raw));
+      expect(src).not.toBeNull();
+      expect([src!.width, src!.height]).toEqual([24, 24]);
+    }
+  });
+
+  it('head가 없으면 null(임시 색 칸)', () => {
+    expect(headSource({ ...JJUK, head: undefined })).toBeNull();
   });
 });
 
