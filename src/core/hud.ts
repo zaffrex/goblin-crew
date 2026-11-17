@@ -1,7 +1,7 @@
 // HUD 배치 (docs/design/ui-interaction.md 6절). 480×270 내부 px.
 // 그리기(엔진)와 입력 판정(interact.ts)이 이 숫자 하나만 쓴다. 따로 계산하면 그림과 판정이 어긋난다.
 
-import { CHARACTERS, type CharacterId } from './characters';
+import { CHARACTERS, characterDef, type CharacterId } from './characters';
 import type { HitBox } from './hit';
 
 /** 동사 버튼. `ability`는 지금 캐릭터 능력이다. 걷기 버튼은 없다(설계 3절). */
@@ -42,3 +42,63 @@ export const GAUGE_CELLS: readonly HitBox[] = Array.from({ length: 5 }, (_, i) =
  * 화면 설계 규칙: 이 영역에는 핫스팟·서는 자리를 두지 않는다(validate.ts `hud-overlap`).
  */
 export const HUD_AREA: HitBox = { left: 300, top: 4, width: 176, height: 72 };
+
+// ── 이름표·호버 설명 (설계 6-1절, #255) ──
+// 글자는 전부 텍스트 키로 읽는다(일본어 #256). 위치는 내부 px이고, DOM으로 띄우는 건 엔진(main.ts)이다.
+
+/** 늘 보이는 이름표 하나. `x`는 가운데, `top`은 위끝(내부 px). */
+export interface HudTag {
+  id: `verb.${VerbButton}` | 'gauge';
+  x: number;
+  top: number;
+  text: string;
+}
+
+/** 이름표 위끝: 버튼 아래 1px(버튼 끝 64 + 1), 게이지 칸 아래 1px(칸 끝 24 + 1). */
+export const VERB_TAG_TOP = 65;
+export const GAUGE_TAG_TOP = 25;
+
+/** 게이지 칸 5개를 감싸는 상자. 누를 수는 없고 데스크톱 호버 설명만 띄운다. */
+export const GAUGE_BOX: HitBox = (() => {
+  const first = GAUGE_CELLS[0]!;
+  const last = GAUGE_CELLS[GAUGE_CELLS.length - 1]!;
+  return { left: first.left, top: first.top, width: last.left + last.width - first.left, height: first.height };
+})();
+
+type Text = (id: string) => string;
+
+const fill = (s: string, vars: Record<string, string>): string => s.replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m);
+
+/** 능력 버튼 이름표 = 지금 캐릭터 능력 동사(`ui.verb.stretch` 등). 나머지는 `ui.verb.hand`·`ui.verb.look`, 게이지는 `ui.hud.gauge`. */
+export function hudTags(active: CharacterId, t: Text): HudTag[] {
+  const ability = characterDef(active).ability;
+  const tags: HudTag[] = VERB_BUTTONS.map((v) => {
+    const b = VERB_SLOTS[v];
+    return { id: `verb.${v}` as const, x: b.left + b.width / 2, top: VERB_TAG_TOP, text: t(`ui.verb.${v === 'ability' ? ability : v}`) };
+  });
+  tags.push({ id: 'gauge', x: GAUGE_BOX.left + GAUGE_BOX.width / 2, top: GAUGE_TAG_TOP, text: t('ui.hud.gauge') });
+  return tags;
+}
+
+/**
+ * 데스크톱 호버 설명(대상 라벨 자리). HUD 칸 ID 또는 `gauge`. 설명이 없는 칸(아이템)은 null.
+ * `{name}`은 `char.<id>.name`, `{verb}`는 `ui.verb.<능력>`에서 채운다.
+ */
+export function hudHoverText(id: HudId | 'gauge', active: CharacterId, t: Text): string | null {
+  if (id.startsWith('char.')) {
+    const c = id.slice('char.'.length);
+    return fill(t('ui.hud.char_hover'), { name: t(`char.${c}.name`) });
+  }
+  switch (id) {
+    case 'verb.ability':
+      return fill(t('ui.hud.ability_hover'), { name: t(`char.${active}.name`), verb: t(`ui.verb.${characterDef(active).ability}`) });
+    case 'verb.hand':
+      return t('ui.hud.hand_hover');
+    case 'verb.look':
+      return t('ui.hud.look_hover');
+    case 'gauge':
+      return t('ui.hud.gauge_hover');
+    default:
+      return null;
+  }
+}

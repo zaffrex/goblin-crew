@@ -8,7 +8,7 @@ import { CHAR_SLOTS, VERB_SLOTS } from './hud';
 import { worldTargets } from './interact';
 import { parseSpriteMeta, spriteBox, spriteFrame } from './sprite';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { activeFx, approachPoint, bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, isBusy, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
+import { activeFx, activeMarkerVisible, approachPoint, bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, isBusy, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
 import type { Point } from './viewport';
 
 const data: SceneData = { screen: screenJson as unknown as ScreenData, characters: charactersJson as CharactersData };
@@ -947,5 +947,35 @@ describe('대상 앞까지 걷기 (설계 5-1절, #219)', () => {
     const s = ready();
     sceneTap(data, s, SEESAW_LEFT, 0, false);
     expect(s.queue.filter((e) => e.type === 'walk')).toEqual([{ type: 'walk', char: 'jjuk', from: 'floor', to: 'seesaw_left' }]);
+  });
+});
+
+// #46 Luna 리뷰: 말풍선이 떠 있는 동안 ▼가 같이 그려지면 꼬리가 ▼를 가릴 수 있다. 구조적으로 안 겹치는지 본다.
+describe('▼ 조작 표시와 말풍선', () => {
+  it('말풍선이 떠 있는 틱에는 ▼를 그리지 않는다 (진입 짹 + 세 사람 폴백·힌트)', () => {
+    const s = createScene(data);
+    let bubbles = 0;
+    const run = (): void => {
+      for (let n = 0; n < 5000 && isBusy(s); n++) {
+        if (currentBubble(s)) {
+          bubbles++;
+          expect(activeMarkerVisible(s)).toBe(false);
+        }
+        sceneTick(data, s);
+      }
+      expect(isBusy(s)).toBe(false);
+      expect(currentBubble(s)).toBeNull();
+      expect(activeMarkerVisible(s)).toBe(true);
+    };
+    run(); // onEnter 짹
+    for (const who of ['jjuk', 'mukjik', 'ppik'] as const) {
+      sceneTap(data, s, center(CHAR_SLOTS[who]), 0, false);
+      run();
+      for (const target of [NEST, HOOK, MAGPIE, NEST]) {
+        sceneTap(data, s, target, 0, false);
+        run();
+      }
+    }
+    expect(bubbles).toBeGreaterThan(0);
   });
 });

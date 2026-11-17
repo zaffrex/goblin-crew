@@ -132,6 +132,12 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
     return v;
   }
 
+  /** 형식 기록 4절(개정 3): 반복 첫 칸 = 멈춘 모습. anim 끝·상태 변경 때 반복을 0부터 세므로(#237) 다르면 도착 순간 다른 그림이 튄다. */
+  function loopStartsAtRest(lp, frame, where) {
+    if (lp && frame >= 0 && lp.frames[0] >= 0 && lp.frames[0] !== frame)
+      problems.push(`${where}[0]: 반복 첫 칸이 멈춘 모습(draw)과 다르다. 첫 칸은 draw와 같은 자리·같은 픽셀로 그린다(4절)`);
+  }
+
   function loopOf(loop, where, boxes) {
     if (loop === undefined) return undefined;
     unknownKeys(loop, LOOP_KEYS, where, problems);
@@ -166,6 +172,7 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
     const def = { frame: picture(o.draw, `${w}.draw`, baseBoxes), layer: layerOf(o.layer, w) };
     const defLoop = loopOf(o.loop, `${w}.loop`, baseBoxes);
     if (defLoop) def.loop = defLoop;
+    loopStartsAtRest(defLoop, def.frame, `${w}.loop`);
 
     const states = [];
     for (const [i, s] of (o.states ?? []).entries()) {
@@ -181,6 +188,7 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
       const st = { when: { flags }, frame: picture(s.draw, `${sw}.draw`, boxes), layer: layerOf(s.layer, sw) };
       const lp = loopOf(s.loop, `${sw}.loop`, boxes);
       if (lp) st.loop = lp;
+      loopStartsAtRest(lp, st.frame, `${sw}.loop`);
       states.push(st);
     }
 

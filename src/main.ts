@@ -6,22 +6,23 @@
 import charactersJson from '../content/characters.json';
 import screenJson from '../content/screens/magpie_nest.json';
 import texts from '../content/text/ko.json';
-import { type CharacterId } from './core/characters';
+import { characterDef, type CharacterId } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
 import type { HitBox } from './core/hit';
-import { GAUGE_CELLS, HUD_AREA } from './core/hud';
+import { GAUGE_BOX, GAUGE_CELLS, HUD_AREA, hudHoverText, hudTags, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
-import { activeFx, charPose, createScene, currentBubble, drawOrder, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
+import { activeFx, activeMarkerVisible, charPose, createScene, currentBubble, drawOrder, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
 import { coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point } from './core/viewport';
 import { createDisplay } from './engine/display';
 import { onPointerTap } from './engine/input';
 import { startLoop } from './engine/loop';
-import { drawActiveMarker, drawCharacter, drawHud, drawOutline, drawRoom, drawSpark, drawTarget, drawTargets } from './engine/placeholder';
+import { drawHud } from './engine/hud';
+import { drawActiveMarker, drawCharacter, drawOutline, drawRoom, drawSpark, drawTarget, drawTargets } from './engine/placeholder';
 import { drawSceneBg, drawSceneFrame, loadSceneArt, sceneArtMeta } from './engine/sceneArt';
-import { drawSprite, spriteMetas, spriteState } from './engine/sprites';
+import { drawHead, drawSprite, spriteMetas, spriteState } from './engine/sprites';
 
 function need<T extends HTMLElement>(selector: string): T {
   const el = document.querySelector<T>(selector);
@@ -34,6 +35,7 @@ const bubble = need('#bubble');
 const label = need('#label');
 const clearCut = need('#clear');
 const faintCut = need('#faint');
+const hudTagLayer = need('#hudtags');
 
 const screenData = screenJson as unknown as ScreenData;
 const TEXT: Readonly<Record<string, string>> = texts;
@@ -68,6 +70,10 @@ if (PLAYTEST) {
 let touchLabel: Label | null = null;
 /** 데스크톱 호버 라벨. */
 let hoverLabel: Label | null = null;
+/** 데스크톱 호버 중인 HUD 칸(설명은 대상 라벨 자리에, 설계 6-1-3절). */
+let hoverHud: HudId | 'gauge' | null = null;
+
+const inBox = (p: Point, b: HitBox): boolean => p.x >= b.left && p.x < b.left + b.width && p.y >= b.top && p.y < b.top + b.height;
 
 window.addEventListener('resize', () => display.resize());
 onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
@@ -84,10 +90,15 @@ canvas.addEventListener('pointermove', (e) => {
   if (e.pointerType !== 'mouse') return;
   const p = screenToInternal({ x: e.clientX, y: e.clientY }, display.rect(), display.internal);
   hoverLabel = null;
+  hoverHud = null;
   canvas.style.cursor = 'default';
   if (!p || isBusy(scene) || scene.cleared) return;
-  const inHud = p.x >= HUD_AREA.left && p.x < HUD_AREA.left + HUD_AREA.width && p.y >= HUD_AREA.top && p.y < HUD_AREA.top + HUD_AREA.height;
-  if (inHud) return; // HUD 영역은 기본 화살표(PR #112 Luna 리뷰)
+  if (inBox(p, HUD_AREA)) {
+    // HUD 영역은 기본 화살표(PR #112 Luna 리뷰). 칸 위면 설명만 띄운다(누를 수 없는 게이지 포함).
+    const hit = Object.entries(sceneLayout(data, scene).hud).find(([, b]) => inBox(p, b));
+    hoverHud = hit ? (hit[0] as HudId) : inBox(p, GAUGE_BOX) ? 'gauge' : null;
+    return;
+  }
   const r = resolveTap(tapContext(data, scene), scene.ui, p, 0);
   hoverLabel = 'label' in r ? r.label : null;
   canvas.style.cursor = r.kind === 'act' ? 'pointer' : 'default';
@@ -111,6 +122,28 @@ function placeDom(el: HTMLElement, at: Point): void {
   const s = internalToScreen(at, display.rect(), display.internal);
   el.style.left = `${Math.round(s.x)}px`;
   el.style.top = `${Math.round(s.y)}px`;
+}
+
+/** 늘 보이는 HUD 이름표(설계 6-1-2절). 글자 = 내부 7px × 화면 배율, 최소 11 CSS px. */
+const HUD_TAG_PX = 7;
+const HUD_TAG_MIN_CSS = 11;
+const hudTagEls = new Map<string, HTMLElement>();
+function placeHudTags(active: CharacterId): void {
+  const scale = display.rect().width / INTERNAL_WIDTH;
+  const size = `${Math.max(HUD_TAG_MIN_CSS, Math.round(HUD_TAG_PX * scale))}px`;
+  for (const tag of hudTags(active, t)) {
+    let el = hudTagEls.get(tag.id);
+    if (!el) {
+      el = document.createElement('span');
+      el.className = 'hudtag';
+      el.dataset.id = tag.id;
+      hudTagLayer.append(el);
+      hudTagEls.set(tag.id, el);
+    }
+    if (el.textContent !== tag.text) el.textContent = tag.text;
+    if (el.style.fontSize !== size) el.style.fontSize = size;
+    placeDom(el, { x: tag.x, y: tag.top });
+  }
 }
 
 /** 대상 상자 중 시트가 그리지 않는 것만. 시트 이미지가 아직이면 전부(임시 상자). */
@@ -191,7 +224,7 @@ function render(): void {
     const at = anchorOf(f.target, layout);
     if (at) drawSpark(ctx, at, f.t);
   }
-  if (!isBusy(scene) && !scene.cleared) {
+  if (activeMarkerVisible(scene)) {
     const box = layout.chars[scene.ui.active];
     drawActiveMarker(ctx, Math.min(box.top, spriteTops[scene.ui.active] ?? box.top), me.x, scene.tick);
   }
@@ -201,7 +234,8 @@ function render(): void {
     // 시트 그림이 외곽선으로 켜졌으면 임시 상자 테두리는 겹쳐 그리지 않는다(폴백 상자에만).
     if (box && !(art?.outlined && lit.size > 0)) drawOutline(ctx, box, scene.tick);
   }
-  drawHud(ctx, layout.hud, GAUGE_CELLS, { active: layout.active, armed: layout.armed, gauge: layout.gauge });
+  const abilityGlyph = [...t(`ui.verb.${characterDef(layout.active).ability}`)][0] ?? '?';
+  drawHud(ctx, layout.hud, GAUGE_CELLS, { active: layout.active, armed: layout.armed, gauge: layout.gauge, abilityGlyph }, drawHead);
   display.present();
 
   // DOM 말풍선(ADR-0004 결정 3). 화자 머리 위.
@@ -214,7 +248,9 @@ function render(): void {
     placeDom(bubble, bubbleAt ?? { x: INTERNAL_WIDTH / 2, y: 60 });
   }
 
-  const labelString = shown ? labelText(shown, data.screen.id, t) : '';
+  placeHudTags(layout.active);
+  const hudHover = isBusy(scene) || scene.cleared || hoverHud === null ? null : hudHoverText(hoverHud, layout.active, t);
+  const labelString = shown ? labelText(shown, data.screen.id, t) : (hudHover ?? '');
   label.hidden = labelString === '';
   if (label.textContent !== labelString) label.textContent = labelString;
   placeDom(label, { x: INTERNAL_WIDTH / 2, y: INTERNAL_HEIGHT - 4 });
