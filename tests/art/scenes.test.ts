@@ -146,6 +146,17 @@ describe('scene build (format v1)', () => {
     it('loop 프레임도 본다', () => {
       expect(problemsOf((s) => (s.objects!.nest!.loop!.frames[1] = box(0, 0, 4, 4)))).toEqual([expect.stringContaining('objects.nest.loop[1]')]);
     });
+    it('반복 첫 칸이 멈춘 모습과 다르면 잡는다(4절 개정 3, #237)', () => {
+      expect(problemsOf((s) => (s.objects!.nest!.loop!.frames[0] = box(130, 34, 30, 16, YEL)))).toEqual([expect.stringContaining('objects.nest.loop[0]: 반복 첫 칸')]);
+      // state 반복도 본다
+      expect(
+        problemsOf((s) => (s.objects!.magpie!.states![0]!.loop = { ms: [2200, 150], frames: [box(92, 221, 16, 13, INK), box(92, 220, 16, 14, INK)] })),
+      ).toEqual([expect.stringContaining('objects.magpie.states[0].loop[0]: 반복 첫 칸')]);
+      // 첫 칸이 같으면 통과
+      expect(
+        problemsOf((s) => (s.objects!.magpie!.states![0]!.loop = { ms: [2200, 150], frames: [box(92, 220, 16, 14, INK), box(92, 221, 16, 13, INK)] })),
+      ).toEqual([]);
+    });
     it('ids 물건은 상자 중 하나와 겹치면 된다', () => {
       expect(problemsOf((s) => (s.objects!.seesaw!.draw = box(252, 210, 30, 4)))).toEqual([]);
     });
