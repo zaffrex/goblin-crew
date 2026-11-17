@@ -23,6 +23,7 @@ import { drawHud } from './engine/hud';
 import { drawActiveMarker, drawCharacter, drawOutline, drawRoom, drawSpark, drawTarget, drawTargets } from './engine/placeholder';
 import { drawSceneBg, drawSceneFrame, loadSceneArt, sceneArtMeta } from './engine/sceneArt';
 import { drawHead, drawSprite, spriteMetas, spriteState } from './engine/sprites';
+import { drawHudIcon } from './engine/hudIcons';
 
 function need<T extends HTMLElement>(selector: string): T {
   const el = document.querySelector<T>(selector);
@@ -235,7 +236,7 @@ function render(): void {
     if (box && !(art?.outlined && lit.size > 0)) drawOutline(ctx, box, scene.tick);
   }
   const abilityGlyph = [...t(`ui.verb.${characterDef(layout.active).ability}`)][0] ?? '?';
-  drawHud(ctx, layout.hud, GAUGE_CELLS, { active: layout.active, armed: layout.armed, gauge: layout.gauge, abilityGlyph }, drawHead);
+  drawHud(ctx, layout.hud, GAUGE_CELLS, { active: layout.active, armed: layout.armed, gauge: layout.gauge, abilityGlyph }, drawHead, drawHudIcon);
   display.present();
 
   // DOM 말풍선(ADR-0004 결정 3). 화자 머리 위.
