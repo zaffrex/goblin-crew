@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WALK_SPEED } from './config';
 import jjukJson from '../../public/sprites/jjuk-base.json';
-import { cueMs, frameSourceX, parseSpriteMeta, POLE_WIDTH, spriteBox, spriteFacing, spriteFrame, spriteHit, spritePole, type Pose, type SpriteMeta } from './sprite';
+import { cueMs, frameSourceX, parseSpriteMeta, POLE_JOINT, POLE_WIDTH, spriteBox, spriteFacing, spriteFrame, spriteHit, spritePole, type Pose, type SpriteMeta } from './sprite';
 
 const JJUK = parseSpriteMeta(jjukJson);
 const still: Pose = { walkedPx: null, holding: false, event: null, clockMs: 0 };
@@ -29,6 +29,9 @@ describe('parseSpriteMeta', () => {
     ['cue가 칸 수 밖', { anims: { r: { frames: [0, 1], ms: [50, 50], cue: 2 } } }],
     ['cue가 음수', { anims: { r: { frames: [0, 1], ms: [50, 50], cue: -1 } } }],
     ['cue가 거리 넘김 자세에', { anims: { walk: { frames: [2, 3], by: 'distance', cue: 0 } } }],
+    ['joint가 8 이상(#194)', { anims: { r: { frames: [0], ms: [50], tip: [[34, 0]], claw: [0], joint: [8] } } }],
+    ['joint 길이가 frames와 다름', { anims: { r: { frames: [0, 1], ms: [50, 50], tip: [[34, 0], [34, 0]], claw: [0, 1], joint: [3] } } }],
+    ['tip 없는 자세에 joint', { anims: { r: { frames: [0], ms: [50], joint: [3] } } }],
   ])('%s → 던진다(그 캐릭터는 실루엣으로 남는다)', (_, patch) => {
     expect(() => parseSpriteMeta({ ...JJUK, ...patch })).toThrow(/스프라이트 메타 오류/);
   });
@@ -171,6 +174,23 @@ describe('spritePole (5-1절 장대 잇기, #189)', () => {
     expect(p.src).toEqual({ x: frameSourceX(JJUK, reach.frames[0]!) + 34 - POLE_WIDTH / 2, y: 0, width: POLE_WIDTH });
     // 집게 8×8, anchor (4,8): 장대 가운데선에 맞추고 아래 끝이 대상 y.
     expect([p.clawLeft, p.clawTop, p.flip]).toEqual([151 - 4, 26, true]);
+  });
+
+  it('이은 구간에도 시트 마디 무늬를 8px마다 잇는다(#194): 시트 tip 행 아래 joint px가 마디 행', () => {
+    const p = spritePole(JJUK, pose(0), HOOK.x, HOOK.y, -1)!;
+    const j = reach.joint![0]!;
+    expect(p.jointSrcY).toBe(j);
+    // 칸 위 끝 96 기준 시트 마디는 96 + j, 96 + j + 8 … → 위로 이으면 96 + j − 8, − 16 … 둥지 y 34까지
+    expect(p.joints[0]).toBe(96 + j - POLE_JOINT);
+    expect(p.joints.every((y, k) => y === 96 + j - POLE_JOINT * (k + 1) && y >= 34 && y < 96)).toBe(true);
+    expect(p.joints.at(-1)! - POLE_JOINT).toBeLessThan(34);
+  });
+
+  it('메타에 joint가 없으면 마디 없이 tip 행만 늘인다', () => {
+    const plain = { ...reach };
+    delete plain.joint;
+    const meta: SpriteMeta = { ...JJUK, anims: { ...JJUK.anims, reach_hang_up: plain } };
+    expect(spritePole(meta, pose(0), HOOK.x, HOOK.y, -1)!.joints).toEqual([]);
   });
 
   it('오른쪽을 보면 뒤집지 않고 칸 왼쪽 + tip x', () => {
