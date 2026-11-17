@@ -1,0 +1,16 @@
+{
+  "id": "laundromat",
+  "note": "회색 배치 v1, 설계 laundromat.md 1절 (PR #252). 시작 좌표: 삑삑이 240,244 / 쭉이 280,244 / 묵직이 320,244 (엔진 배치). 화면 JSON PR에서 지운다.",
+  "spots": {
+    "floor": { "x": 280, "y": 244, "free": true }
+  },
+  "hotspots": {
+    "shutter": { "box": [24, 140, 128, 104] },
+    "latch": { "box": [133, 134, 24, 24], "reachPoint": [145, 146] },
+    "dryer_3": { "box": [352, 164, 48, 72] },
+    "soap_vending": { "box": [416, 148, 44, 88] }
+  },
+  "reachExpect": [
+    { "from": "floor", "to": "latch", "reach": true }
+  ]
+}
