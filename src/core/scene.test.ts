@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import charactersJson from '../../content/characters.json';
 import screenJson from '../../content/screens/magpie_nest.json';
 import jjukJson from '../../public/sprites/jjuk-base.json';
+import mukjikJson from '../../public/sprites/mukjik-base.json';
 import ppikJson from '../../public/sprites/ppik-base.json';
 import { hitTest, type HitBox } from './hit';
 import { CHAR_SLOTS, GAUGE_BOX, HUD_AREA, VERB_SLOTS } from './hud';
@@ -997,6 +998,71 @@ describe('칸 신호: show의 fx를 연출 칸에 맞춰 띄운다 (#199, 형식
       expect(s.current?.ev).toMatchObject({ type: 'fx', effect: 'squeak_text' });
       expect(s.overlays).toEqual([]);
     }
+  });
+});
+
+describe('특기 시그니처 fx: 신호 여러 개와 0.6초 (#284, ability-feedback.md 2·4절)', () => {
+  const jjuk = parseSpriteMeta(jjukJson);
+  const mukjik = parseSpriteMeta(mukjikJson);
+  const d: SceneData = { ...data, sprites: { jjuk, mukjik } };
+  const WOBBLE = 'common.reach_wobble';
+  /** 큐에 넣고, 이벤트별로 처음 뜬 틱(연출 시작 기준)을 모은다. */
+  function firstSeen(events: SceneState['queue'], watch: string): Record<string, number> {
+    const s = createScene(d);
+    while (isBusy(s)) sceneTick(d, s);
+    s.queue.push(...events);
+    const seen: Record<string, number> = {};
+    let t0 = -1;
+    for (let i = 0; i < 2000 && (i === 0 || isBusy(s)); i++) {
+      sceneTick(d, s);
+      if (t0 < 0 && s.current?.ev.type === 'anim' && s.current.ev.name === watch) t0 = s.tick;
+      for (const f of activeFx(s)) if (seen[f.effect] === undefined) seen[f.effect] = s.tick - t0;
+    }
+    return seen;
+  }
+
+  it('고리 뻗기(규칙 9): 0번 칸에 ビヨーン, 장대가 멈추는 1번 칸(300ms = 18틱)에 キン이 둘 다 연출 중에 뜬다', () => {
+    expect(jjuk.anims[WOBBLE]).toMatchObject({ cue: [0, 1] });
+    const seen = firstSeen(
+      [
+        { type: 'anim', target: 'jjuk', name: WOBBLE },
+        { type: 'fx', effect: 'stretch_text', target: 'jjuk' },
+        { type: 'fx', effect: 'ting_text', target: 'hook' },
+        { type: 'say', speaker: 'jjuk', text: 'x' },
+      ],
+      WOBBLE,
+    );
+    expect(seen).toEqual({ stretch_text: 0, ting_text: 18 });
+  });
+
+  it('이어진 fx가 신호보다 적으면 남는 신호는 아무것도 안 띄운다(둥지 뻗기: ビヨーン 하나)', () => {
+    const s = createScene(d);
+    while (isBusy(s)) sceneTick(d, s);
+    s.queue.push(
+      { type: 'anim', target: 'jjuk', name: WOBBLE },
+      { type: 'fx', effect: 'stretch_text', target: 'jjuk' },
+      { type: 'say', speaker: 'jjuk', text: 'x' },
+    );
+    while (!(s.current?.ev.type === 'anim' && s.current.t >= 18)) sceneTick(d, s);
+    expect(s.overlays.map((o) => o.ev.type === 'fx' && o.ev.effect)).toEqual(['stretch_text']);
+    expect(s.queue.map((e) => e.type)).toEqual(['say']);
+  });
+
+  it('쿵: ドスン은 2번 칸(400ms = 24틱)에 뜨고, 시그니처는 36틱 남는다. 연출이 끝나기 전에 내려간다', () => {
+    expect(mukjik.anims['common.stomp']).toMatchObject({ cue: [2] });
+    const s = createScene(d);
+    while (isBusy(s)) sceneTick(d, s);
+    s.queue.push({ type: 'anim', target: 'mukjik', name: 'common.stomp' }, { type: 'fx', effect: 'stomp_text', target: 'mukjik' }, { type: 'say', speaker: 'mukjik', text: 'x' });
+    while (activeFx(s).length === 0) sceneTick(d, s);
+    expect(s.current).toMatchObject({ ev: { name: 'common.stomp' }, t: 24 });
+    let alive = 0;
+    while (activeFx(s).length > 0) {
+      alive += 1;
+      sceneTick(d, s);
+    }
+    expect(alive).toBe(36);
+    // 쿵 연출 1100ms = 66틱. 24 + 36 = 60틱에 글자가 내려가서 말풍선과 안 겹친다(4절 길이 확인).
+    expect(s.current?.ev.type).toBe('anim');
   });
 });
 

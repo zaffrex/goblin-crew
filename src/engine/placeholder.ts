@@ -179,11 +179,29 @@ export function drawOutline(ctx: CanvasRenderingContext2D, b: HitBox, tick: numb
   ctx.strokeRect(b.left - 1.5, b.top - 1.5, b.width + 3, b.height + 3);
 }
 
-/** 효과(fx) 임시 표시: 대상 위의 작은 별. */
-export function drawSpark(ctx: CanvasRenderingContext2D, at: Point, t: number): void {
+/**
+ * 효과(fx) 임시 표시: 대상 위의 작은 별. 6틱마다 1px 위로 뜬다.
+ * 글자 시트(`fx-text`)가 들어오기 전에는 fx마다 칠 색만 다르게 한다(`ability-feedback.md` 3절, `core/fx.ts` `FX_STYLE`).
+ */
+export function drawSpark(ctx: CanvasRenderingContext2D, at: Point, t: number, color = '#f2cc8f'): void {
   const y = Math.round(at.y) - 4 - Math.floor(t / 6);
   const x = Math.round(at.x);
-  ctx.fillStyle = '#f2cc8f';
+  ctx.fillStyle = color;
   ctx.fillRect(x - 1, y - 3, 3, 7);
   ctx.fillRect(x - 3, y - 1, 7, 3);
+}
+
+/**
+ * 쿵 발밑 먼지(`ability-feedback.md` 2-1절 3): 발 양옆에 먼지 덩이 2개(4×3px, `lint` 칠, `dusk` 그늘 아랫줄).
+ * `push`는 바깥으로 민 거리(px, `core/fx.ts` `dustPush`). `foot`은 발 기준점(그림 아래 끝 가운데).
+ */
+export function drawStompDust(ctx: CanvasRenderingContext2D, foot: Point, push: number, fill: string, shade: string): void {
+  const x = Math.round(foot.x);
+  const y = Math.round(foot.y) - 3;
+  for (const left of [x - 8 - push, x + 4 + push]) {
+    ctx.fillStyle = fill;
+    ctx.fillRect(left, y, 4, 2);
+    ctx.fillStyle = shade;
+    ctx.fillRect(left, y + 2, 4, 1);
+  }
 }

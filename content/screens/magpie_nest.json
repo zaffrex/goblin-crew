@@ -224,6 +224,12 @@
           ]
         },
         {
+          "fx": [
+            "stretch_text",
+            "jjuk"
+          ]
+        },
+        {
           "say": [
             "jjuk",
             "magpie_nest.key_got"
@@ -432,6 +438,12 @@
         },
         {
           "fx": [
+            "stomp_text",
+            "mukjik"
+          ]
+        },
+        {
+          "fx": [
             "dust",
             "magpie"
           ]
@@ -500,6 +512,12 @@
           ]
         },
         {
+          "fx": [
+            "stretch_text",
+            "jjuk"
+          ]
+        },
+        {
           "say": [
             "jjuk",
             [
@@ -520,6 +538,12 @@
           "anim": [
             "jjuk",
             "common.reach_wobble"
+          ]
+        },
+        {
+          "fx": [
+            "stretch_text",
+            "jjuk"
           ]
         },
         {
@@ -585,6 +609,12 @@
           ]
         },
         {
+          "fx": [
+            "stomp_text",
+            "mukjik"
+          ]
+        },
+        {
           "anim": [
             "seesaw_right",
             "plank_bounce"
@@ -637,6 +667,12 @@
           ]
         },
         {
+          "fx": [
+            "stomp_text",
+            "mukjik"
+          ]
+        },
+        {
           "anim": [
             "seesaw_right",
             "plank_bounce"
@@ -680,6 +716,12 @@
           "anim": [
             "mukjik",
             "common.stomp"
+          ]
+        },
+        {
+          "fx": [
+            "stomp_text",
+            "mukjik"
           ]
         },
         {
@@ -757,6 +799,12 @@
           ]
         },
         {
+          "fx": [
+            "stomp_text",
+            "mukjik"
+          ]
+        },
+        {
           "anim": [
             "seesaw_left",
             "plank_bounce"
@@ -806,6 +854,12 @@
           ]
         },
         {
+          "fx": [
+            "stomp_text",
+            "mukjik"
+          ]
+        },
+        {
           "anim": [
             "seesaw_right",
             "plank_bounce"
@@ -847,6 +901,12 @@
             ]
           },
           {
+            "fx": [
+              "stretch_text",
+              "jjuk"
+            ]
+          },
+          {
             "anim": [
               "magpie",
               "ruffle"
@@ -866,6 +926,12 @@
             "anim": [
               "mukjik",
               "common.stomp"
+            ]
+          },
+          {
+            "fx": [
+              "stomp_text",
+              "mukjik"
             ]
           },
           {
@@ -896,6 +962,12 @@
             "anim": [
               "mukjik",
               "common.stomp"
+            ]
+          },
+          {
+            "fx": [
+              "stomp_text",
+              "mukjik"
             ]
           },
           {
@@ -952,6 +1024,12 @@
           },
           {
             "fx": [
+              "stomp_text",
+              "mukjik"
+            ]
+          },
+          {
+            "fx": [
               "shake",
               "hook"
             ]
@@ -998,6 +1076,12 @@
           },
           {
             "fx": [
+              "stretch_text",
+              "jjuk"
+            ]
+          },
+          {
+            "fx": [
               "creak_text",
               "seesaw_left"
             ]
@@ -1016,6 +1100,12 @@
             "anim": [
               "ppik",
               "common.squeeze_chicken"
+            ]
+          },
+          {
+            "fx": [
+              "squeak_text",
+              "ppik"
             ]
           },
           {
@@ -1044,6 +1134,12 @@
           },
           {
             "fx": [
+              "stretch_text",
+              "jjuk"
+            ]
+          },
+          {
+            "fx": [
               "creak_text",
               "seesaw_right"
             ]
@@ -1062,6 +1158,12 @@
             "anim": [
               "ppik",
               "common.squeeze_chicken"
+            ]
+          },
+          {
+            "fx": [
+              "squeak_text",
+              "ppik"
             ]
           },
           {
@@ -1090,6 +1192,12 @@
           },
           {
             "fx": [
+              "stretch_text",
+              "jjuk"
+            ]
+          },
+          {
+            "fx": [
               "sock_lift",
               "basket"
             ]
@@ -1108,6 +1216,12 @@
             "anim": [
               "mukjik",
               "common.stomp"
+            ]
+          },
+          {
+            "fx": [
+              "stomp_text",
+              "mukjik"
             ]
           },
           {
@@ -1152,6 +1266,18 @@
         "show": [
           {
             "anim": [
+              "jjuk",
+              "common.stretch"
+            ]
+          },
+          {
+            "fx": [
+              "stretch_text",
+              "jjuk"
+            ]
+          },
+          {
+            "anim": [
               "long_johns",
               "flutter"
             ]
@@ -1176,6 +1302,12 @@
             "anim": [
               "mukjik",
               "common.stomp"
+            ]
+          },
+          {
+            "fx": [
+              "stomp_text",
+              "mukjik"
             ]
           },
           {
