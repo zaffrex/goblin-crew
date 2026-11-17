@@ -86,7 +86,8 @@ onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
   const r = sceneTap(data, scene, p, slop, slop > 0);
   if (r.kind !== 'intent') return;
   touchLabel = r.intent.kind === 'select' ? r.intent.label : null;
-  if (r.intent.kind === 'arm' && r.intent.armed?.verb === 'ability') noteArmAbility(notes, scene.ui.active, abilityText(scene.ui.active, t));
+  // 첫 무장 안내는 터치만(설계 6-2-3절, PR #295 리뷰). 마우스는 버튼 호버로 같은 글을 이미 봤고, 안내가 대상 호버 라벨을 가린다.
+  if (slop > 0 && r.intent.kind === 'arm' && r.intent.armed?.verb === 'ability') noteArmAbility(notes, scene.ui.active, abilityText(scene.ui.active, t));
 });
 // 목표 줄(설계 6-2-2절): 첫 행동 뒤에도 늘 보인다. 클리어 뒤에만 숨긴다(render).
 hud.textContent = t('ui.intro');

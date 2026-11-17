@@ -67,7 +67,8 @@ export const GAUGE_BOX: HitBox = (() => {
 
 /**
  * 게이지 받침판(설계 6-2-4절, #285): 칸 5개 뒤에 까는 버튼 같은 판. 칸 바깥 3px 여백, (401,9) 78×18.
- * 칸 색을 하늘 배경이 아니라 판과 비교하게 해서 찬 칸/빈 칸이 갈린다. `HUD_AREA` 안이다.
+ * 칸 색을 하늘 배경이 아니라 판과 비교하게 해서 찬 칸/빈 칸이 갈린다.
+ * 오른쪽 3px(x 477–479)은 아직 `HUD_AREA`(폭 176) 밖이다. 폭 180으로 넓히는 건 `HUD_BOX`와 함께 별도 코어 PR.
  */
 export const GAUGE_PLATE: HitBox = { left: GAUGE_BOX.left - 3, top: GAUGE_BOX.top - 3, width: GAUGE_BOX.width + 6, height: GAUGE_BOX.height + 6 };
 

@@ -62,8 +62,11 @@ function fullCell(ctx: CanvasRenderingContext2D, b: HitBox): void {
   ctx.fillRect(b.left + 1, b.top + 1, 1, 3);
 }
 
-/** 터지는 칸: 처음 3분의 1은 크림색으로 번쩍, 그다음 구멍. 시트 없이 사각형만 쓴다. */
-const BURST_FLASH_TICKS = 6;
+/**
+ * 터지는 칸: 처음 12틱(0.2초)은 크림색으로 번쩍, 그다음 구멍. 시트 없이 사각형만 쓴다.
+ * 흔들림(18틱)을 보고 눈이 게이지로 옮겨 오는 데 0.2초 안팎이라, 바뀌는 순간이 흔들림 안에 보이게 한다(PR #295 리뷰).
+ */
+const BURST_FLASH_TICKS = 12;
 
 /**
  * 게이지(설계 6-2-4·6-2-5절, #285): 받침판 위에 찬 칸(밝음)/빈 칸(구멍). 23번 tealDeep은 진해서 찬 칸처럼 보여 쓰지 않는다.
