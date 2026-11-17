@@ -24,6 +24,7 @@ import { SCENE as MAGPIE_NEST } from './scenes/magpie_nest.mjs';
 import { buildScene } from './scene-build.mjs';
 import { clippedEdge } from './lib/finish.mjs';
 import { buildIcons, previewIcons } from './ui/hud-icons-build.mjs';
+import { buildFxText, previewFxText } from './ui/fx-text-build.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'public', 'sprites');
@@ -283,6 +284,11 @@ const icons = buildIcons();
 outputs.push([join(UI_OUT, 'hud-icons.png'), indexedPng(icons.sheet)]);
 outputs.push([join(UI_OUT, 'hud-icons.json'), Buffer.from(JSON.stringify(icons.meta, null, 2) + '\n')]);
 
+// ── 소리 글자(#284, ability-feedback.md 3절): 단어 단위 칸 가로 한 줄 + fx 이름 → 칸
+const fxText = buildFxText();
+outputs.push([join(UI_OUT, 'fx-text.png'), indexedPng(fxText.sheet)]);
+outputs.push([join(UI_OUT, 'fx-text.json'), Buffer.from(JSON.stringify(fxText.meta, null, 2) + '\n')]);
+
 // ── 고리 손 기준점(형식 기록 7절): 발(hold 자리) + (손 − anchor) = 화면 grips. 시트에 hold.hand가 있을 때만 본다.
 for (const S of SCENES) {
   const screen = JSON.parse(readFileSync(join(ROOT, 'content', 'screens', `${S.id}.json`), 'utf8'));
@@ -344,6 +350,8 @@ if (check) {
   for (const p of absent) if (existsSync(p)) rmSync(p);
   for (const line of sceneLines) console.log(line);
   writeFileSync(join(PREVIEW, 'hud-icons-preview-4x.png'), indexedPng(previewIcons(icons.cells, HEX), 4));
+  writeFileSync(join(PREVIEW, 'fx-text-preview-4x.png'), indexedPng(previewFxText(fxText.items), 4));
+  console.log(`fx-text: ${fxText.items.length}칸 ${fxText.sheet.w}×${fxText.sheet.h}`);
   console.log(`hud-icons: ${icons.cells.length}개 ${icons.sheet.w}×${icons.sheet.h} (${Object.keys(icons.meta.icons).join(' ')})`);
   for (const s of built) {
     writeFileSync(join(PREVIEW, `${s.def.name}-preview-4x.png`), indexedPng(previewSheet(s), 4));
