@@ -1,5 +1,5 @@
 // 효과(fx) 표: 특기 시그니처, fx별 칠·높이·길이, 쿵 흔들림·먼지 (`docs/design/ability-feedback.md` 2·3절, #284).
-// 순수 로직이다. 엔진(main.ts)은 이 값으로 그리기만 한다. 글자 그림 시트(`fx-text`)가 들어오기 전에는 칠 색만 다른 임시 별이다.
+// 순수 로직이다. 엔진(main.ts)은 이 값으로 그리기만 한다. 글자는 시트 `fx-text`(core/fxText.ts)로 그리고, `FX_STYLE.color`는 시트가 없을 때 임시 별 칠에만 쓴다.
 
 import type { CharacterId } from './characters';
 import type { ShowItem } from './puzzle/types';

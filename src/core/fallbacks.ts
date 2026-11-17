@@ -23,10 +23,12 @@ export interface FrameArt {
   boxes: readonly string[];
   /** 캐릭터마다: 시트 상태, 이번 프레임에 시트 그림으로 그렸는지, 자세. */
   chars: readonly { id: string; sheet: Loaded; drawn: boolean; pose: Pose }[];
+  /** 이번 프레임에 뜬 소리 글자 fx(#284, `ability-feedback.md` 3절 표에 있는 것만): 글자 시트 상태, 시트 글자로 그렸는지. */
+  fx?: readonly { effect: string; sheet: Loaded; drawn: boolean }[];
 }
 
 /**
- * 이번 프레임의 임시 그림 목록. 이름은 `bg`, `box:<대상 ID>`, `char:<캐릭터 ID>:<자세>`.
+ * 이번 프레임의 임시 그림 목록. 이름은 `bg`, `box:<대상 ID>`, `char:<캐릭터 ID>:<자세>`, `fx:<fx 이름>`.
  * 읽히는 중인 그림은 빼서, 첫 몇 프레임 실루엣 때문에 거짓 경고가 나지 않게 한다.
  * 로드 실패는 `loading`으로 남아 여기서 안 잡힌다. 그건 A4(콘솔 에러, 404)가 잡는다.
  */
@@ -37,6 +39,10 @@ export function frameFallbacks(f: FrameArt): string[] {
   for (const c of f.chars) {
     if (c.drawn || c.sheet === 'loading') continue;
     out.push(`char:${c.id}:${poseKey(c.pose)}`);
+  }
+  for (const x of f.fx ?? []) {
+    if (x.drawn || x.sheet === 'loading') continue;
+    out.push(`fx:${x.effect}`);
   }
   return out;
 }

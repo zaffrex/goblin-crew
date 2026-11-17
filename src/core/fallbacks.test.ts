@@ -43,4 +43,17 @@ describe('frameFallbacks', () => {
   it('시트가 읽히는 중인 캐릭터는 세지 않는다(첫 프레임 거짓 경고 방지)', () => {
     expect(frameFallbacks({ ...done, chars: [{ id: 'ppik', sheet: 'loading', drawn: false, pose: still }] })).toEqual([]);
   });
+  it('소리 글자: 시트가 읽히는 중이면 세지 않고, 시트가 없거나 칸이 없어 임시 별로 그렸으면 fx:이름', () => {
+    expect(frameFallbacks({ ...done, fx: [{ effect: 'stomp_text', sheet: 'loading', drawn: false }] })).toEqual([]);
+    expect(frameFallbacks({ ...done, fx: [{ effect: 'stomp_text', sheet: 'ready', drawn: true }] })).toEqual([]);
+    expect(
+      frameFallbacks({
+        ...done,
+        fx: [
+          { effect: 'stomp_text', sheet: 'none', drawn: false },
+          { effect: 'ting_text', sheet: 'ready', drawn: false },
+        ],
+      }),
+    ).toEqual(['fx:stomp_text', 'fx:ting_text']);
+  });
 });

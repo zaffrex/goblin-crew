@@ -26,6 +26,7 @@ import { drawActiveMarker, drawCharacter, drawOutline, drawRoom, drawSpark, draw
 import { drawSceneBg, drawSceneFrame, loadSceneArt, sceneArtMeta } from './engine/sceneArt';
 import { drawHead, drawSprite, spriteMetas, spriteState } from './engine/sprites';
 import { drawHudIcon } from './engine/hudIcons';
+import { drawFxText, fxTextState } from './engine/fxText';
 
 function need<T extends HTMLElement>(selector: string): T {
   const el = document.querySelector<T>(selector);
@@ -229,6 +230,18 @@ function render(): void {
     }
   }
   for (const f of draws?.front ?? []) drawSceneFrame(ctx, art!, f, lit.has(f));
+  const fxArt: NonNullable<FrameArt['fx']>[number][] = [];
+  for (const f of fxNow) {
+    const at = anchorOf(f.target, layout);
+    const style = FX_STYLE[f.effect];
+    // 소리 글자(3절 표에 있는 fx)는 글자 시트로. 시트가 아직이거나 표 밖의 fx(물건 그림, P1 #286)는 임시 별.
+    const drawn = at !== null && style !== undefined && drawFxText(ctx, f.effect, at, f.t, internal.width);
+    if (at && !drawn) drawSpark(ctx, at, f.t, style ? FX_COLORS[style.color] : undefined);
+    if (PLAYTEST && at && style) fxArt.push({ effect: f.effect, sheet: fxTextState(), drawn });
+    const push = f.effect === SHAKE_FX ? dustPush(f.t) : null;
+    const foot = scene.walkers[f.target as CharacterId];
+    if (push !== null && foot) drawStompDust(ctx, foot, push, FX_COLORS.lint, FX_COLORS.dusk);
+  }
   if (PLAYTEST) {
     const loaded = (img: unknown, ready: boolean): Loaded => (!img ? 'none' : ready ? 'ready' : 'loading');
     const frame: FrameArt = {
@@ -236,16 +249,9 @@ function render(): void {
       objects: loaded(art, art?.objectsReady ?? false),
       boxes: [...Object.keys(boxSpots), ...Object.keys(boxHotspots)],
       chars: charArt,
+      fx: fxArt,
     };
     for (const name of frameFallbacks(frame)) fallbacks.add(name);
-  }
-  for (const f of fxNow) {
-    const at = anchorOf(f.target, layout);
-    const style = FX_STYLE[f.effect];
-    if (at) drawSpark(ctx, at, f.t, style ? FX_COLORS[style.color] : undefined);
-    const push = f.effect === SHAKE_FX ? dustPush(f.t) : null;
-    const foot = scene.walkers[f.target as CharacterId];
-    if (push !== null && foot) drawStompDust(ctx, foot, push, FX_COLORS.lint, FX_COLORS.dusk);
   }
   if (activeMarkerVisible(scene)) {
     const box = layout.chars[scene.ui.active];
