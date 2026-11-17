@@ -2,7 +2,8 @@
 // 형식: docs/decisions/2026-11-16-scene-art-format-v1.md (개정 1 포함). 메타는 art/scene-build.mjs가 만든다.
 // 순수 로직이다. 이미지 로드·그리기는 engine/sceneArt.ts.
 //
-// - 멈춘 모습: 그 물건의 "보이는 플래그"(4-2절)로 `when` 첫 일치, 없으면 `default`. 반복(`loop`)은 화면 시계로 고른다.
+// - 멈춘 모습: 그 물건의 "보이는 플래그"(4-2절)로 `when` 첫 일치, 없으면 `default`. 반복(`loop`)은 화면 시계로 고르되,
+//   그 물건의 anim이 끝나거나 멈춘 모습이 바뀐 때부터 0으로 센다(#237, `loopStarts`).
 // - 일시 연출: 재생 중인 anim 이벤트가 그 물건 ID면 anim 프레임이 멈춘 모습을 대신한다(4절). 갈래는 anim 직전 보이는 플래그(4-1절).
 // - 시트에 없는 대상은 null → 엔진이 임시 상자를 그린다(9절 폴백).
 
@@ -165,6 +166,30 @@ export interface SceneView {
   playing: { object: string; anim: SceneAnim; ms: number } | null;
   /** 화면 시계(ms). `loop`용. 반복끼리 박자는 맞추지 않는다(4절). */
   clockMs: number;
+  /** 물건별 loop 시작 시각(`loopStarts`). 없으면 화면 시계 0부터 센다. */
+  loopStarts?: LoopStarts;
+}
+
+/** 물건 하나의 loop 시작. `pic`이 null이면 그 물건 anim 재생 중이다. */
+export interface LoopStart {
+  pic: ScenePicture | null;
+  atMs: number;
+}
+export type LoopStarts = Readonly<Record<string, LoopStart>>;
+
+/**
+ * 물건별 loop 시작 시각을 갱신한다(#237). 렌더마다 한 번 부르고 결과를 다음 렌더에 넘긴다.
+ * 그 물건의 anim이 끝나거나 멈춘 모습(state)이 바뀐 프레임부터 0으로 센다. 그래서 anim 끝 칸 → loop 첫 칸
+ * (= 멈춘 모습 `frame`)으로 이어지고, 도착하자마자 loop 중간 칸이 튀어나오지 않는다. 물건끼리 박자는 여전히 안 맞춘다(4절).
+ */
+export function loopStarts(meta: SceneArtMeta, view: SceneView, prev: LoopStarts): LoopStarts {
+  const out: Record<string, LoopStart> = {};
+  for (const o of meta.objects) {
+    const pic = view.playing?.object === o.key ? null : pictureOf(o, view.flagsOf(o.key));
+    const p = prev[o.key];
+    out[o.key] = p && p.pic === pic ? p : { pic, atMs: view.clockMs };
+  }
+  return out;
 }
 
 /**
@@ -181,7 +206,7 @@ export function sceneDraws(meta: SceneArtMeta, view: SceneView): SceneDraws {
       out[p.anim.layer].push(frame);
     } else {
       const pic = pictureOf(o, view.flagsOf(o.key));
-      frame = pic.loop ? timedFrame(pic.loop, view.clockMs, true) : pic.frame;
+      frame = pic.loop ? timedFrame(pic.loop, view.clockMs - (view.loopStarts?.[o.key]?.atMs ?? 0), true) : pic.frame;
       out[pic.layer].push(frame);
     }
     out.byObject[o.key] = [frame];

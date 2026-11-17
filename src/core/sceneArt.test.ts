@@ -6,7 +6,7 @@ import ppikJson from '../../public/sprites/ppik-base.json';
 import { CHAR_SLOTS } from './hud';
 import type { CharactersData, ScreenData } from './puzzle/types';
 import { createScene, isBusy, sceneTap, sceneTick, shownFlags, TIMING, type SceneData, type SceneState } from './scene';
-import { animOf, animTicks, coveredIds, litFrames, objectOf, parseSceneArt, pictureOf, sceneDraws, timedFrame, type SceneArtMeta, type SceneView } from './sceneArt';
+import { animOf, animTicks, coveredIds, litFrames, loopStarts, objectOf, parseSceneArt, pictureOf, sceneDraws, timedFrame, type LoopStarts, type SceneArtMeta, type SceneView } from './sceneArt';
 import { parseSpriteMeta, type SpriteMeta } from './sprite';
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -115,6 +115,56 @@ describe('sceneDraws (6절 앞뒤)', () => {
     const d = sceneDraws(m, view({ playing: { object: a.object, anim: a.anim, ms: 150 } }));
     expect(d.front).toEqual([9]);
     expect(d.back).toHaveLength(5); // 둥지 위 까치는 안 그린다
+  });
+});
+
+describe('loopStarts (#237 물건별 loop 위상)', () => {
+  const ground = (k: string) => ({ 'magpie.on_ground': k === 'magpie', 'nest.key_taken': false });
+  const magpieAt = (m: SceneArtMeta, v: SceneView) => sceneDraws(m, v).front[0];
+
+  it('anim이 끝난 프레임부터 그 물건 loop를 0으로 센다: fly_down 끝 → 바로 다음은 멈춘 모습 첫 칸', () => {
+    const m = meta();
+    const groundLoop = m.objects[idx(m, 'magpie')]!.states![0]!.loop!;
+    // 화면 시계만 쓰면 2300ms는 바닥 loop 두 번째 칸(flick, 2200~2350ms)이다.
+    expect(magpieAt(m, view({ flagsOf: ground, clockMs: 2300 }))).toBe(groundLoop.frames[1]);
+
+    const a = animOf(m, 'magpie', 'fly_down', {})!;
+    let starts: LoopStarts = {};
+    const playing = view({ flagsOf: ground, playing: { object: a.object, anim: a.anim, ms: 150 }, clockMs: 2150 });
+    starts = loopStarts(m, playing, starts);
+    expect(starts['magpie']!.pic).toBeNull();
+    // anim이 끝난 첫 렌더: 시작 시각이 지금으로 바뀌고 첫 칸(= state frame)을 그린다.
+    const done = view({ flagsOf: ground, clockMs: 2300 });
+    starts = loopStarts(m, done, starts);
+    expect(starts['magpie']!.atMs).toBe(2300);
+    expect(magpieAt(m, { ...done, loopStarts: starts })).toBe(groundLoop.frames[0]);
+    // 2200ms 뒤에 flick, 그 앞까지는 멈춘 모습
+    const later = (ms: number) => {
+      const v = view({ flagsOf: ground, clockMs: ms });
+      starts = loopStarts(m, v, starts);
+      return magpieAt(m, { ...v, loopStarts: starts });
+    };
+    expect(later(2300 + 2199)).toBe(groundLoop.frames[0]);
+    expect(later(2300 + 2200)).toBe(groundLoop.frames[1]);
+  });
+
+  it('멈춘 모습이 그대로면 시작 시각을 유지하고(같은 객체), 다른 물건은 건드리지 않는다', () => {
+    const m = meta();
+    const s1 = loopStarts(m, view({ clockMs: 100 }), {});
+    const s2 = loopStarts(m, view({ clockMs: 5000 }), s1);
+    for (const o of m.objects) expect(s2[o.key]).toBe(s1[o.key]);
+    // 까치만 바닥으로 바뀌면 까치만 다시 센다. 둥지는 그대로라 반짝임 박자가 이어진다.
+    const s3 = loopStarts(m, view({ flagsOf: ground, clockMs: 6000 }), s2);
+    expect(s3['magpie']!.atMs).toBe(6000);
+    expect(s3['nest']).toBe(s1['nest']);
+  });
+
+  it('loopStarts를 안 넘기면 예전처럼 화면 시계 0부터 센다', () => {
+    const m = meta();
+    const nest = m.objects[idx(m, 'nest')]!.default.loop!;
+    expect(sceneDraws(m, view({ clockMs: 1650 })).back[0]).toBe(nest.frames[1]);
+    const starts = loopStarts(m, view({ clockMs: 1000 }), {});
+    expect(sceneDraws(m, view({ clockMs: 1650, loopStarts: starts })).back[0]).toBe(nest.frames[0]);
   });
 });
 
