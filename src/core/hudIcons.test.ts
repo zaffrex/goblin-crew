@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { CHARACTERS } from './characters';
 import { hudIconId, parseHudIconMeta } from './hudIcons';
 import { VERB_BUTTONS } from './hud';
+// eslint-disable-next-line no-restricted-imports -- public/ui는 에셋 JSON이다(src/ui 아님). ADR-0004 규칙이 경로 패턴으로 같이 걸린다.
+import sheetJson from '../../public/ui/hud-icons.json';
 
-// core는 `**/ui/**` import가 막혀 있어서(ADR-0004 lint, src/ui용 규칙에 public/ui도 걸린다) glob으로 읽는다.
-const sheet: unknown = Object.values(import.meta.glob('../../public/ui/hud-icons.json', { eager: true, import: 'default' }))[0];
+const sheet: unknown = sheetJson;
+
 
 describe('parseHudIconMeta (#255)', () => {
   it('커밋된 시트 메타를 읽는다', () => {
