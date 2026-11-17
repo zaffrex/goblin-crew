@@ -37,8 +37,8 @@ export const GAUGE_CELLS: readonly HitBox[] = Array.from({ length: 5 }, (_, i) =
 }));
 
 /**
- * HUD 영역 (300,4)–(476,64). 이 안의 탭은 버튼에 맞지 않아도 월드(바닥 걷기 등)로 넘기지 않는다.
+ * HUD 영역 (300,4)–(476,76). 버튼 아래 이름표 띠(y 65–76, 설계 6-1-4절)까지 넣는다. 이 안의 탭은 버튼에 맞지 않아도 월드(바닥 걷기 등)로 넘기지 않는다.
  * 빈 아이템 칸이나 버튼 사이 틈을 눌러 캐릭터가 화면 위로 걸어가지 않게 한다.
  * 화면 설계 규칙: 이 영역에는 핫스팟·서는 자리를 두지 않는다(validate.ts `hud-overlap`).
  */
-export const HUD_AREA: HitBox = { left: 300, top: 4, width: 176, height: 60 };
+export const HUD_AREA: HitBox = { left: 300, top: 4, width: 176, height: 72 };

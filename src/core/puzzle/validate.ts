@@ -52,7 +52,7 @@ export const SCREEN_H = 270;
 export const LINE_MAX = 14;
 export const LINES_MAX = 2;
 /** HUD 영역 [x, y, w, h] (docs/design/ui-interaction.md 6절). 핫스팟·서는 자리를 두지 않는다. 경고. */
-export const HUD_BOX: readonly [number, number, number, number] = [300, 4, 176, 60];
+export const HUD_BOX: readonly [number, number, number, number] = [300, 4, 176, 72];
 
 const CHAR_IDS: readonly CharacterId[] = CHARACTERS.map((c) => c.id);
 const ABILITIES: readonly AbilityVerb[] = CHARACTERS.map((c) => c.ability);
