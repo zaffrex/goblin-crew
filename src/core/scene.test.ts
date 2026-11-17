@@ -700,12 +700,24 @@ describe('한 번 재생 연출의 마지막 장 유지와 매달림 (#189, 형�
     expect(charPose(data, s, 'jjuk')).toMatchObject({ holding: false, event: null });
   });
 
-  it('reachPoint가 없는 대상에 행동하면 대상 점을 지운다', () => {
+  it('reachPoint가 없는 대상이면 대상 상자 아래 끝 가운데가 대상 점이다(#284: 바닥에서 고리 뻗기 → 고리 바로 아래에서 멈춤)', () => {
+    const s = ready();
+    pick(s, 'jjuk');
+    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
+    sceneTap(data, s, HOOK, 0, false);
+    const [bx, by, bw, bh] = data.screen.spots.hook!.box!;
+    expect(charPose(data, s, 'jjuk').reach).toEqual({ x: bx + bw / 2, y: by + bh });
+    while (!animOn(s, 'jjuk')) sceneTick(data, s);
+    expect(charPose(data, s, 'jjuk').event?.name).toBe('common.reach_wobble');
+  });
+
+  it('다음 행동이 이전 대상 점을 덮어쓴다(자리 이동이면 그 자리 상자 아래 끝)', () => {
     const s = ready();
     s.reach.jjuk = { x: 1, y: 2 };
     pick(s, 'jjuk');
     sceneTap(data, s, SEESAW_LEFT, 0, false);
-    expect(charPose(data, s, 'jjuk').reach).toBeNull();
+    const [bx, by, bw, bh] = data.screen.spots.seesaw_left!.box!;
+    expect(charPose(data, s, 'jjuk').reach).toEqual({ x: bx + bw / 2, y: by + bh });
   });
 });
 

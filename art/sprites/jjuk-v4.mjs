@@ -745,8 +745,9 @@ Object.assign(POSES, {
 });
 
 // ── 묶음 ⑤ 쭉이 늘이기 계열 (#142). 셋 다 바닥에 선 채 재생되고 대상 점(reachPoint)까지 장대를 잇지 않는다:
-//   stretch는 빨랫대·시소·바구니·까치처럼 대상 점이 없는 곳에서, reach_wobble은 "모자라다"가 핵심이라 둥지까지 이으면 안 된다.
-//   그래서 tip 없이 장대와 집게가 칸 안에 다 들어온다(claw는 위 끝 stamp).
+//   stretch는 빨랫대·시소·바구니·까치처럼 대상 점이 없는 곳에서 tip 없이 장대와 집게가 칸 안에 다 들어온다(claw는 위 끝 stamp).
+//   reach_wobble은 "모자라다"가 핵심이다. 0~2번 칸은 장대가 칸 위로 나가고(tip), 엔진이 대상 쪽으로 늘이다가 최대 길이(CLAW.max)에서
+//   멈춘다(#284: 바닥에서 쓰면 "높이가 모자람"이 그림으로 보이게). 둥지까지는 안 닿는다. 3번 칸은 장대가 넘어와 칸 안에 들어온다(tip 없음).
 const STAND_TORSO = (dx, dy) => [[15.2 + dx, 19.5 + dy, 3.4], [14.8 + dx, 25 + dy, 3.6], [14.6 + dx * 0.4, 30 + dy * 0.6, 3.4]];
 const STAND_LEGS = { back: { x: -2.05, lift: 0, toe: false }, front: { x: 2.4, lift: 0, toe: false } };
 const TIPTOE = { back: { x: -1.6, lift: 0, toe: true }, front: { x: 2.0, lift: 0, toe: true } };
@@ -765,6 +766,7 @@ function standPose(o) {
     back: o.back,
     front: { sh: [16.6 + dx, body(20)], el: o.el, wr: o.wr, hand: { rows: 'grip', at: handAt(o.grip ?? o.wr, -3, -3) } },
     pole: o.pole,
+    claw: o.claw,
     legs: o.legs ?? STAND_LEGS,
     fx: o.fx,
   };
@@ -804,7 +806,8 @@ Object.assign(POSES, {
       fx: k === 1 ? (K) => streaks(K, [[47, 10, 20], [39, 2, 8]]) : undefined,
     });
   },
-  // common.reach_wobble  "높이가 모자라!": 장대를 곧게 세워 치켜들고 까치발로 버틴다. 위로는 칸 끝까지만(대상까지 안 닿음).
+  // common.reach_wobble  "높이가 모자라!": 장대를 곧게 세워 치켜들고 까치발로 버틴다. 0~2번은 장대가 칸 위로 나가 엔진이 늘인다(#284).
+  //   이은 장대는 수직이라(5-1절) 칸 안 장대도 손을 지나 수직으로 세운다. 휘청은 장대가 손과 같이 좌우로 옮겨 가는 것으로 보인다.
   //   0 쭉(까치발, 집게 벌림) → 1·2 휘청(장대 끝이 왼쪽 / 오른쪽으로 기울고 몸이 따라감) → 3 툭(무릎이 꺾이며 장대가 뒤로 넘어와
   //   집게가 제 정수리를 친다, 별 대신 짧은 충격선). 3번 칸이 말풍선 동안 남는다: 둥지 "높이가 모자라!", 고리 "…아파."(self_smack).
   //   장대는 코 오른쪽(칸 40열 근처)에 세워서 얼굴을 가리지 않는다. 손은 턱 오른쪽.
@@ -823,14 +826,16 @@ Object.assign(POSES, {
       });
     }
     const sw = [0, -1, 1][k];
-    const wr = [27.6 + sw * 0.3, 18.2], top = [28.0 + sw * 1.8, 5.4];
+    // 장대 축 = 칸 40·38·42열 경계(reach_hang_up의 REACH_X처럼 픽셀 경계에 맞춰 2px 장대 + 잉크가 곧게 선다). 휘청 ±2px
+    const wr = [([40, 38, 42][k] - OX) / S, 18.2], top = [wr[0], -4];
     return standPose({
       dx: 0.8 + sw * 0.4,
       dy: -0.6,
       head: k === 0 ? { eyes: 'up', mouth: 'grit', hair: 0 } : { eyes: 'shock', mouth: 'grit', brows: 'up', hair: k === 1 ? 1 : 0 },
       back: { sh: [13.6 + sw * 0.4, 19.4], el: [9.8 + sw, 22.0], wr: [6.6 + sw * 1.4, 20.6 - k], hand: { rows: 'spread', at: handAt([6.6 + sw * 1.4, 20.6 - k], -3, -2) } },
       el: [22.4 + sw * 0.4, 21.4], wr, grip: wr,
-      pole: { top, bot: poleThrough(top, wr, 10) },
+      pole: { top, bot: [wr[0], wr[1] + 10], claw: false },
+      claw: 0, // 벌린 집게(못 닿음)
       legs: k === 0 ? TIPTOE : { back: { x: -1.6 + sw * 0.6, lift: 0, toe: k !== 1 }, front: { x: 2.0 + sw * 0.6, lift: 0, toe: k !== 2 } },
     });
   },
@@ -873,6 +878,8 @@ const CLAW = {
   cell: [8, 8],
   anchor: [4, 8],
   frames: 2,
+  max: 64, // 칸 위로 늘어나는 최대 px(#284). 고리 → 둥지 62px는 닿고, 바닥(칸 위 끝 y 180) → 고리 아래 끝 108은 8px 모자란다
+  growMs: 300, // 0에서 다 늘어날 때까지(연출 첫 칸 동안)
   legend: { k: C.ink, L: C.lint, D: C.dusk, d: C.plum, W: C.white },
   rows: [
     ['kk....kk', 'kWk..kLk', 'kLk..kDk', 'kDLkkLdk', '.kDLLdk.', '..kLLk..', '..kLLk..', '..kLLk..'],
@@ -908,7 +915,8 @@ export const SHEET = {
     { name: 'common.flatten', frames: 4, ms: [100, 600, 150, 450] },
     { name: 'common.bump_bottom', frames: 4, ms: [100, 400, 300, 500] },
     { name: 'common.stretch', frames: 3, ms: [150, 300, 350] },
-    { name: 'common.reach_wobble', frames: 4, ms: [250, 200, 200, 450] },
+    // short 10: 집게(8px) 끝이 대상 아래 2px에서 멈춘다(#284). 고리는 대상 점이 없어 상자 아래 끝이 대상이다 = 설계 9번 "고리 바로 아래에서 팅"
+    { name: 'common.reach_wobble', frames: 4, ms: [250, 200, 200, 450], short: 10 },
     { name: 'common.wet', frames: 4, ms: [100, 400, 300, 500] },
   ],
   pose,

@@ -129,7 +129,7 @@ function drawPole(ctx: CanvasRenderingContext2D, image: HTMLImageElement, clawIm
     ctx.drawImage(img, sx, sy, sw, sh, 0, dy, sw, dh);
     ctx.restore();
   };
-  blit(image, src.x, src.y, src.width, 1, p.left, p.top, p.bottom - p.top);
+  if (p.bottom > p.top) blit(image, src.x, src.y, src.width, 1, p.left, p.top, p.bottom - p.top); // 연출 첫 틱(길이 0)은 집게만(#284)
   for (const jy of p.joints) blit(image, src.x, p.jointSrcY, src.width, 1, p.left, jy, 1); // 마디(#194): 시트 마디 행을 8px마다
   blit(clawImage, p.claw * cw, 0, cw, ch, p.clawLeft, p.clawTop, ch);
 }

@@ -95,18 +95,25 @@ function buildSheet(def) {
       anims[a.name].hit = unionBox(idx.map((i) => frames[i].K.bbox()));
     }
     // 칸 위로 나가는 장대(reach_hang_up 등): 프레임별 출구 점과 집게 칸(#187 Theo 초안, 시트 파이프라인 기록 5-1절).
-    // 엔진은 tip에서 대상 점까지 장대를 잇고 끝에 claw 칸을 그린다. 한 프레임이라도 있으면 모든 프레임에 있어야 한다.
-    const tips = idx.map((i) => frames[i].tip);
+    // 엔진은 tip에서 대상 점까지 장대를 잇고 끝에 claw 칸을 그린다. tip 없는 칸은 tip·claw·joint가 null이다(#284: reach_wobble
+    // 3번 칸처럼 장대가 넘어와 칸 안에 들어온 칸). 대신 첫 칸에는 tip이 있어야 한다(엔진이 연출 시작부터 늘리기 시작한다).
+    const tips = idx.map((i) => frames[i].tip ?? null);
     if (tips.some(Boolean)) {
-      if (!tips.every(Boolean)) fail(`${def.name} ${a.name}: 장대 tip은 모든 프레임에 있어야 한다`);
-      const claws = idx.map((i) => frames[i].claw);
-      if (!claws.every((c) => Number.isInteger(c) && c >= 0 && c < (def.claw?.frames ?? 0))) fail(`${def.name} ${a.name}: 프레임마다 claw 칸 번호가 필요하다`);
+      if (!tips[0]) fail(`${def.name} ${a.name}: 장대 tip은 첫 칸에 있어야 한다`);
+      const claws = idx.map((i, j) => (tips[j] ? frames[i].claw : null));
+      if (!claws.every((c, j) => !tips[j] || (Number.isInteger(c) && c >= 0 && c < (def.claw?.frames ?? 0)))) fail(`${def.name} ${a.name}: tip 있는 칸마다 claw 칸 번호가 필요하다`);
       anims[a.name].tip = tips;
       anims[a.name].claw = claws;
+      // 대상 점 몇 px 아래에서 장대 끝(집게 기준점)이 멈추는가(#284, 실패 연출 "모자람"). 없으면 대상 점까지 닿는다.
+      if (a.short !== undefined) {
+        if (!Number.isInteger(a.short) || a.short < 0) fail(`${def.name} ${a.name}: short는 0 이상 정수 px`);
+        anims[a.name].short = a.short;
+      }
       // 마디 위상(#194, ADR-0007 장대 3조각 8px): 칸 0행부터 첫 마디 행까지 px. 엔진은 이은 구간에서 이 행을 8px마다 찍는다.
       // 그래서 이 행의 tip 4px(잉크 · 장대 2px · 잉크)는 손 등에 가리지 않은 순수 마디 행이어야 한다.
-      const joints = idx.map((i) => frames[i].joint);
+      const joints = idx.map((i, j) => (tips[j] ? frames[i].joint : null));
       idx.forEach((i, j) => {
+        if (!tips[j]) return;
         const f = frames[i], jy = joints[j], [tx, ty] = tips[j];
         if (!Number.isInteger(jy) || jy < 0 || jy >= 8) fail(`${def.name} ${a.name}${j}: 장대 마디 위상(joint)은 0~7`);
         const row = [-2, -1, 0, 1].map((dx) => f.K.get(tx + dx, ty + jy));
@@ -163,6 +170,9 @@ function buildSheet(def) {
       if (def.claw.legend[ch] !== undefined) clawImg.set(k * kw + x, y, def.claw.legend[ch]);
     })));
     meta.claw = { image: `${def.name}-claw.png`, cell: def.claw.cell, anchor: def.claw.anchor };
+    // 장대가 칸 위로 늘어나는 최대 길이(px)와 0에서 다 늘어날 때까지 ms(#284). 없으면 한 번에 대상까지 잇는다(예전 동작).
+    if (def.claw.max !== undefined) meta.claw.max = def.claw.max;
+    if (def.claw.growMs !== undefined) meta.claw.growMs = def.claw.growMs;
   }
   return { def, frames, img, meta, ax, cw, ch, feet: fs, clawImg };
 }

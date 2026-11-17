@@ -17,16 +17,22 @@ export type SpriteAnim = ({ frames: number[]; ms: number[] } | { frames: number[
   /**
    * 칸 위로 나가는 장대(파이프라인 기록 5-1절). 프레임마다 칸 안에서 장대가 나가는 점(오른쪽을 본 시트 기준).
    * x는 픽셀 경계(연속 좌표)라 2px 장대의 가운데선이다. 있으면 `claw`도 프레임마다 있다.
+   * null인 칸은 장대가 칸 안에 들어와 잇지 않는다(#284 `reach_wobble` 3번 칸). 첫 칸은 null이 아니다.
    */
-  tip?: [x: number, y: number][];
-  /** 프레임마다 집게 칸 번호(시트 최상위 `claw` 줄). */
-  claw?: number[];
+  tip?: ([x: number, y: number] | null)[];
+  /** 프레임마다 집게 칸 번호(시트 최상위 `claw` 줄). tip이 null인 칸은 null. */
+  claw?: (number | null)[];
   /**
    * 프레임마다 장대 마디 위상(#194, ADR-0007 장대 3조각 "마디 이음매 한 주기 = 8px"): tip 행부터 아래로 첫 마디 행까지 px(0~7).
    * 그 행(tip 4px)이 마디 그림이다. 엔진은 이은 구간에서 8px마다 이 행을 찍어 시트 장대의 마디 무늬를 위로 잇는다.
-   * 없으면 마디 없이 tip 행만 늘인다.
+   * 없으면 마디 없이 tip 행만 늘인다. tip이 null인 칸은 null.
    */
-  joint?: number[];
+  joint?: (number | null)[];
+  /**
+   * 실패 연출(#284 `reach_wobble`): 장대 끝(집게 기준점)이 대상 점 y보다 이만큼 아래에서 멈춘다(px). 집게 높이보다 크게 두면
+   * 대상에 안 닿은 채 "바로 아래"에서 멈춘다. 없으면 대상 점까지 닿는다. tip 있는 자세에만.
+   */
+  short?: number;
   /**
    * 이 자세를 그리는 동안의 클릭 상자 [x, y, w, h](칸 왼쪽 위 기준, 오른쪽을 본 시트). 매달린 자세(`hand` 있음)에
    * `art/build.mjs`가 그 자세 모든 칸 그림 상자의 합집합으로 적는다(#203). 없으면 시트 최상위 `hit`(서 있기 0번).
@@ -45,6 +51,13 @@ export interface ClawMeta {
   image: string;
   cell: [w: number, h: number];
   anchor: [x: number, y: number];
+  /**
+   * 장대가 칸 위로 늘어나는 최대 px(#284). 대상 점이 이보다 멀면 여기서 멈춘다(바닥에서 둥지 = "높이가 모자람"이 그림으로 보임).
+   * 대상 점이 없는 연출(고리 등 `reachPoint` 없는 대상)은 이 길이까지 늘인다. 없으면 대상 점까지 다 잇고, 대상 점이 없으면 잇지 않는다.
+   */
+  max?: number;
+  /** 연출 시작부터 다 늘어날 때까지 ms(#284). 그 사이 길이는 시간에 비례한다. 없으면 첫 장부터 다 늘어난 채. */
+  growMs?: number;
 }
 
 export interface SpriteMeta {
@@ -83,6 +96,8 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
   if (typeof m.anims !== 'object' || m.anims === null) fail('anims 없음');
   const claw = m.claw as Partial<ClawMeta> | undefined;
   if (claw !== undefined && (typeof claw.image !== 'string' || !intTuple(claw.cell, 2) || !intTuple(claw.anchor, 2))) fail('claw 형식');
+  if (claw?.max !== undefined && (!isInt(claw.max) || claw.max <= 0)) fail('claw.max는 양의 정수 px');
+  if (claw?.growMs !== undefined && (!isInt(claw.growMs) || claw.growMs <= 0)) fail('claw.growMs는 양의 정수 ms');
   type RawAnim = {
     frames?: unknown[];
     ms?: unknown[];
@@ -93,6 +108,7 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
     joint?: unknown;
     hit?: unknown;
     cue?: unknown;
+    short?: unknown;
   };
   for (const [name, a] of Object.entries(m.anims as Record<string, RawAnim>)) {
     if (!Array.isArray(a.frames) || a.frames.length === 0 || !a.frames.every(isInt)) fail(`${name}.frames`);
@@ -106,15 +122,22 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
     if ('tip' in a || 'claw' in a) {
       const n = a.frames!.length;
       if (!claw) fail(`${name}.tip이 있는데 시트 claw가 없음`);
-      if (!Array.isArray(a.tip) || a.tip.length !== n || !a.tip.every((t) => intTuple(t, 2))) fail(`${name}.tip은 프레임마다 [x, y]`);
-      if (!Array.isArray(a.claw) || a.claw.length !== n || !a.claw.every((c) => isInt(c) && c >= 0)) fail(`${name}.claw는 프레임마다 집게 칸 번호`);
+      if (!Array.isArray(a.tip) || a.tip.length !== n || !a.tip.every((t) => t === null || intTuple(t, 2)) || a.tip[0] === null) {
+        fail(`${name}.tip은 프레임마다 [x, y] 또는 null(첫 칸은 [x, y])`);
+      }
+      const tips = a.tip as unknown[];
+      const some = (v: unknown, i: number): boolean => (tips[i] === null ? v === null : isInt(v) && v >= 0);
+      if (!Array.isArray(a.claw) || a.claw.length !== n || !a.claw.every(some)) fail(`${name}.claw는 tip 있는 칸마다 집게 칸 번호, 없는 칸은 null`);
     }
     if ('joint' in a) {
       if (!('tip' in a)) fail(`${name}.joint는 tip 있는 자세에만`);
-      if (!Array.isArray(a.joint) || a.joint.length !== a.frames!.length || !a.joint.every((j) => isInt(j) && j >= 0 && j < POLE_JOINT)) {
-        fail(`${name}.joint는 프레임마다 0~${POLE_JOINT - 1}`);
+      const tips = a.tip as unknown[];
+      const ok = (j: unknown, i: number): boolean => (tips[i] === null ? j === null : isInt(j) && j >= 0 && j < POLE_JOINT);
+      if (!Array.isArray(a.joint) || a.joint.length !== a.frames!.length || !a.joint.every(ok)) {
+        fail(`${name}.joint는 tip 있는 칸마다 0~${POLE_JOINT - 1}, 없는 칸은 null`);
       }
     }
+    if ('short' in a && (!('tip' in a) || !isInt(a.short) || a.short < 0)) fail(`${name}.short는 tip 있는 자세에만, 0 이상 정수 px`);
     if ('hit' in a) {
       const h = a.hit as number[];
       if (!intTuple(h, 4) || h[2]! < MIN_HIT_SIZE || h[3]! < MIN_HIT_SIZE) fail(`${name}.hit은 [x, y, w, h], 폭·높이 ${MIN_HIT_SIZE} 이상`);
@@ -239,26 +262,35 @@ export const POLE_WIDTH = 4;
 
 
 /**
- * 지금 자세가 `tip` 있는 연출이고 대상 점이 칸 위에 있으면 이을 장대. 아니면 null.
- * 장대는 직선(ADR-0003)이라 tip x에서 **수직으로** 대상 점 y까지 잇는다. 대상 점 x는 쓰지 않는다
+ * 지금 자세가 `tip` 있는 연출이면 이을 장대. 아니면 null.
+ * 장대는 직선(ADR-0003)이라 tip x에서 **수직으로** 대상 점 y 쪽으로 잇는다. 대상 점 x는 쓰지 않는다
  * (2px 장대를 뒤집으면 가운데선이 1px 옮겨 가서, 대상 점으로 꺾으면 중간에 1px 꺾임이 생긴다, PR #188 리뷰).
+ * 길이(#284) = min(대상 점 − 자세 `short`까지, 시트 `claw.max`) × min(1, 연출 ms / `claw.growMs`). 대상 점이 없으면 `max`까지, `max`도 없으면 잇지 않는다.
+ * 대상 점이 칸 위가 아니면 잇지 않는다. 길이 0(연출 첫 틱)이면 칸 위 끝에 집게만 그린다.
  */
 export function spritePole(meta: SpriteMeta, pose: Pose, x: number, y: number, facing: Facing): PoleDraw | null {
   const name = pose.event?.name;
   const a = name ? meta.anims[name] : undefined;
-  if (!a?.tip || !a.claw || !meta.claw || !pose.reach) return null;
+  if (!a?.tip || !a.claw || !meta.claw) return null;
+  const { max, growMs } = meta.claw;
+  if (!pose.reach && max === undefined) return null;
   const i = timedIndex(a, pose.event!.ms, false);
-  const [tx, ty] = a.tip[i]!;
+  const tip = a.tip[i];
+  if (!tip) return null;
+  const [tx, ty] = tip;
   const box = spriteBox(meta, x, y, facing);
   // 칸 안 연속 좌표 c → 화면: 오른쪽이면 left + c, 왼쪽이면 칸을 뒤집어 left + (w − c).
   const sx = facing === 1 ? box.left + tx : box.left + (meta.cell[0] - tx);
   const bottom = box.top + ty;
-  const top = Math.round(pose.reach.y);
-  if (top >= bottom) return null;
+  let full = pose.reach ? bottom - Math.round(pose.reach.y) - (a.short ?? 0) : max!;
+  if (full <= 0) return null;
+  if (max !== undefined) full = Math.min(full, max);
+  const grown = growMs === undefined ? 1 : Math.min(1, Math.max(0, pose.event!.ms) / growMs);
+  const top = bottom - Math.floor(full * grown);
   const [cw] = meta.claw.cell;
   const [cax, cay] = meta.claw.anchor;
   // 마디: 시트에서 tip 행 아래 joint px가 마디 행이고 8px마다 반복된다 → 이은 구간(top ≤ y < bottom)에서는 bottom + joint − 8m.
-  const jp = a.joint?.[i];
+  const jp = a.joint?.[i] ?? undefined;
   const joints: number[] = [];
   if (jp !== undefined) for (let jy = bottom + jp - POLE_JOINT; jy >= top; jy -= POLE_JOINT) joints.push(jy);
   return {
