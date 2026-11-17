@@ -543,7 +543,7 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
   });
 });
 
-describe('클리어 컷 L32 (설계 8절, #68)', () => {
+describe('클리어 컷 L32 (magpie_nest.md 8절, #68)', () => {
   const withLine: SceneData = { ...data, clearLine: 'magpie_nest.clear' };
 
   /** 쭉이가 고리에 매달려 있고 까치는 바닥 → 둥지 뻗기 한 번이면 클리어(정답 4번). */
@@ -592,6 +592,19 @@ describe('클리어 컷 L32 (설계 8절, #68)', () => {
     while (isBusy(s)) sceneTick(withLine, s);
     expect(sceneTap(withLine, s, center(CHAR_SLOTS.ppik), 0, false).kind).toBe('ignored');
     expect(JSON.stringify(s.ui)).toBe(ui);
+  });
+
+  it('클리어 컷 0.4초 뒤 HUD 칸 탭은 컷을 넘긴다(skipSay). 전환·무장은 하지 않는다(#266 규칙 5, PR #273)', () => {
+    const s = clearNow(withLine);
+    while (s.current?.ev.type !== 'clear') sceneTick(withLine, s);
+    const ui = JSON.stringify(s.ui);
+    for (let i = 0; i < TIMING.saySkipAfter; i++) sceneTick(withLine, s);
+    // 클리어 컷 분기가 busy HUD 분기보다 먼저다. 순서가 바뀌면 이 탭이 전환이 되고 컷이 안 넘어간다.
+    expect(sceneTap(withLine, s, center(CHAR_SLOTS.ppik), 0, false).kind).toBe('skipSay');
+    expect(JSON.stringify(s.ui)).toBe(ui);
+    sceneTick(withLine, s);
+    expect(isBusy(s)).toBe(false);
+    expect(currentCut(s)).toBeNull();
   });
 
   it('clearLine이 없는 화면은 예전처럼 바로 카드(길이 0)', () => {
