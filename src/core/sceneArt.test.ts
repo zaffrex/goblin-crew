@@ -13,7 +13,7 @@ const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 /** 커밋된 삑삑이 시트(서 있기·걷기만, 화면 1 자세는 아직). */
 const PPIK = parseSpriteMeta(clone(ppikJson));
 
-/** 커밋된 진짜 시트(③-1: 멈춘 모습·loop) + ③-2가 그릴 anim을 흉내 낸 것. 프레임 번호는 아무거나 시트 안의 것. */
+/** 커밋된 진짜 시트 + 고정 anim(진짜 그림이 바뀌어도 이 테스트가 흔들리지 않게 덮어쓴다). 프레임 번호는 아무거나 시트 안의 것. */
 function meta(): SceneArtMeta {
   const m = parseSceneArt(clone(sheetJson));
   m.anims['magpie.fly_down'] = { object: 'magpie', frames: [5, 9], ms: [100, 100], layer: 'front' };
@@ -75,7 +75,7 @@ describe('멈춘 모습·anim 고르기 (형식 기록 4·4-1절)', () => {
     const m = meta();
     expect(animOf(m, 'magpie', 'ruffle', { 'magpie.on_ground': false })!.anim).toMatchObject({ frames: [5, 6, 5], layer: 'back' });
     expect(animOf(m, 'magpie', 'ruffle', { 'magpie.on_ground': true })!.anim).toMatchObject({ frames: [9, 10], layer: 'front' });
-    expect(animOf(m, 'magpie', 'peck', {})).toBeNull();
+    expect(animOf(m, 'magpie', 'no_such_anim', {})).toBeNull(); // 시트에 없는 anim은 건너뛴다(형식 4절)
     expect(animOf(m, 'jjuk', 'reach_hang_up', {})).toBeNull();
   });
 
