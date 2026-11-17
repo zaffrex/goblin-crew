@@ -162,7 +162,7 @@ describe('clippedEdge (칸 가장자리 잘림)', () => {
   interface Cnv { w: number; h: number; part(ramp: number[]): number; stamp(x: number, y: number, rows: string[], legend: Record<string, number>, part?: number): void; dot(x: number, y: number, c: number): void }
   type Mods = {
     pixel: { Canvas: new (w: number, h: number, s: number) => Cnv; C: { tan: number; ink: number; white: number } };
-    finish: { clippedEdge: (K: Cnv, o?: { top?: boolean }) => string[] };
+    finish: { clippedEdge: (K: Cnv, o?: { tip?: [number, number] }) => string[] };
   };
   // 그림 라이브러리는 타입이 없는 .mjs라 경로를 변수로 둬서 동적으로 읽는다
   const load = async (): Promise<Mods> => {
@@ -179,6 +179,18 @@ describe('clippedEdge (칸 가장자리 잘림)', () => {
     K.stamp(5, 0, ['k'], { k: C.ink }, body); // 0행이 외곽선이면 괜찮다
     K.dot(1, 0, C.white); // fx(속도선)는 부품이 없어서 안 센다
     expect(clippedEdge(K)).toEqual(['3,0', '7,4']);
-    expect(clippedEdge(K, { top: false })).toEqual(['7,4']);
+  });
+
+  // #223: tip 칸은 0행에서 엔진이 이어 그리는 장대 4열(tx − 2 … tx + 1)만 빼고, 그 밖의 0행은 그대로 본다
+  it('tip 칸은 0행에서 장대 4열만 넘기고, 장대 옆에 닿은 머리는 잡는다', async () => {
+    const { pixel: { Canvas, C }, finish: { clippedEdge } } = await load();
+    const K = new Canvas(12, 8, 1);
+    const pole = K.part([C.tan]);
+    const head = K.part([C.tan]);
+    K.stamp(4, 0, ['kttk'], { k: C.ink, t: C.tan }, pole); // 장대: 잉크 4 · 몸 5·6 · 잉크 7 → tip x 6
+    K.stamp(9, 0, ['t'], { t: C.tan }, head); // 장대 밖 머리가 0행에 닿음 → 잘림
+    K.stamp(3, 0, ['t'], { t: C.tan }, head); // 장대 바로 왼쪽(tx − 3)도 잘림
+    expect(clippedEdge(K)).toEqual(['3,0', '5,0', '6,0', '9,0']);
+    expect(clippedEdge(K, { tip: [6, 0] })).toEqual(['3,0', '9,0']);
   });
 });

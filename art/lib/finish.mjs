@@ -57,18 +57,23 @@ export function soles(K, shoeParts, band = C.lint) {
   }
 }
 
+/** 엔진이 이어 그리는 장대 폭(src/core/sprite.ts `POLE_WIDTH` = 4)의 절반. */
+const POLE_HALF = 2;
+
 /**
  * 칸 가장자리(위 0행, 왼·오른쪽 끝 열)에 있는 부품 픽셀 중 외곽선(ink)이 아닌 것의 "x,y" 목록(#220).
  * 이런 픽셀은 바깥 외곽선이 칸 밖으로 나가 잘린다(ADR-0007 결정 3). fx처럼 부품 없이 dot·stamp한 픽셀은 안 센다.
- * top: false면 위 0행은 안 본다(칸 위로 나가는 장대 tip이 있는 칸).
+ * tip: 칸 위로 나가는 장대가 있는 칸의 tip [x, y]. 엔진은 0행의 tx − 2 … tx + 1(장대 2px + 양옆 잉크, src/core/sprite.ts
+ * `POLE_WIDTH` 4px)을 위로 이어 그리므로 0행에서 그 4열만 뺀다. 나머지 0행(머리·손 등)은 그대로 본다(#223).
  */
-export function clippedEdge(K, { top = true } = {}) {
+export function clippedEdge(K, { tip } = {}) {
   const bad = [];
   const check = (x, y) => {
     const i = y * K.w + x;
     if (K.p[i] >= 0 && K.c[i] !== C.ink) bad.push(`${x},${y}`);
   };
-  if (top) for (let x = 0; x < K.w; x++) check(x, 0);
-  for (let y = top ? 1 : 0; y < K.h; y++) { check(0, y); check(K.w - 1, y); }
+  const joined = (x) => tip !== undefined && x >= tip[0] - POLE_HALF && x < tip[0] + POLE_HALF;
+  for (let x = 0; x < K.w; x++) if (!joined(x)) check(x, 0);
+  for (let y = 1; y < K.h; y++) { check(0, y); check(K.w - 1, y); }
   return bad;
 }
