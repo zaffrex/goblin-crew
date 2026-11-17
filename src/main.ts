@@ -11,10 +11,11 @@ import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/conf
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
 import { dustPush, FX_COLORS, FX_STYLE, SHAKE_FX, shakeOffset } from './core/fx';
 import type { HitBox } from './core/hit';
-import { GAUGE_BOX, GAUGE_CELLS, HUD_AREA, hudHoverText, hudTags, type HudId } from './core/hud';
+import { createFirstNotes, currentNote, noteArmAbility, noteGauge, noteTap } from './core/firstNotes';
+import { abilityText, GAUGE_BOX, GAUGE_CELLS, GAUGE_PLATE, HUD_AREA, hudHoverText, hudTags, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
-import { activeFx, activeMarkerVisible, charPose, createScene, currentBubble, drawOrder, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
+import { activeFx, activeMarkerVisible, charPose, createScene, currentBubble, drawOrder, gaugeDrop, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
 import { coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point } from './core/viewport';
 import { createDisplay } from './engine/display';
@@ -74,17 +75,20 @@ let touchLabel: Label | null = null;
 let hoverLabel: Label | null = null;
 /** 데스크톱 호버 중인 HUD 칸(설명은 대상 라벨 자리에, 설계 6-1-3절). */
 let hoverHud: HudId | 'gauge' | null = null;
+/** 처음 한 번 안내(첫 무장 특기 설명, 첫 감소 게이지 뜻, 설계 6-2-3·6-2-5절). */
+const notes = createFirstNotes(scene.shownGauge);
 
 const inBox = (p: Point, b: HitBox): boolean => p.x >= b.left && p.x < b.left + b.width && p.y >= b.top && p.y < b.top + b.height;
 
 window.addEventListener('resize', () => display.resize());
 onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
+  noteTap(notes);
   const r = sceneTap(data, scene, p, slop, slop > 0);
   if (r.kind !== 'intent') return;
   touchLabel = r.intent.kind === 'select' ? r.intent.label : null;
-  // 첫 행동(걷기 포함)까지는 안내를 남겨 둔다.
-  if (r.intent.kind === 'walk' || r.intent.kind === 'act') hud.hidden = true;
+  if (r.intent.kind === 'arm' && r.intent.armed?.verb === 'ability') noteArmAbility(notes, scene.ui.active, abilityText(scene.ui.active, t));
 });
+// 목표 줄(설계 6-2-2절): 첫 행동 뒤에도 늘 보인다. 클리어 뒤에만 숨긴다(render).
 hud.textContent = t('ui.intro');
 clearCut.textContent = t('ui.clear');
 
@@ -254,7 +258,14 @@ function render(): void {
   }
   ctx.restore();
   const abilityGlyph = [...t(`ui.verb.${characterDef(layout.active).ability}`)][0] ?? '?';
-  drawHud(ctx, layout.hud, GAUGE_CELLS, { active: layout.active, armed: layout.armed, gauge: layout.gauge, abilityGlyph }, drawHead, drawHudIcon);
+  drawHud(
+    ctx,
+    layout.hud,
+    { plate: GAUGE_PLATE, cells: GAUGE_CELLS },
+    { active: layout.active, armed: layout.armed, gauge: layout.gauge, gaugeDrop: gaugeDrop(scene), abilityGlyph },
+    drawHead,
+    drawHudIcon,
+  );
   display.present();
 
   // DOM 말풍선(ADR-0004 결정 3). 화자 머리 위.
@@ -269,12 +280,16 @@ function render(): void {
 
   placeHudTags(layout.active);
   const hudHover = scene.cleared || hoverHud === null ? null : hudHoverText(hoverHud, layout.active, t);
-  const labelString = shown ? labelText(shown, data.screen.id, t) : (hudHover ?? '');
+  noteGauge(notes, layout.gauge, scene.tick, t('ui.hud.gauge_first_drop'));
+  // 처음 한 번 안내가 떠 있으면 그게 먼저다(첫 감소는 busy 중에 뜬다). 다음 탭이나 2.5초 뒤 지운다.
+  const note = scene.cleared ? null : currentNote(notes, scene.tick);
+  const labelString = note ?? (shown ? labelText(shown, data.screen.id, t) : (hudHover ?? ''));
   label.hidden = labelString === '';
   if (label.textContent !== labelString) label.textContent = labelString;
   placeDom(label, { x: INTERNAL_WIDTH / 2, y: INTERNAL_HEIGHT - 4 });
 
   clearCut.hidden = !(scene.cleared && !isBusy(scene));
+  hud.hidden = scene.cleared;
   // 게이지 0 컷(#129, L33)과 클리어 컷(L32). 그림 없는 M1 임시 연출: 클리어 카드와 같은 DOM 글 한 줄.
   const cut = layout.cut;
   faintCut.hidden = cut === null;

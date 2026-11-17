@@ -383,16 +383,33 @@ export function approachPoint(data: SceneData, puzzle: PuzzleState, action: Acti
   return { x, face };
 }
 
+/**
+ * 게이지 감소 시점(설계 6-2-5절, #285): 줄어드는 `gauge`를 그 규칙의 첫 `say` 바로 앞으로 당긴다.
+ * "쿵 → 납작 → 별 → 칸 터짐 + 게이지 흔들림 → 말풍선" 순서가 돼서 "아프다 = 게이지"가 이어진다.
+ * 코어 `step`의 순서(show 다음 do, ADR-0065 5절)는 BFS·테스트 계약이라 그대로 두고 장면 대기열만 바꾼다.
+ * 그대로 두는 경우: 늘어나는 게이지, `say`가 게이지보다 앞에 없음, `faint`가 같이 옴(기절 연출은 따로 있다).
+ */
+export function gaugeBeforeSay(events: readonly PuzzleEvent[]): readonly PuzzleEvent[] {
+  if (events.some((e) => e.type === 'faint')) return events;
+  const g = events.findIndex((e) => e.type === 'gauge' && e.delta < 0);
+  const say = events.findIndex((e) => e.type === 'say');
+  if (g < 0 || say < 0 || say > g) return events;
+  const out = events.filter((_, i) => i !== g);
+  out.splice(say, 0, events[g]!);
+  return out;
+}
+
 function runAction(data: SceneData, s: SceneState, action: Action, to: Point | null): void {
   const before = s.puzzle.flags;
   const prev = s.puzzle;
   const r = step(data.screen, s.puzzle, action, data.characters);
   s.puzzle = r.state;
+  const events = gaugeBeforeSay(r.events);
   // 행동하는 캐릭터의 엔진 걷기는 멈춘다. 바닥에 섰으면 대상 앞까지 걸어간 뒤 행동한다(설계 5-1절).
   const w = s.walkers[action.char];
   w.target = null;
   w.walkTicks = 0;
-  const first = r.events[0];
+  const first = events[0];
   const ap = first?.type === 'walk' && first.char === action.char ? null : approachPoint(data, prev, action, w);
   if (ap && Math.abs(ap.x - w.x) > APPROACH_SLOP) {
     // `floor`→`floor` 걷기. `walk` 이벤트와 똑같이 busy이고 탭으로 건너뛴다(5절 예외 둘). 설 점은 `floorPoint`가 쓴다.
@@ -402,7 +419,7 @@ function runAction(data: SceneData, s: SceneState, action: Action, to: Point | n
   } else if (ap?.face != null) {
     w.facing = ap.face;
   }
-  deferShown(data, s, before, r.events);
+  deferShown(data, s, before, events);
   if (to) s.floorTo[action.char] = to;
   // 장대 대상 점: `reachPoint`, 없으면 대상 상자 아래 끝 가운데(#284: 고리 뻗기 실패는 집게가 고리 "바로 아래"에서 멈춘다).
   const rp = data.screen.hotspots[action.target]?.reachPoint;
@@ -411,7 +428,7 @@ function runAction(data: SceneData, s: SceneState, action: Action, to: Point | n
   else if (tb) s.reach[action.char] = { x: tb.left + tb.width / 2, y: tb.top + tb.height };
   else delete s.reach[action.char];
   const n = bump(s, variantKey(r.source, r.ruleId, action));
-  for (const ev of r.events) s.queue.push(ev.type === 'say' ? { ...ev, text: pickText(ev.text, n) } : ev);
+  for (const ev of events) s.queue.push(ev.type === 'say' ? { ...ev, text: pickText(ev.text, n) } : ev);
   const hint = hintEvent(data, s, r.source, action);
   if (hint) s.queue.push(hint);
 }
@@ -699,6 +716,13 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
   if (intent.kind === 'walk') walkTo(s.walkers[s.ui.active], intent.to, WALK_AREA);
   else if (intent.kind === 'act') runAction(data, s, intent.action, intent.to);
   return { kind: 'intent', intent };
+}
+
+/** 게이지가 줄어드는 연출(`gauge` 이벤트, 감소) 중이면 잃은 칸 [from, to)와 경과 틱. 엔진이 칸 터짐·흔들림을 그린다(설계 6-2-5절). */
+export function gaugeDrop(s: SceneState): { from: number; to: number; t: number } | null {
+  const c = s.current;
+  if (c?.ev.type !== 'gauge' || c.ev.delta >= 0) return null;
+  return { from: c.ev.value, to: Math.min(GAUGE_MAX, c.ev.value - c.ev.delta), t: c.t };
 }
 
 /** 지금 떠 있는 말풍선. 없으면 null. */

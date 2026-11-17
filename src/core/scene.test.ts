@@ -9,7 +9,7 @@ import { CHAR_SLOTS, GAUGE_BOX, HUD_AREA, VERB_SLOTS } from './hud';
 import { worldTargets } from './interact';
 import { parseSpriteMeta, spriteBox, spriteFrame } from './sprite';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { activeFx, activeMarkerVisible, approachPoint, bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, isBusy, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
+import { activeFx, activeMarkerVisible, approachPoint, bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, gaugeBeforeSay, gaugeDrop, isBusy, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
 import type { Point } from './viewport';
 
 const data: SceneData = { screen: screenJson as unknown as ScreenData, characters: charactersJson as CharactersData };
@@ -1236,5 +1236,56 @@ describe('▼ 조작 표시와 말풍선', () => {
       }
     }
     expect(bubbles).toBeGreaterThan(0);
+  });
+});
+
+describe('게이지 감소 시점: 첫 say 바로 앞 (ui-interaction.md 6-2-5절, #285)', () => {
+  const say = { type: 'say', speaker: 'mukjik', text: 'x' } as const;
+  const anim = { type: 'anim', target: 'mukjik', name: 'flatten' } as const;
+  const fx = { type: 'fx', effect: 'stars', target: 'mukjik' } as const;
+  const drop = { type: 'gauge', delta: -1, value: 4 } as const;
+
+  it('show(anim·fx·say) 다음 gauge → gauge를 첫 say 앞으로 당긴다', () => {
+    expect(gaugeBeforeSay([anim, fx, say, say, drop])).toEqual([anim, fx, drop, say, say]);
+  });
+
+  it('say가 없거나 gauge가 이미 앞이거나 늘어나는 게이지면 그대로', () => {
+    const noSay = [anim, fx, drop];
+    expect(gaugeBeforeSay(noSay)).toBe(noSay);
+    const already = [anim, drop, say];
+    expect(gaugeBeforeSay(already)).toBe(already);
+    const up = [anim, say, { type: 'gauge', delta: 1, value: 5 } as const];
+    expect(gaugeBeforeSay(up)).toBe(up);
+  });
+
+  it('faint가 같이 오면 그대로(기절 연출은 따로)', () => {
+    const fainting = [anim, say, { type: 'gauge', delta: -1, value: 0 } as const, { type: 'faint', to: {} } as never];
+    expect(gaugeBeforeSay(fainting)).toBe(fainting);
+  });
+
+  it('실제 화면 1: 바닥 까치 뻗기(게이지 −1) — 칸이 말풍선보다 먼저 줄고, 그동안 gaugeDrop이 잃은 칸을 알려 준다', () => {
+    const ground = data.screen.hotspots.magpie!.variants![0]!.box!;
+    const MAGPIE_GROUND = center({ left: ground[0], top: ground[1], width: ground[2], height: ground[3] });
+    const s = ready();
+    sceneTap(data, s, center(CHAR_SLOTS.ppik), 0, false);
+    sceneTap(data, s, MAGPIE, 0, false);
+    idle(s);
+    sceneTap(data, s, center(CHAR_SLOTS.jjuk), 0, false);
+    sceneTap(data, s, MAGPIE_GROUND, 0, false);
+    expect(s.puzzle.gauge).toBe(4);
+    let gaugeAtFirstSay: number | null = null;
+    let drops = 0;
+    while (isBusy(s)) {
+      sceneTick(data, s);
+      const d = gaugeDrop(s);
+      if (d) {
+        drops++;
+        expect([d.from, d.to]).toEqual([4, 5]);
+      }
+      if (gaugeAtFirstSay === null && currentBubble(s)) gaugeAtFirstSay = s.shownGauge;
+    }
+    expect(drops).toBeGreaterThan(0);
+    expect(gaugeAtFirstSay).toBe(4);
+    expect(gaugeDrop(s)).toBeNull();
   });
 });

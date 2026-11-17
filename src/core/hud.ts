@@ -54,9 +54,9 @@ export interface HudTag {
   text: string;
 }
 
-/** 이름표 위끝: 버튼 아래 1px(버튼 끝 64 + 1), 게이지 칸 아래 1px(칸 끝 24 + 1). */
+/** 이름표 위끝: 버튼 아래 1px(버튼 끝 64 + 1), 게이지 받침판 아래 2px(판 끝 26 + 2, 설계 6-2-4절). */
 export const VERB_TAG_TOP = 65;
-export const GAUGE_TAG_TOP = 25;
+export const GAUGE_TAG_TOP = 28;
 
 /** 게이지 칸 5개를 감싸는 상자. 누를 수는 없고 데스크톱 호버 설명만 띄운다. */
 export const GAUGE_BOX: HitBox = (() => {
@@ -64,6 +64,21 @@ export const GAUGE_BOX: HitBox = (() => {
   const last = GAUGE_CELLS[GAUGE_CELLS.length - 1]!;
   return { left: first.left, top: first.top, width: last.left + last.width - first.left, height: first.height };
 })();
+
+/**
+ * 게이지 받침판(설계 6-2-4절, #285): 칸 5개 뒤에 까는 버튼 같은 판. 칸 바깥 3px 여백, (401,9) 78×18.
+ * 칸 색을 하늘 배경이 아니라 판과 비교하게 해서 찬 칸/빈 칸이 갈린다. `HUD_AREA` 안이다.
+ */
+export const GAUGE_PLATE: HitBox = { left: GAUGE_BOX.left - 3, top: GAUGE_BOX.top - 3, width: GAUGE_BOX.width + 6, height: GAUGE_BOX.height + 6 };
+
+/** 게이지가 줄 때 게이지 전체 흔들림 길이(틱, 0.3초, 설계 6절 표·6-2-5절). `gauge` 이벤트(20틱) 안에 끝난다. */
+export const GAUGE_SHAKE_TICKS = 18;
+
+/** 게이지 흔들림 가로 오프셋(px). 3틱마다 +1/−1, 0.3초 뒤 0. */
+export function gaugeShakeX(t: number): number {
+  if (t < 0 || t >= GAUGE_SHAKE_TICKS) return 0;
+  return Math.floor(t / 3) % 2 === 0 ? 1 : -1;
+}
 
 type Text = (id: string) => string;
 
@@ -80,9 +95,15 @@ export function hudTags(active: CharacterId, t: Text): HudTag[] {
   return tags;
 }
 
+/** 능력 버튼 설명 `{verb}: {desc}`(설계 6-2-3절). 데스크톱 호버와 첫 무장 안내가 같은 글을 쓴다. */
+export function abilityText(active: CharacterId, t: Text): string {
+  const ability = characterDef(active).ability;
+  return fill(t('ui.hud.ability_hover'), { name: t(`char.${active}.name`), verb: t(`ui.verb.${ability}`), desc: t(`ui.ability.${ability}`) });
+}
+
 /**
  * 데스크톱 호버 설명(대상 라벨 자리). HUD 칸 ID 또는 `gauge`. 설명이 없는 칸(아이템)은 null.
- * `{name}`은 `char.<id>.name`, `{verb}`는 `ui.verb.<능력>`에서 채운다.
+ * `{name}`은 `char.<id>.name`, `{verb}`는 `ui.verb.<능력>`, `{desc}`는 `ui.ability.<능력>`(특기 설명, 설계 6-2-3절)에서 채운다.
  */
 export function hudHoverText(id: HudId | 'gauge', active: CharacterId, t: Text): string | null {
   if (id.startsWith('char.')) {
@@ -91,7 +112,7 @@ export function hudHoverText(id: HudId | 'gauge', active: CharacterId, t: Text):
   }
   switch (id) {
     case 'verb.ability':
-      return fill(t('ui.hud.ability_hover'), { name: t(`char.${active}.name`), verb: t(`ui.verb.${characterDef(active).ability}`) });
+      return abilityText(active, t);
     case 'verb.hand':
       return t('ui.hud.hand_hover');
     case 'verb.look':
