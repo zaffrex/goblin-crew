@@ -181,7 +181,7 @@ export function drawOutline(ctx: CanvasRenderingContext2D, b: HitBox, tick: numb
 
 /**
  * 효과(fx) 임시 표시: 대상 위의 작은 별. 6틱마다 1px 위로 뜬다.
- * 글자 시트(`fx-text`)가 들어오기 전에는 fx마다 칠 색만 다르게 한다(`ability-feedback.md` 3절, `core/fx.ts` `FX_STYLE`).
+ * 소리 글자는 글자 시트(`engine/fxText.ts`)로 그린다. 이 별은 시트가 아직이거나 표 밖의 fx(물건 그림, P1 #286)일 때만 쓴다.
  */
 export function drawSpark(ctx: CanvasRenderingContext2D, at: Point, t: number, color = '#f2cc8f'): void {
   const y = Math.round(at.y) - 4 - Math.floor(t / 6);
@@ -198,7 +198,8 @@ export function drawSpark(ctx: CanvasRenderingContext2D, at: Point, t: number, c
 export function drawStompDust(ctx: CanvasRenderingContext2D, foot: Point, push: number, fill: string, shade: string): void {
   const x = Math.round(foot.x);
   const y = Math.round(foot.y) - 3;
-  for (const left of [x - 8 - push, x + 4 + push]) {
+  // 발 기준 열 x를 빼고 좌우 틈을 3+push로 같게 한다(PR #294 Luna 리뷰).
+  for (const left of [x - 7 - push, x + 4 + push]) {
     ctx.fillStyle = fill;
     ctx.fillRect(left, y, 4, 2);
     ctx.fillStyle = shade;
