@@ -607,6 +607,20 @@ describe('클리어 컷 L32 (magpie_nest.md 8절, #68)', () => {
     expect(currentCut(s)).toBeNull();
   });
 
+  it('클리어 컷 0.4초 뒤 HUD 띠의 칸 아닌 곳(게이지) 탭도 컷을 넘긴다(#266 규칙 5 "아무 탭", PR #276 리뷰)', () => {
+    const s = clearNow(withLine);
+    while (s.current?.ev.type !== 'clear') sceneTick(withLine, s);
+    const ui = JSON.stringify(s.ui);
+    // busy 중 HUD 띠 빈 곳 무시(5절)는 클리어 컷 분기 뒤에 와야 한다. 순서가 바뀌면 이 탭이 ignored가 된다.
+    expect(sceneTap(withLine, s, center(GAUGE_BOX), 0, false).kind).toBe('ignored');
+    for (let i = 0; i < TIMING.saySkipAfter; i++) sceneTick(withLine, s);
+    expect(sceneTap(withLine, s, center(GAUGE_BOX), 0, false).kind).toBe('skipSay');
+    expect(JSON.stringify(s.ui)).toBe(ui);
+    sceneTick(withLine, s);
+    expect(isBusy(s)).toBe(false);
+    expect(currentCut(s)).toBeNull();
+  });
+
   it('clearLine이 없는 화면은 예전처럼 바로 카드(길이 0)', () => {
     const s = clearNow(data);
     let sawCut = false;
