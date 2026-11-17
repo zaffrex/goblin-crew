@@ -5,6 +5,7 @@
 import { CHARACTERS } from '../characters';
 import {
   FLOOR,
+  isDoHere,
   GAUGE_MAX,
   STAY,
   type Action,
@@ -15,8 +16,8 @@ import {
   type PuzzleEvent,
   type PuzzleState,
   type RuleDef,
+  type RuleShowItem,
   type ScreenData,
-  type ShowItem,
   type SpotDef,
   type StepResult,
   type StepSource,
@@ -113,9 +114,11 @@ function resolveWho(who: string, s: PuzzleState, actor: CharacterId): string | u
   return who;
 }
 
-function showEvents(show: ShowItem[] | undefined, s: PuzzleState, actor: CharacterId): PuzzleEvent[] {
+/** 연출을 이벤트로 바꾼다. 효과 위치 표시(`do`)는 연출이 아니라 건너뛴다(위치는 `applyRule`이 정한다). */
+function showEvents(show: readonly RuleShowItem[] | undefined, s: PuzzleState, actor: CharacterId): PuzzleEvent[] {
   const out: PuzzleEvent[] = [];
   for (const item of show ?? []) {
+    if (isDoHere(item)) continue;
     if ('anim' in item) {
       const target = resolveWho(item.anim[0], s, actor);
       if (target !== undefined) out.push({ type: 'anim', target, name: item.anim[1] });
@@ -247,9 +250,16 @@ export function step(screen: ScreenData, state: PuzzleState, action: Action, cha
   };
 
   const applyRule = (rule: RuleDef): StepResult => {
-    // 연출의 `@자리` 화자는 효과 적용 전 자리로 푼다.
-    events.push(...showEvents(rule.show, s, actor));
+    // 효과 이벤트는 `{ "do": "here" }` 자리에, 없으면 연출 뒤에 낸다(#206). 바뀌는 건 이벤트 순서뿐이다.
+    const show = rule.show ?? [];
+    const mark = show.findIndex(isDoHere);
+    const split = mark < 0 ? show.length : mark;
+    // 연출의 `@자리` 화자는 표시 앞뒤 모두 효과 적용 전 자리로 푼다. 그래서 둘 다 효과 전에 만든다.
+    const before = showEvents(show.slice(0, split), s, actor);
+    const after = showEvents(show.slice(split + 1), s, actor);
+    events.push(...before);
     applyEffect(screen, s, actor, rule.do, events);
+    events.push(...after);
     return finish('rule', rule.id);
   };
 

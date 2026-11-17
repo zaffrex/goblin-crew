@@ -204,6 +204,25 @@ describe('validateScreen', () => {
     expect(codes(long)).toEqual(['text-long']);
   });
 
+  it('allows the effect position marker { do: "here" } only once, only in rule show with do (#206)', () => {
+    const bump = (s: Record<string, any>): Record<string, any> => s.rules.find((r: any) => r.id === 'seesaw_launch_bump');
+    const ok = mutate((s) => bump(s).show.splice(2, 0, { do: 'here' }));
+    expect(ok.errors).toEqual([]);
+    expect(ok.warnings).toEqual([]);
+
+    expect(codes(mutate((s) => bump(s).show.push({ do: 'here' }, { do: 'here' })))).toEqual(['do-here']);
+    expect(paths(mutate((s) => bump(s).show.push({ do: 'there' })))).toEqual([`rules[${BASE.rules.findIndex((r: any) => r.id === 'seesaw_launch_bump')}].show[5].do`]);
+    expect(codes(mutate((s) => s.rules.find((r: any) => !r.do && r.show).show.push({ do: 'here' })))).toEqual(['do-here']);
+    // 규칙 show 밖(onEnter, 폴백 ①, takenShow, releaseShow)은 오류.
+    expect(codes(mutate((s) => s.onEnter.push({ do: 'here' })))).toEqual(['do-here']);
+    expect(codes(mutate((s) => s.fallbacks.nest.stomp.show.push({ do: 'here' })))).toEqual(['do-here']);
+    expect(codes(mutate((s) => (s.spots.seesaw_left.takenShow = [{ do: 'here' }])))).toEqual(['do-here']);
+    // set만 있는 do는 이벤트가 없어 표시가 아무것도 안 바꾼다: 경고.
+    const noop = mutate((s) => s.rules.find((r: any) => r.do && Object.keys(r.do).join() === 'set').show.push({ do: 'here' }));
+    expect(noop.errors).toEqual([]);
+    expect(noop.warnings).toEqual([expect.objectContaining({ code: 'do-here-noop' })]);
+  });
+
   it('fallbacks may only change the gauge', () => {
     expect(codes(mutate((s) => (s.fallbacks.nest.stretch = { do: { set: { 'nest.key_taken': true } } })))).toEqual(['unknown-key']);
     expect(codes(mutate((s) => (s.fallbacks.moon = { look: {} })))).toEqual(['ref-target']);
