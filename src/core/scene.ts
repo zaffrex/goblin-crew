@@ -119,7 +119,7 @@ export interface SceneState {
    * 기절, 또는 대기열이 빌 때까지 마지막 장으로 그린다. `ms`는 끝난 시점(연출 길이). 그림 전용이다.
    */
   held: Partial<Record<CharacterId, { name: string; ms: number }>>;
-  /** 캐릭터가 마지막으로 한 행동의 대상 점(핫스팟 `reachPoint`). 장대 잇기(5-1절)가 쓴다. 없으면 키가 없다. */
+  /** 캐릭터가 마지막으로 한 행동의 대상 점(핫스팟 `reachPoint`, 없으면 대상 상자 아래 끝 가운데, #284). 장대 잇기(5-1절)가 쓴다. 상자도 없으면 키가 없다. */
   reach: Partial<Record<CharacterId, Point>>;
   cleared: boolean;
 }
@@ -382,8 +382,11 @@ function runAction(data: SceneData, s: SceneState, action: Action, to: Point | n
   }
   deferShown(data, s, before, r.events);
   if (to) s.floorTo[action.char] = to;
+  // 장대 대상 점: `reachPoint`, 없으면 대상 상자 아래 끝 가운데(#284: 고리 뻗기 실패는 집게가 고리 "바로 아래"에서 멈춘다).
   const rp = data.screen.hotspots[action.target]?.reachPoint;
+  const tb = rp ? null : targetBox(data.screen, prev, action.target);
   if (rp) s.reach[action.char] = { x: rp[0], y: rp[1] };
+  else if (tb) s.reach[action.char] = { x: tb.left + tb.width / 2, y: tb.top + tb.height };
   else delete s.reach[action.char];
   const n = bump(s, variantKey(r.source, r.ruleId, action));
   for (const ev of r.events) s.queue.push(ev.type === 'say' ? { ...ev, text: pickText(ev.text, n) } : ev);

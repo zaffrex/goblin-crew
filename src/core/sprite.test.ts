@@ -34,6 +34,14 @@ describe('parseSpriteMeta', () => {
     ['joint가 8 이상(#194)', { anims: { r: { frames: [0], ms: [50], tip: [[34, 0]], claw: [0], joint: [8] } } }],
     ['joint 길이가 frames와 다름', { anims: { r: { frames: [0, 1], ms: [50, 50], tip: [[34, 0], [34, 0]], claw: [0, 1], joint: [3] } } }],
     ['tip 없는 자세에 joint', { anims: { r: { frames: [0], ms: [50], joint: [3] } } }],
+    ['첫 칸 tip이 null(#284)', { anims: { r: { frames: [0, 1], ms: [50, 50], tip: [null, [34, 0]], claw: [null, 0] } } }],
+    ['tip null 칸에 claw 번호(#284)', { anims: { r: { frames: [0, 1], ms: [50, 50], tip: [[34, 0], null], claw: [0, 0] } } }],
+    ['tip 있는 칸에 claw null(#284)', { anims: { r: { frames: [0, 1], ms: [50, 50], tip: [[34, 0], [34, 0]], claw: [0, null] } } }],
+    ['tip 없는 자세에 short(#284)', { anims: { r: { frames: [0], ms: [50], short: 10 } } }],
+    ['short 음수(#284)', { anims: { r: { frames: [0], ms: [50], tip: [[34, 0]], claw: [0], short: -1 } } }],
+    ['tip null 칸에 joint 숫자(#284)', { anims: { r: { frames: [0, 1], ms: [50, 50], tip: [[34, 0], null], claw: [0, null], joint: [3, 3] } } }],
+    ['claw.max가 0(#284)', { claw: { image: 'x.png', cell: [8, 8], anchor: [4, 8], max: 0 } }],
+    ['claw.growMs가 소수(#284)', { claw: { image: 'x.png', cell: [8, 8], anchor: [4, 8], growMs: 1.5 } }],
     ['head 형식(#255)', { head: [13, 0, 24] }],
     ['head가 칸 밖(#255)', { head: [30, 0, 24, 24] }],
   ])('%s → 던진다(그 캐릭터는 실루엣으로 남는다)', (_, patch) => {
@@ -189,9 +197,10 @@ describe('spritePole (5-1절 장대 잇기, #189)', () => {
   const HOOK = { x: 160, y: 160 };
   const NEST = { x: 150, y: 34 };
   const pose = (ms: number, extra: Partial<Pose> = {}): Pose => ({ ...still, holding: true, event: { name: 'reach_hang_up', ms }, reach: NEST, ...extra });
+  const GROWN = JJUK.claw!.growMs!; // 다 늘어난 시각. reach_hang_up 0번 칸(350ms) 안이다
 
   it('고리에서 왼쪽을 보면 tip x 34가 화면 151(장대 150·151열)이고, 칸 위 끝 96에서 둥지 y 34까지 수직으로 잇는다', () => {
-    const p = spritePole(JJUK, pose(0), HOOK.x, HOOK.y, -1)!;
+    const p = spritePole(JJUK, pose(GROWN), HOOK.x, HOOK.y, -1)!;
     expect(p).not.toBeNull();
     expect(p.left).toBe(149); // 잉크 149, 장대 150·151, 잉크 152
     expect([p.top, p.bottom]).toEqual([34, 96]);
@@ -201,7 +210,7 @@ describe('spritePole (5-1절 장대 잇기, #189)', () => {
   });
 
   it('이은 구간에도 시트 마디 무늬를 8px마다 잇는다(#194): 시트 tip 행 아래 joint px가 마디 행', () => {
-    const p = spritePole(JJUK, pose(0), HOOK.x, HOOK.y, -1)!;
+    const p = spritePole(JJUK, pose(GROWN), HOOK.x, HOOK.y, -1)!;
     const j = reach.joint![0]!;
     expect(p.jointSrcY).toBe(j);
     // 칸 위 끝 96 기준 시트 마디는 96 + j, 96 + j + 8 … → 위로 이으면 96 + j − 8, − 16 … 둥지 y 34까지
@@ -214,11 +223,11 @@ describe('spritePole (5-1절 장대 잇기, #189)', () => {
     const plain = { ...reach };
     delete plain.joint;
     const meta: SpriteMeta = { ...JJUK, anims: { ...JJUK.anims, reach_hang_up: plain } };
-    expect(spritePole(meta, pose(0), HOOK.x, HOOK.y, -1)!.joints).toEqual([]);
+    expect(spritePole(meta, pose(GROWN), HOOK.x, HOOK.y, -1)!.joints).toEqual([]);
   });
 
   it('오른쪽을 보면 뒤집지 않고 칸 왼쪽 + tip x', () => {
-    const p = spritePole(JJUK, pose(0), HOOK.x, HOOK.y, 1)!;
+    const p = spritePole(JJUK, pose(GROWN), HOOK.x, HOOK.y, 1)!;
     const left = HOOK.x - JJUK.anchor[0];
     expect(p.left).toBe(left + 34 - 2);
     expect([p.clawLeft, p.flip]).toEqual([left + 34 - 4, false]);
@@ -229,11 +238,71 @@ describe('spritePole (5-1절 장대 잇기, #189)', () => {
     expect([at(0), at(349), at(350), at(600), at(5000)]).toEqual([reach.claw![0], reach.claw![0], reach.claw![1], reach.claw![2], reach.claw![2]]);
   });
 
-  it('tip 없는 자세, 대상 점 없음, 대상이 칸 위가 아님 → 잇지 않는다', () => {
-    expect(spritePole(JJUK, pose(0, { event: { name: 'common.zap', ms: 0 } }), HOOK.x, HOOK.y, -1)).toBeNull();
-    expect(spritePole(JJUK, pose(0, { event: null }), HOOK.x, HOOK.y, -1)).toBeNull();
-    expect(spritePole(JJUK, pose(0, { reach: null }), HOOK.x, HOOK.y, -1)).toBeNull();
-    expect(spritePole(JJUK, pose(0, { reach: { x: 150, y: 120 } }), HOOK.x, HOOK.y, -1)).toBeNull();
+  it('tip 없는 자세, 대상이 칸 위가 아님, 대상 점도 시트 max도 없음 → 잇지 않는다', () => {
+    expect(spritePole(JJUK, pose(GROWN, { event: { name: 'common.zap', ms: 0 } }), HOOK.x, HOOK.y, -1)).toBeNull();
+    expect(spritePole(JJUK, pose(GROWN, { event: null }), HOOK.x, HOOK.y, -1)).toBeNull();
+    expect(spritePole(JJUK, pose(GROWN, { reach: { x: 150, y: 120 } }), HOOK.x, HOOK.y, -1)).toBeNull();
+    const noMax: SpriteMeta = { ...JJUK, claw: { ...JJUK.claw!, max: undefined } };
+    expect(spritePole(noMax, pose(GROWN, { reach: null }), HOOK.x, HOOK.y, -1)).toBeNull();
+  });
+
+  it('늘어나기(#284): 연출 첫 틱은 칸 위 끝에 집게만, growMs까지 시간에 비례해 늘고, 그 뒤엔 다 늘어난 채', () => {
+    const len = (ms: number): number => {
+      const p = spritePole(JJUK, pose(ms), HOOK.x, HOOK.y, -1)!;
+      expect(p.bottom).toBe(96);
+      expect(p.clawTop).toBe(p.top - JJUK.claw!.anchor[1]);
+      return p.bottom - p.top;
+    };
+    expect([len(0), len(GROWN / 2), len(GROWN), len(5000)]).toEqual([0, 31, 62, 62]);
+    // 마디는 이은 구간 안에서만
+    const half = spritePole(JJUK, pose(GROWN / 2), HOOK.x, HOOK.y, -1)!;
+    expect(half.joints.every((y) => y >= half.top && y < half.bottom)).toBe(true);
+    // growMs 없으면 예전처럼 첫 장부터 다 늘어난 채
+    const instant: SpriteMeta = { ...JJUK, claw: { ...JJUK.claw!, growMs: undefined } };
+    expect(spritePole(instant, pose(0), HOOK.x, HOOK.y, -1)!.top).toBe(34);
+  });
+
+  it('성공(#284 회귀): 고리 → 둥지 62px는 시트 max 안이라 둥지 y 34까지 닿는다', () => {
+    expect(96 - 34).toBeLessThanOrEqual(JJUK.claw!.max!);
+  });
+
+  describe('reach_wobble 바닥에서 "모자람"(#284)', () => {
+    const wob = JJUK.anims['common.reach_wobble']!;
+    const FLOOR = { x: 150, y: 244 }; // 둥지 reachPoint x에 선다(approachPoint stretch)
+    const at = (ms: number, reach: Pose['reach'] = NEST) => spritePole(JJUK, { ...still, event: { name: 'common.reach_wobble', ms }, reach }, FLOOR.x, FLOOR.y, 1);
+    const MAX = JJUK.claw!.max!;
+
+    it('시트에 short가 있다(실패 연출)', () => expect(wob.short).toBeGreaterThan(JJUK.claw!.cell[1]));
+
+    it('둥지(y 34)를 향해 늘다가 max에서 멈춘다: 칸 위 끝 180 → 180 − max, 둥지에 못 미친다', () => {
+      const p = at(GROWN)!;
+      expect(p.bottom).toBe(180);
+      expect(p.top).toBe(180 - MAX);
+      expect(p.top).toBeGreaterThan(NEST.y + 30); // 집게(8px)를 빼도 둥지 상자(30~54) 아래에서 멈춘다
+      expect(p.claw).toBe(0); // 벌린 집게
+    });
+
+    it('고리(대상 점 = 상자 아래 끝 108) 뻗기: 집게가 고리 상자 바로 아래에서 멈춘다(설계 9번 "팅"), 서 있는 y와 상관없이', () => {
+      const HOOK_BOTTOM = { x: 162, y: 108 };
+      for (const y of [200, 230, 244, 258]) {
+        const p = spritePole(JJUK, { ...still, event: { name: 'common.reach_wobble', ms: GROWN }, reach: HOOK_BOTTOM }, FLOOR.x, y, 1)!;
+        expect(p.clawTop).toBeGreaterThan(HOOK_BOTTOM.y); // 집게 위 끝이 고리 상자 아래
+        expect(p.bottom - p.top).toBeLessThanOrEqual(MAX);
+        if (y - 64 - MAX <= HOOK_BOTTOM.y + wob.short!) expect(p.top).toBe(HOOK_BOTTOM.y + wob.short!); // 닿을 만한 곳에선 "바로 아래"
+      }
+    });
+
+    it('대상 점이 없으면 max까지 늘인다', () => {
+      expect(at(GROWN, null)!.top).toBe(180 - MAX);
+    });
+
+    it('휘청 칸(1·2)은 tip x가 좌우로 옮겨 가고, 3번 칸(장대가 넘어옴)부터는 잇지 않는다', () => {
+      const x0 = FLOOR.x - JJUK.anchor[0];
+      const [m0, m1, m2] = (wob as { ms: number[] }).ms as [number, number, number];
+      expect([at(0)!.left, at(m0)!.left, at(m0 + m1)!.left]).toEqual([x0 + 40 - 2, x0 + 38 - 2, x0 + 42 - 2]);
+      expect(at(m0 + m1 + m2)).toBeNull();
+      expect(at(99999)).toBeNull(); // 말풍선 동안 마지막 장 유지
+    });
   });
 });
 
