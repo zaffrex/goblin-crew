@@ -1,0 +1,15 @@
+{
+  "//": "node art/build.mjs로 만든 파일. 직접 고치지 않는다. 원본: art/ui/hud-icons.mjs. 칸은 가로 한 줄, 버튼 28×28 가운데(4px 여백)에 그린다.",
+  "image": "hud-icons.png",
+  "cell": [
+    20,
+    20
+  ],
+  "icons": {
+    "stretch": 0,
+    "stomp": 1,
+    "squeak": 2,
+    "hand": 3,
+    "look": 4
+  }
+}

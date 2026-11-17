@@ -1,5 +1,6 @@
 // 스프라이트 시트 생성 (ADR-0007 결정 7·8). 원본은 art/ 아래 텍스트, 출력 PNG·JSON은 커밋한다.
 // 화면 배경·물건 시트(public/scenes/)도 여기서 만든다(art/scene-build.mjs, 형식: docs/decisions/2026-11-16-scene-art-format-v1.md).
+// HUD 동사 아이콘 시트(public/ui/hud-icons.*)도 여기서 만든다(art/ui/hud-icons.mjs, 규격: docs/design/ui-interaction.md 6-1-2절).
 // 실행:
 //   node art/build.mjs          시트(public/sprites/, public/scenes/)와 미리보기(docs/design/art/)를 다시 만든다
 //   node art/build.mjs --check  다시 만들었을 때 커밋된 시트와 바이트가 다르면 실패한다(npm test에서 부른다)
@@ -15,13 +16,14 @@ import { dirname, join, relative } from 'node:path';
 import process from 'node:process';
 import { Buffer } from 'node:buffer';
 import console from 'node:console';
-import { Image, C, EMPTY, indexedPng, animatedPng } from './lib/pixel.mjs';
+import { Image, C, EMPTY, HEX, indexedPng, animatedPng } from './lib/pixel.mjs';
 import { SHEET as JJUK, HEAD_BOX as JJUK_HEAD } from './sprites/jjuk-v4.mjs';
 import { SHEET as MUKJIK, HEAD_BOX as MUKJIK_HEAD } from './sprites/mukjik.mjs';
 import { SHEET as PPIK, HEAD_BOX as PPIK_HEAD } from './sprites/ppik.mjs';
 import { SCENE as MAGPIE_NEST } from './scenes/magpie_nest.mjs';
 import { buildScene } from './scene-build.mjs';
 import { clippedEdge } from './lib/finish.mjs';
+import { buildIcons, previewIcons } from './ui/hud-icons-build.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'public', 'sprites');
@@ -29,6 +31,7 @@ const PREVIEW = join(ROOT, 'docs', 'design', 'art');
 const SHEETS = [{ ...JJUK, head: JJUK_HEAD }, { ...MUKJIK, head: MUKJIK_HEAD }, { ...PPIK, head: PPIK_HEAD }];
 const SCENE_OUT = join(ROOT, 'public', 'scenes');
 const SCENES = [MAGPIE_NEST];
+const UI_OUT = join(ROOT, 'public', 'ui');
 
 function fail(msg) {
   throw new Error(`[art] ${msg}`);
@@ -262,6 +265,11 @@ for (const s of built) {
   if (s.clawImg) outputs.push([join(OUT, `${s.def.name}-claw.png`), indexedPng(s.clawImg)]);
 }
 
+// ── HUD 동사 아이콘(#255): 20×20 칸 가로 한 줄 + 칸 번호 메타
+const icons = buildIcons();
+outputs.push([join(UI_OUT, 'hud-icons.png'), indexedPng(icons.sheet)]);
+outputs.push([join(UI_OUT, 'hud-icons.json'), Buffer.from(JSON.stringify(icons.meta, null, 2) + '\n')]);
+
 // ── 고리 손 기준점(형식 기록 7절): 발(hold 자리) + (손 − anchor) = 화면 grips. 시트에 hold.hand가 있을 때만 본다.
 for (const S of SCENES) {
   const screen = JSON.parse(readFileSync(join(ROOT, 'content', 'screens', `${S.id}.json`), 'utf8'));
@@ -318,9 +326,12 @@ if (check) {
 } else {
   mkdirSync(OUT, { recursive: true });
   mkdirSync(SCENE_OUT, { recursive: true });
+  mkdirSync(UI_OUT, { recursive: true });
   for (const [p, buf] of outputs) writeFileSync(p, buf);
   for (const p of absent) if (existsSync(p)) rmSync(p);
   for (const line of sceneLines) console.log(line);
+  writeFileSync(join(PREVIEW, 'hud-icons-preview-4x.png'), indexedPng(previewIcons(icons.cells, HEX), 4));
+  console.log(`hud-icons: ${icons.cells.length}개 ${icons.sheet.w}×${icons.sheet.h} (${Object.keys(icons.meta.icons).join(' ')})`);
   for (const s of built) {
     writeFileSync(join(PREVIEW, `${s.def.name}-preview-4x.png`), indexedPng(previewSheet(s), 4));
     writeFileSync(join(PREVIEW, `${s.def.name}-walk-3x.png`), animatedPng(previewWalk(s), 3));
