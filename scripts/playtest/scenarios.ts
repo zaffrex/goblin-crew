@@ -9,7 +9,7 @@ import { outsidePoint } from './coords.ts';
 import type { Layout } from './plan.ts';
 
 export interface StepExpect {
-  /** 이 행동 동안 말풍선(또는 게이지 0 컷 `#faint`)에 차례로 떠야 하는 글 id (`content/text/ko.json`). 다른 글이 사이에 있어도 된다. */
+  /** 이 행동 동안 말풍선(또는 게이지 0 컷 `#faint`)에 차례로 떠야 하는 글 id (`content/text/ja.json`). 다른 글이 사이에 있어도 된다. */
   says?: string[];
   /** 연출이 끝난 뒤 HUD 게이지. */
   gauge?: number;

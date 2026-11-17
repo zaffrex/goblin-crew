@@ -41,7 +41,7 @@ ADR-0004 결정 6은 "코드 수정 없이 데이터로 퍼즐을 추가한다"�
 content/
   characters.json          # 캐릭터 공통 폴백(ADR-0003 폴백 ②), 시작 대사 등
   screens/<screenId>.json  # 화면 하나 = 파일 하나. 파일 이름 = 화면 ID
-  text/ko.json             # 문자열 리소스 { textId: "대사" } (ADR-0004 결정 3)
+  text/ja.json             # 문자열 리소스 { textId: "대사" } (ADR-0004 결정 3)
 src/core/puzzle/           # types.ts, step.ts, validate.ts, bfs.ts (+ *.test.ts)
 tests/playthrough/         # 화면마다 solution 자동 플레이
 ```

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import screenJson from '../../content/screens/magpie_nest.json';
-import texts from '../../content/text/ko.json';
+import texts from '../../content/text/ja.json';
 import { characterDef, characterHitBox, CHARACTERS, type CharacterId } from './characters';
 import type { HitBox } from './hit';
 import { CHAR_SLOTS, HUD_AREA, ITEM_SLOT, VERB_SLOTS } from './hud';
@@ -61,9 +61,9 @@ describe('기본 탭 동사 (설계 2절)', () => {
     const ctx = ctxFor(puzzleWith({}));
     const hook = { x: 162, y: 96 }; // 고리 box [150, 84, 24, 24] 중심
     const cases = [
-      ['jjuk', 'stretch', '뻗기: 빨랫줄 고리'],
-      ['mukjik', 'stomp', '쿵: 빨랫줄 고리'],
-      ['ppik', 'squeak', '삑: 빨랫줄 고리'],
+      ['jjuk', 'stretch', 'のばす: 物干しフック'],
+      ['mukjik', 'stomp', 'ドスン: 物干しフック'],
+      ['ppik', 'squeak', 'プピッ: 物干しフック'],
     ] as const;
     for (const [char, verb, text] of cases) {
       const r = resolveTap(ctx, ui(char), hook, 0);
@@ -250,11 +250,11 @@ describe('원칙 1: 규칙 데이터를 읽지 않는다', () => {
 describe('라벨 문구 (설계 7절)', () => {
   const t = (id: string): string => (texts as Record<string, string>)[id] ?? id;
   it('동사: 대상 / 이름만 / 대상 없는 동사', () => {
-    expect(labelText({ verb: 'climb', target: 'seesaw_right' }, 'magpie_nest', t)).toBe('올라서기: 시소 (빨랫줄 쪽 끝)');
-    expect(labelText({ verb: 'stretch', target: 'nest' }, 'magpie_nest', t)).toBe('뻗기: 까치 둥지');
-    expect(labelText({ verb: null, target: 'mukjik' }, 'magpie_nest', t)).toBe('묵직이');
-    expect(labelText({ verb: 'release', target: null }, 'magpie_nest', t)).toBe('손 놓기');
-    expect(labelText({ verb: 'item', target: 'basket', item: 'item.shop_key' }, 'magpie_nest', t)).toBe('가게 열쇠 쓰기: 빨래 바구니');
+    expect(labelText({ verb: 'climb', target: 'seesaw_right' }, 'magpie_nest', t)).toBe('のる: シーソー（物干し側）');
+    expect(labelText({ verb: 'stretch', target: 'nest' }, 'magpie_nest', t)).toBe('のばす: カササギの巣');
+    expect(labelText({ verb: null, target: 'mukjik' }, 'magpie_nest', t)).toBe('ズッシー');
+    expect(labelText({ verb: 'release', target: null }, 'magpie_nest', t)).toBe('手をはなす');
+    expect(labelText({ verb: 'item', target: 'basket', item: 'item.shop_key' }, 'magpie_nest', t)).toBe('店のカギを使う: 洗たくかご');
   });
 
   it('화면 1의 모든 대상에 이름이 있다', () => {

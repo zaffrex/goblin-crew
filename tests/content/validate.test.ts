@@ -7,7 +7,7 @@ import { textFits, validateCharacters, validateScreen, validateTexts, type Valid
 // 화면 1을 기준으로 한 군데씩 망가뜨려 그 검사만 걸리는지 본다.
 const load = (rel: string): unknown => JSON.parse(readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8'));
 const BASE = load('../../content/screens/magpie_nest.json') as Record<string, any>;
-const texts = load('../../content/text/ko.json') as Record<string, string>;
+const texts = load('../../content/text/ja.json') as Record<string, string>;
 const ctx = { texts };
 
 function mutate(fn: (s: Record<string, any>) => void): ValidationResult {

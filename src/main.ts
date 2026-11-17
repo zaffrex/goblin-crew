@@ -5,7 +5,7 @@
 
 import charactersJson from '../content/characters.json';
 import screenJson from '../content/screens/magpie_nest.json';
-import texts from '../content/text/ko.json';
+import texts from '../content/text/ja.json';
 import { characterDef, type CharacterId } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
@@ -84,7 +84,7 @@ onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
   // 첫 행동(걷기 포함)까지는 안내를 남겨 둔다.
   if (r.intent.kind === 'walk' || r.intent.kind === 'act') hud.hidden = true;
 });
-hud.textContent = '캐릭터를 바꾸고, 바닥이나 물건을 눌러 보세요';
+hud.textContent = t('ui.intro');
 clearCut.textContent = t('ui.clear');
 
 canvas.addEventListener('pointermove', (e) => {

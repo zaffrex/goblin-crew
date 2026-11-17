@@ -8,12 +8,12 @@ const dir = (rel: string): string => fileURLToPath(new URL(rel, import.meta.url)
 const load = (path: string): unknown => JSON.parse(readFileSync(path, 'utf8'));
 const show = (xs: ValidationIssue[]): string[] => xs.map((x) => `${x.path} [${x.code}] ${x.message}`);
 
-const texts = load(dir('../../content/text/ko.json')) as Record<string, string>;
+const texts = load(dir('../../content/text/ja.json')) as Record<string, string>;
 const ctx = { texts };
 const screens = readdirSync(dir('../../content/screens')).filter((f) => f.endsWith('.json'));
 
 describe('content validation', () => {
-  it('text/ko.json', () => {
+  it('text/ja.json', () => {
     expect(show(validateTexts(texts).errors)).toEqual([]);
   });
 

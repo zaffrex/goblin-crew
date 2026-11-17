@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import texts from '../../content/text/ko.json';
+import texts from '../../content/text/ja.json';
 import { CHARACTERS } from './characters';
 import { GAUGE_BOX, GAUGE_CELLS, GAUGE_TAG_TOP, HUD_AREA, hudHoverText, hudTags, VERB_SLOTS, VERB_TAG_TOP } from './hud';
 
@@ -9,16 +9,16 @@ const t = (id: string): string => TEXT[id] ?? id;
 describe('hudTags (늘 보이는 이름표, 설계 6-1절)', () => {
   it('능력 버튼 이름표는 지금 캐릭터 능력 동사다', () => {
     const ability = (id: (typeof CHARACTERS)[number]['id']) => hudTags(id, t).find((x) => x.id === 'verb.ability')!.text;
-    expect(ability('jjuk')).toBe('뻗기');
-    expect(ability('mukjik')).toBe('쿵');
-    expect(ability('ppik')).toBe('삑');
+    expect(ability('jjuk')).toBe('のばす');
+    expect(ability('mukjik')).toBe('ドスン');
+    expect(ability('ppik')).toBe('プピッ');
   });
 
   it('손·보기·게이지 이름표는 키 글자 그대로이고, 대상 라벨 동사와 같은 낱말이다', () => {
     const tags = Object.fromEntries(hudTags('jjuk', t).map((x) => [x.id, x.text]));
     expect(tags['verb.hand']).toBe(TEXT['ui.verb.hand']);
     expect(tags['verb.look']).toBe(TEXT['ui.verb.look']);
-    expect(tags.gauge).toBe('보송 게이지');
+    expect(tags.gauge).toBe('ふわふわゲージ');
   });
 
   it('버튼 이름표는 버튼 가운데 아래 1px, 게이지 이름표는 게이지 가운데(x 440) 아래 1px', () => {
@@ -35,25 +35,25 @@ describe('hudTags (늘 보이는 이름표, 설계 6-1절)', () => {
   });
 
   it('키가 없으면 키 이름이 보인다(빠진 번역을 숨기지 않는다)', () => {
-    const tags = hudTags('jjuk', (id) => ({ 'ui.verb.hand': '손' })[id] ?? id);
+    const tags = hudTags('jjuk', (id) => ({ 'ui.verb.hand': 'さわる' })[id] ?? id);
     expect(tags.find((x) => x.id === 'gauge')!.text).toBe('ui.hud.gauge');
   });
 });
 
 describe('hudHoverText (데스크톱 호버 설명, 6-1-3절)', () => {
   it('캐릭터 칸은 그 사람 이름으로 채운다', () => {
-    expect(hudHoverText('char.mukjik', 'jjuk', t)).toBe('묵직이 고르기');
+    expect(hudHoverText('char.mukjik', 'jjuk', t)).toBe('ズッシーにかえる');
   });
 
   it('능력 버튼은 지금 캐릭터 이름과 능력 동사로 채운다', () => {
-    expect(hudHoverText('verb.ability', 'jjuk', t)).toBe('쭉이의 능력: 뻗기');
-    expect(hudHoverText('verb.ability', 'ppik', t)).toBe('삑삑이의 능력: 삑');
+    expect(hudHoverText('verb.ability', 'jjuk', t)).toBe('ノビーの特技: のばす');
+    expect(hudHoverText('verb.ability', 'ppik', t)).toBe('プピの特技: プピッ');
   });
 
   it('손·보기·게이지는 고정 설명, 아이템 칸은 없음', () => {
-    expect(hudHoverText('verb.hand', 'jjuk', t)).toBe('손: 만지기·줍기');
-    expect(hudHoverText('verb.look', 'jjuk', t)).toBe('보기: 살펴보기');
-    expect(hudHoverText('gauge', 'jjuk', t)).toBe('보송 게이지: 실수하면 한 칸 줄어요');
+    expect(hudHoverText('verb.hand', 'jjuk', t)).toBe('さわる: 動かす・拾う');
+    expect(hudHoverText('verb.look', 'jjuk', t)).toBe('みる: よく調べる');
+    expect(hudHoverText('gauge', 'jjuk', t)).toBe('ふわふわゲージ: ミスすると1マス減ります');
     expect(hudHoverText('item.0', 'jjuk', t)).toBeNull();
   });
 });
