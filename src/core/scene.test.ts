@@ -286,6 +286,21 @@ describe('대사 변형과 힌트 ② (ADR-0065 5절, ADR-0018 F3)', () => {
     expect(seen[2]).toEqual(['magpie_nest.magpie_high_five']);
   });
 
+  it('みる는 대상별 폴백이어도 힌트 ② 횟수에 안 들어간다(#286)', () => {
+    const s = ready();
+    const seen: string[][] = [];
+    sceneTap(data, s, center(VERB_SLOTS.look), 0, false);
+    sceneTap(data, s, MAGPIE, 0, false); // 쭉이 みる: 까치 → 대상별 폴백 ①
+    seen.push(sayTexts(s));
+    for (let i = 0; i < 2; i++) {
+      sceneTap(data, s, MAGPIE, 0, false); // 쭉이 뻗기: 까치 → 폴백
+      seen.push(sayTexts(s));
+    }
+    expect(seen[0]).toEqual(['magpie_nest.look.magpie']);
+    expect(seen[1]).toEqual(['magpie_nest.magpie_high_five']); // みる를 셌다면 여기서 힌트가 붙는다
+    expect(seen[2]).toEqual(['magpie_nest.magpie_high_five', 'char.jjuk.hint_squeak']);
+  });
+
   it('힌트 능력이 자기 능력이면 힌트를 띄우지 않는다', () => {
     const run = (d: SceneData): string[] => {
       const s = createScene(d);

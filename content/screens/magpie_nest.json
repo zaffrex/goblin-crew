@@ -953,6 +953,16 @@
             ]
           }
         ]
+      },
+      "look": {
+        "show": [
+          {
+            "say": [
+              "self",
+              "magpie_nest.look.magpie"
+            ]
+          }
+        ]
       }
     },
     "nest": {
@@ -1011,6 +1021,16 @@
             ]
           }
         ]
+      },
+      "look": {
+        "show": [
+          {
+            "say": [
+              "self",
+              "magpie_nest.look.nest"
+            ]
+          }
+        ]
       }
     },
     "hook": {
@@ -1060,6 +1080,16 @@
             "say": [
               "ppik",
               "magpie_nest.hook_scary"
+            ]
+          }
+        ]
+      },
+      "look": {
+        "show": [
+          {
+            "say": [
+              "self",
+              "magpie_nest.look.hook"
             ]
           }
         ]
@@ -1121,6 +1151,16 @@
             ]
           }
         ]
+      },
+      "look": {
+        "show": [
+          {
+            "say": [
+              "self",
+              "magpie_nest.look.seesaw"
+            ]
+          }
+        ]
       }
     },
     "seesaw_right": {
@@ -1176,6 +1216,16 @@
             "say": [
               "ppik",
               "magpie_nest.seesaw_weightless"
+            ]
+          }
+        ]
+      },
+      "look": {
+        "show": [
+          {
+            "say": [
+              "self",
+              "magpie_nest.look.seesaw"
             ]
           }
         ]
@@ -1256,6 +1306,16 @@
             "say": [
               "ppik",
               "magpie_nest.basket_own_squeak"
+            ]
+          }
+        ]
+      },
+      "look": {
+        "show": [
+          {
+            "say": [
+              "self",
+              "magpie_nest.look.basket"
             ]
           }
         ]
@@ -1342,6 +1402,16 @@
             "say": [
               "ppik",
               "magpie_nest.long_johns_dont_touch"
+            ]
+          }
+        ]
+      },
+      "look": {
+        "show": [
+          {
+            "say": [
+              "self",
+              "magpie_nest.look.long_johns"
             ]
           }
         ]
