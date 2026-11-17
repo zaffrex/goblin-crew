@@ -5,11 +5,11 @@
 //   띠 ②(a) 하늘·먼 지붕·왼쪽 건물  ← 이 파일 첫 PR
 //   띠 ②(b) 담장·화단(해바라기 셋·화단 상자)  ← #142 묶음 ② 뒤 PR
 //   띠 ②(c) 바닥·오른쪽 빨랫줄·시소 받침(세제 통)·볼거리 소품  ← 같은 PR
-// 물건(`objects`)은 art/scenes/magpie_nest.objects.mjs에 그린다(물건 시트 ③). 일시 연출(`anims`)은 ③-2에서 채운다.
+// 물건(`objects`)은 art/scenes/magpie_nest.objects.mjs에 그린다(물건 시트 ③). 일시 연출(`anims`)도 같은 파일 `ANIMS`에 그린다(③-2).
 // 미리보기·검사: node docs/design/screens/magpie_nest-bg-preview.mjs (배경), node docs/design/screens/magpie_nest-objects-preview.mjs (물건)
 
 import { C } from '../lib/pixel.mjs';
-import { OBJECTS, GRIPS } from './magpie_nest.objects.mjs';
+import { OBJECTS, GRIPS, ANIMS } from './magpie_nest.objects.mjs';
 import {
   hash, rng, bay, fill, ellipse, line, stamp, darker,
   bricks, planks, grassBase, tuft, daisy, clover, pebble,
@@ -504,5 +504,5 @@ export const SCENE = {
   bg(img) { drawBg(img); },
   objects: OBJECTS,
   grips: GRIPS,
-  anims: {},
+  anims: ANIMS,
 };

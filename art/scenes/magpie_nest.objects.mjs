@@ -4,8 +4,9 @@
 // 광원은 배경과 같은 왼쪽 위 하나. 금색(yel 계열)은 열쇠 전용이다(#149 리뷰 a).
 // 좌표 근거: content/screens/magpie_nest.json 히트 박스, docs/design/screens/magpie_nest.md 1-1·1-2·1-4절.
 //
-// 이 PR(③-1)은 멈춘 모습(`draw`·`states`)과 반복(`loop`: 열쇠 반짝임, U8 까치 대기)까지다.
-// 일시 연출(`anims`: U1 fly_down·fly_up, U5 peck, U6 plank_bounce, U11 flutter, ruffle)은 ③-2에서 그린다.
+// ③-1: 멈춘 모습(`draw`·`states`)과 반복(`loop`: 열쇠 반짝임, U8 까치 대기).
+// ③-2: 일시 연출(`anims`). 까치 4개(U1 fly_down·fly_up, U5 peck, ruffle)는 그렸다. 시소 U6 plank_bounce·내복 U11 flutter는 다음 PR이다
+// (없는 동안 엔진은 그 이벤트를 건너뛰고 TIMING.anim으로 기다린다, 형식 4·9절).
 
 import { C, Image } from '../lib/pixel.mjs';
 import { hash, rng, fill, line, stamp, outlined, darker } from '../lib/texture.mjs';
@@ -184,11 +185,76 @@ function magpie(im, x, y, pose) {
 }
 const MAGPIE_NEST_AT = [129, 13]; // 앞발 끝(x 144)이 열쇠 고리 왼쪽 끝(145~153, y 28~33)을 밟는다. 고리는 가리지 않는다
 const MAGPIE_GROUND_AT = [91, 218]; // 발 y 235 = 바닥 히트 박스(212~236) 아래 끝
+const groundShadow = (im, x = MAGPIE_GROUND_AT[0]) => R(im, x + 8, 236, 10, 1, C.plum);
 const magpieOnNest = (pose) => pic((im) => magpie(im, ...MAGPIE_NEST_AT, pose));
 const magpieOnGround = (pose) => pic((im) => magpie(im, ...MAGPIE_GROUND_AT, pose), (im) => {
   // 접지 그림자(오른쪽 아래, 엔진이 사람에게 그리는 그림자와 같은 plum 한 줄)
-  R(im, MAGPIE_GROUND_AT[0] + 8, 236, 10, 1, C.plum);
+  groundShadow(im);
 });
+
+// ── 까치 일시 연출 포즈 (③-2). 앉은 포즈와 같은 범례, 같은 오른쪽 보기.
+// 'up' / 'down' = 날갯짓 두 박자(몸은 수평, 꼬리는 왼쪽으로 길게, 날개 끝 흰 반점 = 까치 날개의 흰 칼깃).
+// 'jab' = 몸을 앞으로 숙이고 부리를 오른쪽 아래로 내리찍음(U5). 꼬리가 위로 들린다.
+const MAGPIE_FLY = {
+  up: [
+    '.......kk...............',
+    '......kwwk..............',
+    '......kwTk..............',
+    '.......kTmk.............',
+    '.......ktTmk............',
+    '........ktTmk.....kkk...',
+    '.........ktTkk...kkkek..',
+    'tTT......kkkkkkkkkkgkkkk',
+    '.tTTTkkkkkkkkwwwwkkkk...',
+    '...tTTkkkkkwwwwwwwk.....',
+    '.....kkkkcwwwwwwck......',
+    '.......kkcccllcck.......',
+    '..........kd..kd........',
+  ],
+  down: [
+    '.................kkk....',
+    '................kkkek...',
+    'tTT......kkkkkkkkkgkkkk.',
+    '.tTTTkkkkkkkkwwwwkkkk...',
+    '...tTTkkkTTTkwwwwwk.....',
+    '.....kkkTmTkwwwwwck.....',
+    '......kTmTkcwwwccl......',
+    '.....kTmTk..kcllk.......',
+    '....kwmTk...kd.kd.......',
+    '....kwwk................',
+    '.....kk.................',
+  ],
+  jab: [
+    'Tk..................',
+    'tTk.................',
+    '.tTk................',
+    '..ktTk..............',
+    '...ktTkk............',
+    '....ktmTkkk.........',
+    '.....ktmTkkkk.......',
+    '......kttkkwwkk.....',
+    '.......kkwwwwwkkk...',
+    '........kwwwwwkkkk..',
+    '........kcwwwwkeeg..',
+    '.........kcllwkkkkb.',
+    '..........kkk..kkkbb',
+    '...........d..d...kb',
+    '...........d..d....k',
+    '..........dd.dd.....',
+  ],
+};
+const flyPose = (pose) => (im, x, y) => stamp(im, x, y, MAGPIE_FLY[pose], MAGPIE_LEGEND);
+/** 날아가는 한 장: 몸 + 속도선(효과, 외곽선 없음). (vx, vy) = 진행 방향 부호. 속도선은 반대쪽 뒤로 짧게 남는다. */
+const flying = (pose, x, y, vy) => pic((im) => flyPose(pose)(im, x, y), (im) => {
+  const sy = vy > 0 ? y - 3 : y + 15; // 내려가면 위에, 올라가면 아래에
+  for (const [dx, len] of [[6, 3], [12, 4], [17, 2]]) line(im, x + dx, sy, x + dx, sy + (vy > 0 ? -len : len), C.lint);
+});
+/** 쪼는 순간 부리 끝에 튀는 "탁" 별(효과). 금색은 열쇠 전용이라 흰색·분홍. */
+function hitSpark(im, x, y) {
+  stamp(im, x - 4, y - 4, ['....w....', '.l..w..l.', '..l.W.l..', '...WWW...', 'wwWWWWWww', '...WWW...', '..l.W.l..', '.l..w..l.', '....w....'], { w: C.white, W: C.white, l: C.lint });
+}
+/** 떨어지는 깃털 한 장(효과): 흰 깃 + 청록 깃대. 하늘(크림)에서도 보이게 깃털 자체에 ink 테를 둘렀다. */
+const feather = (im, x, y) => stamp(im, x, y, ['..kk', '.kwk', 'kwk.', 'mk..'], { k: C.ink, w: C.white, m: C.tealM });
 
 // ═════════════ 고리 (hook, 그림 152,92 10×8, 히트 150,84 24×24) ═════════════
 // 기둥 오른쪽 면에 나사 두 개로 박은 쇠판 + L자로 꺾인 갈고리. 갈고리 끝 아래가 y 100(손 기준점 158,100, 형식 7절).
@@ -350,6 +416,84 @@ export const OBJECTS = {
   long_johns: { draw: longJohns },
   seesaw: { ids: ['seesaw_left', 'seesaw_right'], draw: seesaw },
   basket: { draw: basketBack, overlay: { sortY: 236, draw: basketFront } },
+};
+
+// ═════════════ 일시 연출 (③-2, 형식 4·4-1·4-2절) ═════════════
+// 상태를 바꾸는 anim은 첫 칸 = 출발 자리, 마지막 칸 = 도착 자리(4-2절 (a)). 마지막 칸은 도착 상태의 멈춘 모습과 같은 그림이라
+// anim이 끝나 `loop`로 넘어갈 때 튀지 않는다. ms 합은 1500 이하(8절).
+const [NX, NY] = MAGPIE_NEST_AT, [GX, GY] = MAGPIE_GROUND_AT;
+const nestPose = (pose, dx = 0, fx) => pic((im) => magpie(im, NX + dx, NY, pose), fx);
+const groundPose = (pose, dx = 0, fx) => pic((im) => magpie(im, GX + dx, GY, pose), (im) => { groundShadow(im, GX + dx); if (fx) fx(im); });
+
+// U1 까치 내려와 노려보기(규칙 4 `magpie_squeak_down`). "삑!"에 깃털이 곤두서고 → 퍼덕퍼덕 거의 수직으로 떨어지듯 내려와 →
+// 바닥에서 한 번 더 부풀려 노려본 뒤 → 바닥 smug(= 바닥 상태 멈춘 모습).
+const FLY_PATH = [[124, 20], [117, 58], [110, 98], [103, 138], [97, 176]];
+const flyDown = {
+  ms: [120, 70, 70, 70, 70, 70, 90, 150, 150],
+  frames: [
+    nestPose('puff'),
+    ...FLY_PATH.map(([x, y], i) => flying(i % 2 ? 'down' : 'up', x, y, 1)),
+    pic((im) => flyPose('up')(im, 92, 206), (im) => groundShadow(im)),
+    groundPose('puff'),
+    groundPose('smug'),
+  ],
+  layer: 'front', // 내려오는 동안 캐릭터 앞(형식 6절)
+};
+// U1 거꾸로(규칙 6 `magpie_stomp_back`). "쿵"에 고개 홱 → 같은 길을 거꾸로 올라가 → 둥지에서 깃털 정리 → 둥지 smug.
+const flyUp = {
+  ms: [120, 70, 70, 70, 70, 70, 90, 150, 100],
+  frames: [
+    groundPose('flick'),
+    pic((im) => flyPose('down')(im, 92, 206), (im) => groundShadow(im)),
+    ...[...FLY_PATH].reverse().map(([x, y], i) => flying(i % 2 ? 'down' : 'up', x, y, -1)),
+    nestPose('puff'),
+    nestPose('smug'),
+  ],
+  layer: 'front',
+};
+
+// U5 까치 쪼기. 둥지 위(규칙 2 `hook_jjuk_pecked*`): 매달린 쭉이 손(고리 158,100)까지 내리꽂혀 "탁" → 둥지로.
+// 바닥(규칙 7 `magpie_stretch_pecked`): 오른쪽에 선 쭉이(발 x 약 129) 손 쪽으로 깡충 뛰어 "탁" → 제자리.
+const peckNest = {
+  ms: [120, 70, 180, 80, 100],
+  frames: [
+    nestPose('flick'),
+    flying('down', 134, 50, 1),
+    pic((im) => flyPose('jab')(im, 138, 84), (im) => hitSpark(im, 160, 99)),
+    flying('up', 132, 48, -1),
+    nestPose('smug'),
+  ],
+  layer: 'front', // 매달린 캐릭터(형식 6절 3번)보다 앞이어야 손을 쪼는 게 보인다
+};
+const peckGround = {
+  ms: [120, 70, 180, 80, 100],
+  frames: [
+    groundPose('flick'),
+    pic((im) => flyPose('up')(im, 98, 200), (im) => groundShadow(im, GX + 6)),
+    pic((im) => flyPose('jab')(im, 104, 194), (im) => { hitSpark(im, 126, 209); groundShadow(im, GX + 8); }),
+    pic((im) => flyPose('down')(im, 93, 214), (im) => groundShadow(im, GX + 2)),
+    groundPose('smug'),
+  ],
+  layer: 'front',
+};
+
+// 깃털 털기(`ruffle`): 화면 진입·규칙 5·쿵/뻗기에 놀람. 부풀린 채 좌우로 부르르 → 깃털이 튄다 → 하나가 떨어진다.
+const ruffleFrames = (pose, [x, y]) => [
+  pose('puff', -2),
+  pose('puff', 2, (im) => { feather(im, x - 5, y + 3); feather(im, x + 21, y + 7); feather(im, x + 7, y - 4); }),
+  pose('puff', 0, (im) => { feather(im, x - 6, y + 10); }),
+];
+const ruffle = {
+  ms: [100, 150, 100],
+  frames: ruffleFrames(nestPose, MAGPIE_NEST_AT),
+  variants: [{ when: { flags: { 'magpie.on_ground': true } }, ms: [100, 150, 100], frames: ruffleFrames(groundPose, MAGPIE_GROUND_AT), layer: 'front' }],
+};
+
+export const ANIMS = {
+  'magpie.fly_down': flyDown,
+  'magpie.fly_up': flyUp,
+  'magpie.peck': { ...peckNest, variants: [{ when: { flags: { 'magpie.on_ground': true } }, ...peckGround }] },
+  'magpie.ruffle': ruffle,
 };
 
 /** 고리 손 기준점(형식 7절). 매달린 자세 프레임의 손이 여기 와야 한다. */
