@@ -175,6 +175,14 @@ describe('HUD (설계 6절)', () => {
     });
   });
 
+  it('버튼 아래 이름표 띠(y 65–75)를 눌러도 걷지 않는다(설계 6-1-4절, #255)', () => {
+    const c = ctxFor(puzzleWith({}));
+    for (const y of [65, 70, 75]) {
+      const r = resolveTap(c, ui('jjuk'), { x: VERB_SLOTS.hand.left + 14, y }, 0);
+      expect(r.kind).toBe('none');
+    }
+  });
+
   it('HUD 영역은 validate.ts의 HUD_BOX와 같다', () => {
     expect([HUD_AREA.left, HUD_AREA.top, HUD_AREA.width, HUD_AREA.height]).toEqual([...HUD_BOX]);
   });
