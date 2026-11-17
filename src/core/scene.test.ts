@@ -115,6 +115,49 @@ describe('busy 중 입력 (설계 5절)', () => {
     expect(TIMING.clearSkipAfter).toBe(24);
   });
 
+  /** 둥지를 계속 눌러 같은 글이 다시 뜰 때까지 돌린다. 매번 끝까지 띄운다(idle). 처음 본 글은 0.4초에 아직 안 넘어가는지도 본다. */
+  function nestUntilRepeat(s: SceneState): string {
+    const seen = new Set<string>();
+    for (let n = 0; n < 10; n++) {
+      sceneTap(data, s, NEST, 0, false);
+      const text = untilSay(s);
+      if (seen.has(text)) return text;
+      for (let i = 0; i < TIMING.seenSaySkipAfter; i++) sceneTick(data, s);
+      // 처음 보는 글(변형 `*_again` 포함)은 다른 글 ID라 1.0초 규칙이다.
+      expect(sceneTap(data, s, NEST, 0, false).kind).toBe('ignored');
+      seen.add(text);
+      idle(s);
+    }
+    throw new Error('같은 글이 다시 안 떴다');
+  }
+
+  it('이미 끝까지 본 말풍선은 0.4초(23틱 ignored → 24틱 skipSay)에 넘어간다(ability-feedback.md 6절, #289)', () => {
+    const s = ready();
+    const text = nestUntilRepeat(s);
+    expect(s.seenSay[text]).toBe(true);
+    for (let i = 0; i < TIMING.seenSaySkipAfter - 1; i++) sceneTick(data, s);
+    expect(sceneTap(data, s, NEST, 0, false).kind).toBe('ignored');
+    sceneTick(data, s);
+    expect(sceneTap(data, s, NEST, 0, false).kind).toBe('skipSay');
+    sceneTick(data, s);
+    expect(currentBubble(s)).toBeNull();
+  });
+
+  it('탭으로 넘긴 말풍선도 본 것으로 친다(넘기기는 1.0초 뒤에만 되니 적어도 1.0초 보였다)', () => {
+    const s = ready();
+    sceneTap(data, s, NEST, 0, false);
+    const text = untilSay(s);
+    expect(s.seenSay[text]).toBeUndefined();
+    for (let i = 0; i < TIMING.saySkipAfter; i++) sceneTick(data, s);
+    expect(sceneTap(data, s, NEST, 0, false).kind).toBe('skipSay');
+    sceneTick(data, s);
+    expect(s.seenSay[text]).toBe(true);
+  });
+
+  it('새 판(createScene)은 본 대사가 비어 있다', () => {
+    expect(createScene(data).seenSay).toEqual({});
+  });
+
   it('자동 걷기 중 탭은 걷기만 끝 위치로 건너뛰고 새 행동은 받지 않는다(ADR-0065 6절 개정)', () => {
     const s = ready();
     sceneTap(data, s, SEESAW_LEFT, 0, false); // 쭉이 올라서기

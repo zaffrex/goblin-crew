@@ -40,6 +40,11 @@ export const TIMING = {
    * `sayBase`(60)보다 크면 짧은 대사를 아예 못 넘기게 되니 `sayBase` 이하로 둔다.
    */
   saySkipAfter: 60,
+  /**
+   * 이미 본 말풍선(같은 판에서 같은 글 ID를 끝까지 띄운 적 있음)은 0.4초 뒤 넘길 수 있다(`ability-feedback.md` 6절, #289).
+   * 두 번째 보는 실패 대사를 기다리지 않게 한다(`ui-interaction.md` 5절). 값은 `clearSkipAfter`와 같지만 뜻이 달라 따로 둔다.
+   */
+  seenSaySkipAfter: 24,
   /** 클리어 컷 글이 뜬 뒤 이만큼 지나야 탭으로 넘길 수 있다(0.4초, `magpie_nest.md` 8절·`ui-interaction.md` 11-1절, #266). 말풍선과 따로 둔다. */
   clearSkipAfter: 24,
   /** 자동 걷기 속도. 엔진 걷기와 같다. */
@@ -127,6 +132,11 @@ export interface SceneState {
   held: Partial<Record<CharacterId, { name: string; ms: number }>>;
   /** 캐릭터가 마지막으로 한 행동의 대상 점(핫스팟 `reachPoint`, 없으면 대상 상자 아래 끝 가운데, #284). 장대 잇기(5-1절)가 쓴다. 상자도 없으면 키가 없다. */
   reach: Partial<Record<CharacterId, Point>>;
+  /**
+   * 끝까지 띄운 말풍선 글 ID(#284, `ability-feedback.md` 6절). 여기 있으면 `seenSaySkipAfter` 뒤에 넘길 수 있다.
+   * 넘기기는 `saySkipAfter` 뒤에만 되니 "끝까지 띄움 = 적어도 1.0초 보임"이다. UI 상태라 세이브하지 않고, 게이지 0 리셋에서도 지우지 않는다.
+   */
+  seenSay: Record<string, true>;
   cleared: boolean;
 }
 
@@ -196,6 +206,7 @@ export function createScene(data: SceneData): SceneState {
     landed: {},
     held: {},
     reach: {},
+    seenSay: {},
     cleared: false,
   };
   // onEnter는 상태를 바꾸지 않는 연출이다(ADR-0065 5절). say 화자는 캐릭터 ID만 온다.
@@ -619,6 +630,7 @@ export function sceneTick(data: SceneData, s: SceneState): void {
     if (!finished(s, s.current)) return;
     if (s.current.ev.type === 'faint') s.shownGauge = GAUGE_MAX;
     if (s.current.ev.type === 'walk' && s.current.ev.face !== undefined) s.walkers[s.current.ev.char].facing = s.current.ev.face;
+    if (s.current.ev.type === 'say') s.seenSay[s.current.ev.text] = true;
     holdLast(s, s.current);
     commitShown(s, s.current.seq, 'end');
     s.current = null;
@@ -636,7 +648,7 @@ export type SceneTapResult =
  * 탭 하나. busy 동안은 새 행동을 받지 않고, 월드 탭으로 하는 전환·무장도 받지 않는다(설계 5절).
  * - HUD 칸: busy 중에도 바로 전환·무장한다(예외 셋, #266). HUD 띠의 빈 곳은 무시.
  * - 자동 걷기 중: 걷기만 끝 위치로 건너뛴다. 남은 이벤트는 그대로 재생한다.
- * - 말풍선이 뜬 뒤 1.0초(`saySkipAfter`)가 지났으면: 그 말풍선만 끝낸다.
+ * - 말풍선이 뜬 뒤 1.0초(`saySkipAfter`, 이미 본 글이면 0.4초 `seenSaySkipAfter`)가 지났으면: 그 말풍선만 끝낸다.
  */
 export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number, touch: boolean): SceneTapResult {
   const cur = s.current;
@@ -663,7 +675,7 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
       if (w.target) teleport(w, w.target);
       return { kind: 'skipWalk' };
     }
-    if (cur.ev.type === 'say' && cur.t >= TIMING.saySkipAfter) {
+    if (cur.ev.type === 'say' && cur.t >= (s.seenSay[cur.ev.text] ? TIMING.seenSaySkipAfter : TIMING.saySkipAfter)) {
       cur.duration = cur.t;
       return { kind: 'skipSay' };
     }
