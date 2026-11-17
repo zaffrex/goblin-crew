@@ -88,7 +88,7 @@ describe('busy 중 입력 (설계 5절)', () => {
     expect(JSON.stringify(s.puzzle)).toBe(before);
   });
 
-  it('말풍선은 0.4초 전에는 안 넘어가고, 그 뒤 탭 한 번에 그 말풍선만 끝난다', () => {
+  it('말풍선은 1.0초 전에는 안 넘어가고, 그 뒤 탭 한 번에 그 말풍선만 끝난다', () => {
     const s = ready();
     sceneTap(data, s, NEST, 0, false);
     untilSay(s);
@@ -98,6 +98,64 @@ describe('busy 중 입력 (설계 5절)', () => {
     expect(sceneTap(data, s, NEST, 0, false).kind).toBe('skipSay');
     sceneTick(data, s);
     expect(currentBubble(s)).toBeNull();
+  });
+
+  it('말풍선은 예전 0.4초(클리어 컷 가드)에는 아직 안 넘어간다(#284 최소 1.0초)', () => {
+    const s = ready();
+    sceneTap(data, s, NEST, 0, false);
+    untilSay(s);
+    for (let i = 0; i < TIMING.clearSkipAfter; i++) sceneTick(data, s);
+    expect(sceneTap(data, s, NEST, 0, false).kind).toBe('ignored');
+    expect(currentBubble(s)).not.toBeNull();
+  });
+
+  it('최소 표시 시간은 1.0초이고, 가장 짧은 대사 길이(sayBase)를 넘지 않는다', () => {
+    expect(TIMING.saySkipAfter).toBe(60);
+    expect(TIMING.saySkipAfter).toBeLessThanOrEqual(TIMING.sayBase);
+    expect(TIMING.clearSkipAfter).toBe(24);
+  });
+
+  /** 둥지를 계속 눌러 같은 글이 다시 뜰 때까지 돌린다. 매번 끝까지 띄운다(idle). 처음 본 글은 0.4초에 아직 안 넘어가는지도 본다. */
+  function nestUntilRepeat(s: SceneState): string {
+    const seen = new Set<string>();
+    for (let n = 0; n < 10; n++) {
+      sceneTap(data, s, NEST, 0, false);
+      const text = untilSay(s);
+      if (seen.has(text)) return text;
+      for (let i = 0; i < TIMING.seenSaySkipAfter; i++) sceneTick(data, s);
+      // 처음 보는 글(변형 `*_again` 포함)은 다른 글 ID라 1.0초 규칙이다.
+      expect(sceneTap(data, s, NEST, 0, false).kind).toBe('ignored');
+      seen.add(text);
+      idle(s);
+    }
+    throw new Error('같은 글이 다시 안 떴다');
+  }
+
+  it('이미 끝까지 본 말풍선은 0.4초(23틱 ignored → 24틱 skipSay)에 넘어간다(ability-feedback.md 6절, #289)', () => {
+    const s = ready();
+    const text = nestUntilRepeat(s);
+    expect(s.seenSay[text]).toBe(true);
+    for (let i = 0; i < TIMING.seenSaySkipAfter - 1; i++) sceneTick(data, s);
+    expect(sceneTap(data, s, NEST, 0, false).kind).toBe('ignored');
+    sceneTick(data, s);
+    expect(sceneTap(data, s, NEST, 0, false).kind).toBe('skipSay');
+    sceneTick(data, s);
+    expect(currentBubble(s)).toBeNull();
+  });
+
+  it('탭으로 넘긴 말풍선도 본 것으로 친다(넘기기는 1.0초 뒤에만 되니 적어도 1.0초 보였다)', () => {
+    const s = ready();
+    sceneTap(data, s, NEST, 0, false);
+    const text = untilSay(s);
+    expect(s.seenSay[text]).toBeUndefined();
+    for (let i = 0; i < TIMING.saySkipAfter; i++) sceneTick(data, s);
+    expect(sceneTap(data, s, NEST, 0, false).kind).toBe('skipSay');
+    sceneTick(data, s);
+    expect(s.seenSay[text]).toBe(true);
+  });
+
+  it('새 판(createScene)은 본 대사가 비어 있다', () => {
+    expect(createScene(data).seenSay).toEqual({});
   });
 
   it('자동 걷기 중 탭은 걷기만 끝 위치로 건너뛰고 새 행동은 받지 않는다(ADR-0065 6절 개정)', () => {
@@ -141,7 +199,7 @@ describe('busy 중 HUD 칸 탭 (설계 5절 예외 셋, #266)', () => {
     expect(untilSay(s)).toBe('magpie_nest.enter');
   });
 
-  it('말풍선 0.4초 전·후 HUD 탭은 말풍선을 넘기지 않는다. 같은 때 월드 탭은 지금처럼 skipSay', () => {
+  it('말풍선 1.0초 전·후 HUD 탭은 말풍선을 넘기지 않는다. 같은 때 월드 탭은 지금처럼 skipSay', () => {
     const s = createScene(data);
     untilSay(s);
     expect(sceneTap(data, s, center(CHAR_SLOTS.ppik), 0, false).kind).toBe('intent');
@@ -574,7 +632,9 @@ describe('클리어 컷 L32 (magpie_nest.md 8절, #68)', () => {
     const s = clearNow(withLine);
     while (s.current?.ev.type !== 'clear') sceneTick(withLine, s);
     expect(sceneTap(withLine, s, SEESAW_LEFT, 0, false).kind).toBe('ignored');
-    for (let i = 0; i < TIMING.saySkipAfter; i++) sceneTick(withLine, s);
+    for (let i = 0; i < TIMING.clearSkipAfter - 1; i++) sceneTick(withLine, s);
+    expect(sceneTap(withLine, s, SEESAW_LEFT, 0, false).kind).toBe('ignored');
+    sceneTick(withLine, s);
     expect(sceneTap(withLine, s, SEESAW_LEFT, 0, false).kind).toBe('skipSay');
     sceneTick(withLine, s);
     expect(isBusy(s)).toBe(false);
@@ -598,7 +658,7 @@ describe('클리어 컷 L32 (magpie_nest.md 8절, #68)', () => {
     const s = clearNow(withLine);
     while (s.current?.ev.type !== 'clear') sceneTick(withLine, s);
     const ui = JSON.stringify(s.ui);
-    for (let i = 0; i < TIMING.saySkipAfter; i++) sceneTick(withLine, s);
+    for (let i = 0; i < TIMING.clearSkipAfter; i++) sceneTick(withLine, s);
     // 클리어 컷 분기가 busy HUD 분기보다 먼저다. 순서가 바뀌면 이 탭이 전환이 되고 컷이 안 넘어간다.
     expect(sceneTap(withLine, s, center(CHAR_SLOTS.ppik), 0, false).kind).toBe('skipSay');
     expect(JSON.stringify(s.ui)).toBe(ui);
@@ -613,7 +673,7 @@ describe('클리어 컷 L32 (magpie_nest.md 8절, #68)', () => {
     const ui = JSON.stringify(s.ui);
     // busy 중 HUD 띠 빈 곳 무시(5절)는 클리어 컷 분기 뒤에 와야 한다. 순서가 바뀌면 이 탭이 ignored가 된다.
     expect(sceneTap(withLine, s, center(GAUGE_BOX), 0, false).kind).toBe('ignored');
-    for (let i = 0; i < TIMING.saySkipAfter; i++) sceneTick(withLine, s);
+    for (let i = 0; i < TIMING.clearSkipAfter; i++) sceneTick(withLine, s);
     expect(sceneTap(withLine, s, center(GAUGE_BOX), 0, false).kind).toBe('skipSay');
     expect(JSON.stringify(s.ui)).toBe(ui);
     sceneTick(withLine, s);
