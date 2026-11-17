@@ -8,10 +8,11 @@ const texts = JSON.parse(
   readFileSync(new URL("../../content/text/ja.json", import.meta.url), "utf8"),
 ) as Record<string, string>;
 
-/** 줄 머리 금칙 글자 (ja-text.md 2절): 、。！？…ー + 작은 가나 + 닫는 괄호. */
+/** 줄 머리 금칙 글자 (ja-text.md 2절): 、。！？…ー・〜 + 작은 가나 + 닫는 괄호. */
 const NO_LINE_HEAD = new Set([
-  ..."、。！？…ー",
-  ..."っゃゅょァィゥェォッャュョ",
+  ..."、。！？…ー・〜",
+  ..."ぁぃぅぇぉっゃゅょゎゕゖ",
+  ..."ァィゥェォッャュョヮヵヶ",
   ..."」』）】〕〉》］｝",
 ]);
 /** 예외 2: 앞 줄이 이 글자로 끝나면 줄 머리 `…`를 허용한다 ("한 박자 쉬고 반전"). */
@@ -65,6 +66,9 @@ describe("ja.json 줄 규칙 (ja-text.md 2절, #280)", () => {
     expect(kinsokuViolations("これは\n…ちがう")).toHaveLength(1); // 문장 중간
     expect(kinsokuViolations("やった！\n。あれ")).toHaveLength(1); // … 외 금칙은 예외 없음
     expect(kinsokuViolations("ちょ\nっと")).toHaveLength(1);
+    expect(kinsokuViolations("うわ\nぁぁ！")).toHaveLength(1); // 비명의 작은 가나
+    expect(kinsokuViolations("あ\n〜あ")).toHaveLength(1);
+    expect(kinsokuViolations("動かす\n・拾う")).toHaveLength(1);
     expect(kinsokuViolations("「えっ\n」")).toHaveLength(1);
   });
 });
