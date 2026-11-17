@@ -34,8 +34,14 @@ export const TIMING = {
   sayBase: 60,
   sayPerChar: 4,
   sayMax: 240,
-  /** 말풍선이 뜬 뒤 이만큼 지나야 탭으로 넘길 수 있다(설계 5절, 0.4초). */
-  saySkipAfter: 24,
+  /**
+   * 말풍선이 뜬 뒤 이만큼 지나야 탭으로 넘길 수 있다(1.0초, #284 Luna 결정 11/18 `#goblin-dev`).
+   * 일본어 한 줄(14자 이하)을 겨우 읽는 시간. 예전 0.4초는 판정 2 2차에서 "대사가 잠깐만 뜬다"로 읽혔다.
+   * `sayBase`(60)보다 크면 짧은 대사를 아예 못 넘기게 되니 `sayBase` 이하로 둔다.
+   */
+  saySkipAfter: 60,
+  /** 클리어 컷 글이 뜬 뒤 이만큼 지나야 탭으로 넘길 수 있다(0.4초, `magpie_nest.md` 8절·`ui-interaction.md` 11-1절, #266). 말풍선과 따로 둔다. */
+  clearSkipAfter: 24,
   /** 자동 걷기 속도. 엔진 걷기와 같다. */
   walkSpeed: WALK_SPEED,
 } as const;
@@ -630,13 +636,13 @@ export type SceneTapResult =
  * 탭 하나. busy 동안은 새 행동을 받지 않고, 월드 탭으로 하는 전환·무장도 받지 않는다(설계 5절).
  * - HUD 칸: busy 중에도 바로 전환·무장한다(예외 셋, #266). HUD 띠의 빈 곳은 무시.
  * - 자동 걷기 중: 걷기만 끝 위치로 건너뛴다. 남은 이벤트는 그대로 재생한다.
- * - 말풍선이 뜬 뒤 0.4초가 지났으면: 그 말풍선만 끝낸다.
+ * - 말풍선이 뜬 뒤 1.0초(`saySkipAfter`)가 지났으면: 그 말풍선만 끝낸다.
  */
 export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number, touch: boolean): SceneTapResult {
   const cur = s.current;
-  // 클리어 컷은 말풍선처럼 0.4초 뒤 탭으로 넘긴다(`magpie_nest.md` 8절·`ui-interaction.md` 11-1절: 다시 볼 때 기다리지 않게). 클리어 뒤 다른 입력은 받지 않는다.
+  // 클리어 컷은 0.4초 뒤 탭으로 넘긴다(`magpie_nest.md` 8절·`ui-interaction.md` 11-1절: 다시 볼 때 기다리지 않게). 말풍선(1.0초)과 따로다. 클리어 뒤 다른 입력은 받지 않는다.
   if (cur?.ev.type === 'clear') {
-    if (cur.t < TIMING.saySkipAfter) return { kind: 'ignored' };
+    if (cur.t < TIMING.clearSkipAfter) return { kind: 'ignored' };
     cur.duration = cur.t;
     return { kind: 'skipSay' };
   }
