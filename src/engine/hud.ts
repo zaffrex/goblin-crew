@@ -1,9 +1,11 @@
 // HUD 그림 (설계 6절·6-1-2절, #255). 배치 숫자는 core/hud.ts 하나만 쓴다(그림과 입력 판정이 어긋나지 않게).
 // 32색 팔레트만 쓴다(docs/design/art/bosong-32.hex). 이름표 글자는 DOM이라 여기 없다(main.ts).
-// 동사 아이콘 그림이 오기 전에는 버튼 안에 임시 한 글자를 그린다. 아이콘 시트가 오면 `drawIcon` 자리만 바꾼다.
+// 동사 버튼은 아이콘 시트(public/ui/hud-icons.png, engine/hudIcons.ts)로 그린다. 시트가 아직·실패면 임시 한 글자를 그린다.
 
 import type { CharacterId } from '../core/characters';
 import type { HitBox } from '../core/hit';
+import type { HudId } from '../core/hud';
+import { hudIconId, ICON_INSET } from '../core/hudIcons';
 
 /** 보송 32색 중 HUD가 쓰는 것. 번호는 bosong-32.hex 줄 순서(0부터). */
 const C = {
@@ -20,19 +22,22 @@ const C = {
 /** 얼굴 시트가 아직 없을 때 캐릭터 칸 임시 색(팔레트 안). */
 const FACE_FALLBACK: Record<CharacterId, string> = { jjuk: '#4f7a52', mukjik: '#c2404a', ppik: '#f2d65c' };
 
-/** 아이콘 전 임시 한 글자. 능력은 그 캐릭터 동사 첫 글자다(이름표와 같은 낱말). */
+/** 아이콘 시트가 없을 때 임시 한 글자. 능력은 그 캐릭터 동사 첫 글자다(이름표와 같은 낱말). 아이템 칸은 아직 늘 이 글자다. */
 const GLYPH: Record<string, string> = { 'verb.hand': '손', 'verb.look': '눈', 'item.0': '물' };
 
 export interface HudView {
   active: CharacterId;
   armed: string | null;
   gauge: number;
-  /** 능력 버튼 임시 글자(지금 캐릭터 능력 이름표의 첫 글자). */
+  /** 능력 버튼 임시 글자(지금 캐릭터 능력 이름표의 첫 글자). 아이콘 시트가 없을 때만 쓴다. */
   abilityGlyph: string;
 }
 
 /** 얼굴을 그린다. 시트가 없거나 아직이면 false(→ 임시 색 칸). */
 export type DrawFace = (ctx: CanvasRenderingContext2D, id: CharacterId, at: { x: number; y: number }) => boolean;
+
+/** 동사 아이콘(20×20)을 그린다. 시트가 없거나 아직이거나 모르는 id면 false(→ 임시 글자). */
+export type DrawIcon = (ctx: CanvasRenderingContext2D, id: string, at: { x: number; y: number }) => boolean;
 
 function frame(ctx: CanvasRenderingContext2D, b: HitBox, fill: string, edge: string): void {
   ctx.fillStyle = edge;
@@ -47,6 +52,7 @@ export function drawHud(
   gauge: readonly HitBox[],
   view: HudView,
   drawFace: DrawFace,
+  drawIcon: DrawIcon,
 ): void {
   ctx.font = '10px system-ui, sans-serif';
   ctx.textAlign = 'center';
@@ -71,6 +77,9 @@ export function drawHud(
     frame(ctx, b, armed ? C.cream : C.plum, armed ? C.ink : C.plumEdge);
     // 무장 중(눌림)은 아이콘을 1px 아래로.
     const dy = armed ? 1 : 0;
+    // 아이콘 20×20을 버튼 28×28 가운데(4px 여백)에(6-1-2절).
+    const icon = hudIconId(id as HudId, view.active);
+    if (icon && drawIcon(ctx, icon, { x: b.left + ICON_INSET, y: b.top + ICON_INSET + dy })) continue;
     ctx.fillStyle = armed ? C.ink : C.paper;
     const glyph = id === 'verb.ability' ? view.abilityGlyph : (GLYPH[id] ?? '?');
     ctx.fillText(glyph, b.left + b.width / 2, b.top + b.height / 2 + 1 + dy);
