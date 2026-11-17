@@ -1,0 +1,67 @@
+{
+  "//": "node art/build.mjs로 만든 파일. 직접 고치지 않는다. 원본: art/ui/fx-text.mjs. 칸 = 글자 속 + 외곽선 1px. 기준점은 칸 아래 가운데 (floor(w/2), h). ting_spark는 fx가 아니라 キン 옆에 찍는 반짝 부품이다.",
+  "image": "fx-text.png",
+  "anchor": "bottom-center",
+  "cells": {
+    "squeak_text": [
+      0,
+      0,
+      31,
+      10
+    ],
+    "small_squeak_text": [
+      31,
+      0,
+      23,
+      8
+    ],
+    "kkak_text": [
+      54,
+      0,
+      25,
+      10
+    ],
+    "ting_text": [
+      79,
+      0,
+      17,
+      10
+    ],
+    "clang_text": [
+      96,
+      0,
+      25,
+      10
+    ],
+    "creak_text": [
+      121,
+      0,
+      25,
+      10
+    ],
+    "squeak_bounce": [
+      146,
+      0,
+      28,
+      10
+    ],
+    "stretch_text": [
+      174,
+      0,
+      35,
+      10
+    ],
+    "stomp_text": [
+      209,
+      0,
+      35,
+      12
+    ],
+    "ting_spark": [
+      244,
+      0,
+      5,
+      5
+    ]
+  }
+}
