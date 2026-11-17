@@ -66,7 +66,7 @@
   "ui.verb.item": "{item}を使う",
   "ui.hud.gauge": "ふわふわゲージ",
   "ui.hud.char_hover": "{name}に交代",
-  "ui.hud.ability_hover": "{name}の特技: {verb}",
+  "ui.hud.ability_hover": "{verb}: {desc}",
   "ui.hud.hand_hover": "さわる: 動かす・拾う",
   "ui.hud.look_hover": "みる: よく調べる",
   "ui.hud.gauge_hover": "ふわふわゲージ: ミスで1マス減る。0でみんなスタートへ",

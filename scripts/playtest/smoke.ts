@@ -117,8 +117,8 @@ async function runViewport(browser: Browser, v: Viewport, outDir: string): Promi
     r.problems.push(`보낸 입력 ${sent} 1번 ↔ 게임이 받은 pointerdown [${r.input.seen.join(', ')}]`);
   }
   if (!r.input.onCanvas) r.problems.push('pointerdown이 캔버스에 닿지 않음');
-  // 지금 빌드(#43) 전용 확인. #68에서 안내 UI가 바뀌면 이 줄을 같이 바꾼다.
-  if (!hudHidden) r.warnings.push('바닥 탭 뒤에도 #hud 안내가 남아 있음 (#43 빌드 기준 확인)');
+  // 목표 줄(#285, ui-interaction.md 6-2-2절)은 첫 행동 뒤에도 늘 보여야 한다.
+  if (hudHidden) r.warnings.push('바닥 탭 뒤에 #hud 목표 줄이 사라짐 (6-2-2절: 늘 보임)');
   await shot('after-floor-tap');
 
   if (page.errors.length > 0) r.problems.push(`A4 콘솔 에러 ${page.errors.length}개`);
