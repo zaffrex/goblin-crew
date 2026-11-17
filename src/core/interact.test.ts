@@ -61,9 +61,9 @@ describe('기본 탭 동사 (설계 2절)', () => {
     const ctx = ctxFor(puzzleWith({}));
     const hook = { x: 162, y: 96 }; // 고리 box [150, 84, 24, 24] 중심
     const cases = [
-      ['jjuk', 'stretch', 'のばす: 物干しフック'],
-      ['mukjik', 'stomp', 'ドスン: 物干しフック'],
-      ['ppik', 'squeak', 'プピッ: 物干しフック'],
+      ['jjuk', 'stretch', 'のばす: 柱のフック'],
+      ['mukjik', 'stomp', 'ドスン: 柱のフック'],
+      ['ppik', 'squeak', 'プピッ: 柱のフック'],
     ] as const;
     for (const [char, verb, text] of cases) {
       const r = resolveTap(ctx, ui(char), hook, 0);
@@ -250,7 +250,7 @@ describe('원칙 1: 규칙 데이터를 읽지 않는다', () => {
 describe('라벨 문구 (설계 7절)', () => {
   const t = (id: string): string => (texts as Record<string, string>)[id] ?? id;
   it('동사: 대상 / 이름만 / 대상 없는 동사', () => {
-    expect(labelText({ verb: 'climb', target: 'seesaw_right' }, 'magpie_nest', t)).toBe('のる: シーソー（物干し側）');
+    expect(labelText({ verb: 'climb', target: 'seesaw_right' }, 'magpie_nest', t)).toBe('のる: シーソーの右はし');
     expect(labelText({ verb: 'stretch', target: 'nest' }, 'magpie_nest', t)).toBe('のばす: カササギの巣');
     expect(labelText({ verb: null, target: 'mukjik' }, 'magpie_nest', t)).toBe('ズッシー');
     expect(labelText({ verb: 'release', target: null }, 'magpie_nest', t)).toBe('手をはなす');
