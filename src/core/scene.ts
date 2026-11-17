@@ -145,6 +145,14 @@ export function isBusy(s: SceneState): boolean {
   return s.current !== null || s.queue.length > 0 || s.overlays.length > 0;
 }
 
+/**
+ * ▼ 조작 표시를 그릴지(#46). 행동 중·클리어 뒤에는 숨긴다.
+ * 말풍선(`currentBubble`)은 `current`가 있을 때만 뜨니 busy이고, 그래서 ▼와 같은 순간에 나오지 않는다.
+ */
+export function activeMarkerVisible(s: SceneState): boolean {
+  return !isBusy(s) && !s.cleared;
+}
+
 function spotPoint(data: SceneData, spotId: string): Point {
   const spot = data.screen.spots[spotId];
   if (!spot) throw new Error(`알 수 없는 자리: ${spotId}`);

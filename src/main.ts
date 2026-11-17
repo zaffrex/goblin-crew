@@ -13,7 +13,7 @@ import type { HitBox } from './core/hit';
 import { GAUGE_CELLS, HUD_AREA } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
-import { activeFx, charPose, createScene, currentBubble, drawOrder, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
+import { activeFx, activeMarkerVisible, charPose, createScene, currentBubble, drawOrder, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
 import { coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point } from './core/viewport';
 import { createDisplay } from './engine/display';
@@ -191,7 +191,7 @@ function render(): void {
     const at = anchorOf(f.target, layout);
     if (at) drawSpark(ctx, at, f.t);
   }
-  if (!isBusy(scene) && !scene.cleared) {
+  if (activeMarkerVisible(scene)) {
     const box = layout.chars[scene.ui.active];
     drawActiveMarker(ctx, Math.min(box.top, spriteTops[scene.ui.active] ?? box.top), me.x, scene.tick);
   }

@@ -97,11 +97,47 @@ export function drawCharacter(ctx: CanvasRenderingContext2D, w: Walker): void {
   }
 }
 
-/** 조작 중인 캐릭터 표시: 히트 영역 위에서 깜빡이지 않고 위아래로 흔들리는 작은 ▼. */
+// ADR-0007 팔레트 0번 ink, 6번 white. 임시 그림 중 ▼·× 표시만 팔레트 색으로 맞춘다(#46).
+export const INK = '#1b1720';
+export const WHITE = '#fff8ee';
+
+export type Rect = [x: number, y: number, w: number, h: number, color: string];
+
+// ▼ 조작 표시 9×6 (Luna, #46 2026-11-17 코멘트): 흰 채움 7×4 ▼ 둘레에 ink 1px.
+// '#' = ink, 'W' = white. 흰색과 ink 대비가 16.7:1이라 어떤 배경에서도 둘 중 하나는 4.1:1 이상이다.
+export const ACTIVE_MARKER_ROWS = [
+  '#########',
+  '#WWWWWWW#',
+  '.#WWWWW#.',
+  '..#WWW#..',
+  '...#W#...',
+  '....#....',
+] as const;
+
+/** ▼의 픽셀 사각형들. 끝(마지막 행)이 히트 박스 top에서 2px 위, 20틱마다 1px 흔들림, 화면 위로 잘리지 않음. */
+export function activeMarkerRects(top: number, centerX: number, tick: number): Rect[] {
+  const y0 = Math.max(0, Math.round(top) - 8 - (Math.floor(tick / 20) % 2));
+  const x0 = Math.round(centerX) - 4;
+  const rects: Rect[] = [];
+  ACTIVE_MARKER_ROWS.forEach((row, dy) => {
+    // 같은 색이 이어지는 칸은 사각형 하나로 묶는다(행마다 최대 3개).
+    for (let i = 0; i < row.length; ) {
+      const ch = row[i];
+      let j = i;
+      while (j < row.length && row[j] === ch) j++;
+      if (ch !== '.') rects.push([x0 + i, y0 + dy, j - i, 1, ch === '#' ? INK : WHITE]);
+      i = j;
+    }
+  });
+  return rects;
+}
+
+/** 조작 중인 캐릭터 표시: 히트 영역 위에서 깜빡이지 않고 위아래로 흔들리는 ▼. */
 export function drawActiveMarker(ctx: CanvasRenderingContext2D, top: number, centerX: number, tick: number): void {
-  const y = top - 7 - (Math.floor(tick / 20) % 2);
-  ctx.fillStyle = '#edf2f4';
-  for (let i = 0; i < 3; i++) ctx.fillRect(Math.round(centerX) - 2 + i, y + i, 5 - 2 * i, 1);
+  for (const [x, y, w, h, color] of activeMarkerRects(top, centerX, tick)) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+  }
 }
 
 /** 걸어가는 목표점 표시 (작은 ×). */
@@ -109,7 +145,7 @@ export function drawTarget(ctx: CanvasRenderingContext2D, p: Point, tick: number
   if (Math.floor(tick / 15) % 2 === 1) return; // 깜빡임
   const x = Math.round(p.x);
   const y = Math.round(p.y);
-  ctx.fillStyle = '#edf2f4';
+  ctx.fillStyle = WHITE;
   for (let i = -2; i <= 2; i++) {
     ctx.fillRect(x + i, y + i, 1, 1);
     ctx.fillRect(x + i, y - i, 1, 1);
@@ -138,7 +174,7 @@ export function drawTargets(ctx: CanvasRenderingContext2D, spots: Record<string,
 /** 고른(터치 첫 탭) 대상 외곽선. */
 export function drawOutline(ctx: CanvasRenderingContext2D, b: HitBox, tick: number): void {
   if (Math.floor(tick / 15) % 2 === 1) return;
-  ctx.strokeStyle = '#edf2f4';
+  ctx.strokeStyle = WHITE;
   ctx.lineWidth = 1;
   ctx.strokeRect(b.left - 1.5, b.top - 1.5, b.width + 3, b.height + 3);
 }
