@@ -42,7 +42,7 @@ describe('hudTags (늘 보이는 이름표, 설계 6-1절)', () => {
 
 describe('hudHoverText (데스크톱 호버 설명, 6-1-3절)', () => {
   it('캐릭터 칸은 그 사람 이름으로 채운다', () => {
-    expect(hudHoverText('char.mukjik', 'jjuk', t)).toBe('ズッシーにかえる');
+    expect(hudHoverText('char.mukjik', 'jjuk', t)).toBe('ズッシーに交代');
   });
 
   it('능력 버튼은 지금 캐릭터 이름과 능력 동사로 채운다', () => {
