@@ -31,6 +31,10 @@ describe('parseSpriteMeta', () => {
     ['cue가 칸 수 밖', { anims: { r: { frames: [0, 1], ms: [50, 50], cue: 2 } } }],
     ['cue가 음수', { anims: { r: { frames: [0, 1], ms: [50, 50], cue: -1 } } }],
     ['cue가 거리 넘김 자세에', { anims: { walk: { frames: [2, 3], by: 'distance', cue: 0 } } }],
+    ['cue 배열이 비었음(#284)', { anims: { r: { frames: [0, 1], ms: [50, 50], cue: [] } } }],
+    ['cue 배열이 오름차순 아님(#284)', { anims: { r: { frames: [0, 1, 2], ms: [50, 50, 50], cue: [1, 0] } } }],
+    ['cue 배열에 같은 칸 두 번(#284)', { anims: { r: { frames: [0, 1], ms: [50, 50], cue: [1, 1] } } }],
+    ['cue 배열에 칸 수 밖(#284)', { anims: { r: { frames: [0, 1], ms: [50, 50], cue: [0, 2] } } }],
     ['joint가 8 이상(#194)', { anims: { r: { frames: [0], ms: [50], tip: [[34, 0]], claw: [0], joint: [8] } } }],
     ['joint 길이가 frames와 다름', { anims: { r: { frames: [0, 1], ms: [50, 50], tip: [[34, 0], [34, 0]], claw: [0, 1], joint: [3] } } }],
     ['tip 없는 자세에 joint', { anims: { r: { frames: [0], ms: [50], joint: [3] } } }],
@@ -72,13 +76,19 @@ describe('headSource (HUD 얼굴 칸, #255)', () => {
 describe('cueMs (칸 신호, #199)', () => {
   const meta = parseSpriteMeta({ ...JJUK, anims: { ...JJUK.anims, r: { frames: [0, 1, 2], ms: [200, 350, 450], cue: 1 } } });
   it('신호 칸 앞 칸들의 ms 합이다', () => {
-    expect(cueMs(meta, 'r')).toBe(200);
-    expect(cueMs(parseSpriteMeta({ ...JJUK, anims: { ...JJUK.anims, r: { frames: [0, 1], ms: [50, 50], cue: 0 } } }), 'r')).toBe(0);
+    expect(cueMs(meta, 'r')).toEqual([200]);
+    expect(cueMs(parseSpriteMeta({ ...JJUK, anims: { ...JJUK.anims, r: { frames: [0, 1], ms: [50, 50], cue: 0 } } }), 'r')).toEqual([0]);
   });
-  it('신호 없는 자세, 시트에 없는 자세, 시트 없음 → null', () => {
-    expect(cueMs(meta, 'idle')).toBeNull();
-    expect(cueMs(meta, 'common.nope')).toBeNull();
-    expect(cueMs(undefined, 'r')).toBeNull();
+  it('배열이면 신호마다 시각이다(#284, ability-feedback.md 4절). 숫자 하나는 [n]과 같다', () => {
+    const many = parseSpriteMeta({ ...JJUK, anims: { ...JJUK.anims, r: { frames: [0, 1, 2], ms: [300, 200, 450], cue: [0, 1] } } });
+    expect(cueMs(many, 'r')).toEqual([0, 300]);
+    const one = parseSpriteMeta({ ...JJUK, anims: { ...JJUK.anims, r: { frames: [0, 1, 2], ms: [200, 350, 450], cue: [1] } } });
+    expect(cueMs(one, 'r')).toEqual(cueMs(meta, 'r'));
+  });
+  it('신호 없는 자세, 시트에 없는 자세, 시트 없음 → 빈 배열', () => {
+    expect(cueMs(meta, 'idle')).toEqual([]);
+    expect(cueMs(meta, 'common.nope')).toEqual([]);
+    expect(cueMs(undefined, 'r')).toEqual([]);
   });
 });
 

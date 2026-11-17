@@ -911,12 +911,14 @@ export const SHEET = {
     { name: 'hold', frames: 2, ms: [450, 450] },
     { name: 'common.zap', frames: 3, ms: [100, 100, 300] },
     { name: 'launch_to_hook', frames: 4, ms: [150, 100, 100, 150] },
-    { name: 'reach_hang_up', frames: 3, ms: [350, 250, 400] },
+    // cue: 시그니처 `ビヨーン`(stretch_text)이 늘기 시작하는 0번 칸에 뜬다(ability-feedback.md 2·4절, #284).
+    { name: 'reach_hang_up', frames: 3, ms: [350, 250, 400], cue: [0] },
     { name: 'common.flatten', frames: 4, ms: [100, 600, 150, 450] },
     { name: 'common.bump_bottom', frames: 4, ms: [100, 400, 300, 500] },
-    { name: 'common.stretch', frames: 3, ms: [150, 300, 350] },
+    { name: 'common.stretch', frames: 3, ms: [150, 300, 350], cue: [0] },
     // short 10: 집게(8px) 끝이 대상 아래 2px에서 멈춘다(#284). 고리는 대상 점이 없어 상자 아래 끝이 대상이다 = 설계 9번 "고리 바로 아래에서 팅"
-    { name: 'common.reach_wobble', frames: 4, ms: [250, 200, 200, 450], short: 10 },
+    // cue [0, 1]: 0번 칸에 `ビヨーン`, 장대가 멈추는 1번 칸에 고리 `キン`(규칙 9). 0번 칸 300ms = CLAW.growMs(PR #288 리뷰).
+    { name: 'common.reach_wobble', frames: 4, ms: [300, 200, 200, 450], short: 10, cue: [0, 1] },
     { name: 'common.wet', frames: 4, ms: [100, 400, 300, 500] },
   ],
   pose,

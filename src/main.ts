@@ -9,6 +9,7 @@ import texts from '../content/text/ja.json';
 import { characterDef, type CharacterId } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
+import { dustPush, FX_COLORS, FX_STYLE, SHAKE_FX, shakeOffset } from './core/fx';
 import type { HitBox } from './core/hit';
 import { GAUGE_BOX, GAUGE_CELLS, HUD_AREA, hudHoverText, hudTags, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
@@ -20,7 +21,7 @@ import { createDisplay } from './engine/display';
 import { onPointerTap } from './engine/input';
 import { startLoop } from './engine/loop';
 import { drawHud } from './engine/hud';
-import { drawActiveMarker, drawCharacter, drawOutline, drawRoom, drawSpark, drawTarget, drawTargets } from './engine/placeholder';
+import { drawActiveMarker, drawCharacter, drawOutline, drawRoom, drawSpark, drawStompDust, drawTarget, drawTargets } from './engine/placeholder';
 import { drawSceneBg, drawSceneFrame, loadSceneArt, sceneArtMeta } from './engine/sceneArt';
 import { drawHead, drawSprite, spriteMetas, spriteState } from './engine/sprites';
 import { drawHudIcon } from './engine/hudIcons';
@@ -161,6 +162,16 @@ function render(): void {
   // 라벨과 호버 외곽선(형식 기록 10-1절)은 같은 대상: 마우스 호버 또는 터치 첫 탭. busy·클리어 중에는 끈다.
   const shown = isBusy(scene) || scene.cleared ? null : (touchLabel ?? hoverLabel);
   const litTarget = shown?.target ?? null;
+  // 쿵 흔들림(`ability-feedback.md` 2-1절 2): 장면 층(배경·물건·캐릭터·fx)만 세로로 민다. HUD·DOM 글자는 그대로.
+  const fxNow = activeFx(scene);
+  const shakeY = fxNow.reduce((y, f) => y || shakeOffset(f.effect, f.t), 0);
+  if (shakeY !== 0) {
+    // 밀려서 드러나는 가장자리 줄은 잉크로 덮는다(지난 프레임이 남지 않게).
+    ctx.fillStyle = FX_COLORS.ink;
+    ctx.fillRect(0, 0, internal.width, internal.height);
+  }
+  ctx.save();
+  ctx.translate(0, shakeY);
   if (!drawSceneBg(ctx, art)) drawRoom(ctx, internal, WALK_AREA);
   const boxSpots = uncovered(layout.spots);
   const boxHotspots = uncovered(layout.hotspots);
@@ -223,9 +234,13 @@ function render(): void {
     };
     for (const name of frameFallbacks(frame)) fallbacks.add(name);
   }
-  for (const f of activeFx(scene)) {
+  for (const f of fxNow) {
     const at = anchorOf(f.target, layout);
-    if (at) drawSpark(ctx, at, f.t);
+    const style = FX_STYLE[f.effect];
+    if (at) drawSpark(ctx, at, f.t, style ? FX_COLORS[style.color] : undefined);
+    const push = f.effect === SHAKE_FX ? dustPush(f.t) : null;
+    const foot = scene.walkers[f.target as CharacterId];
+    if (push !== null && foot) drawStompDust(ctx, foot, push, FX_COLORS.lint, FX_COLORS.dusk);
   }
   if (activeMarkerVisible(scene)) {
     const box = layout.chars[scene.ui.active];
@@ -237,6 +252,7 @@ function render(): void {
     // 시트 그림이 외곽선으로 켜졌으면 임시 상자 테두리는 겹쳐 그리지 않는다(폴백 상자에만).
     if (box && !(art?.outlined && lit.size > 0)) drawOutline(ctx, box, scene.tick);
   }
+  ctx.restore();
   const abilityGlyph = [...t(`ui.verb.${characterDef(layout.active).ability}`)][0] ?? '?';
   drawHud(ctx, layout.hud, GAUGE_CELLS, { active: layout.active, armed: layout.armed, gauge: layout.gauge, abilityGlyph }, drawHead, drawHudIcon);
   display.present();

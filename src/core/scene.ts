@@ -11,6 +11,7 @@ import { hitTest, inBox, type HitBox } from './hit';
 import { HUD_AREA } from './hud';
 import { hotspotBox, hudTargets, tap, type Intent, type TapContext, type UiState } from './interact';
 import { animOf, animTicks, type SceneAnim, type SceneArtMeta } from './sceneArt';
+import { FX_TICKS, fxTicks } from './fx';
 import { cueMs, spriteFacing, spriteFrame, spriteHit, type Pose, type SpriteMeta } from './sprite';
 import { approachFor, initialState, step } from './puzzle/step';
 import { GAUGE_MAX, type Action, type CharactersData, type PuzzleEvent, type PuzzleState, type ScreenData, type StepSource, type Verb } from './puzzle/types';
@@ -20,7 +21,8 @@ import { clampToArea, createWalker, stepWalker, walkTo, type Facing, type Walker
 /** 연출 시간(틱, 60Hz). 임시값이다. 실제 애니메이션 프레임 수가 나오면 그 길이로 바꾼다(ADR-0007). */
 export const TIMING = {
   anim: 30,
-  fx: 30,
+  /** 시그니처가 아닌 fx 길이. 시그니처 글자는 `fx.ts` `SIGNATURE_TICKS`(0.6초). */
+  fx: FX_TICKS,
   gauge: 20,
   item: 20,
   place: 12,
@@ -72,8 +74,11 @@ export interface Playing {
   art?: { object: string; anim: SceneAnim };
   /** 이 이벤트가 도는 동안 화면 가운데 띄울 컷 글 ID(클리어 컷 L32). */
   cut?: string;
-  /** 캐릭터 연출의 칸 신호 시각(틱, 형식 기록 5-2절, #199). 이 틱에 대기열 맨 앞의 `fx` 하나를 `overlays`로 띄운다. 띄웠으면 지운다. */
-  cueAt?: number;
+  /**
+   * 캐릭터 연출의 남은 칸 신호 시각(틱, 오름차순, 형식 기록 5-2절, #199·#284). 시각마다 대기열 맨 앞의 `fx` 하나를 `overlays`로 띄우고 지운다.
+   * 맨 앞이 fx가 아니면(이어진 fx가 신호보다 적음) 그 신호는 아무것도 띄우지 않는다(`ability-feedback.md` 4절).
+   */
+  cues?: number[];
 }
 
 /**
@@ -518,12 +523,12 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
       const art = data.art && obj ? animOf(data.art, ev.target, ev.name, shownFlags(s, obj.key)) : null;
       if (art) return { ev, t: 0, duration: animTicks(art.anim), seq, art };
       const p: Playing = { ev, t: 0, duration: charAnimTicks(data, ev.target, ev.name) ?? TIMING.anim, seq };
-      const cue = cueMs(data.sprites?.[ev.target], ev.name);
-      if (cue !== null) p.cueAt = Math.ceil(cue / TICK_MS - 1e-9);
+      const cues = cueMs(data.sprites?.[ev.target], ev.name).map((ms) => Math.ceil(ms / TICK_MS - 1e-9));
+      if (cues.length > 0) p.cues = cues;
       return p;
     }
     case 'fx':
-      return { ev, t: 0, duration: TIMING.fx, seq };
+      return { ev, t: 0, duration: fxTicks(ev.effect), seq };
     case 'item':
       return { ev, t: 0, duration: TIMING.item, seq };
   }
@@ -577,13 +582,16 @@ export function charPose(data: SceneData, s: SceneState, id: CharacterId): Pose 
 
 /**
  * 칸 신호(#199): 재생 중인 캐릭터 연출이 신호 칸에 닿으면, show에서 그 연출 바로 뒤에 붙은 `fx` **하나만** 지금 띄운다.
+ * 신호가 여럿(`cue` 배열, #284)이면 k번째 신호가 이어진 fx 중 k번째를 띄운다(앞 신호가 앞 fx를 이미 꺼냈으니 늘 맨 앞).
  * 그 뒤의 fx는 지금처럼 연출이 끝난 뒤 차례로 뜬다(둥지 삑의 메아리가 원래 삑보다 늦게 와야 한다, ADR-0003). 신호 하나 = fx 하나.
  * 바로 뒤가 fx가 아니면 아무것도 띄우지 않는다. 순번(`seq`)은 대기열 순서 그대로다.
  */
 function fireCue(data: SceneData, s: SceneState, p: Playing): void {
-  if (p.cueAt === undefined || p.t < p.cueAt) return;
-  delete p.cueAt;
-  if (s.queue[0]?.type === 'fx') s.overlays.push(start(data, s, s.queue.shift()!));
+  while (p.cues && p.cues.length > 0 && p.t >= p.cues[0]!) {
+    p.cues.shift();
+    if (s.queue[0]?.type === 'fx') s.overlays.push(start(data, s, s.queue.shift()!));
+  }
+  if (p.cues?.length === 0) delete p.cues;
 }
 
 /** 겹쳐 뜬 fx의 시간을 한 틱 보내고, 끝난 것을 내린다. */

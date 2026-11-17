@@ -387,7 +387,8 @@ export const SHEET = {
   anims: [
     { name: 'idle', frames: 2, ms: [800, 600] },
     { name: 'walk', frames: 6, by: 'distance' },
-    { name: 'common.stomp', frames: 4, ms: [300, 100, 400, 300] },
+    // cue 2: 시그니처 `ドスン`+흔들림+먼지(stomp_text)는 발이 닿는 쿵 칸(400ms)에 뜬다(ability-feedback.md 2·2-1절, #284).
+    { name: 'common.stomp', frames: 4, ms: [300, 100, 400, 300], cue: [2] },
     { name: 'common.flatten', frames: 4, ms: [100, 600, 150, 450] },
   ],
   pose,
