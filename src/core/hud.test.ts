@@ -53,7 +53,7 @@ describe('hudHoverText (데스크톱 호버 설명, 6-1-3절)', () => {
   it('손·보기·게이지는 고정 설명, 아이템 칸은 없음', () => {
     expect(hudHoverText('verb.hand', 'jjuk', t)).toBe('さわる: 動かす・拾う');
     expect(hudHoverText('verb.look', 'jjuk', t)).toBe('みる: よく調べる');
-    expect(hudHoverText('gauge', 'jjuk', t)).toBe('ふわふわゲージ: ミスすると1マス減ります');
+    expect(hudHoverText('gauge', 'jjuk', t)).toBe('ふわふわゲージ: ミスで1マス減る。0でみんなスタートへ');
     expect(hudHoverText('item.0', 'jjuk', t)).toBeNull();
   });
 });
