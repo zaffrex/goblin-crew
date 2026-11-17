@@ -119,10 +119,10 @@ describe('FX_TEXT_SPOT (둥지 글자 자리 예외, PR #299 리뷰)', () => {
     expect(Object.keys(FX_TEXT_SPOT)).toEqual(['nest']);
   });
 
-  it('둥지 プピッ！ 칸은 왼쪽 x 169·아래 y 42에서 시작하고, 화면 끝에 붙잡히지 않는다', () => {
+  it('둥지 プピッ！ 칸은 왼쪽 x 173·아래 y 42에서 시작하고, 화면 끝에 붙잡히지 않는다', () => {
     const c = meta.cells.squeak_text!;
     const p = fxTextAt('squeak_text', c, FX_TEXT_SPOT.nest!, 0, W)!;
-    expect(p.x).toBe(169);
+    expect(p.x).toBe(173);
     expect(p.y + c[3]).toBe(42);
   });
 
