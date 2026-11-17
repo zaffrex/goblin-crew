@@ -14,7 +14,7 @@ import { GAUGE_CELLS, HUD_AREA } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { activeFx, charPose, createScene, currentBubble, drawOrder, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
-import { coveredIds, litFrames, sceneDraws } from './core/sceneArt';
+import { coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point } from './core/viewport';
 import { createDisplay } from './engine/display';
 import { onPointerTap } from './engine/input';
@@ -93,6 +93,9 @@ canvas.addEventListener('pointermove', (e) => {
   canvas.style.cursor = r.kind === 'act' ? 'pointer' : 'default';
 });
 
+/** 물건별 loop 시작 시각(#237). anim이 끝나거나 멈춘 모습이 바뀌면 그 물건만 0부터 다시 센다. */
+let loopClock: LoopStarts = {};
+
 /** 이번 프레임에 시트 그림으로 그린 캐릭터의 그림 꼭대기. 실루엣으로 그렸으면 없다(히트 박스 위끝을 쓴다). */
 const spriteTops: Partial<Record<CharacterId, number>> = {};
 
@@ -129,7 +132,12 @@ function render(): void {
 
   // 물건 그림(형식 기록 4·6절): 보이는 플래그로 멈춘 모습, 재생 중 물건 anim은 그 프레임.
   const playing = scene.current?.art ? { ...scene.current.art, ms: scene.current.t * TICK_MS } : null;
-  const draws = art ? sceneDraws(art.meta, { flagsOf: (k) => shownFlags(scene, k), playing, clockMs: scene.tick * TICK_MS }) : null;
+  let draws: SceneDraws | null = null;
+  if (art) {
+    const view = { flagsOf: (k: string) => shownFlags(scene, k), playing, clockMs: scene.tick * TICK_MS };
+    loopClock = loopStarts(art.meta, view, loopClock);
+    draws = sceneDraws(art.meta, { ...view, loopStarts: loopClock });
+  }
   const lit = draws ? litFrames(art!.meta, draws, litTarget) : new Set<number>();
   for (const f of draws?.back ?? []) drawSceneFrame(ctx, art!, f, lit.has(f));
 
