@@ -1,9 +1,9 @@
 // 소리 글자 시트 원본 (#284, 규격 docs/design/ability-feedback.md 3절, 글자는 docs/design/ja-text.md 5절).
-// 단어 단위 시트다. 가타카나 글꼴 세트를 만들지 않는다: 아래 글자 그림은 이 단어 9개에 필요한 것만 있다.
+// 단어 단위 시트다. 가타카나 글꼴 세트를 만들지 않는다: 아래 글자 그림은 이 단어 10개에 필요한 것만 있다.
 // - 글자 격자에는 속('#')만 쓴다. 칠 색은 단어마다 정하고, 바깥 외곽선 1px ink(8방향)는 build가 붙인다.
 // - 높이(행 수)는 크기별로 같다: 6 / 8 / 10. build가 검사한다.
 // - 글자 사이는 속 기준 1px(외곽선끼리는 붙는다). 단어 하나가 외곽선으로 이어진 한 덩어리로 읽히게 한다.
-// - 32색 팔레트만 쓴다. 칠은 src/core/fx.ts FX_STYLE과 같아야 한다(테스트가 json과 대조한다).
+// - 32색 팔레트만 쓴다. 칠은 src/core/fx.ts FX_STYLE과 같아야 한다(tests/art/fx-text.test.ts가 WORDS와 FX_STYLE을 대조한다).
 
 import { C } from '../lib/pixel.mjs';
 
@@ -119,6 +119,16 @@ const G8 = {
     '.#...#.',
     '#..##..',
   ],
+  'チ': [
+    '....##.',
+    '####...',
+    '...#...',
+    '#######',
+    '...#...',
+    '...#...',
+    '..#....',
+    '##.....',
+  ],
   'イ': [
     '......#',
     '.....#.',
@@ -219,6 +229,7 @@ export const WORDS = [
   { fx: 'squeak_text', text: 'プピッ！', size: 8, color: C.yelL },
   { fx: 'small_squeak_text', text: 'プピッ', size: 6, color: C.lint },
   { fx: 'kkak_text', text: 'ギャー', size: 8, color: C.white },
+  { fx: 'chirp_text', text: 'カチカチ', size: 8, color: C.white },
   { fx: 'ting_text', text: 'キン', size: 8, color: C.white },
   { fx: 'clang_text', text: 'カーン', size: 8, color: C.yelL },
   { fx: 'creak_text', text: 'ギイッ', size: 8, color: C.woodL },
