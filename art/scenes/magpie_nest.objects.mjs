@@ -5,8 +5,7 @@
 // 좌표 근거: content/screens/magpie_nest.json 히트 박스, docs/design/screens/magpie_nest.md 1-1·1-2·1-4절.
 //
 // ③-1: 멈춘 모습(`draw`·`states`)과 반복(`loop`: 열쇠 반짝임, U8 까치 대기).
-// ③-2: 일시 연출(`anims`). 까치 4개(U1 fly_down·fly_up, U5 peck, ruffle)는 그렸다. 시소 U6 plank_bounce·내복 U11 flutter는 다음 PR이다
-// (없는 동안 엔진은 그 이벤트를 건너뛰고 TIMING.anim으로 기다린다, 형식 4·9절).
+// ③-2: 일시 연출(`anims`). 까치 4개(U1 fly_down·fly_up, U5 peck, ruffle), 시소 U6 plank_bounce 2방향, 내복 U11 flutter.
 
 import { C, Image } from '../lib/pixel.mjs';
 import { hash, rng, fill, line, stamp, outlined, darker } from '../lib/texture.mjs';
@@ -276,7 +275,7 @@ const hook = pic((im) => {
 
 // ═════════════ 왕꽃무늬 내복 (long_johns, 372,112 32×40) ═════════════
 // 빨랫줄(y 110)에 빨래집게 둘로 걸린 남의 내복. 빨강 바탕에 큰 흰 꽃, 무릎이 늘어나 불룩하다. 엉덩이 쪽 덧댄 천 한 장.
-const longJohns = pic((im) => {
+function longJohnsBody(im) {
   const X0 = 374, TOP = 112;
   // 몸통(허리띠 ~ 가랑이) + 두 다리. 오른쪽 다리가 바람에 살짝 들렸다
   const bodyRows = 14;
@@ -315,12 +314,13 @@ const longJohns = pic((im) => {
   for (const [sx, sy] of [[385, 121], [385, 123], [385, 125], [392, 122], [392, 124]]) im.set(sx, sy, C.white);
   // 빨래집게 둘(빨랫줄에 물림, 나무색)
   for (const px of [377, 397]) stamp(im, px, 108, ['tw', 'tw', 'tw', 'ww', '.w'], { t: C.tan, w: C.woodL });
-});
+}
+const longJohns = pic(longJohnsBody);
 
 // ═════════════ 시소 (seesaw: seesaw_left + seesaw_right, 널빤지 208,214 80×6) ═════════════
 // 널빤지 한 장, 수평 고정(설계 1-3절, 형식 5절). 받침(세제 통 242,220)은 배경 띠 (c) 몫이다.
 // 양 끝에 발판 자국(밟혀서 닳은 칠), 가운데 못 두 개. 고리 쪽 왼쪽 끝은 신발 자국이 하나 더 있다(누가 자주 섰다).
-const seesaw = pic((im) => {
+function seesawBody(im) {
   const X0 = 208, X1 = 288, Y0 = 214, HH = 6;
   fill(im, X0, Y0, X1 - X0, HH, (x, y) => {
     const ly = y - Y0, lx = x - X0;
@@ -340,7 +340,8 @@ const seesaw = pic((im) => {
   stamp(im, 216, Y0 + 1, ['d.d.d.d'], { d: C.wood });
   // 가운데 받침 위 못 두 개
   im.set(246, Y0 + 2, C.lav); im.set(250, Y0 + 2, C.lav); im.set(246, Y0 + 1, C.lint); im.set(250, Y0 + 1, C.lint);
-});
+}
+const seesaw = pic(seesawBody);
 
 // ═════════════ 빨래 바구니 (basket, 그림 144,220 32×16, 히트 144,212 32×24) ═════════════
 // 위에서 살짝 내려다본 등나무 바구니. 뒤판(물건 기본 그림) = 꼬인 테두리 뒤쪽 + 어두운 안쪽 + 그 안의 빨래.
@@ -489,11 +490,65 @@ const ruffle = {
   variants: [{ when: { flags: { 'magpie.on_ground': true } }, ms: [100, 150, 100], frames: ruffleFrames(groundPose, MAGPIE_GROUND_AT), layer: 'front' }],
 };
 
+// U6 시소 널빤지 튕김(규칙 9~15 `stomp`). 이벤트 대상 끝이 내려가고 반대 끝이 튀어 오른다(형식 3·5절 "`seesaw_right` = 오른쪽이 내려감").
+// 정답(발사)과 실패(잘못 발사, 제 이마 치기)가 같은 프레임이다(설계 U6). 제 이마 치기(15번)는 데이터가 반대쪽 끝 이벤트를 보내서
+// 묵직이가 밟은 끝이 튀어 오른다. 널빤지는 회전 대신 열마다 세로로 밀어(층 밀기) 나뭇결·못이 깨지지 않게 한다.
+// 수평 고정 그림(멈춘 모습)으로 돌아가므로 마지막 칸은 반대로 살짝 되튄 모습이다(첫 칸·끝 칸 규칙 4-2절 (a)는 상태를 바꾸는 anim만).
+const PIVOT_X = 248; // 받침(세제 통 242~254) 가운데 = 못 두 개 사이
+/** d = 오른쪽 끝(x 287)이 내려가는 px. 음수면 왼쪽 끝이 내려간다. */
+const plank = (d, fx) => pic((im) => {
+  const t = new Image(W, H);
+  seesawBody(t);
+  for (let x = 200; x < 296; x++) {
+    const dy = Math.round((d * (x - PIVOT_X + 0.5)) / 40);
+    for (let y = 208; y < 224; y++) { const c = t.get(x, y); if (c !== -1) im.set(x, y + dy, c); }
+  }
+}, fx);
+/** 튀어 오르는 끝 위의 속도선(효과). side = -1 왼쪽 끝 / 1 오른쪽 끝, lift = 그 끝이 올라간 px. */
+const whoosh = (side, lift) => (im) => {
+  const x0 = side < 0 ? 209 : 279;
+  for (const [dx, len] of [[0, 3], [4, 4], [8, 2]]) line(im, x0 + dx, 211 - lift, x0 + dx, 211 - lift - len, C.lint);
+};
+const BOUNCE = 7; // 끝이 움직이는 최대 px. 더 크면 위에 선 사람 발이 널빤지에 묻힌다(발 y 214, 캐릭터가 앞에 그려짐)
+const plankBounce = (side) => ({ // side = 내려가는 끝
+  ms: [60, 120, 80],
+  frames: [
+    plank(side * 4),
+    plank(side * BOUNCE, whoosh(-side, BOUNCE)),
+    plank(-side * 2),
+  ],
+});
+
+// U11 내복 펄럭(14번 빨랫줄에 날아와 걸림, `long_johns` × 쭉이 집게·묵직이 쿵). 빨래집게·허리단은 줄에 붙은 채
+// 아래로 갈수록 더 크게 오른쪽으로 날린다(시소에서 날아온 사람이 왼쪽에서 오니까) → 물결 → 왼쪽으로 되돌아옴.
+// 상태를 바꾸지 않는다(쭉이 얼굴을 덮는 것·묵직이 모자는 캐릭터 anim과 fx 몫, 설계 5절).
+/** sway = 발목에서 옆으로 밀리는 px, wave = 물결 진폭. 허리단(y 112) 위는 그대로다. */
+const flapping = (sway, wave, fx) => pic((im) => {
+  const t = new Image(W, H);
+  longJohnsBody(t);
+  for (let y = 104; y < 160; y++) {
+    const k = Math.max(0, y - 112) / 40;
+    const dx = Math.round(sway * k * k + wave * Math.sin((y - 112) / 3.5) * k);
+    for (let x = 360; x < 420; x++) { const c = t.get(x, y); if (c !== -1) im.set(x + dx, y, c); }
+  }
+}, fx);
+/** 바람 줄(효과): 내복 왼쪽에서 오른쪽으로 휘는 짧은 선 셋. */
+const gust = (im) => {
+  for (const [x, y, len] of [[358, 124, 6], [355, 134, 8], [359, 144, 5]]) { line(im, x, y, x + len, y, C.white); im.set(x + len + 1, y - 1, C.white); }
+};
+const flutter = {
+  ms: [90, 130, 110],
+  frames: [flapping(7, 0, gust), flapping(13, 2, gust), flapping(-4, 1)],
+};
+
 export const ANIMS = {
   'magpie.fly_down': flyDown,
   'magpie.fly_up': flyUp,
   'magpie.peck': { ...peckNest, variants: [{ when: { flags: { 'magpie.on_ground': true } }, ...peckGround }] },
   'magpie.ruffle': ruffle,
+  'seesaw_right.plank_bounce': plankBounce(1),
+  'seesaw_left.plank_bounce': plankBounce(-1),
+  'long_johns.flutter': flutter,
 };
 
 /** 고리 손 기준점(형식 7절). 매달린 자세 프레임의 손이 여기 와야 한다. */
