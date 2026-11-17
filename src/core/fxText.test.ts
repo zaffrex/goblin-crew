@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { INTERNAL_WIDTH } from './config';
-import { FX_STYLE, FX_TICKS, SIGNATURE_TICKS } from './fx';
+import screenJson from '../../content/screens/magpie_nest.json';
+import { FX_STYLE, FX_TEXT_SPOT, FX_TICKS, SIGNATURE_TICKS } from './fx';
 // eslint-disable-next-line no-restricted-imports -- public/ui는 에셋 JSON이다(src/ui 아님). ADR-0004 규칙이 경로 패턴으로 같이 걸린다.
 import raw from '../../public/ui/fx-text.json';
 import { BOUNCE_FX, BOUNCE_GONE, bounceDy, fxTextAt, parseFxTextMeta, TEXT_LIFT, TING_SPARK, tingSparkAt, type FxCell } from './fxText';
@@ -105,5 +106,45 @@ describe('tingSparkAt (3절 비고: キン 옆 반짝, 6틱마다 켜짐/꺼짐)
     const p = tingSparkAt({ x: W - word[2], y: 0 }, word, spark, 0, W)!;
     expect(p.x + spark[2]).toBeLessThanOrEqual(W);
     expect(p.y).toBe(0);
+  });
+});
+
+describe('FX_TEXT_SPOT (둥지 글자 자리 예외, PR #299 리뷰)', () => {
+  type Box = [number, number, number, number];
+  const hs = screenJson.hotspots as Record<string, { box: number[]; variants?: { box: number[] }[] }>;
+  const boxesOf = (id: string): Box[] => [hs[id]!.box, ...(hs[id]!.variants ?? []).map((v) => v.box)] as Box[];
+  const overlaps = (a: Box, b: Box): boolean => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
+
+  it('예외는 둥지 하나뿐이다(#289 리스크)', () => {
+    expect(Object.keys(FX_TEXT_SPOT)).toEqual(['nest']);
+  });
+
+  it('둥지 プピッ！ 칸은 왼쪽 x 169·아래 y 42에서 시작하고, 화면 끝에 붙잡히지 않는다', () => {
+    const c = meta.cells.squeak_text!;
+    const p = fxTextAt('squeak_text', c, FX_TEXT_SPOT.nest!, 0, W)!;
+    expect(p.x).toBe(169);
+    expect(p.y + c[3]).toBe(42);
+  });
+
+  it('둥지 자리에 뜨는 글자는 사는 동안 까치(둥지 위·바닥)와 둥지 상자 어느 것과도 겹치지 않는다', () => {
+    const shown = new Set<string>();
+    const walk = (o: unknown): void => {
+      if (Array.isArray(o)) o.forEach(walk);
+      else if (o && typeof o === 'object') {
+        const fx = (o as { fx?: unknown }).fx;
+        if (Array.isArray(fx) && fx[1] === 'nest') shown.add(fx[0] as string);
+        Object.values(o).forEach(walk);
+      }
+    };
+    walk(screenJson);
+    expect([...shown].sort()).toEqual(['squeak_text']);
+    for (const fx of shown) {
+      const c = meta.cells[fx]!;
+      for (let t = 0; t < SIGNATURE_TICKS; t++) {
+        const p = fxTextAt(fx, c, FX_TEXT_SPOT.nest!, t, W)!;
+        const cellBox: Box = [p.x, p.y, c[2], c[3]];
+        for (const b of [...boxesOf('magpie'), ...boxesOf('nest')]) expect(overlaps(cellBox, b), `${fx} t=${t} vs ${b.join(',')}`).toBe(false);
+      }
+    }
   });
 });

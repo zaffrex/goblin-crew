@@ -45,6 +45,17 @@ export const FX_STYLE: Readonly<Record<string, { color: FxColor; height: number 
   stomp_text: { color: 'tealM', height: 10 },
 };
 
+/**
+ * 소리 글자 자리 예외: 대상 ID → 글자 기준점(내부 px, `fxTextAt`의 `at`). 표에 없는 대상은 그림 위 끝 가운데다.
+ * 둥지 하나만 둔다(#289 리스크 "위치 예외는 둥지 하나"). 둥지 위 끝 기준이면 글자가 까치 몸에 얹혀
+ * "까치에게 삑 했는데 반응 없음"으로 읽혀 정답 #4를 가린다(PR #299 Luna 리뷰). 그래서 둥지 오른쪽 옆, 사발 높이:
+ * 칸 왼쪽 x 169(상자 오른쪽 164 + 잔가지 3 + 틈 2), 칸 아래 y 42 → `squeak_text` 폭 31·`TEXT_LIFT` 4로 at = (184, 46).
+ * 까치가 바닥에 내려온 뒤에도 같은 자리다. 데이터로 옮기는 건 #206(`{ do: "here" }`).
+ */
+export const FX_TEXT_SPOT: Readonly<Record<string, { x: number; y: number }>> = {
+  nest: { x: 184, y: 46 },
+};
+
 const SIGNATURE_FX = new Set(Object.values(SIGNATURES).map((s) => s.fx));
 
 /** 이 fx가 도는 틱 수. 시그니처는 0.6초, 나머지는 예전 그대로. */

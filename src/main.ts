@@ -9,7 +9,7 @@ import texts from '../content/text/ja.json';
 import { characterDef, type CharacterId } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
-import { dustPush, FX_COLORS, FX_STYLE, SHAKE_FX, shakeOffset } from './core/fx';
+import { dustPush, FX_COLORS, FX_STYLE, FX_TEXT_SPOT, SHAKE_FX, shakeOffset } from './core/fx';
 import type { HitBox } from './core/hit';
 import { createFirstNotes, currentNote, noteArmAbility, noteGauge, noteTap } from './core/firstNotes';
 import { abilityText, GAUGE_BOX, GAUGE_CELLS, GAUGE_PLATE, HUD_AREA, hudHoverText, hudTags, type HudId } from './core/hud';
@@ -232,8 +232,9 @@ function render(): void {
   for (const f of draws?.front ?? []) drawSceneFrame(ctx, art!, f, lit.has(f));
   const fxArt: NonNullable<FrameArt['fx']>[number][] = [];
   for (const f of fxNow) {
-    const at = anchorOf(f.target, layout);
     const style = FX_STYLE[f.effect];
+    // 소리 글자는 자리 예외(둥지)가 있으면 그 자리, 아니면 대상 그림 위 끝 가운데.
+    const at = (style && FX_TEXT_SPOT[f.target]) || anchorOf(f.target, layout);
     // 소리 글자(3절 표에 있는 fx)는 글자 시트로. 시트가 아직이거나 표 밖의 fx(물건 그림, P1 #286)는 임시 별.
     const drawn = at !== null && style !== undefined && drawFxText(ctx, f.effect, at, f.t, internal.width);
     if (at && !drawn) drawSpark(ctx, at, f.t, style ? FX_COLORS[style.color] : undefined);
