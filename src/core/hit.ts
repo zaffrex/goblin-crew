@@ -18,6 +18,11 @@ export interface HitTarget {
   z: number;
 }
 
+/** 점이 사각형 안인가(left/top 포함, 오른쪽·아래 끝 미포함). */
+export function inBox(p: Point, b: HitBox): boolean {
+  return p.x >= b.left && p.x < b.left + b.width && p.y >= b.top && p.y < b.top + b.height;
+}
+
 /** 점에서 사각형까지의 거리. 안쪽이면 0. */
 export function distanceToBox(p: Point, b: HitBox): number {
   const dx = Math.max(b.left - p.x, 0, p.x - (b.left + b.width));

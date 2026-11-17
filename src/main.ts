@@ -93,13 +93,15 @@ canvas.addEventListener('pointermove', (e) => {
   hoverLabel = null;
   hoverHud = null;
   canvas.style.cursor = 'default';
-  if (!p || isBusy(scene) || scene.cleared) return;
+  if (!p || scene.cleared) return;
+  // HUD 칸 설명은 busy 중에도 띄운다(칸은 busy 중에도 눌린다, #266). 월드 호버는 busy 중에는 끈다.
   if (inBox(p, HUD_AREA)) {
     // HUD 영역은 기본 화살표(PR #112 Luna 리뷰). 칸 위면 설명만 띄운다(누를 수 없는 게이지 포함).
     const hit = Object.entries(sceneLayout(data, scene).hud).find(([, b]) => inBox(p, b));
     hoverHud = hit ? (hit[0] as HudId) : inBox(p, GAUGE_BOX) ? 'gauge' : null;
     return;
   }
+  if (isBusy(scene)) return;
   const r = resolveTap(tapContext(data, scene), scene.ui, p, 0);
   hoverLabel = 'label' in r ? r.label : null;
   canvas.style.cursor = r.kind === 'act' ? 'pointer' : 'default';
@@ -250,7 +252,7 @@ function render(): void {
   }
 
   placeHudTags(layout.active);
-  const hudHover = isBusy(scene) || scene.cleared || hoverHud === null ? null : hudHoverText(hoverHud, layout.active, t);
+  const hudHover = scene.cleared || hoverHud === null ? null : hudHoverText(hoverHud, layout.active, t);
   const labelString = shown ? labelText(shown, data.screen.id, t) : (hudHover ?? '');
   label.hidden = labelString === '';
   if (label.textContent !== labelString) label.textContent = labelString;

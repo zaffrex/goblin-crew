@@ -5,7 +5,7 @@
 // 읽으면 커서가 답을 알려 주게 된다(ADR-0018 F3). interact.test.ts가 이것을 검사한다.
 
 import { characterDef, CHARACTERS, type CharacterId } from './characters';
-import { hitTest, type HitBox, type HitTarget } from './hit';
+import { hitTest, inBox, type HitBox, type HitTarget } from './hit';
 import { CHAR_SLOTS, HUD_AREA, ITEM_SLOT, VERB_BUTTONS, VERB_SLOTS, type HudId, type VerbButton } from './hud';
 import { FLOOR, type Action, type Box, type PuzzleState, type ScreenData, type Verb } from './puzzle/types';
 import type { Point } from './viewport';
@@ -134,10 +134,6 @@ export function hudTargets(puzzle: PuzzleState): (HitTarget & { id: HudId })[] {
 /** 행동 비교 키. 터치 "같은 대상 다시 탭"은 같은 행동(동사·대상·아이템까지)일 때만 실행한다. */
 export function actionKey(a: Action): string {
   return [a.char, a.verb, a.target, a.item ?? ''].join('|');
-}
-
-function inBox(p: Point, b: HitBox): boolean {
-  return p.x >= b.left && p.x < b.left + b.width && p.y >= b.top && p.y < b.top + b.height;
 }
 
 function sameArmed(a: Armed | null, b: Armed): boolean {

@@ -7,7 +7,8 @@
 
 import { CHARACTERS, characterHitBox, characterDef, type CharacterId } from './characters';
 import { TICK_MS, WALK_AREA, WALK_SPEED } from './config';
-import type { HitBox } from './hit';
+import { hitTest, inBox, type HitBox } from './hit';
+import { HUD_AREA } from './hud';
 import { hotspotBox, hudTargets, tap, type Intent, type TapContext, type UiState } from './interact';
 import { animOf, animTicks, type SceneAnim, type SceneArtMeta } from './sceneArt';
 import { cueMs, spriteFacing, spriteFrame, spriteHit, type Pose, type SpriteMeta } from './sprite';
@@ -623,7 +624,8 @@ export type SceneTapResult =
   | { kind: 'intent'; intent: Intent };
 
 /**
- * 탭 하나. busy 동안은 새 행동·전환·무장을 받지 않는다(설계 5절).
+ * 탭 하나. busy 동안은 새 행동을 받지 않고, 월드 탭으로 하는 전환·무장도 받지 않는다(설계 5절).
+ * - HUD 칸: busy 중에도 바로 전환·무장한다(예외 셋, #266). HUD 띠의 빈 곳은 무시.
  * - 자동 걷기 중: 걷기만 끝 위치로 건너뛴다. 남은 이벤트는 그대로 재생한다.
  * - 말풍선이 뜬 뒤 0.4초가 지났으면: 그 말풍선만 끝낸다.
  */
@@ -636,6 +638,16 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
     return { kind: 'skipSay' };
   }
   if (s.cleared) return { kind: 'ignored' };
+  // 예외 셋(#266): busy 중에도 HUD 칸은 평소처럼 바로 받는다(전환·무장). 진행 중 이벤트·시간은 건드리지 않는다.
+  // HUD_AREA 안인데 칸이 아니면(게이지·빈 띠) 무시한다. 대사 넘기기는 월드 탭으로만 한다.
+  if (isBusy(s)) {
+    if (hitTest(hudTargets(s.puzzle), p, slop)) {
+      const r = tap(tapContext(data, s), s.ui, p, slop, touch);
+      s.ui = r.ui;
+      return { kind: 'intent', intent: r.intent };
+    }
+    if (inBox(p, HUD_AREA)) return { kind: 'ignored' };
+  }
   if (cur) {
     if (cur.ev.type === 'walk') {
       const w = s.walkers[cur.ev.char];
