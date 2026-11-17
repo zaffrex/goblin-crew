@@ -107,9 +107,22 @@ describe('validateScreen', () => {
     expect(r.errors).toEqual([expect.objectContaining({ code: 'move-hold', path: `rules[${BASE.rules.length}].target` })]);
   });
 
-  it('warns when no rule on the screen uses a hintAbility (#108)', () => {
-    // nest의 힌트를 squeak으로: squeak 규칙은 까치에 있으니 경고 없음(같은 대상까지는 보지 않는다).
-    expect(mutate((s) => (s.hotspots.nest.hintAbility = 'squeak')).warnings).toEqual([]);
+  it('warns when no rule of that ability targets or moves into the hinted target (#108, #229)', () => {
+    // 화면에 squeak 규칙(까치)이 있어도 nest·hook으로 이어지지 않으면 경고다(#226 규칙이 놓치던 빈틈).
+    const nest = mutate((s) => (s.hotspots.nest.hintAbility = 'squeak'));
+    expect(nest.warnings).toEqual([expect.objectContaining({ code: 'hint-ability-unused', path: 'hotspots.nest.hintAbility' })]);
+    const hook = mutate((s) => (s.spots.hook.hintAbility = 'squeak'));
+    expect(hook.warnings).toEqual([expect.objectContaining({ code: 'hint-ability-unused', path: 'spots.hook.hintAbility' })]);
+    // ②: hook의 stomp 힌트는 시소 규칙이 hook으로 보내서 통과한다. 그 move를 지우면 경고.
+    const noLaunch = mutate((s) => {
+      for (const r of s.rules) if (r.verb === 'stomp' && r.do?.move) r.do.move = r.do.move.filter((m: any) => m.to !== 'hook' && m.via !== 'hook');
+    });
+    expect(noLaunch.warnings.map((w) => w.path)).toContain('spots.hook.hintAbility');
+    // via로 보내도 통과한다: to를 지우고 via만 남은 move가 하나라도 있으면 된다.
+    const viaOnly = mutate((s) => {
+      for (const r of s.rules) if (r.verb === 'stomp' && r.do?.move) r.do.move = r.do.move.filter((m: any) => m.to !== 'hook');
+    });
+    expect(viaOnly.warnings.map((w) => w.path)).not.toContain('spots.hook.hintAbility');
     const r = mutate((s) => {
       s.rules = s.rules.filter((x: any) => x.verb !== 'squeak');
       s.solution = s.solution.filter((a: any) => a.verb !== 'squeak');

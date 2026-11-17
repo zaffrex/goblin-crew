@@ -369,11 +369,11 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
     if (allowSelf && v === 'self') return;
     if (!(CHAR_IDS as readonly unknown[]).includes(v)) c.err(path, 'ref-char', `없는 캐릭터: ${JSON.stringify(v)}`);
   };
-  /** 쓰인 hintAbility [경로, 능력]. 규칙을 다 읽은 뒤 그 능력이 실제로 쓰이는지 본다. */
-  const hintUses: [string, string][] = [];
-  const ability = (v: unknown, path: string): void => {
+  /** 쓰인 hintAbility [경로, 능력, 대상]. 규칙을 다 읽은 뒤 그 능력이 그 대상으로 이어지는지 본다. */
+  const hintUses: [string, string, string][] = [];
+  const ability = (v: unknown, path: string, target: string): void => {
     if (!(ABILITIES as readonly unknown[]).includes(v)) c.err(path, 'hint-ability', `hintAbility는 능력 동사(${ABILITIES.join('/')})`);
-    else hintUses.push([path, v as string]);
+    else hintUses.push([path, v as string, target]);
   };
   /** 점 [x, y]가 화면 안인지(오류), HUD와 겹치는지(경고). 서는 자리 x, y와 releasePoint에 쓴다. */
   const point = (x: number, y: number, path: string): boolean => {
@@ -406,7 +406,7 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
   const floor = spots.get(FLOOR);
   if (!floor) c.err(`spots.${FLOOR}`, 'floor', `\`${FLOOR}\` 자리가 없다(화면마다 하나, free: true)`);
   else if (floor.free !== true) c.err(`spots.${FLOOR}.free`, 'floor', `\`${FLOOR}\`는 free: true여야 한다`);
-  for (const [, s, p] of spotEntries) {
+  for (const [sid, s, p] of spotEntries) {
     if (!c.obj(s, p, SPOT_KEYS)) continue;
     if (!isNum(s.x) || !isNum(s.y)) c.err(p, 'schema', 'x, y는 숫자');
     else point(s.x, s.y, p);
@@ -444,15 +444,15 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
     }
     showList(c, ctx, s.takenShow, `${p}.takenShow`, scope(true));
     approach(s.approach, `${p}.approach`);
-    if (s.hintAbility !== undefined) ability(s.hintAbility, `${p}.hintAbility`);
+    if (s.hintAbility !== undefined) ability(s.hintAbility, `${p}.hintAbility`, sid);
   }
 
   // --- 핫스팟 ---
-  for (const [, h, p] of hotspotEntries) {
+  for (const [hid, h, p] of hotspotEntries) {
     if (!c.obj(h, p, HOTSPOT_KEYS)) continue;
     c.box(h.box, `${p}.box`);
     approach(h.approach, `${p}.approach`);
-    if (h.hintAbility !== undefined) ability(h.hintAbility, `${p}.hintAbility`);
+    if (h.hintAbility !== undefined) ability(h.hintAbility, `${p}.hintAbility`, hid);
     if (h.reachPoint !== undefined && !(Array.isArray(h.reachPoint) && h.reachPoint.length === 2 && h.reachPoint.every(isNum))) {
       c.err(`${p}.reachPoint`, 'schema', 'reachPoint는 [x, y]');
     }
@@ -579,12 +579,28 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
     showList(c, ctx, r.show, `${p}.show`, scope(true));
   });
 
-  // --- hintAbility가 가리키는 능력이 이 화면에서 쓰이는지 ---
-  // 같은 대상(target)의 규칙까지는 요구하지 않는다. 힌트는 "그 대상을 향한 다음 수"를 가리킬 수 있다.
-  // 화면 1 `hook`의 hintAbility는 stomp지만 stomp 규칙은 시소에 있다(고리에 가려면 시소를 밟는다).
-  const ruleVerbs = new Set(ruleList.filter(isObj).map((r) => r.verb));
-  for (const [path, ab] of hintUses) {
-    if (!ruleVerbs.has(ab)) c.warn(path, 'hint-ability-unused', `이 화면의 어떤 규칙도 ${ab}를 쓰지 않는다. 힌트가 헛다리를 짚게 한다`);
+  // --- 대상 T의 hintAbility A가 T로 이어지는지 (#229) ---
+  // 통과: ① verb A, target T인 규칙이 있다 ② verb A 규칙의 do.move가 누군가를 T로 보낸다(to 또는 via).
+  // 화면 1 `hook`의 hintAbility는 stomp고, stomp 규칙(seesaw_launch)이 시소에서 hook으로 보낸다(②).
+  // "A가 세운 플래그가 T 규칙의 조건"(③)은 넣지 않는다. 대부분 통과해서 다시 느슨해진다. 화면 2에서 실제로 필요하면 더한다.
+  const hintReach = new Map<unknown, Set<unknown>>();
+  for (const r of ruleList) {
+    if (!isObj(r)) continue;
+    const reach = hintReach.get(r.verb) ?? new Set<unknown>();
+    hintReach.set(r.verb, reach);
+    reach.add(r.target);
+    if (isObj(r.do) && Array.isArray(r.do.move)) {
+      for (const m of r.do.move) {
+        if (!isObj(m)) continue;
+        reach.add(m.to);
+        if (m.via !== undefined) reach.add(m.via);
+      }
+    }
+  }
+  for (const [path, ab, target] of hintUses) {
+    if (!hintReach.get(ab)?.has(target)) {
+      c.warn(path, 'hint-ability-unused', `${ab} 규칙 중 ${target}를 대상으로 하거나 ${target}로 보내는 것이 없다. 힌트가 헛다리를 짚게 한다`);
+    }
   }
 
   // --- 폴백 ①: 상태를 바꾸지 않는다. gauge만 예외 ---
