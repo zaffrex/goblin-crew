@@ -37,6 +37,7 @@ export const FX_STYLE: Readonly<Record<string, { color: FxColor; height: number 
   squeak_text: { color: 'yelL', height: 8 },
   small_squeak_text: { color: 'lint', height: 6 },
   kkak_text: { color: 'white', height: 8 },
+  chirp_text: { color: 'white', height: 8 },
   ting_text: { color: 'white', height: 8 },
   clang_text: { color: 'yelL', height: 8 },
   creak_text: { color: 'woodL', height: 8 },
