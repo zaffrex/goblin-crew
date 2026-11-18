@@ -13,7 +13,7 @@ import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/conf
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
 import { dustPush, FX_COLORS, FX_STYLE, FX_TEXT_SPOT, SHAKE_FX, shakeOffset } from './core/fx';
 import type { HitBox } from './core/hit';
-import { cardFacePx, cardInput, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
+import { cardFacePx, cardInput, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
 import { createFirstNotes, currentNote, noteGauge, noteSwitch, noteTap } from './core/firstNotes';
 import { abilityText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
@@ -394,12 +394,17 @@ function renderCard(): void {
   if (!startCard.open) return;
   const r = display.rect();
   const scale = r.width / INTERNAL_WIDTH;
-  const size = `${Math.max(CARD_MIN_CSS, Math.round(CARD_PX * scale))}px`;
+  const fontPx = Math.max(CARD_MIN_CSS, Math.round(CARD_PX * scale));
+  const size = `${fontPx}px`;
   if (cardEl.style.fontSize !== size) cardEl.style.fontSize = size;
+  // 특기 줄 사이 0.15em을 장치 px 정수로(#342). CSS `#card li + li`가 읽는다.
+  const dpr = window.devicePixelRatio || 1;
+  const rowGap = `${cardRowGapPx(fontPx, dpr)}px`;
+  if (cardEl.style.getPropertyValue('--row-gap') !== rowGap) cardEl.style.setProperty('--row-gap', rowGap);
   // 얼굴 = head 24px × 정수 배율, 최소 2배. 글자가 배율로 커지는데 얼굴이 48px로 고정이면 큰 화면에서 줄보다 작아진다(PR #306 리뷰).
   const tight = cardTight(scale);
   cardEl.toggleAttribute('data-tight', tight);
-  const face = `${cardFacePx(scale, window.devicePixelRatio || 1)}px`;
+  const face = `${cardFacePx(scale, dpr)}px`;
   for (const f of cardFaces) if (f.el.style.width !== face) f.el.style.width = f.el.style.height = face;
   cardEl.style.maxWidth = `${Math.floor(r.width * (tight ? 0.9 : 0.8))}px`;
   cardEl.style.maxHeight = `${Math.floor(r.height * 0.85)}px`;

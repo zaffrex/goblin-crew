@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import texts from '../../content/text/ja.json';
-import { CARD_LOCK_TICKS, cardFacePx, cardTight, cardInput, cardReady, cardText, cardTick, createStartCard } from './startCard';
+import { CARD_LOCK_TICKS, cardFacePx, cardRowGapPx, cardTight, cardInput, cardReady, cardText, cardTick, createStartCard } from './startCard';
 
 const TEXT: Readonly<Record<string, string>> = texts;
 const t = (id: string): string => TEXT[id] ?? id;
@@ -70,5 +70,17 @@ describe('시작 카드 (ui-interaction.md 6-2-1절, #285)', () => {
     expect(cardFacePx(1, 2)).toBe(36); // 장치 72 = 3배, 48이면 높이 상한(229px)을 넘는다
     expect(cardFacePx(2 / 3, 3)).toBe(32); // 장치 96 = 4배
     expect(cardFacePx(1, 1)).toBe(24);
+  });
+
+  it('특기 줄 사이는 0.15em을 장치 px 정수로 반올림한다(#342)', () => {
+    expect(cardRowGapPx(13, 2)).toBe(2); // 667×375 @2: 장치 4px (0.15em이면 3.9)
+    expect(cardRowGapPx(13, 3)).toBe(2); // 844×390 @3: 장치 6px
+    expect(cardRowGapPx(32, 1)).toBe(5); // 1920×1080
+    expect(cardRowGapPx(16, 1.25)).toBe(2.4); // 장치 3px
+    expect(cardRowGapPx(1, 1)).toBe(1); // 최소 장치 1px
+    for (const [font, dpr] of [[13, 1.25], [13, 1.5], [21, 1.25], [27, 1.5]] as const) {
+      const device = cardRowGapPx(font, dpr) * dpr;
+      expect(Math.abs(device - Math.round(device)), `${font}@${dpr}`).toBeLessThan(1e-9);
+    }
   });
 });
