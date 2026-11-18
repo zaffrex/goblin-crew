@@ -7,7 +7,7 @@ import charactersJson from '../content/characters.json';
 import screenJson from '../content/screens/magpie_nest.json';
 import texts from '../content/text/ja.json';
 import { sayText } from './core/sayText';
-import { bubbleMaxWidth, placeBubble, type BubbleAnchor, type BubbleOptions } from './core/bubble';
+import { bubbleFontPx, bubbleMaxWidth, bubbleTailInset, placeBubble, type BubbleAnchor, type BubbleOptions } from './core/bubble';
 import type { CharacterId } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
@@ -187,24 +187,27 @@ function speakerBox(target: string, layout: ReturnType<typeof sceneLayout>): Bub
   return { x: head.x, top: head.y, bottom: box.top + box.height };
 }
 
-/** 말풍선 틈(CSS px). gap 안에 꼬리(index.html `#bubble::after`, 아래로 7px)가 들어간다. */
-const BUBBLE_OPTS: BubbleOptions = { margin: 4, gap: 9, tailInset: 14 };
-/** 글·최대 폭이 같으면 크기도 같다. 매 프레임 재면 레이아웃을 강제로 다시 하므로 바뀔 때만 잰다. */
+/** 말풍선 틈(CSS px). gap 안에 꼬리(index.html `#bubble::after`, 아래로 7px)가 들어간다. tailInset은 글자 크기를 따른다. */
+const BUBBLE_OPTS: Omit<BubbleOptions, 'tailInset'> = { margin: 4, gap: 9 };
+/** 글·최대 폭·글자 크기가 같으면 크기도 같다. 매 프레임 재면 레이아웃을 강제로 다시 하므로 바뀔 때만 잰다. */
 let bubbleMeasured = { key: '', width: 0, height: 0 };
 
 function placeBubbleDom(text: string, speaker: BubbleAnchor | null): void {
   const r = display.rect();
+  const fontPx = bubbleFontPx(r.width / INTERNAL_WIDTH);
+  const fontSize = `${fontPx}px`;
+  if (bubble.style.fontSize !== fontSize) bubble.style.fontSize = fontSize;
   const maxWidth = `${bubbleMaxWidth(r, BUBBLE_OPTS)}px`;
   if (bubble.style.maxWidth !== maxWidth) bubble.style.maxWidth = maxWidth;
   if (bubble.textContent !== text) bubble.textContent = text;
-  const key = `${maxWidth}|${text}`;
+  const key = `${fontSize}|${maxWidth}|${text}`;
   if (bubbleMeasured.key !== key) bubbleMeasured = { key, width: bubble.offsetWidth, height: bubble.offsetHeight };
   const toScreen = (x: number, y: number): Point => internalToScreen({ x, y }, r, display.internal);
   // 화자가 없으면(대상 상자가 없는 연출) 예전처럼 화면 위쪽 가운데.
   const a = speaker ?? { x: INTERNAL_WIDTH / 2, top: 60, bottom: 60 };
   const head = toScreen(a.x, a.top);
   const anchor = { x: head.x, top: head.y, bottom: toScreen(a.x, a.bottom).y };
-  const p = placeBubble(anchor, bubbleMeasured, r, BUBBLE_OPTS);
+  const p = placeBubble(anchor, bubbleMeasured, r, { ...BUBBLE_OPTS, tailInset: bubbleTailInset(fontPx) });
   bubble.style.left = `${Math.round(p.left)}px`;
   bubble.style.top = `${Math.round(p.top)}px`;
   bubble.style.setProperty('--tail-x', `${Math.round(p.tailX)}px`);

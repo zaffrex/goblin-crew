@@ -35,6 +35,20 @@ export function bubbleMaxWidth(bounds: Rect, opts: Pick<BubbleOptions, 'margin'>
   return Math.max(0, Math.floor(bounds.width - opts.margin * 2));
 }
 
+/** 말풍선 글자 크기(CSS px): 내부 9px × 화면 CSS 배율, 최소 16(ui-interaction 6-5절). 카드·HUD 이름표와 같은 꼴. */
+export function bubbleFontPx(scale: number): number {
+  return Math.max(16, Math.round(9 * scale));
+}
+
+/**
+ * 꼬리를 말풍선 좌우 끝에서 띄우는 거리(CSS px) = 0.875em(16px에서 14).
+ * 꼬리(45° 10px 네모)는 `tailX ± 7px`를 덮는데 모서리는 `0.625em`으로 글자와 같이 커진다.
+ * 14px 고정이면 36px(4배)에서 모서리 반경 22.5가 꼬리 밑을 6px 깎아 바탕색 모서리가 테두리 밖으로 삐져나온다.
+ */
+export function bubbleTailInset(fontPx: number): number {
+  return Math.round(0.875 * fontPx);
+}
+
 function clamp(v: number, lo: number, hi: number): number {
   return hi < lo ? lo : Math.min(hi, Math.max(lo, v));
 }

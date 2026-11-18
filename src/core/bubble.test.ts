@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bubbleMaxWidth, placeBubble, type BubbleOptions } from './bubble';
+import { bubbleFontPx, bubbleMaxWidth, bubbleTailInset, placeBubble, type BubbleOptions } from './bubble';
 
 const OPTS: BubbleOptions = { margin: 4, gap: 6, tailInset: 12 };
 // 667×375 @2 = CSS 1.0배: 게임 화면 480×270이 가운데.
@@ -59,5 +59,30 @@ describe('bubbleMaxWidth', () => {
   it('is the game screen width minus both margins', () => {
     expect(bubbleMaxWidth(PHONE, OPTS)).toBe(472);
     expect(bubbleMaxWidth({ left: 0, top: 0, width: 4, height: 4 }, OPTS)).toBe(0);
+  });
+});
+
+describe('bubbleFontPx', () => {
+  it('is internal 9px times the CSS scale, never below 16 (6-5절)', () => {
+    // 667×375 @2 → 1.0, 844×390 @3 → 1.33, 1280×720 → 2, 1920×1080 → 4
+    expect([1, 4 / 3, 2, 4].map(bubbleFontPx)).toEqual([16, 16, 18, 36]);
+    expect(bubbleFontPx(0.8)).toBe(16);
+  });
+});
+
+describe('bubbleTailInset', () => {
+  it('is 0.875em: 14 at 16px, as before', () => {
+    expect([16, 18, 36].map(bubbleTailInset)).toEqual([14, 16, 32]);
+  });
+
+  it('keeps the tail (±7px) off the 0.625em rounded corner at every font size', () => {
+    for (const font of [16, 18, 24, 36, 48]) {
+      const radius = 0.625 * font;
+      const tailLeftEdge = bubbleTailInset(font) - 7;
+      // 꼬리 왼쪽 끝에서 모서리 곡선이 올라간 높이. 1px 미만이면 테두리 2px 안에 묻힌다.
+      const dx = Math.max(0, radius - tailLeftEdge);
+      const lift = radius - Math.sqrt(radius * radius - dx * dx);
+      expect(lift).toBeLessThan(1);
+    }
   });
 });
