@@ -61,6 +61,36 @@ export const TIMING = {
 } as const;
 
 /**
+ * 시소 끝 깡충(`magpie_nest.md` 1-5-3절, #397). 웅크림·공중 ms는 시트 `step_up`의 `ms`가 있으면 그것을 쓰고,
+ * 없으면(실루엣·테스트) 아래 표를 쓴다. 착지는 웅크림 칸을 `landMs` 동안 다시 쓴다(셋 같음, 엔진 상수).
+ * 내려서기는 웅크림 없이 공중 → 착지이고 셋이 같다. `h`는 솟는 높이(px): y = 직선 − h·4u(1−u).
+ * h는 8 이상이어야 착지 직전 발이 판 윗면 위에서 내려온다(직선 기울기 26px / 4 = 6.5 초과, 1-5-3절).
+ */
+export const HOP = {
+  up: {
+    jjuk: { crouchMs: 100, airMs: 150, h: 10 },
+    ppik: { crouchMs: 50, airMs: 150, h: 12 },
+    mukjik: { crouchMs: 150, airMs: 150, h: 8 },
+  } satisfies Record<CharacterId, { crouchMs: number; airMs: number; h: number }>,
+  down: { airMs: 100, h: 8 },
+  landMs: 50,
+} as const;
+
+/** 진행 중인 깡충 하나(틱 단위). 시작 틱이 t=0이고 `crouch + air + land` 틱에 `to`에 선다. */
+export interface Hop {
+  from: Point;
+  to: Point;
+  t: number;
+  crouch: number;
+  air: number;
+  land: number;
+  h: number;
+}
+
+/** `walk` 이벤트 하나를 이루는 구간(#397). 보통은 걷기 하나이고, 시소 끝에 오르내리면 걷기와 깡충 둘이다. */
+export type WalkLeg = { kind: 'walk'; to: Point } | { kind: 'hop'; to: Point; up: boolean };
+
+/**
  * 재생 중인 이벤트. `say`는 고른 문구 ID 하나로 바꿔 둔다(배열 변형은 발동 횟수로 고른다).
  * `walk.face`는 엔진이 넣은 "대상 앞까지 걷기"(설계 5-1절)에만 있다: 도착하면 그 방향(대상 쪽)을 본다.
  */
@@ -86,6 +116,10 @@ export interface Playing {
    * 맨 앞이 fx가 아니면(이어진 fx가 신호보다 적음) 그 신호는 아무것도 띄우지 않는다(`ability-feedback.md` 4절).
    */
   cues?: number[];
+  /** `walk`의 남은 구간(#397). 앞 구간(걷기·깡충)이 끝나면 다음을 시작한다. 비면 도착이다. */
+  legs?: WalkLeg[];
+  /** `walk`가 끝날 때 설 점. 탭 건너뛰기가 여기로 바로 옮긴다(깡충까지 건너뜀, 1-5-2절). */
+  end?: Point;
 }
 
 /**
@@ -150,6 +184,8 @@ export interface SceneState {
    * 넘기기는 `saySkipAfter` 뒤에만 되니 "끝까지 띄움 = 적어도 1.0초 보임"이다. UI 상태라 세이브하지 않고, 게이지 0 리셋에서도 지우지 않는다.
    */
   seenSay: Record<string, true>;
+  /** 시소 끝에 오르내리는 중인 깡충(#397). 그림·판정은 걷기(walker) 좌표를 그대로 쓰고, 자세만 `step_up`으로 바뀐다. */
+  hops: Partial<Record<CharacterId, Hop>>;
   cleared: boolean;
 }
 
@@ -225,6 +261,7 @@ export function createScene(data: SceneData): SceneState {
     held: {},
     reach: {},
     seenSay: {},
+    hops: {},
     cleared: false,
   };
   // onEnter는 상태를 바꾸지 않는 연출이다(ADR-0065 5절). say 화자는 캐릭터 ID만 온다.
@@ -433,6 +470,15 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
   } else if (ap?.face != null) {
     w.facing = ap.face;
   }
+  const board = r.source === 'blocked' && action.verb === 'move' ? data.screen.spots[action.target]?.board : undefined;
+  if (board && isFree(data, prev.at[action.char] ?? '') && (w.x !== board[0] || w.y !== board[1])) {
+    // 끝이 차 있으면(`takenShow`) 바닥 점까지 걸어가 그 끝을 보고 멈춘다. 뛰어오르지 않는다(1-5-2절, 16번 "끝 앞에서 멈춘다").
+    const spot = prev.at[action.char]!;
+    const target = spotPoint(data, action.target);
+    s.floorTo[action.char] = { x: board[0], y: board[1] };
+    const face: Facing | null = target.x === board[0] ? null : target.x > board[0] ? 1 : -1;
+    s.queue.push(face === null ? { type: 'walk', char: action.char, from: spot, to: spot } : { type: 'walk', char: action.char, from: spot, to: spot, face });
+  }
   deferShown(data, s, before, events);
   if (to) s.floorTo[action.char] = to;
   // 장대 대상 점: `reachPoint`, 없으면 대상 상자 아래 끝 가운데(#284: 고리 뻗기 실패는 집게가 고리 "바로 아래"에서 멈춘다).
@@ -522,12 +568,11 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
   else if (ev.type === 'faint') s.held = {};
   switch (ev.type) {
     case 'walk': {
-      const w = s.walkers[ev.char];
       const p = destination(data, s, ev.char, ev.to);
-      if (p.x !== w.x) w.facing = p.x > w.x ? 1 : -1;
-      w.target = p.x === w.x && p.y === w.y ? null : p;
       s.spotOf[ev.char] = ev.to;
-      return { ev, t: 0, duration: null, seq };
+      const playing: Playing = { ev, t: 0, duration: null, seq, legs: walkLegs(data, ev.from, ev.to, p), end: p };
+      nextLeg(data, s, playing);
+      return playing;
     }
     case 'release':
       teleport(s.walkers[ev.char], landing(data, s, ev.char, ev.from, ev.to));
@@ -573,6 +618,78 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
 }
 
 /**
+ * `walk` 구간(#397, `magpie_nest.md` 1-5-2절). `board`가 있는 자리로 바닥에서 오면 바닥 점까지 걷고 깡충 올라서고,
+ * 그 자리에서 바닥으로 떠나면 먼저 바닥 점으로 뛰어내린 뒤 걷는다. `board` 자리끼리(시소 끝 ↔ 끝)는 판 위로 걷는다.
+ */
+function walkLegs(data: SceneData, from: string, to: string, p: Point): WalkLeg[] {
+  const up = data.screen.spots[to]?.board;
+  const down = data.screen.spots[from]?.board;
+  if (up && !down) return [{ kind: 'walk', to: { x: up[0], y: up[1] } }, { kind: 'hop', to: p, up: true }];
+  if (down && !up) return [{ kind: 'hop', to: { x: down[0], y: down[1] }, up: false }, { kind: 'walk', to: p }];
+  return [{ kind: 'walk', to: p }];
+}
+
+const msTicks = (ms: number): number => Math.max(1, Math.round(ms / TICK_MS));
+
+/** 깡충 시간(틱). 웅크림·공중은 시트 `step_up` `ms`가 있으면 그 값(ADR-0007: 지속 시간은 시트 데이터), 없으면 `HOP` 표. */
+function hopTiming(data: SceneData, id: CharacterId, up: boolean): Pick<Hop, 'crouch' | 'air' | 'land' | 'h'> {
+  const land = msTicks(HOP.landMs);
+  if (!up) return { crouch: 0, air: msTicks(HOP.down.airMs), land, h: HOP.down.h };
+  const def = HOP.up[id];
+  const a = data.sprites?.[id]?.anims.step_up;
+  const ms = a && 'ms' in a && a.ms.length >= 2 ? a.ms : [def.crouchMs, def.airMs];
+  return { crouch: msTicks(ms[0]!), air: msTicks(ms[1]!), land, h: def.h };
+}
+
+/** 깡충 t틱의 발 위치. 웅크림 동안 `from`, 공중은 x 직선 + y 포물선, 착지 동안 `to`. 소수 좌표다(그릴 때 반올림). */
+export function hopPoint(h: Hop): Point {
+  if (h.t < h.crouch) return { ...h.from };
+  if (h.t >= h.crouch + h.air) return { ...h.to };
+  const u = (h.t - h.crouch) / h.air;
+  return { x: h.from.x + (h.to.x - h.from.x) * u, y: h.from.y + (h.to.y - h.from.y) * u - h.h * 4 * u * (1 - u) };
+}
+
+/** 깡충 t틱의 `step_up` 칸: 웅크림·착지 0, 공중 1(1-5-3절). */
+export function hopFrame(h: Hop): 0 | 1 {
+  return h.t >= h.crouch && h.t < h.crouch + h.air ? 1 : 0;
+}
+
+/** 깡충을 한 틱 보낸다. 끝나면 `to`에 세우고 지운다. */
+function tickHops(s: SceneState): void {
+  for (const c of CHARACTERS) {
+    const h = s.hops[c.id];
+    if (!h) continue;
+    h.t += 1;
+    const w = s.walkers[c.id];
+    if (h.t >= h.crouch + h.air + h.land) {
+      teleport(w, h.to);
+      delete s.hops[c.id];
+    } else {
+      const q = hopPoint(h);
+      w.x = q.x;
+      w.y = q.y;
+    }
+  }
+}
+
+/** `walk`의 앞 구간이 끝났으면 다음 구간을 시작한다. 이미 그 자리면(걸을 거리 0) 바로 그다음으로 넘어간다. */
+function nextLeg(data: SceneData, s: SceneState, p: Playing): void {
+  if (p.ev.type !== 'walk' || !p.legs) return;
+  const id = p.ev.char;
+  const w = s.walkers[id];
+  while (w.target === null && !s.hops[id] && p.legs.length > 0) {
+    const leg = p.legs.shift()!;
+    if (leg.to.x !== w.x) w.facing = leg.to.x > w.x ? 1 : -1;
+    if (leg.kind === 'walk') {
+      w.target = leg.to.x === w.x && leg.to.y === w.y ? null : { ...leg.to };
+      w.walkTicks = 0;
+    } else {
+      s.hops[id] = { from: { x: w.x, y: w.y }, to: { ...leg.to }, t: 0, ...hopTiming(data, id, leg.up) };
+    }
+  }
+}
+
+/**
  * 캐릭터 연출의 busy 길이: 시트에 시간으로 넘기는 그 자세가 있으면 `ms` 합(물건 anim과 같은 올림, 형식 기록 5절).
  * 시트·자세가 없거나 거리로 넘기는 자세면 null(→ 임시 길이). 그림이 그 길이 동안 마지막 장까지 다 보인다.
  */
@@ -613,6 +730,7 @@ export function charPose(data: SceneData, s: SceneState, id: CharacterId): Pose 
     walkedPx: w.target ? w.walkTicks * WALK_SPEED : null,
     holding: isHanging(data, s, id),
     event: charEvent(s, id),
+    hop: s.hops[id] ? hopFrame(s.hops[id]) : null,
     clockMs: s.tick * TICK_MS,
     reach: s.reach[id] ?? null,
   };
@@ -650,7 +768,7 @@ export function activeFx(s: SceneState): { effect: string; target: string; t: nu
 }
 
 function finished(s: SceneState, p: Playing): boolean {
-  if (p.ev.type === 'walk') return s.walkers[p.ev.char].target === null;
+  if (p.ev.type === 'walk') return s.walkers[p.ev.char].target === null && !s.hops[p.ev.char] && !p.legs?.length;
   return p.duration !== null && p.t >= p.duration;
 }
 
@@ -659,6 +777,7 @@ export function sceneTick(data: SceneData, s: SceneState): void {
   s.tick += 1;
   // 엔진 걷기와 자동 걷기 모두 같은 속도로 진행한다. 다른 캐릭터의 걷기는 연출 중에도 계속된다.
   for (const c of CHARACTERS) stepWalker(s.walkers[c.id], TIMING.walkSpeed);
+  tickHops(s);
   tickOverlays(s);
   // 이벤트를 시작한 틱이 그 이벤트의 t=0 프레임이다. 길이 0 이벤트(clear)나 이미 도착한 걷기는 같은 틱에 다음으로 넘어간다.
   for (let guard = 0; guard < 64; guard++) {
@@ -673,6 +792,7 @@ export function sceneTick(data: SceneData, s: SceneState): void {
       s.current.t += 1;
     }
     fireCue(data, s, s.current);
+    nextLeg(data, s, s.current);
     if (!finished(s, s.current)) return;
     if (s.current.ev.type === 'faint') s.shownGauge = GAUGE_MAX;
     if (s.current.ev.type === 'walk' && s.current.ev.face !== undefined) s.walkers[s.current.ev.char].facing = s.current.ev.face;
@@ -717,8 +837,12 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
   }
   if (cur) {
     if (cur.ev.type === 'walk') {
+      // 남은 걷기·깡충을 다 건너뛰고 끝 점에 선다(1-5-2절: 깡충까지 건너뛴다).
       const w = s.walkers[cur.ev.char];
-      if (w.target) teleport(w, w.target);
+      delete s.hops[cur.ev.char];
+      cur.legs = [];
+      if (cur.end) teleport(w, cur.end);
+      else if (w.target) teleport(w, w.target);
       return { kind: 'skipWalk' };
     }
     if (cur.ev.type === 'say' && cur.t >= (s.seenSay[seenSayKey(cur.ev.speaker, cur.ev.text)] ? TIMING.seenSaySkipAfter : TIMING.saySkipAfter)) {

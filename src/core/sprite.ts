@@ -162,6 +162,11 @@ export interface Pose {
   holding: boolean;
   /** 이 캐릭터에게 재생 중인 `anim` 이벤트 이름(`common.bump_bottom` 등)과 시작 뒤 지난 ms. */
   event: { name: string; ms: number } | null;
+  /**
+   * 시소 끝에 오르내리는 깡충 중이면 `step_up` 칸 번호(0 웅크림·착지, 1 공중, `magpie_nest.md` 1-5-3절, #397). 아니면 null·없음.
+   * 시트에 `step_up`이 없으면 서 있기(`idle`) 첫 칸으로 그린다.
+   */
+  hop?: 0 | 1 | null;
   /** 전역 시간(ms). 서 있기 반복용. */
   clockMs: number;
   /** 지금 행동의 대상 점(핫스팟 `reachPoint`). 장대를 칸 밖으로 이을 때 쓴다(5-1절). 없으면 잇지 않는다. */
@@ -171,6 +176,7 @@ export interface Pose {
 /** 지금 그리는 자세. `spriteFrame`과 같은 우선순위이고, 시트에 없으면 undefined(실루엣). */
 function poseAnim(meta: SpriteMeta, pose: Pose): SpriteAnim | undefined {
   if (pose.event) return meta.anims[pose.event.name];
+  if (pose.hop != null) return meta.anims.step_up ?? meta.anims.idle;
   if (pose.holding) return meta.anims.hold;
   if (pose.walkedPx !== null) return meta.anims.walk;
   return meta.anims.idle;
@@ -191,13 +197,19 @@ export function spriteHit(meta: SpriteMeta, pose: Pose, x: number, y: number, fa
 
 /**
  * 그릴 프레임 번호. 시트에 그 자세가 없으면 null(실루엣).
- * 우선순위: 이벤트 연출 > 매달림(`hold`) > 걷기(`walk`) > 서 있기(`idle`).
+ * 우선순위: 이벤트 연출 > 깡충(`step_up`, #397) > 매달림(`hold`) > 걷기(`walk`) > 서 있기(`idle`).
  * 이벤트 이름은 화면 데이터의 `anim` 이름 그대로 시트 `anims` 키로 찾는다(데이터만 더하면 붙는다).
  */
 export function spriteFrame(meta: SpriteMeta, pose: Pose): number | null {
   if (pose.event) {
     const a = meta.anims[pose.event.name];
     return a ? a.frames[timedIndex(a, pose.event.ms, false)]! : null;
+  }
+  if (pose.hop != null) {
+    const up = meta.anims.step_up;
+    if (up) return up.frames[Math.min(pose.hop, up.frames.length - 1)]!;
+    const idle = meta.anims.idle;
+    return idle ? idle.frames[0]! : null;
   }
   if (pose.holding) {
     const a = meta.anims.hold;

@@ -3,7 +3,7 @@
 // 이 도구는 처음 상태(셋 다 바닥)에서 세 사람 특기를 대상마다 **실제 클릭·탭**으로 쓰고, 마지막 탭부터 일정 간격으로
 // 화면을 찍어 사례별 한 장짜리 모음(contact sheet)을 만든다. 통과/실패는 사람이 모음을 보고 정한다(자동 판정 없음).
 //
-// 사용: node --import ./scripts/playtest/register.mjs scripts/playtest/frames.ts [--url <URL>] [--out <폴더>] [--every 120] [--tail 1500] [--mobile] [--no-sandbox]
+// 사용: node --import ./scripts/playtest/register.mjs scripts/playtest/frames.ts [--url <URL>] [--out <폴더>] [--every 120] [--tail 1500] [--mobile] [--no-sandbox] [--only <사례 ID 일부>]
 // 결과: <out>/<사례>/f00.png…, <out>/<사례>.png(모음), <out>/report.md(사례별 말풍선 글·게이지·프레임 수).
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -24,6 +24,8 @@ const { values: args } = parseArgs({
     tail: { type: 'string', default: '1500' },
     mobile: { type: 'boolean', default: false },
     'no-sandbox': { type: 'boolean', default: false },
+    /** 사례 ID에 이 글자가 든 것만 찍는다(예: `--only move`). */
+    only: { type: 'string', default: '' },
   },
 });
 
@@ -47,6 +49,8 @@ const CASES: { id: string; action: Action; why: string }[] = [
   { id: 'mukjik-stomp-hook', action: { char: 'mukjik', verb: 'stomp', target: 'hook' }, why: '고리에 쿵' },
   { id: 'ppik-squeak-nest', action: { char: 'ppik', verb: 'squeak', target: 'nest' }, why: '둥지에 삑: 소리 글자' },
   { id: 'ppik-squeak-magpie', action: { char: 'ppik', verb: 'squeak', target: 'magpie' }, why: '까치에 삑: 까치가 내려옴' },
+  { id: 'jjuk-move-seesaw_left', action: { char: 'jjuk', verb: 'move', target: 'seesaw_left' }, why: '시소 왼쪽 끝 올라서기: 바닥 점까지 걷고 깡충(#397 1-5-2절)' },
+  { id: 'mukjik-move-seesaw_right', action: { char: 'mukjik', verb: 'move', target: 'seesaw_right' }, why: '시소 오른쪽 끝 올라서기: 가장 낮게·오래 웅크림(#397 1-5-3절)' },
 ];
 
 /** replay.ts와 같은 관찰 전용 말풍선 기록기. */
@@ -176,7 +180,7 @@ async function main(): Promise<number> {
   const L = [`# 특기 연출 프레임 (${new Date().toISOString()})`, '', `- URL: ${args.url} (${VIEWPORT.name} ${VIEWPORT.width}×${VIEWPORT.height})`, `- 마지막 탭부터 ${EVERY}ms마다, 연출이 끝난 뒤 ${TAIL}ms까지`, '- 판정은 사람이 모음 그림을 보고 한다: **말풍선을 안 읽어도 특기를 썼다는 게 보이는가**', '', '| 사례 | 보는 것 | 프레임 | 말풍선 | 게이지 | 모음 |', '|---|---|---|---|---|---|'];
   let failed = false;
   try {
-    for (const c of CASES) {
+    for (const c of CASES.filter((x) => x.id.includes(args.only))) {
       const r = await runCase(browser, c, outDir);
       const sheet = await contactSheet(browser, r, outDir);
       const said = r.said.map((t) => t.replace(/\n/g, ' / ')).join(' ⏵ ') || '-';
