@@ -148,6 +148,12 @@ describe('busy 중 입력 (설계 5절)', () => {
       expect(sayDuration({ texts }, 'jjuk', 'no.such')).toBe(TIMING.sayBase + TIMING.sayPerChar * 'no.such'.length);
     });
 
+    it('말풍선 최대 28자(ja-text.md 2절, 14자 × 2줄)는 상한에 잘리지 않는다', () => {
+      const max = sayDuration({ texts: { full: 'あ'.repeat(14) + '\u200b' + 'い'.repeat(14) } }, 'jjuk', 'full');
+      expect(max).toBe(TIMING.sayBase + TIMING.sayPerChar * 28);
+      expect(max).toBeLessThanOrEqual(TIMING.sayMax);
+    });
+
     it('ja.json 대사는 모두 1.0초 넘김 가드보다 길고, 상한에 걸리지 않는다', () => {
       const ja = jaJson as Record<string, string>;
       for (const [id, text] of Object.entries(ja)) {
