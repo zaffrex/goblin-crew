@@ -121,19 +121,25 @@ describe('magpie_nest 효과 위치 표시 순서 (#206, #339)', () => {
     ]);
   });
 
-  it('15번 seesaw_self_smack_right(자리 이동 없음): 납작 바로 뒤 게이지, 별은 그 뒤', () => {
-    expect(stomp({}, 'seesaw_right')).toEqual([
-      ...STOMP,
-      'anim seesaw_left plank_bounce',
-      'anim mukjik common.flatten',
-      'gauge -1',
-      'fx stars mukjik',
-      'say mukjik',
-    ]);
-  });
+  // 15번은 거울 규칙 두 개(오른쪽 끝·왼쪽 끝을 빈 반대편으로 밟음). 같은 실패라 게이지 박자도 같아야 한다.
+  for (const [id, target, other] of [
+    ['seesaw_self_smack_right', 'seesaw_right', 'seesaw_left'],
+    ['seesaw_self_smack_left', 'seesaw_left', 'seesaw_right'],
+  ] as const) {
+    it(`15번 ${id}(자리 이동 없음): 납작 바로 뒤 게이지, 별은 그 뒤`, () => {
+      expect(stomp({}, target)).toEqual([
+        ...STOMP,
+        `anim ${other} plank_bounce`,
+        'anim mukjik common.flatten',
+        'gauge -1',
+        'fx stars mukjik',
+        'say mukjik',
+      ]);
+    });
+  }
 
   it('특기 연출 뒤 시그니처 fx(stomp_text)는 표시보다 앞이다(#253 PM 리뷰)', () => {
-    for (const id of ['seesaw_launch', 'seesaw_launch_bump', 'seesaw_launch_wrong_way', 'seesaw_self_smack_right']) {
+    for (const id of ['seesaw_launch', 'seesaw_launch_bump', 'seesaw_launch_wrong_way', 'seesaw_self_smack_right', 'seesaw_self_smack_left']) {
       const show = screen.rules.find((r) => r.id === id)!.show!;
       const mark = show.findIndex((x) => 'do' in x);
       const sig = show.findIndex((x) => 'fx' in x && x.fx[0] === 'stomp_text');
