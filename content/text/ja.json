@@ -91,7 +91,7 @@
   "ui.hud.gauge": "ふわふわゲージ",
   "ui.hud.char_hover": "{name}: {desc}",
   "ui.hud.gauge_hover": "ふわふわゲージ: ミスで1マス減る。0でみんなスタートへ",
-  "ui.intro": "目標：巣から店のカギを取り返す",
+  "ui.intro": "目標：巣から\u200b店のカギを取り返す",
   "ui.card.goal": "店のカギを取り返そう！",
   "ui.card.why": "カササギの巣の中。ないと店が開かない",
   "ui.card.gauge": "ふわふわゲージ: ミスで1マス減る。0でみんなスタートへ",
