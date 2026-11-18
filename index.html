@@ -44,6 +44,9 @@
       .hudtag[data-anchor="top-center"] { padding: 1px 2px; }
       /* 게이지 이름표(#312, 설계 6-3-2절): 왼쪽 끝 x 4, 띠 세로 가운데. 글자 크기가 배율마다 달라 세로 가운데는 여기서 맞춘다. */
       .hudtag[data-anchor="middle-left"] { transform: translateY(-50%); }
+      /* CSS 배율 1.2 미만(667×375 @2 = 1.0배 등, 설계 6-4-2절 #325): HUD 이름표 전부 글자 사이 좁히기 + padding 0.
+         글자는 11px 그대로. 위아래도 0이라 얼굴 이름표 아래끝이 HUD 영역(y 48) 안이다. main.ts가 data-tight를 붙인다. */
+      #hudtags[data-tight] .hudtag { padding: 0; font-feature-settings: "palt"; }
       #clear, #faint {
         left: 50%; top: 50%; transform: translate(-50%, -50%);
         font: 700 28px/1.4 system-ui, sans-serif; color: #fffdf5;

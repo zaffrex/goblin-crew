@@ -16,6 +16,8 @@ import {
   CHAR_SLOTS,
   CHAR_TAG_TOP,
   HUD_AREA,
+  hudTagFontPx,
+  hudTagTight,
   hudHoverText,
   hudTags,
   inHudZone,
@@ -48,16 +50,31 @@ describe('hudTags (늘 보이는 이름표, 설계 6-4-2절)', () => {
     expect(GAUGE_TAG_AT.x).toBeLessThan(GAUGE_TRACK.left);
   });
 
-  it('이름표 폭(6-4-2절 표): 휴대폰 가로 1.333배에서 이웃 이름표와 붙지 않고, 아래끝이 HUD 영역 안이다', () => {
-    // main.ts placeHudTags: 글자 max(11, round(7×배율)) CSS px, index.html 얼굴 이름표 padding 1px 2px, line-height 1.
+  it('이름표 폭(6-4-2절 표): 실제로 나오는 CSS 배율에서 이웃 이름표와 붙지 않고, 아래끝이 HUD 영역 안이다', () => {
+    // index.html: 얼굴 이름표 padding 1px 2px, line-height 1. 1.2배 미만은 padding 0(#325). 전각 3자 폭 = 글자 × 3(palt 전 상한).
+    const pad = (scale: number) => (hudTagTight(scale) ? { x: 0, y: 0 } : { x: 2, y: 1 });
     const box = (scale: number) => {
-      const font = Math.max(11, Math.round(7 * scale));
-      return { w: (font * 3 + 4) / scale, h: (font + 2) / scale };
+      const font = hudTagFontPx(scale);
+      return { w: (font * 3 + 2 * pad(scale).x) / scale, h: (font + 2 * pad(scale).y) / scale };
     };
     const gap = CHAR_SLOTS.mukjik.left - CHAR_SLOTS.jjuk.left;
+    // 1280×720 @1, 915×412 @2.625, 844×390 @3 (computeScale: 장치 정수 배율 ÷ dpr)
+    expect(gap - box(2).w).toBeGreaterThanOrEqual(9);
+    expect(gap - box(1.524).w).toBeGreaterThan(7);
     expect(gap - box(1.333).w).toBeGreaterThan(4);
-    expect(gap - box(2.667).w).toBeGreaterThan(9);
-    for (const s of [1.1, 1.333, 2.667]) expect(CHAR_TAG_TOP + box(s).h).toBeLessThanOrEqual(HUD_AREA.top + HUD_AREA.height);
+    // 1.2배 이상에서 지금 padding으로 가장 빡빡한 경계
+    expect(gap - box(1.2).w).toBeGreaterThan(1);
+    // 667×375 @2 = 1.0: palt 없이도 padding 0이면 33 CSS → 1px 겹침. palt 실측(31.6/28.4/29)이면 틈 2 / 3.3(설계 표).
+    expect(hudTagTight(1)).toBe(true);
+    expect(gap - (31.6 + 28.4) / 2).toBeCloseTo(2);
+    for (const s of [1, 1.09, 1.2, 1.333, 1.524, 2]) {
+      expect(CHAR_TAG_TOP + box(s).h).toBeLessThanOrEqual(HUD_AREA.top + HUD_AREA.height);
+    }
+  });
+
+  it('1.2배 경계: 바로 아래만 tight. 글자 크기는 배율과 상관없이 11px 아래로 내려가지 않는다', () => {
+    expect([hudTagTight(1.19), hudTagTight(1.2), hudTagTight(1.333)]).toEqual([true, false, false]);
+    expect([hudTagFontPx(1), hudTagFontPx(1.524), hudTagFontPx(2), hudTagFontPx(4)]).toEqual([11, 11, 14, 28]);
   });
 
   it('키가 없으면 키 이름이 보인다(빠진 번역을 숨기지 않는다)', () => {

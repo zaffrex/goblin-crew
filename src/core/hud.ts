@@ -68,6 +68,21 @@ export interface HudTag {
 /** 특기 이름표 위끝: 지금 캐릭터 막대(y 33–34) 아래 1px(6-4-2절). */
 export const CHAR_TAG_TOP = 36;
 
+/** HUD 이름표 글자 크기(CSS px): 내부 7px × 화면 CSS 배율, 최소 11(6-1-2절). */
+export function hudTagFontPx(scale: number): number {
+  return Math.max(11, Math.round(7 * scale));
+}
+
+/**
+ * CSS 배율이 이보다 작으면 HUD 이름표 전부(얼굴 3개 + 게이지) `palt` + `padding: 0`(6-4-2절, #325).
+ * 667×375 @2(iPhone SE급)의 1.0배에서 얼굴 이름표가 서로 겹치고 게이지 이름표가 막대를 덮는 것을 막는다.
+ * 지금 padding으로 겹치기 시작하는 배율은 약 1.156이라 1.2는 여유를 둔 경계다.
+ */
+export const HUD_TAG_TIGHT_BELOW = 1.2;
+export function hudTagTight(scale: number): boolean {
+  return scale < HUD_TAG_TIGHT_BELOW;
+}
+
 /** 게이지 이름표: 띠 왼쪽 x 4, 띠 세로 가운데 y 263(6-3-2절). 막대 시작 x 84 앞에서 끝난다. */
 export const GAUGE_TAG_AT: Point = { x: 4, y: GAUGE_BAND.top + GAUGE_BAND.height / 2 };
 

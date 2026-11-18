@@ -14,7 +14,7 @@ import { dustPush, FX_COLORS, FX_STYLE, FX_TEXT_SPOT, SHAKE_FX, shakeOffset } fr
 import type { HitBox } from './core/hit';
 import { cardFacePx, cardInput, cardReady, cardText, cardTick, createStartCard } from './core/startCard';
 import { createFirstNotes, currentNote, noteGauge, noteSwitch, noteTap } from './core/firstNotes';
-import { abilityText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, HUD_AREA, hudHoverText, hudTags, LABEL_BOTTOM, type HudId } from './core/hud';
+import { abilityText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { activeFx, activeMarkerVisible, charPose, createScene, currentBubble, drawOrder, gaugeDrop, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
@@ -185,12 +185,12 @@ function placeDom(el: HTMLElement, at: Point): void {
 }
 
 /** 늘 보이는 HUD 이름표(설계 6-4-2절: 얼굴 아래 특기, 6-3-2절: 게이지). 글자 = 내부 7px × 화면 배율, 최소 11 CSS px. */
-const HUD_TAG_PX = 7;
-const HUD_TAG_MIN_CSS = 11;
 const hudTagEls = new Map<string, HTMLElement>();
 function placeHudTags(): void {
   const scale = display.rect().width / INTERNAL_WIDTH;
-  const size = `${Math.max(HUD_TAG_MIN_CSS, Math.round(HUD_TAG_PX * scale))}px`;
+  const size = `${hudTagFontPx(scale)}px`;
+  // 1.2배 미만(667×375 @2 등)은 `palt` + padding 0. CSS는 index.html `#hudtags[data-tight]`.
+  hudTagLayer.toggleAttribute('data-tight', hudTagTight(scale));
   for (const tag of hudTags(t)) {
     let el = hudTagEls.get(tag.id);
     if (!el) {
