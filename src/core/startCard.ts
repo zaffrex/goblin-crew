@@ -90,13 +90,24 @@ export interface CardText {
   start: string;
 }
 
-/** 카드 글(6-2-6절 키). 특기 줄은 캐릭터 정의 순서(HUD 칸 순서와 같다). */
-export function cardText(t: (id: string) => string): CardText {
+/** 시작 카드를 닫는 입력 방식. 카드는 첫 입력 전에 뜨므로 `pointerType`이 아니라 장치 특성으로 고른다(#364). */
+export type CardPointer = 'touch' | 'mouse';
+
+/**
+ * 주 포인터가 손가락이면 'touch'. 터치 노트북·마우스 붙인 태블릿은 주 포인터가 마우스라 'mouse'다
+ * (그래도 탭하면 카드는 닫힌다). `matchMedia`가 없는 환경(테스트)은 데스크톱 우선이라 'mouse'.
+ */
+export function cardPointer(mq: ((query: string) => { matches: boolean }) | undefined): CardPointer {
+  return mq?.('(hover: none) and (pointer: coarse)').matches ? 'touch' : 'mouse';
+}
+
+/** 카드 글(6-2-6절 키). 특기 줄은 캐릭터 정의 순서(HUD 칸 순서와 같다). 마지막 줄만 입력 방식에 따라 다르다(#364). */
+export function cardText(t: (id: string) => string, pointer: CardPointer = 'mouse'): CardText {
   return {
     goal: t('ui.card.goal'),
     why: t('ui.card.why'),
     rows: CHARACTERS.map((c) => ({ id: c.id, name: t(`char.${c.id}.name`), ability: `${t(`ui.verb.${c.ability}`)}: ${t(`ui.ability.${c.ability}`)}` })),
     gauge: t('ui.card.gauge'),
-    start: t('ui.card.start'),
+    start: t(pointer === 'touch' ? 'ui.card.start' : 'ui.card.start_click'),
   };
 }
