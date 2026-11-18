@@ -30,12 +30,12 @@ const WEIGHT = { jjuk: 1, ppik: 1, mukjik: 2 };
 const STEP = 3; // 무게 차 1당 오른쪽 끝이 내려가는 px
 const GROUND_Y = 240; // 올라서기 바닥 점 y(받침 바닥선 236보다 앞)
 const GROUND_DX = 6; // 바닥 점 board = 서는 자리에서 오른쪽(시작 위치 쪽)으로 6px, 두 끝 모두 한 점
-const HOP = { // 올라서기: 웅크림 → 공중 → 착지 웅크림(ms), H = 직선 위로 솟는 높이(px)
-  jjuk: { crouch: 80, air: 140, land: 60, H: 10 },
-  ppik: { crouch: 60, air: 130, land: 60, H: 12 },
-  mukjik: { crouch: 100, air: 150, land: 70, H: 8 },
+const HOP = { // 올라서기: 웅크림 → 공중 → 착지 웅크림(ms, 캐릭터 시트 규칙대로 50ms 배수, ADR-0007), H = 직선 위로 솟는 높이(px)
+  jjuk: { crouch: 100, air: 150, land: 50, H: 10 },
+  ppik: { crouch: 50, air: 150, land: 50, H: 12 },
+  mukjik: { crouch: 150, air: 150, land: 50, H: 8 },
 };
-const DOWN = { air: 120, land: 60, H: 8 }; // 내려서기(셋 같음)
+const DOWN = { air: 100, land: 50, H: 8 }; // 내려서기(셋 같음)
 
 const tiltOf = (on) => STEP * ((on.right ? WEIGHT[on.right] : 0) - (on.left ? WEIGHT[on.left] : 0));
 /** 물건 원본 plank()와 같은 식: 열 x가 내려가는 px */
