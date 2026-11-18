@@ -8,7 +8,7 @@ DOS 시절 협동 퍼즐 어드벤처에서 영감을 받은 **오리지널** �
 - 현재 상태: [`docs/team/status.md`](docs/team/status.md)
 - 결정 기록(ADR): [`docs/adr/`](docs/adr/)
 - 회의록: [`docs/meetings/`](docs/meetings/)
-- 사장님 가이드: [`docs/team/owner-guide.md`](docs/team/owner-guide.md)
+- 진마씨 가이드: [`docs/team/owner-guide.md`](docs/team/owner-guide.md)
 
 ## 자동화 구조
 

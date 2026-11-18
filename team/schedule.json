@@ -1,5 +1,5 @@
 {
-  "_comment": "팀 작업 빈도 설정. 팀이 PR로 조정할 수 있다 (예: 구독 사용량 한도에 자주 걸리면 tick_every_hours를 늘린다). 완전 정지는 사장님이 저장소 변수 TEAM_PAUSED=true로 한다.",
+  "_comment": "팀 작업 빈도 설정. 팀이 PR로 조정할 수 있다 (예: 구독 사용량 한도에 자주 걸리면 tick_every_hours를 늘린다). 완전 정지는 진마씨가 저장소 변수 TEAM_PAUSED=true로 한다.",
   "paused": false,
   "tick_every_hours": 1,
   "tick_roles": ["pm", "designer", "frontend", "backend", "infra"],
