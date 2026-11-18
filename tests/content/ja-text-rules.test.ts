@@ -4,9 +4,14 @@ import { describe, expect, it } from "vitest";
 // #280: docs/design/ja-text.md 2절 "줄 길이 규칙" 중 validate.ts(textFits, 14자×2줄)가 보지 않는 것을 검사한다.
 // 이 테스트가 "예외 2에 해당하는 줄" 목록의 원본이다. 규칙을 바꾸면 ja-text.md 2절도 같이 고친다.
 
-const texts = JSON.parse(
-  readFileSync(new URL("../../content/text/ja.json", import.meta.url), "utf8"),
-) as Record<string, string>;
+const raw = readFileSync(
+  new URL("../../content/text/ja.json", import.meta.url),
+  "utf8",
+);
+const texts = JSON.parse(raw) as Record<string, string>;
+
+/** 눈에 안 보이는 글자. 글 파일에는 `\u200b`처럼 이스케이프로만 쓴다 (#367 뒤 `ui.intro` 사고). */
+const INVISIBLE = /[\u00ad\u200b-\u200f\u2028\u2029\u2060\ufeff]/u;
 
 /** 줄 머리 금칙 글자 (ja-text.md 2절): 、。！？…ー・〜 + 작은 가나 + 닫는 괄호. */
 const NO_LINE_HEAD = new Set([
@@ -34,6 +39,19 @@ function kinsokuViolations(text: string): string[] {
   }
   return bad;
 }
+
+describe("ja.json 원문 (#367)", () => {
+  it("눈에 안 보이는 글자가 날 글자로 들어 있지 않다 (이스케이프로만 쓴다)", () => {
+    const hits = raw
+      .split("\n")
+      .flatMap((line, i) => (INVISIBLE.test(line) ? [`line ${i + 1}`] : []));
+    expect(hits).toEqual([]);
+  });
+
+  it("줄바꿈 자리 U+200B는 파싱 뒤에는 그대로 남아 있다", () => {
+    expect(texts["ui.intro"]).toContain("\u200b");
+  });
+});
 
 describe("ja.json 줄 규칙 (ja-text.md 2절, #280)", () => {
   it("둘째 줄 이후가 금칙 글자로 시작하지 않는다 (예외 2 제외)", () => {
