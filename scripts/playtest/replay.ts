@@ -12,6 +12,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import type { ScreenData } from '../../src/core/puzzle/types.ts';
+import { CARD_TAP, closeStartCard } from './card.ts';
 import { Browser, sleep, type ConsoleError, type Page } from './cdp.ts';
 import { internalToPage, type Rect } from './coords.ts';
 import { planAction, type Input, type Layout } from './plan.ts';
@@ -113,12 +114,13 @@ function playtestUrl(raw: string): string {
   return u.href;
 }
 
-/** 훅이 생기고 처음 연출(onEnter)이 끝날 때까지. */
+/** 훅이 생기고, 시작 카드(#285)를 닫고, 처음 연출(onEnter)이 끝날 때까지. 카드가 떠 있는 동안 장면은 멈춰 있다. */
 async function openGame(page: Page, v: Viewport): Promise<void> {
   await page.setViewport({ width: v.width, height: v.height, dpr: v.dpr, mobile: v.input === 'touch' });
   await page.goto(playtestUrl(args.url!));
   for (let i = 0; i < 100; i++) {
     if (await page.evaluate<boolean>(`typeof window.__gcLayout === 'function'`)) {
+      await closeStartCard(page, () => send(page, v, CARD_TAP));
       await waitIdle(page, async () => {});
       return;
     }

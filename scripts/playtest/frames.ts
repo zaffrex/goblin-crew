@@ -11,6 +11,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import type { Action, ScreenData } from '../../src/core/puzzle/types.ts';
+import { CARD_TAP, closeStartCard } from './card.ts';
 import { Browser, sleep, type Page } from './cdp.ts';
 import { internalToPage, type Rect } from './coords.ts';
 import { planAction, type Input, type Layout } from './plan.ts';
@@ -107,13 +108,14 @@ async function runCase(browser: Browser, c: (typeof CASES)[number], outDir: stri
       if (i > 100) throw new Error('5초 안에 window.__gcLayout 훅이 생기지 않음');
       await sleep(50);
     }
-    await waitBusy(page, false); // 처음 연출(onEnter)
-    const plan = planAction(screen, await layoutOf(page), c.action, VIEWPORT.input);
     const send = async (at: { x: number; y: number }) => {
       const p = internalToPage(at, await canvasRect(page));
       if (VIEWPORT.input === 'touch') await page.tap(p);
       else await page.click(p);
     };
+    await closeStartCard(page, () => send(CARD_TAP)); // 시작 카드(#285): 닫아야 장면이 돈다
+    await waitBusy(page, false); // 처음 연출(onEnter)
+    const plan = planAction(screen, await layoutOf(page), c.action, VIEWPORT.input);
     // 마지막 탭 전까지는 그냥 누르고 연출이 끝나길 기다린다(전환·무장).
     for (const t of plan.taps.slice(0, -1)) {
       await send(t.at);

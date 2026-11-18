@@ -12,6 +12,7 @@ import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/conf
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
 import { dustPush, FX_COLORS, FX_STYLE, FX_TEXT_SPOT, SHAKE_FX, shakeOffset } from './core/fx';
 import type { HitBox } from './core/hit';
+import { cardInput, cardReady, cardText, cardTick, createStartCard } from './core/startCard';
 import { createFirstNotes, currentNote, noteArmAbility, noteGauge, noteTap } from './core/firstNotes';
 import { abilityText, GAUGE_BOX, GAUGE_CELLS, GAUGE_PLATE, HUD_AREA, hudHoverText, hudTags, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
@@ -41,6 +42,7 @@ const label = need('#label');
 const clearCut = need('#clear');
 const faintCut = need('#faint');
 const hudTagLayer = need('#hudtags');
+const cardEl = need('#card');
 
 const screenData = screenJson as unknown as ScreenData;
 const TEXT: Readonly<Record<string, string>> = texts;
@@ -79,11 +81,51 @@ let hoverLabel: Label | null = null;
 let hoverHud: HudId | 'gauge' | null = null;
 /** 처음 한 번 안내(첫 무장 특기 설명, 첫 감소 게이지 뜻, 설계 6-2-3·6-2-5절). */
 const notes = createFirstNotes(scene.shownGauge);
+/** 시작 카드(설계 6-2-1절). 떠 있는 동안 장면은 멈추고(진입 연출 포함) 입력은 카드만 받는다. */
+const startCard = createStartCard();
+/** 카드 특기 줄의 얼굴 칸. 얼굴 시트가 늦게 오면 다 그릴 때까지 프레임마다 다시 그린다. */
+const cardFaces = buildCard();
+
+function buildCard(): { id: CharacterId; ctx: CanvasRenderingContext2D | null; drawn: boolean }[] {
+  const text = cardText(t);
+  need('#card .goal').textContent = text.goal;
+  need('#card .why').textContent = text.why;
+  need('#card .gauge').textContent = text.gauge;
+  need('#card .start').textContent = `${text.start} ▶`;
+  // 모듈이 끝나기 전에 보이게 둔다: 재생 도구는 훅(`__gcLayout`)이 생기면 바로 카드를 찾는다.
+  cardEl.hidden = false;
+  const list = need('#card ul');
+  return text.rows.map((row) => {
+    const li = document.createElement('li');
+    // 얼굴: HUD 캐릭터 칸과 같은 head 24×24를 2배로(CSS 48px, pixelated). 시트가 없으면 빈 칸이고 글은 그대로다.
+    const face = document.createElement('canvas');
+    face.width = 24;
+    face.height = 24;
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = row.name;
+    const ability = document.createElement('span');
+    ability.textContent = row.ability;
+    li.append(face, name, ability);
+    list.append(li);
+    return { id: row.id, ctx: face.getContext('2d'), drawn: false };
+  });
+}
+
+// 카드 닫기: 카드 위·캔버스 밖·키보드 어디서든. 캔버스 탭은 캔버스 핸들러가 먼저 받아 버리고(카드가 떠 있으면 무시) 여기로 올라온다.
+// 버블 단계라 닫는 탭이 같은 이벤트로 게임에 다시 들어가지 않는다.
+window.addEventListener('pointerdown', (e) => {
+  if (e.isPrimary && e.button === 0) cardInput(startCard);
+});
+window.addEventListener('keydown', () => {
+  cardInput(startCard);
+});
 
 const inBox = (p: Point, b: HitBox): boolean => p.x >= b.left && p.x < b.left + b.width && p.y >= b.top && p.y < b.top + b.height;
 
 window.addEventListener('resize', () => display.resize());
 onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
+  if (startCard.open) return; // 카드 몫(window 핸들러가 닫는다)
   noteTap(notes);
   const r = sceneTap(data, scene, p, slop, slop > 0);
   if (r.kind !== 'intent') return;
@@ -101,7 +143,7 @@ canvas.addEventListener('pointermove', (e) => {
   hoverLabel = null;
   hoverHud = null;
   canvas.style.cursor = 'default';
-  if (!p || scene.cleared) return;
+  if (!p || scene.cleared || startCard.open) return;
   // HUD 칸 설명은 busy 중에도 띄운다(칸은 busy 중에도 눌린다, #266). 월드 호버는 busy 중에는 끈다.
   if (inBox(p, HUD_AREA)) {
     // HUD 영역은 기본 화살표(PR #112 Luna 리뷰). 칸 위면 설명만 띄운다(누를 수 없는 게이지 포함).
@@ -277,8 +319,10 @@ function render(): void {
   );
   display.present();
 
-  // DOM 말풍선(ADR-0004 결정 3). 화자 머리 위.
-  const b = currentBubble(scene);
+  renderCard();
+
+  // DOM 말풍선(ADR-0004 결정 3). 화자 머리 위. 카드가 떠 있으면 진입 대사는 아직이다.
+  const b = startCard.open ? null : currentBubble(scene);
   const bubbleAt = b ? anchorOf(b.speaker, layout) : null;
   bubble.hidden = !b;
   if (b) {
@@ -305,4 +349,28 @@ function render(): void {
   if (cut !== null && faintCut.textContent !== t(cut)) faintCut.textContent = t(cut);
 }
 
-startLoop({ step: () => sceneTick(data, scene), render });
+/** 카드 글자 = 내부 8px × 화면 배율, 최소 13 CSS px. 폭은 캔버스의 80%, 높이는 85% 이하(6-2-1절). */
+const CARD_PX = 8;
+const CARD_MIN_CSS = 13;
+function renderCard(): void {
+  cardEl.hidden = !startCard.open;
+  if (!startCard.open) return;
+  const r = display.rect();
+  const size = `${Math.max(CARD_MIN_CSS, Math.round(CARD_PX * (r.width / INTERNAL_WIDTH)))}px`;
+  if (cardEl.style.fontSize !== size) cardEl.style.fontSize = size;
+  cardEl.style.maxWidth = `${Math.floor(r.width * 0.8)}px`;
+  cardEl.style.maxHeight = `${Math.floor(r.height * 0.85)}px`;
+  // 뷰포트가 아니라 캔버스 가운데(캔버스가 세로 가운데가 아닐 때가 있다).
+  placeDom(cardEl, { x: INTERNAL_WIDTH / 2, y: INTERNAL_HEIGHT / 2 });
+  // 재생 도구(#101·#292)는 이 표시를 보고 닫는 탭을 보낸다.
+  cardEl.toggleAttribute('data-ready', cardReady(startCard));
+  for (const f of cardFaces) if (!f.drawn && f.ctx) f.drawn = drawHead(f.ctx, f.id, { x: 0, y: 0 });
+}
+
+startLoop({
+  step: () => {
+    cardTick(startCard);
+    if (!startCard.open) sceneTick(data, scene);
+  },
+  render,
+});
