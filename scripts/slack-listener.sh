@@ -177,9 +177,19 @@ watchdog() {
 }
 
 # --- main loop ----------------------------------------------------------------------------------
-began=$(date +%s); cycle=0
+began=$(date +%s); cycle=0; chained=0
+# Queue the next listener job shortly before MAX so the handover gap stays small (cron alone left gaps up to ~3h).
+# concurrency (cancel-in-progress: false) keeps it pending until this job ends; only one pending run exists at a time.
+CHAIN_LEAD=${CHAIN_LEAD_SECONDS:-300}
+chain_next() {
+  [ "$chained" = 1 ] && return 0; chained=1
+  if [ "${DRY_RUN:-}" = 1 ]; then echo "DISPATCH next listener job"; return 0; fi
+  gh workflow run slack-listener.yml -R "$REPO" --ref main >/dev/null 2>&1 \
+    && log "queued next listener job" || log "queueing next listener job failed (cron will take over)"
+}
 while [ $(( $(date +%s) - began )) -lt "$MAX" ]; do
   cycle=$((cycle + 1))
+  [ $(( $(date +%s) - began )) -ge $(( MAX - CHAIN_LEAD )) ] && chain_next
   if [ $((cycle % 40)) = 0 ]; then   # ~10 min: honor team/schedule.json pause
     paused=$(gh api "repos/$REPO/contents/team/schedule.json" --jq .content 2>/dev/null | base64 -d 2>/dev/null | jq -r '.paused // false')
     [ "$paused" = true ] && { log "schedule paused; exiting"; exit 0; }
