@@ -38,6 +38,18 @@ export function cardInput(c: StartCard): boolean {
   return true;
 }
 
+/** 얼굴 head 한 변(시트 px). HUD 캐릭터 칸과 같은 그림. */
+export const CARD_FACE_PX = 24;
+
+/**
+ * 카드 얼굴 CSS 크기 = head 24 × max(2, floor(화면 배율)). 정수 배율이라 픽셀이 고르게 커진다.
+ * 글자는 내부 8px × 배율로 커지므로 얼굴도 같이 커져야 줄마다 약 3em을 지킨다(6-2-1절, PR #306 리뷰).
+ * 휴대폰 가로(배율 1.33)·1280×720(2)은 48, 1600×900(3.33)은 72, 1920×1080(4)은 96(HUD 얼굴과 같은 크기).
+ */
+export function cardFacePx(scale: number): number {
+  return CARD_FACE_PX * Math.max(2, Math.floor(scale));
+}
+
 export interface CardRow {
   id: CharacterId;
   name: string;
