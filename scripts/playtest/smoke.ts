@@ -6,6 +6,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
+import { CARD_TAP, closeStartCard } from './card.ts';
 import { Browser, sleep, type ConsoleError, type Page } from './cdp.ts';
 import { internalToPage, type Rect } from './coords.ts';
 
@@ -105,8 +106,19 @@ async function runViewport(browser: Browser, v: Viewport, outDir: string): Promi
   }
 
   // 입력 경로: 실제 이벤트 → 브라우저 → 게임. 모바일은 터치, 데스크톱은 마우스.
-  const p = internalToPage(FLOOR_POINT, r.canvas);
   const sent = v.mobile ? 'touch' : 'mouse';
+  // 시작 카드(#285)가 있으면 먼저 닫는다. 닫는 탭은 카드가 받으니 포인터 기록에서 뺀다.
+  const canvas = r.canvas;
+  const tapAt = async (at: { x: number; y: number }) => {
+    const q = internalToPage(at, canvas);
+    if (v.mobile) await page.tap(q);
+    else await page.click(q);
+  };
+  if (await closeStartCard(page, () => tapAt(CARD_TAP))) {
+    await shot('card-closed');
+    await page.evaluate('window.__ptPointers.length = 0');
+  } else r.warnings.push('시작 카드(#285)가 없음');
+  const p = internalToPage(FLOOR_POINT, r.canvas);
   if (v.mobile) await page.tap(p);
   else await page.click(p);
   await sleep(1500);
