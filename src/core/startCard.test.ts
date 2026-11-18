@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import texts from '../../content/text/ja.json';
-import { CARD_LOCK_TICKS, cardFacePx, cardRowGapPx, cardTight, cardInput, cardReady, cardText, cardTick, createStartCard } from './startCard';
+import { CARD_LOCK_TICKS, cardFacePx, cardPointer, cardRowGapPx, cardTight, cardInput, cardReady, cardText, cardTick, createStartCard } from './startCard';
 
 const TEXT: Readonly<Record<string, string>> = texts;
 const t = (id: string): string => TEXT[id] ?? id;
@@ -40,9 +40,28 @@ describe('시작 카드 (ui-interaction.md 6-2-1절, #285)', () => {
   });
 
   it('카드 글은 줄마다 30자 이하(휴대폰 13px × 30 < 카드 폭, 6-2-6절)', () => {
-    const card = cardText(t);
-    const lines = [card.goal, card.why, card.gauge, card.start, ...card.rows.map((r) => r.ability)];
-    expect(lines.filter((s) => [...s].length > 30)).toEqual([]);
+    for (const pointer of ['touch', 'mouse'] as const) {
+      const card = cardText(t, pointer);
+      const lines = [card.goal, card.why, card.gauge, card.start, ...card.rows.map((r) => r.ability)];
+      expect(lines.filter((s) => [...s].length > 30), pointer).toEqual([]);
+    }
+  });
+
+  it('시작 줄은 터치면 タップ, 마우스면 クリック이고 나머지 줄은 같다(#364)', () => {
+    const touch = cardText(t, 'touch');
+    const mouse = cardText(t, 'mouse');
+    expect(touch.start).toContain('タップ');
+    expect(mouse.start).toContain('クリック');
+    expect(mouse.start).not.toContain('タップ');
+    expect(cardText(t).start).toBe(mouse.start); // 기본은 데스크톱 우선
+    expect({ ...touch, start: '' }).toEqual({ ...mouse, start: '' });
+  });
+
+  it('입력 방식은 주 포인터로 고른다: 손가락+호버 없음만 touch(#364)', () => {
+    const mq = (touch: boolean) => (q: string) => ({ matches: touch && q === '(hover: none) and (pointer: coarse)' });
+    expect(cardPointer(mq(true))).toBe('touch');
+    expect(cardPointer(mq(false))).toBe('mouse');
+    expect(cardPointer(undefined)).toBe('mouse');
   });
 
   it('얼굴은 정수 배율로 글자와 같이 커지고 최소 2배다(6-2-1절)', () => {

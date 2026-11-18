@@ -13,7 +13,7 @@ import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/conf
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
 import { dustPush, FX_COLORS, FX_STYLE, FX_TEXT_SPOT, SHAKE_FX, shakeOffset } from './core/fx';
 import type { HitBox } from './core/hit';
-import { cardFacePx, cardInput, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
+import { cardFacePx, cardInput, cardPointer, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
 import { createFirstNotes, currentNote, noteGauge, noteSwitch, noteTap } from './core/firstNotes';
 import { abilityText, cutFontPx, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
@@ -89,7 +89,7 @@ const startCard = createStartCard();
 const cardFaces = buildCard();
 
 function buildCard(): { id: CharacterId; el: HTMLCanvasElement; ctx: CanvasRenderingContext2D | null; drawn: boolean }[] {
-  const text = cardText(t);
+  const text = cardText(t, cardPointer(window.matchMedia?.bind(window)));
   need('#card .goal').textContent = text.goal;
   need('#card .why').textContent = text.why;
   need('#card .gauge').textContent = text.gauge;

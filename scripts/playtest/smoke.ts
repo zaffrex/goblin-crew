@@ -148,6 +148,10 @@ async function runViewport(browser: Browser, v: Viewport, outDir: string): Promi
   const sent = v.mobile ? 'touch' : 'mouse';
   // 시작 카드가 스크롤 없이 다 보이나(#335): 카드 안 스크롤이 없고, 시작 줄이 카드·창 안에 있고, 글 줄이 카드 폭을 넘지 않는다.
   for (const p of await page.evaluate<string[]>(CARD_FIT)) r.problems.push(`시작 카드: ${p}`);
+  // 시작 줄 문구가 입력 방식과 맞나(#364): 터치 에뮬레이션이면 タップ, 마우스면 クリック.
+  const start = await page.evaluate<string | null>(`document.querySelector('#card:not([hidden]) .start')?.textContent ?? null`);
+  const want = v.mobile ? 'タップ' : 'クリック';
+  if (start !== null && !start.includes(want)) r.problems.push(`시작 카드: 시작 줄 \`${start}\`에 ${want}가 없음`);
   // 시작 카드(#285)가 있으면 먼저 닫는다. 닫는 탭은 카드가 받으니 포인터 기록에서 뺀다.
   const canvas = r.canvas;
   const tapAt = async (at: { x: number; y: number }) => {
