@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import texts from '../../content/text/ja.json';
-import { CARD_LOCK_TICKS, cardInput, cardReady, cardText, cardTick, createStartCard } from './startCard';
+import { CARD_LOCK_TICKS, cardFacePx, cardInput, cardReady, cardText, cardTick, createStartCard } from './startCard';
 
 const TEXT: Readonly<Record<string, string>> = texts;
 const t = (id: string): string => TEXT[id] ?? id;
@@ -43,5 +43,12 @@ describe('시작 카드 (ui-interaction.md 6-2-1절, #285)', () => {
     const card = cardText(t);
     const lines = [card.goal, card.why, card.gauge, card.start, ...card.rows.map((r) => r.ability)];
     expect(lines.filter((s) => [...s].length > 30)).toEqual([]);
+  });
+
+  it('얼굴은 정수 배율로 글자와 같이 커지고 최소 2배다(6-2-1절)', () => {
+    expect(cardFacePx(640 / 480)).toBe(48); // 휴대폰 가로 844×390
+    expect(cardFacePx(2)).toBe(48); // 1280×720
+    expect(cardFacePx(1600 / 480)).toBe(72);
+    expect(cardFacePx(4)).toBe(96); // 1920×1080, 글자 32px의 3em
   });
 });

@@ -12,7 +12,7 @@ import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/conf
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
 import { dustPush, FX_COLORS, FX_STYLE, FX_TEXT_SPOT, SHAKE_FX, shakeOffset } from './core/fx';
 import type { HitBox } from './core/hit';
-import { cardInput, cardReady, cardText, cardTick, createStartCard } from './core/startCard';
+import { cardFacePx, cardInput, cardReady, cardText, cardTick, createStartCard } from './core/startCard';
 import { createFirstNotes, currentNote, noteArmAbility, noteGauge, noteTap } from './core/firstNotes';
 import { abilityText, GAUGE_BOX, GAUGE_CELLS, GAUGE_PLATE, HUD_AREA, hudHoverText, hudTags, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
@@ -86,7 +86,7 @@ const startCard = createStartCard();
 /** 카드 특기 줄의 얼굴 칸. 얼굴 시트가 늦게 오면 다 그릴 때까지 프레임마다 다시 그린다. */
 const cardFaces = buildCard();
 
-function buildCard(): { id: CharacterId; ctx: CanvasRenderingContext2D | null; drawn: boolean }[] {
+function buildCard(): { id: CharacterId; el: HTMLCanvasElement; ctx: CanvasRenderingContext2D | null; drawn: boolean }[] {
   const text = cardText(t);
   need('#card .goal').textContent = text.goal;
   need('#card .why').textContent = text.why;
@@ -108,7 +108,7 @@ function buildCard(): { id: CharacterId; ctx: CanvasRenderingContext2D | null; d
     ability.textContent = row.ability;
     li.append(face, name, ability);
     list.append(li);
-    return { id: row.id, ctx: face.getContext('2d'), drawn: false };
+    return { id: row.id, el: face, ctx: face.getContext('2d'), drawn: false };
   });
 }
 
@@ -356,8 +356,12 @@ function renderCard(): void {
   cardEl.hidden = !startCard.open;
   if (!startCard.open) return;
   const r = display.rect();
-  const size = `${Math.max(CARD_MIN_CSS, Math.round(CARD_PX * (r.width / INTERNAL_WIDTH)))}px`;
+  const scale = r.width / INTERNAL_WIDTH;
+  const size = `${Math.max(CARD_MIN_CSS, Math.round(CARD_PX * scale))}px`;
   if (cardEl.style.fontSize !== size) cardEl.style.fontSize = size;
+  // 얼굴 = head 24px × 정수 배율, 최소 2배. 글자가 배율로 커지는데 얼굴이 48px로 고정이면 큰 화면에서 줄보다 작아진다(PR #306 리뷰).
+  const face = `${cardFacePx(scale)}px`;
+  for (const f of cardFaces) if (f.el.style.width !== face) f.el.style.width = f.el.style.height = face;
   cardEl.style.maxWidth = `${Math.floor(r.width * 0.8)}px`;
   cardEl.style.maxHeight = `${Math.floor(r.height * 0.85)}px`;
   // 뷰포트가 아니라 캔버스 가운데(캔버스가 세로 가운데가 아닐 때가 있다).
