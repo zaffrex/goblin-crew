@@ -38,6 +38,37 @@ export const GAUGE_SEGS: readonly HitBox[] = Array.from({ length: GAUGE_MAX }, (
 export const LABEL_BOTTOM = GAUGE_BAND.top - 2;
 
 /**
+ * 대상 라벨 글자 크기(CSS px, #337): 내부 7px × 화면 CSS 배율, 최소 14. 1.0·1.333·2배는 예전 14px 그대로, 4배는 28px.
+ * HUD 이름표와 같은 내부 7px 기준이라 위계가 맞는다. 최소만 14로 크다(첫 감소 안내 등 문장이라 11px는 작다).
+ */
+export function labelFontPx(scale: number): number {
+  return Math.max(14, Math.round(7 * scale));
+}
+
+/**
+ * 목표 줄(`#hud`, 설계 6-2-2절, #336): 게임 화면 내부 왼쪽 위 점. 창이 아니라 캔버스 기준이라 휴대폰에서 검은 여백에 걸치지 않는다.
+ * 글자 크기는 HUD 이름표와 같은 `hudTagFontPx`.
+ */
+export const GOAL_AT: Point = { x: 4, y: 4 };
+
+/**
+ * 목표 줄 오른쪽 끝 한계(내부 px). 화면 1 둥지 잔가지 그림이 x≈122부터(핫스팟 `nest` 128, `magpie` 134)라 4px 앞에서 멈춘다.
+ * 1.0배(11px 글자 = 내부 11px)에서는 15자 165px가 한 줄로 안 들어가서, 글 파일의 줄바꿈 자리(U+200B)에서 두 줄로 접는다.
+ */
+export const GOAL_RIGHT = 118;
+
+/** 목표 줄 최대 폭(CSS px, padding 포함). 이 폭을 넘으면 접는다. */
+export function goalMaxWidthPx(scale: number): number {
+  return Math.floor((GOAL_RIGHT - GOAL_AT.x) * scale);
+}
+
+/**
+ * 목표 줄이 차지할 수 있는 가장 큰 상자(내부 px). 1.0배 두 줄(11px × 줄 높이 1.25 × 2 + 위아래 여백) ≈ 30px에 여유를 둔다.
+ * 화면 데이터 테스트가 이 상자와 핫스팟·서는 자리가 안 겹치는지 본다.
+ */
+export const GOAL_ZONE: HitBox = { left: GOAL_AT.x, top: GOAL_AT.y, width: GOAL_RIGHT - GOAL_AT.x, height: 34 };
+
+/**
  * HUD 영역 (300,4)–(392,48): 얼굴 3칸 + 아래 특기 이름표 띠(y 36–48, 설계 6-4-2절). 이 안의 탭은 칸에 맞지 않아도
  * 월드(바닥 걷기 등)로 넘기지 않는다. 칸 사이 틈이나 이름표를 눌러 캐릭터가 화면 위로 걸어가지 않게 한다.
  * 화면 설계 규칙의 `validate.ts` `HUD_BOX`(300,4,176,72)는 이보다 넓게 그대로 둔다(코어, 6-4-2절). 이 영역은 그 안에 있어야 한다.

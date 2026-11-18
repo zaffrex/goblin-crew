@@ -15,7 +15,7 @@ import { dustPush, FX_COLORS, FX_STYLE, FX_TEXT_SPOT, SHAKE_FX, shakeOffset } fr
 import type { HitBox } from './core/hit';
 import { cardFacePx, cardInput, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
 import { createFirstNotes, currentNote, noteGauge, noteSwitch, noteTap } from './core/firstNotes';
-import { abilityText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, type HudId } from './core/hud';
+import { abilityText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { activeFx, activeMarkerVisible, charPose, createScene, currentBubble, drawOrder, gaugeDrop, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
@@ -136,8 +136,7 @@ onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
   // 얼굴 탭·몸 탭 둘 다 전환이다. 처음 캐릭터는 시작 카드가 말했으니 띄우지 않는다(createFirstNotes).
   if (slop > 0 && r.intent.kind === 'switch') noteSwitch(notes, r.intent.char, abilityText(r.intent.char, t));
 });
-// 목표 줄(설계 6-2-2절): 첫 행동 뒤에도 늘 보인다. 클리어 뒤에만 숨긴다(render).
-hud.textContent = t('ui.intro');
+// 목표 줄(설계 6-2-2절): 첫 행동 뒤에도 늘 보인다. 클리어 뒤에만 숨긴다. 글·줄바꿈은 render의 placeGoal이 넣는다.
 clearCut.textContent = t('ui.clear');
 
 canvas.addEventListener('pointermove', (e) => {
@@ -241,6 +240,27 @@ function placeHudTags(): void {
     if (el.style.fontSize !== size) el.style.fontSize = size;
     placeDom(el, { x: tag.x, y: tag.y });
   }
+}
+
+/**
+ * 목표 줄(설계 6-2-2절, #336): 게임 화면 내부 (4,4). 글자는 이름표와 같은 식.
+ * 한 줄 폭이 최대 폭(둥지 앞 x 118)을 넘으면 글의 U+200B를 줄바꿈으로 바꿔 두 줄로 쓴다. 브라우저 자동 줄바꿈에 맡기면
+ * 상자가 최대 폭까지 늘어나 첫 줄 오른쪽에 빈 바탕이 남아서, 폭은 늘 max-content(글에 딱 맞게)로 두고 줄은 여기서 정한다.
+ */
+let goalMeasured = { key: '', width: 0 };
+function placeGoal(scale: number): void {
+  const size = `${hudTagFontPx(scale)}px`;
+  if (hud.style.fontSize !== size) hud.style.fontSize = size;
+  const goal = t('ui.intro');
+  const oneLine = goal.replaceAll('\u200b', '');
+  const key = `${size}|${goal}`;
+  if (goalMeasured.key !== key) {
+    hud.textContent = oneLine;
+    goalMeasured = { key, width: hud.offsetWidth };
+  }
+  const text = goalMeasured.width <= goalMaxWidthPx(scale) ? oneLine : goal.replaceAll('\u200b', '\n');
+  if (hud.textContent !== text) hud.textContent = text;
+  placeDom(hud, GOAL_AT);
 }
 
 /** 대상 상자 중 시트가 그리지 않는 것만. 시트 이미지가 아직이면 전부(임시 상자). */
@@ -371,11 +391,15 @@ function render(): void {
   const labelString = note ?? (shown ? labelText(shown, data.screen.id, t) : (hudHover ?? ''));
   label.hidden = labelString === '';
   if (label.textContent !== labelString) label.textContent = labelString;
-  // 아래끝은 게이지 띠 위 2px(6-3-5절). 띠 위에 두면 막대를 덮는다.
+  // 글자 = 내부 7px × 배율, 최소 14(#337). 아래끝은 게이지 띠 위 2px(6-3-5절). 띠 위에 두면 막대를 덮는다.
+  const scale = display.rect().width / INTERNAL_WIDTH;
+  const labelSize = `${labelFontPx(scale)}px`;
+  if (label.style.fontSize !== labelSize) label.style.fontSize = labelSize;
   placeDom(label, { x: INTERNAL_WIDTH / 2, y: LABEL_BOTTOM });
 
   clearCut.hidden = !(scene.cleared && !isBusy(scene));
   hud.hidden = scene.cleared;
+  if (!hud.hidden) placeGoal(scale);
   // 게이지 0 컷(#129, L33)과 클리어 컷(L32). 그림 없는 M1 임시 연출: 클리어 카드와 같은 DOM 글 한 줄.
   const cut = layout.cut;
   faintCut.hidden = cut === null;

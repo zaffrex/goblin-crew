@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import screenJson from '../../content/screens/magpie_nest.json';
 import texts from '../../content/text/ja.json';
 import { CHARACTERS } from './characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, WALK_AREA } from './config';
@@ -13,6 +14,10 @@ import {
   GAUGE_TRACK,
   gaugeChipWidth,
   gaugeShakeX,
+  goalMaxWidthPx,
+  GOAL_AT,
+  GOAL_RIGHT,
+  GOAL_ZONE,
   CHAR_SLOTS,
   CHAR_TAG_TOP,
   HUD_AREA,
@@ -22,7 +27,9 @@ import {
   hudTags,
   inHudZone,
   LABEL_BOTTOM,
+  labelFontPx,
 } from './hud';
+import type { HitBox } from './hit';
 import { TIMING } from './scene';
 
 const TEXT: Record<string, string> = texts;
@@ -177,5 +184,64 @@ describe('게이지 흔들림·크림 조각 (6-3-4절)', () => {
     expect(w[20]).toBe(0);
     // 줄기만 한다(다시 늘지 않는다).
     for (let t = 1; t < w.length; t++) expect(w[t]!).toBeLessThanOrEqual(w[t - 1]!);
+  });
+});
+
+const boxesOverlap = (a: HitBox, b: HitBox): boolean =>
+  a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height;
+
+describe('목표 줄(#hud, 6-2-2절, #336)', () => {
+  // index.html `#hud`: padding 0.1em 0.35em, line-height 1.25. 한 줄이 넘치면 main.ts가 U+200B에서만 접는다. 전각 1자 = 글자 크기.
+  const goal = TEXT['ui.intro']!;
+  const parts = goal.split('\u200b');
+  const width = (chars: number, font: number) => chars * font + 2 * 0.35 * font;
+  const SCALES = [1, 1.333, 1.524, 2, 4]; // 667×375 @2, 844×390 @3, 915×412 @2.625, 1280×720, 1920×1080
+
+  it('줄바꿈 자리는 하나(U+200B)이고 글은 20자 이하다', () => {
+    expect(parts).toEqual(['目標：巣から', '店のカギを取り返す']);
+    expect([...parts.join('')].length).toBeLessThanOrEqual(20);
+  });
+
+  it('배율마다 최대 폭 안에 들어가고(넘치면 두 줄), 높이는 GOAL_ZONE 안이다', () => {
+    for (const s of SCALES) {
+      const font = hudTagFontPx(s);
+      const max = goalMaxWidthPx(s);
+      const oneLine = width([...parts.join('')].length, font) <= max;
+      const lines = oneLine ? 1 : parts.length;
+      for (const p of oneLine ? [parts.join('')] : parts) expect(width([...p].length, font), `${s}배 "${p}"`).toBeLessThanOrEqual(max);
+      expect((lines * 1.25 * font + 0.2 * font) / s, `${s}배 높이`).toBeLessThanOrEqual(GOAL_ZONE.height);
+    }
+    // 1.0·1.333배는 두 줄, 2·4배는 한 줄(1280에서 210 + 10 ≤ 228 CSS px)
+    expect(width(15, hudTagFontPx(1)) > goalMaxWidthPx(1)).toBe(true);
+    expect(width(15, hudTagFontPx(1.333)) > goalMaxWidthPx(1.333)).toBe(true);
+    expect(width(15, hudTagFontPx(2)) <= goalMaxWidthPx(2)).toBe(true);
+    expect(width(15, hudTagFontPx(4)) <= goalMaxWidthPx(4)).toBe(true);
+  });
+
+  it('GOAL_ZONE은 화면 1 핫스팟·서는 자리·HUD 영역과 겹치지 않는다', () => {
+    expect([GOAL_AT.x, GOAL_AT.y, GOAL_RIGHT]).toEqual([4, 4, 118]);
+    const screen = screenJson as unknown as { hotspots: Record<string, { box?: number[] }>; spots: Record<string, { box?: number[] }> };
+    const boxes = [...Object.entries(screen.hotspots), ...Object.entries(screen.spots)].filter(([, v]) => v.box);
+    expect(boxes.length).toBeGreaterThan(5);
+    for (const [id, v] of boxes) {
+      const [left, top, w, h] = v.box!;
+      expect(boxesOverlap(GOAL_ZONE, { left: left!, top: top!, width: w!, height: h! }), id).toBe(false);
+    }
+    expect(boxesOverlap(GOAL_ZONE, HUD_AREA)).toBe(false);
+  });
+});
+
+describe('대상 라벨 글자 크기(#label, #337)', () => {
+  it('내부 7px × 배율, 최소 14: 1.0·1.333·2배는 14 그대로, 4배는 이름표와 같은 28', () => {
+    expect([1, 1.333, 2, 4].map(labelFontPx)).toEqual([14, 14, 14, 28]);
+    expect(labelFontPx(4)).toBe(hudTagFontPx(4));
+  });
+
+  it('가장 긴 라벨(게이지 설명)이 1.0배에서 게임 폭 안 한 줄이다(padding 0.6em)', () => {
+    const longest = hudHoverText('gauge', t);
+    for (const s of [1, 1.333, 2, 4]) {
+      const font = labelFontPx(s);
+      expect(([...longest].length * font + 1.2 * font) / s, `${s}배`).toBeLessThanOrEqual(INTERNAL_WIDTH);
+    }
   });
 });

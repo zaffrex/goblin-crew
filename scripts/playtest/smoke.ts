@@ -1,5 +1,5 @@
 // M1 재생 도구 1부: 배포본 스모크 (#101).
-// 뷰포트 3개에서 열고, 실제 마우스 클릭/터치 탭이 게임까지 가는지, 콘솔 에러(A4), 첫 화면 시간(A5)을 본다.
+// 뷰포트 여러 개(데스크톱 2, 휴대폰 가로 2, 세로 1)에서 열고, 실제 마우스 클릭/터치 탭이 게임까지 가는지, 콘솔 에러(A4), 첫 화면 시간(A5)을 본다.
 // 사용: node scripts/playtest/smoke.ts [--url <배포 URL>] [--out <폴더>] [--no-sandbox]
 // 종료 코드: A4 콘솔 에러나 입력 경로 실패면 1. A5·A6는 판정 절차대로 경고만 한다.
 
@@ -47,6 +47,8 @@ interface Viewport {
 
 const VIEWPORTS: Viewport[] = [
   { name: 'desktop-1280x720', width: 1280, height: 720, dpr: 1, mobile: false },
+  // 큰 데스크톱(CSS 배율 4). 고정 px 글자가 작게 뜨는 것(#336·#337)은 여기서만 보인다.
+  { name: 'desktop-1920x1080', width: 1920, height: 1080, dpr: 1, mobile: false },
   { name: 'mobile-844x390', width: 844, height: 390, dpr: 3, mobile: true },
   // 작은 폰 가로(iPhone SE급). CSS 배율 1.0이라 카드·HUD 이름표가 압축 모양이 된다(#335, #325).
   { name: 'mobile-667x375', width: 667, height: 375, dpr: 2, mobile: true },
@@ -65,6 +67,26 @@ const CARD_FIT = `(() => {
   if (!s) out.push('.start 없음');
   else if (s.bottom > b.bottom + 1 || s.bottom > innerHeight) out.push('시작 줄이 카드/창 아래로 잘림');
   if (b.top < 0 || b.left < 0 || b.right > innerWidth || b.bottom > innerHeight) out.push('카드가 창 밖으로 나감');
+  return out;
+})()`;
+
+/**
+ * 목표 줄 맞춤 검사(#336, 설계 6-2-2절): 캔버스 안, 오른쪽 끝이 내부 x 118(`core/hud.ts` `GOAL_RIGHT`, 둥지 그림 앞) 이하,
+ * 글이 상자 밖으로 넘치지 않음. 숨겨져 있으면(클리어) 빈 목록.
+ */
+const GOAL_RIGHT = 118;
+const GOAL_FIT = `(() => {
+  const h = document.querySelector('#hud');
+  const c = document.querySelector('#game');
+  if (!h || !c) return ['#hud 또는 #game 없음'];
+  if (h.hidden) return [];
+  const b = h.getBoundingClientRect();
+  const g = c.getBoundingClientRect();
+  const out = [];
+  if (b.left < g.left - 0.5 || b.top < g.top - 0.5) out.push('게임 화면 밖에서 시작 (' + Math.round(b.left - g.left) + ',' + Math.round(b.top - g.top) + ')');
+  const right = ((b.right - g.left) * 480) / g.width;
+  if (right > ${GOAL_RIGHT} + 0.5) out.push('오른쪽 끝 내부 x ' + right.toFixed(1) + ' > ${GOAL_RIGHT} (둥지를 가림)');
+  if (h.scrollWidth > h.clientWidth + 1) out.push('글이 상자 밖으로 넘침 ' + h.scrollWidth + ' > ' + h.clientWidth + 'px');
   return out;
 })()`;
 
@@ -150,6 +172,7 @@ async function runViewport(browser: Browser, v: Viewport, outDir: string): Promi
   if (!r.input.onCanvas) r.problems.push('pointerdown이 캔버스에 닿지 않음');
   // 목표 줄(#285, ui-interaction.md 6-2-2절)은 첫 행동 뒤에도 늘 보여야 한다.
   if (hudHidden) r.warnings.push('바닥 탭 뒤에 #hud 목표 줄이 사라짐 (6-2-2절: 늘 보임)');
+  for (const p of await page.evaluate<string[]>(GOAL_FIT)) r.problems.push(`목표 줄: ${p}`);
   await shot('after-floor-tap');
 
   if (page.errors.length > 0) r.problems.push(`A4 콘솔 에러 ${page.errors.length}개`);
