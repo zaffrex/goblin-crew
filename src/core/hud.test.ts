@@ -30,6 +30,7 @@ import {
   cutFontPx,
   labelFontPx,
 } from './hud';
+import { GOAL_BOX } from './puzzle/validate';
 import type { HitBox } from './hit';
 import { TIMING } from './scene';
 
@@ -229,6 +230,14 @@ describe('목표 줄(#hud, 6-2-2절, #336)', () => {
       expect(boxesOverlap(GOAL_ZONE, { left: left!, top: top!, width: w!, height: h! }), id).toBe(false);
     }
     expect(boxesOverlap(GOAL_ZONE, HUD_AREA)).toBe(false);
+  });
+
+  it('GOAL_ZONE은 validate.ts의 GOAL_BOX 안에 있다(goal-overlap 경고가 목표 줄 자리를 다 덮는다, #349)', () => {
+    const [gx, gy, gw, gh] = GOAL_BOX;
+    expect(GOAL_ZONE.left).toBeGreaterThanOrEqual(gx);
+    expect(GOAL_ZONE.top).toBeGreaterThanOrEqual(gy);
+    expect(GOAL_ZONE.left + GOAL_ZONE.width).toBeLessThanOrEqual(gx + gw);
+    expect(GOAL_ZONE.top + GOAL_ZONE.height).toBeLessThanOrEqual(gy + gh);
   });
 });
 

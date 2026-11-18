@@ -167,6 +167,22 @@ describe('validateScreen', () => {
     expect(mutate((s) => (s.hotspots.basket.box = [276, 20, 24, 24])).warnings).toEqual([]);
   });
 
+  it('warns when a hotspot box or spot sits in the goal line zone (#349, 6-2-2)', () => {
+    const box = mutate((s) => (s.hotspots.basket.box = [100, 30, 24, 24]));
+    expect(box.errors).toEqual([]);
+    expect(box.warnings).toEqual([expect.objectContaining({ code: 'goal-overlap', path: 'hotspots.basket.box' })]);
+    // 맞닿기만 하면 겹침이 아니다(목표 줄 자리 오른쪽 끝 x 118, 아래 끝 y 38).
+    expect(mutate((s) => (s.hotspots.basket.box = [118, 4, 24, 24])).warnings).toEqual([]);
+    expect(mutate((s) => (s.hotspots.basket.box = [4, 38, 24, 24])).warnings).toEqual([]);
+    // 자리 박스와 자리 좌표(box가 없는 floor)도 본다.
+    const spotBox = mutate((s) => (s.spots.hook.box = [60, 10, 24, 24]));
+    expect(spotBox.warnings).toEqual([expect.objectContaining({ code: 'goal-overlap', path: 'spots.hook.box' })]);
+    const pt = mutate((s) => Object.assign(s.spots.floor, { x: 50, y: 20 }));
+    expect(pt.errors).toEqual([]);
+    expect(pt.warnings).toEqual([expect.objectContaining({ code: 'goal-overlap', path: 'spots.floor' })]);
+    expect(mutate((s) => Object.assign(s.spots.floor, { x: 118, y: 20 })).warnings).toEqual([]);
+  });
+
   it('checks rule references: target, verb, when, do', () => {
     expect(codes(mutate((s) => (s.rules[0].target = 'moon')))).toEqual(['ref-target']);
     expect(codes(mutate((s) => (s.rules[0].verb = 'kick')))).toEqual(['schema']);
