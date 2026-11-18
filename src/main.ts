@@ -7,6 +7,7 @@ import charactersJson from '../content/characters.json';
 import screenJson from '../content/screens/magpie_nest.json';
 import texts from '../content/text/ja.json';
 import { sayText } from './core/sayText';
+import { bubbleMaxWidth, placeBubble, type BubbleAnchor, type BubbleOptions } from './core/bubble';
 import type { CharacterId } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
@@ -178,6 +179,38 @@ function anchorOf(target: string, layout: ReturnType<typeof sceneLayout>): Point
   return { x: box.left + box.width / 2, y: top };
 }
 
+/** 말풍선 화자 상자(#329): 가운데 x, 머리 위끝, 발끝. 내부 좌표. 위로 넘치면 발 아래로 뒤집는다. */
+function speakerBox(target: string, layout: ReturnType<typeof sceneLayout>): BubbleAnchor | null {
+  const box: HitBox | undefined = layout.chars[target as CharacterId] ?? layout.hotspots[target] ?? layout.spots[target];
+  const head = anchorOf(target, layout);
+  if (!box || !head) return null;
+  return { x: head.x, top: head.y, bottom: box.top + box.height };
+}
+
+/** 말풍선 틈(CSS px). gap 안에 꼬리(index.html `#bubble::after`, 아래로 7px)가 들어간다. */
+const BUBBLE_OPTS: BubbleOptions = { margin: 4, gap: 9, tailInset: 14 };
+/** 글·최대 폭이 같으면 크기도 같다. 매 프레임 재면 레이아웃을 강제로 다시 하므로 바뀔 때만 잰다. */
+let bubbleMeasured = { key: '', width: 0, height: 0 };
+
+function placeBubbleDom(text: string, speaker: BubbleAnchor | null): void {
+  const r = display.rect();
+  const maxWidth = `${bubbleMaxWidth(r, BUBBLE_OPTS)}px`;
+  if (bubble.style.maxWidth !== maxWidth) bubble.style.maxWidth = maxWidth;
+  if (bubble.textContent !== text) bubble.textContent = text;
+  const key = `${maxWidth}|${text}`;
+  if (bubbleMeasured.key !== key) bubbleMeasured = { key, width: bubble.offsetWidth, height: bubble.offsetHeight };
+  const toScreen = (x: number, y: number): Point => internalToScreen({ x, y }, r, display.internal);
+  // 화자가 없으면(대상 상자가 없는 연출) 예전처럼 화면 위쪽 가운데.
+  const a = speaker ?? { x: INTERNAL_WIDTH / 2, top: 60, bottom: 60 };
+  const head = toScreen(a.x, a.top);
+  const anchor = { x: head.x, top: head.y, bottom: toScreen(a.x, a.bottom).y };
+  const p = placeBubble(anchor, bubbleMeasured, r, BUBBLE_OPTS);
+  bubble.style.left = `${Math.round(p.left)}px`;
+  bubble.style.top = `${Math.round(p.top)}px`;
+  bubble.style.setProperty('--tail-x', `${Math.round(p.tailX)}px`);
+  bubble.toggleAttribute('data-below', p.below);
+}
+
 function placeDom(el: HTMLElement, at: Point): void {
   const s = internalToScreen(at, display.rect(), display.internal);
   el.style.left = `${Math.round(s.x)}px`;
@@ -323,13 +356,9 @@ function render(): void {
 
   // DOM 말풍선(ADR-0004 결정 3). 화자 머리 위. 카드가 떠 있으면 진입 대사는 아직이다.
   const b = startCard.open ? null : currentBubble(scene);
-  const bubbleAt = b ? anchorOf(b.speaker, layout) : null;
   bubble.hidden = !b;
-  if (b) {
-    const text = sayText(TEXT, b.text, b.speaker);
-    if (bubble.textContent !== text) bubble.textContent = text;
-    placeDom(bubble, bubbleAt ?? { x: INTERNAL_WIDTH / 2, y: 60 });
-  }
+  // 폭은 글로만 정하고(화자 위치와 무관), 게임 화면 안으로 민다(#329).
+  if (b) placeBubbleDom(sayText(TEXT, b.text, b.speaker), speakerBox(b.speaker, layout));
 
   placeHudTags();
   const hudHover = scene.cleared || hoverHud === null ? null : hudHoverText(hoverHud, t);
