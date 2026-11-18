@@ -12,7 +12,7 @@ import { inHudZone } from './hud';
 import { hotspotBox, hudTargets, tap, type Intent, type TapContext, type UiState } from './interact';
 import { animOf, animTicks, type SceneAnim, type SceneArtMeta } from './sceneArt';
 import { FX_TICKS, fxTicks } from './fx';
-import { seenSayKey } from './sayText';
+import { sayText, seenSayKey } from './sayText';
 import { cueMs, spriteFacing, spriteFrame, spriteHit, type Pose, type SpriteMeta } from './sprite';
 import { approachFor, initialState, step } from './puzzle/step';
 import { GAUGE_MAX, type Action, type CharactersData, type PuzzleEvent, type PuzzleState, type ScreenData, type StepSource, type Verb } from './puzzle/types';
@@ -33,9 +33,13 @@ export const TIMING = {
   faintCut: 90,
   /** 클리어 컷 글(L32, 화면 `clearLine`)이 떠 있는 시간. 끝나면 클리어 카드. `magpie_nest.md` 8절 "3초 안쪽"에서 카드 몫을 뺀 값. */
   clearCut: 120,
-  /** 말풍선: 기본 + 글자당. 상한을 둔다. */
+  /**
+   * 말풍선: 기본 + 화면 글 글자당(#304 3번). 상한을 둔다.
+   * 글자 수는 화면에 뜨는 글(`sayText`)에서 줄바꿈 자리(U+200B·`\n`)를 뺀 수다. 예전에는 글 ID 길이를 셌다.
+   * 글자당 8틱 = 초당 7.5자. 한 줄 7~9자 두 줄(14~18자)이 2.9~3.4초다.
+   */
   sayBase: 60,
-  sayPerChar: 4,
+  sayPerChar: 8,
   sayMax: 240,
   /**
    * 말풍선이 뜬 뒤 이만큼 지나야 탭으로 넘길 수 있다(1.0초, #284 Luna 결정 11/18 `#goblin-dev`).
@@ -162,6 +166,11 @@ export interface SceneData {
    * 화면 문법에 클리어 연출 필드가 없어서(설계 14절) 엔진이 `<화면 ID>.clear` 텍스트가 있을 때 채운다.
    */
   clearLine?: string;
+  /**
+   * 글 ID → 화면 글(`content/text/ja.json`). 있으면 말풍선 길이를 화면 글 글자 수로 잰다(#304 3번).
+   * 코어는 글을 그리지 않고 길이만 본다. 없으면 글 ID 길이로 잰다(옛 동작, 테스트용).
+   */
+  texts?: Readonly<Record<string, string>>;
 }
 
 /** busy = 재생할 이벤트가 하나라도 남아 있다(설계 5절). */
@@ -484,8 +493,15 @@ function teleport(w: Walker, p: Point): void {
   w.walkTicks = 0;
 }
 
-function sayDuration(text: string): number {
-  return Math.min(TIMING.sayMax, TIMING.sayBase + TIMING.sayPerChar * text.length);
+/** 말풍선 길이를 재는 글자 수(#304 3번). 줄바꿈 자리(U+200B, `\n`)는 안 보이니 빼고, 글자는 코드 포인트로 센다. */
+export function sayChars(display: string): number {
+  return [...display.replace(/[\u200b\n]/g, '')].length;
+}
+
+/** 말풍선이 떠 있는 틱 수. `texts`가 있으면 화면 글(화자 변형 포함)로, 없으면 글 ID로 잰다(테스트용 폴백). */
+export function sayDuration(data: Pick<SceneData, 'texts'>, speaker: string, id: string): number {
+  const shown = data.texts ? sayText(data.texts, id, speaker) : id;
+  return Math.min(TIMING.sayMax, TIMING.sayBase + TIMING.sayPerChar * sayChars(shown));
 }
 
 /** 이벤트 하나를 시작한다. `seq`는 시작 순번. 보이는 플래그(4-2절 (a))도 여기서 바꾼다. */
@@ -536,7 +552,7 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
       s.cleared = true;
       return data.clearLine ? { ev, t: 0, duration: TIMING.clearCut, seq, cut: data.clearLine } : { ev, t: 0, duration: 0, seq };
     case 'say':
-      return { ev, t: 0, duration: sayDuration(ev.text), seq };
+      return { ev, t: 0, duration: sayDuration(data, ev.speaker, ev.text), seq };
     case 'anim': {
       // 물건 anim은 갈래를 anim 직전 보이는 플래그로 고르고(4-1절), 그 길이가 busy 길이다(5절). 없으면 임시 길이.
       const obj = data.art?.objects.find((o) => o.ids.includes(ev.target));

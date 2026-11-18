@@ -56,6 +56,7 @@ const data: SceneData = {
   art: sceneArtMeta(screenData.id) ?? undefined,
   sprites: spriteMetas(),
   clearLine,
+  texts: TEXT,
 };
 const art = loadSceneArt(screenData.id);
 /** 시트가 그리는 대상. 이 밖의 대상만 임시 상자로 그린다. */
