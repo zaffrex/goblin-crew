@@ -69,6 +69,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export function pose(kind, k) {
   if (kind === 'common.stomp') return STOMP[k];
   if (kind === 'common.flatten') return FLATTEN[k];
+  if (kind === 'step_up') return STEP_UP[k];
   if (kind === 'idle') {
     return {
       chest: k, // 숨 들이쉬기(배가 나온다) / 내쉬기
@@ -380,6 +381,31 @@ const FLATTEN = [
   },
 ];
 
+// step_up  시소 올라서기 깡충(#397, 설계 docs/design/screens/magpie_nest.md 1-5-3절). 엔진이 칸을 궤적 위에 놓는다:
+//   웅크림 0번(150ms) → 공중 1번(150ms, 기준점이 포물선으로 8px만 솟는다) → 착지 0번(50ms). 내려서기는 1번 → 0번.
+//   무거움은 웅크림에 몬다: 셋 중 가장 깊이, 가장 오래 웅크리고 두 주먹을 뒤로 젖혀 반동을 모은다. 공중은 "겨우 넘는" 얼굴.
+//   0 웅크림: 무릎 굽혀 몸을 낮추고 상체는 앞으로, 두 주먹은 엉덩이 뒤로. 미간 찌푸림(쿵 0번과 같은 기합)
+//   1 공중: 앞 무릎을 배 높이로 접어 올리고(쿵 0번 무릎 들기와 같은 다리) 뒷발 앞코가 끌린다. 두 주먹은 앞으로 휘두른다.
+//      배는 한 칸 늦게 아래로 처진다(jiggle). 뒷발 앞코가 칸 바닥 행에 닿아 build.mjs "딛은 발" 검사를 지킨다.
+const STEP_UP = [
+  {
+    chest: 5, belly: 0.6, jiggle: -1, lean: 1,
+    legs: { back: { x: -1.8, lift: 0, toe: false }, front: { x: 3.0, lift: 0, toe: false } },
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [Math.PI - 0.95, Math.PI - 0.7], front: [Math.PI - 1.15, Math.PI - 0.85] },
+    tails: 1,
+    face: { brows: 'furrow' },
+  },
+  {
+    chest: 1, belly: 0.6, jiggle: 2, lean: 1,
+    legs: { back: { x: -1.6, lift: -0.75, toe: true }, front: { x: 3.4, lift: 4.6, toe: false, knee: [4.6, -1.8] } }, // 앞코 신발은 1px 짧아서 발목을 1px 내린다
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [1.05, 0.6], front: [1.3, 1.05] }, // 칸이 좁아(묵직이 39px) 주먹은 앞 아래로
+    tails: 2,
+    face: { brows: 'furrow', mouth: 'grit' },
+  },
+];
+
 export const SHEET = {
   name: 'mukjik-base',
   character: 'mukjik',
@@ -390,6 +416,8 @@ export const SHEET = {
     // cue 2: 시그니처 `ドスン`+흔들림+먼지(stomp_text)는 발이 닿는 쿵 칸(400ms)에 뜬다(ability-feedback.md 2·2-1절, #284).
     { name: 'common.stomp', frames: 4, ms: [300, 100, 400, 300], cue: [2] },
     { name: 'common.flatten', frames: 4, ms: [100, 600, 150, 450] },
+    // 웅크림·공중(#397 1-5-3절). 착지는 엔진이 0번 칸을 50ms 다시 쓴다. 맨 뒤에 붙여서 앞 칸 번호(#357 납작 12)는 그대로다.
+    { name: 'step_up', frames: 2, ms: [150, 150] },
   ],
   pose,
   drawFrame,

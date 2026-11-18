@@ -80,6 +80,7 @@ export function pose(kind, k) {
   if (kind === 'common.shiver') return SHIVER[k];
   if (kind === 'common.wag_finger') return WAG[k];
   if (kind === 'hide_in_basket') return HIDE[k];
+  if (kind === 'step_up') return STEP_UP[k];
   if (kind === 'idle') {
     return {
       chest: k, // 숨 들이쉬기 / 내쉬기
@@ -615,6 +616,25 @@ function drawZip(p) {
   return { K, feet: [] };
 }
 
+// step_up  시소 올라서기 깡충(#397, 설계 docs/design/screens/magpie_nest.md 1-5-3절). 엔진이 칸을 궤적 위에 놓는다:
+//   웅크림 0번(50ms) → 공중 1번(150ms, 기준점이 포물선으로 12px 솟는다) → 착지 0번(50ms). 내려서기는 1번 → 0번.
+//   두 손은 고무 닭을 쥔 채라(캐릭터 단서) 다른 둘처럼 팔을 젓지 않는다. 대신 닭을 가슴에 끌어안고, 공중에서는 닭 머리가 늦게 따라온다.
+//   0 웅크림: 무릎 모으고 몸을 낮춘다(우비 밑단이 종처럼 벌어짐), 눈 질끈 + 이 악물기 = "할 수 있다…!"
+//   1 공중: 앞발은 무릎을 접어 올리고 뒷발 앞코는 아래로 끌린다(기준점 = 뒷발 앞코). 바늘 눈 + 벌린 입, 안경이 튄다.
+//   뒷발 앞코가 칸 바닥 행에 닿아 있어서 build.mjs "딛은 발" 검사를 그대로 지킨다. 높이는 엔진 궤적이 맡는다.
+const STEP_UP = [
+  {
+    chest: 3, lean: 1,
+    legs: { back: { x: -1.3, lift: 0, toe: false }, front: { x: 1.2, lift: 0, toe: false } },
+    eyes: 'shut', mouth: 'clench', sweat: 0, chickHead: 0, chickUp: 2, flare: 1,
+  },
+  {
+    chest: 1, lean: 1,
+    legs: { back: { x: -1.6, lift: -0.75, toe: true }, front: { x: 1.4, lift: 2.6, toe: true } }, // 앞코 장화는 1px 짧아서 발목을 1px 내린다
+    eyes: 'wide', mouth: 'o', glassesUp: 1, sweat: -1, chickHead: 2, chickUp: 2, flare: 1,
+  },
+];
+
 export const SHEET = {
   name: 'ppik-base',
   character: 'ppik',
@@ -631,6 +651,8 @@ export const SHEET = {
     { name: 'common.shiver', frames: 4, ms: [400, 100, 100, 500] },
     { name: 'common.wag_finger', frames: 4, ms: [250, 200, 200, 400] },
     { name: 'hide_in_basket', frames: 4, ms: [200, 300, 350, 500] },
+    // 웅크림·공중(#397 1-5-3절). 착지는 엔진이 0번 칸을 50ms 다시 쓴다. 맨 뒤에 붙여서 앞 칸 번호(#357 납작 17)는 그대로다.
+    { name: 'step_up', frames: 2, ms: [50, 150] },
   ],
   pose,
   drawFrame,
