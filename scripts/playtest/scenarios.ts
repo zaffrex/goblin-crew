@@ -121,21 +121,22 @@ const sameBox = (a: { left: number; top: number; width: number; height: number }
 
 /**
  * 한 행동이 끝난 뒤 확인. 문제 문장 목록(비면 통과).
- * `said`는 이 행동 동안 실제로 뜬 말풍선 글, `text`는 글 id → 화면 글(Chrome) 또는 그대로(테스트).
+ * `said`는 이 행동 동안 실제로 뜬 말풍선 글, `texts`는 글 id → 화면에 뜰 수 있는 글 목록
+ * (기본 글 + 화자별 변형, #304. Chrome) 또는 `[id]`(테스트). 목록 중 하나와 맞으면 그 줄이 뜬 것이다.
  */
 export function checkStep(
   screen: ScreenData,
   step: Step,
   after: Layout,
   said: readonly string[],
-  text: (id: string) => string,
+  texts: (id: string) => readonly string[],
 ): string[] {
   const e = step.expect;
   if (!e) return [];
   const problems: string[] = [];
   if (e.says) {
     let i = 0;
-    for (const s of said) if (i < e.says.length && s === text(e.says[i]!)) i++;
+    for (const s of said) if (i < e.says.length && texts(e.says[i]!).includes(s)) i++;
     if (i < e.says.length) problems.push(`말풍선 ${e.says[i]} 안 뜸 (뜬 것: ${said.map((s) => JSON.stringify(s)).join(', ') || '없음'})`);
   }
   if (e.gauge !== undefined && after.gauge !== e.gauge) problems.push(`게이지 ${after.gauge} (기대 ${e.gauge})`);
