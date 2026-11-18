@@ -8,7 +8,7 @@ import screenJson from '../content/screens/magpie_nest.json';
 import texts from '../content/text/ja.json';
 import { sayText } from './core/sayText';
 import { bubbleFontPx, bubbleMaxWidth, bubbleTailInset, placeBubble, type BubbleAnchor, type BubbleOptions } from './core/bubble';
-import type { CharacterId } from './core/characters';
+import { CHARACTERS, type CharacterId } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
 import { dustPush, FX_COLORS, FX_STYLE, FX_TEXT_SPOT, SHAKE_FX, shakeOffset } from './core/fx';
@@ -22,6 +22,7 @@ import { activeFx, activeMarkerVisible, charPose, createScene, currentBubble, dr
 import { coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
 import { isTapKey } from './core/keys';
+import { createRestartButton, loadingDone, RESTART_BOX, restartArmed, restartPress } from './core/restart';
 import { createDisplay } from './engine/display';
 import { onPointerTap } from './engine/input';
 import { startLoop } from './engine/loop';
@@ -44,6 +45,8 @@ const clearCut = need('#clear');
 const faintCut = need('#faint');
 const hudTagLayer = need('#hudtags');
 const cardEl = need('#card');
+const loadingEl = need('#loading');
+const restartEl = need<HTMLButtonElement>('#restart');
 
 const screenData = screenJson as unknown as ScreenData;
 const TEXT: Readonly<Record<string, string>> = texts;
@@ -63,7 +66,20 @@ const art = loadSceneArt(screenData.id);
 const covered = art ? coveredIds(art.meta) : new Set<string>();
 
 const display = createDisplay(canvas, { width: INTERNAL_WIDTH, height: INTERNAL_HEIGHT });
-const scene = createScene(data);
+/** 지금 판. 처음부터 버튼(#387)이 새 판으로 바꾼다. 다른 곳은 이 변수를 매번 다시 읽는다(따로 붙잡아 두지 않는다). */
+let scene = createScene(data);
+
+/**
+ * 로딩 화면(#387, #286 P1-7): 그림이 다 오기 전에는 장면 대신 `#loading`(index.html, JS 전부터 떠 있음)만 보인다.
+ * 예전에는 이 동안 임시 방·상자(색 블록)가 그대로 보였다. 시작 카드도 그 뒤에 뜬다(카드 잠금 1초는 로딩 뒤부터 센다).
+ */
+const loadStart = performance.now();
+let loaded = false;
+function loadStates(): Loaded[] {
+  const bg: Loaded = !art?.bg ? 'none' : art.bgReady ? 'ready' : 'loading';
+  const objects: Loaded = !art ? 'none' : art.objectsReady ? 'ready' : 'loading';
+  return [bg, objects, ...CHARACTERS.map((c) => spriteState(c.id)), fxTextState()];
+}
 
 // M1 판정 재생 도구(#101)용 읽기 전용 훅. 입력 판정이 쓰는 상자 그대로 돌려준다(scene.ts sceneLayout).
 const PLAYTEST = new URLSearchParams(location.search).get('playtest') === '1';
@@ -94,8 +110,7 @@ function buildCard(): { id: CharacterId; el: HTMLCanvasElement; ctx: CanvasRende
   need('#card .why').textContent = text.why;
   need('#card .gauge').textContent = text.gauge;
   need('#card .start').textContent = `${text.start} ▶`;
-  // 모듈이 끝나기 전에 보이게 둔다: 재생 도구는 훅(`__gcLayout`)이 생기면 바로 카드를 찾는다.
-  cardEl.hidden = false;
+  // 카드는 로딩이 끝난 뒤 renderCard가 띄운다(#387). 재생 도구(`card.ts`)는 `#loading`이 사라질 때까지 기다렸다가 카드를 찾는다.
   const list = need('#card ul');
   return text.rows.map((row) => {
     const li = document.createElement('li');
@@ -117,18 +132,18 @@ function buildCard(): { id: CharacterId; el: HTMLCanvasElement; ctx: CanvasRende
 // 카드 닫기: 카드 위·캔버스 밖·키보드 어디서든. 캔버스 탭은 캔버스 핸들러가 먼저 받아 버리고(카드가 떠 있으면 무시) 여기로 올라온다.
 // 버블 단계라 닫는 탭이 같은 이벤트로 게임에 다시 들어가지 않는다.
 window.addEventListener('pointerdown', (e) => {
-  if (e.isPrimary && e.button === 0) cardInput(startCard);
+  if (loaded && e.isPrimary && e.button === 0) cardInput(startCard);
 });
 // 키는 "탭"으로 셀 수 있는 것만(반복·수정 키·브라우저 단축키 제외, PR #306 리뷰).
 window.addEventListener('keydown', (e) => {
-  if (isTapKey(e)) cardInput(startCard);
+  if (loaded && isTapKey(e)) cardInput(startCard);
 });
 
 const inBox = (p: Point, b: HitBox): boolean => p.x >= b.left && p.x < b.left + b.width && p.y >= b.top && p.y < b.top + b.height;
 
 window.addEventListener('resize', () => display.resize());
 onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
-  if (startCard.open) return; // 카드 몫(window 핸들러가 닫는다)
+  if (!loaded || startCard.open) return; // 로딩 중이거나 카드 몫(window 핸들러가 닫는다)
   noteTap(notes);
   const r = sceneTap(data, scene, p, slop, slop > 0);
   if (r.kind !== 'intent') return;
@@ -137,6 +152,35 @@ onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
   // 얼굴 탭·몸 탭 둘 다 전환이다. 처음 캐릭터는 시작 카드가 말했으니 띄우지 않는다(createFirstNotes).
   if (slop > 0 && r.intent.kind === 'switch') noteSwitch(notes, r.intent.char, abilityText(r.intent.char, t));
 });
+/**
+ * 처음부터 버튼(#387): 두 번 눌러야 한다(3초 안, `core/restart.ts`). 새로고침 없이 장면만 새 판으로 바꾼다.
+ * 시작 카드는 다시 띄우지 않고, 처음 한 번 안내(firstNotes)도 이미 본 건 다시 안 띄운다(같은 사람이 다시 하는 것).
+ * DOM 버튼이라 캔버스 탭(걷기)으로 새지 않는다. 클릭이라 키보드(Enter·Space)로도 누를 수 있다.
+ */
+const restart = createRestartButton();
+/** 마우스가 버튼 위에 있나(설명은 대상 라벨 자리에, HUD 칸 호버와 같다). */
+let restartHover = false;
+restartEl.textContent = t('ui.restart');
+restartEl.addEventListener('click', () => {
+  if (!loaded || startCard.open) return;
+  if (!restartPress(restart, performance.now())) return;
+  // 누른 뒤 초점이 남으면 Space 한 번에 다시 눌려서(두 번째 누름) 판이 또 날아간다.
+  restartEl.blur();
+  scene = createScene(data);
+  touchLabel = null;
+  hoverLabel = null;
+  hoverHud = null;
+  loopClock = {};
+  noteTap(notes);
+  notes.lastGauge = scene.shownGauge;
+});
+restartEl.addEventListener('pointerenter', (e) => {
+  if (e.pointerType === 'mouse') restartHover = true;
+});
+restartEl.addEventListener('pointerleave', () => {
+  restartHover = false;
+});
+
 // 목표 줄(설계 6-2-2절): 첫 행동 뒤에도 늘 보인다. 클리어 뒤에만 숨긴다. 글·줄바꿈은 render의 placeGoal이 넣는다.
 clearCut.textContent = t('ui.clear');
 
@@ -305,7 +349,37 @@ function uncovered(boxes: Record<string, HitBox>): Record<string, HitBox> {
   return Object.fromEntries(Object.entries(boxes).filter(([id]) => !covered.has(id)));
 }
 
+/** 로딩 중 한 프레임: 캔버스는 잉크로 덮고 DOM 글자는 `#loading`만 남긴다. */
+function renderLoading(): void {
+  const { ctx, internal } = display;
+  ctx.fillStyle = FX_COLORS.ink;
+  ctx.fillRect(0, 0, internal.width, internal.height);
+  display.present();
+  for (const el of [hud, bubble, label, clearCut, faintCut, cardEl, restartEl]) el.hidden = true;
+  loadingEl.hidden = false;
+  placeDom(loadingEl, { x: INTERNAL_WIDTH / 2, y: INTERNAL_HEIGHT / 2 });
+}
+
+/** 처음부터 버튼: HUD 오른쪽 위 `RESTART_BOX`. 크기는 상자 × 배율, 글자는 HUD 이름표와 같은 식. 카드가 떠 있으면 숨긴다. */
+function placeRestart(scale: number, armed: boolean): void {
+  restartEl.hidden = startCard.open;
+  if (restartEl.hidden) return;
+  restartEl.toggleAttribute('data-armed', armed);
+  const size = `${hudTagFontPx(scale)}px`;
+  if (restartEl.style.fontSize !== size) restartEl.style.fontSize = size;
+  const w = `${Math.round(RESTART_BOX.width * scale)}px`;
+  const h = `${Math.round(RESTART_BOX.height * scale)}px`;
+  if (restartEl.style.width !== w) restartEl.style.width = w;
+  if (restartEl.style.height !== h) restartEl.style.height = h;
+  placeDom(restartEl, { x: RESTART_BOX.left, y: RESTART_BOX.top });
+}
+
 function render(): void {
+  if (!loaded) {
+    renderLoading();
+    return;
+  }
+  loadingEl.hidden = true;
   const { ctx, internal } = display;
   const layout = sceneLayout(data, scene);
   // 라벨과 호버 외곽선(형식 기록 10-1절)은 같은 대상: 마우스 호버 또는 터치 첫 탭. busy·클리어 중에는 끈다.
@@ -418,11 +492,15 @@ function render(): void {
   noteGauge(notes, layout.gauge, scene.tick, t('ui.hud.gauge_first_drop'));
   // 처음 한 번 안내가 떠 있으면 그게 먼저다(첫 감소는 busy 중에 뜬다). 다음 탭이나 2.5초 뒤 지운다.
   const note = scene.cleared ? null : currentNote(notes, scene.tick);
-  const labelString = note ?? (shown ? labelText(shown, data.screen.id, t) : (hudHover ?? ''));
+  // 처음부터 버튼 첫 누름 뒤에는 확인 글이 무엇보다 먼저다(두 번째 누름을 기다린다는 걸 알려야 한다, #387).
+  const armed = restartArmed(restart, performance.now());
+  const restartText = armed ? t('ui.restart_confirm') : restartHover ? t('ui.restart_hover') : null;
+  const labelString = restartText ?? note ?? (shown ? labelText(shown, data.screen.id, t) : (hudHover ?? ''));
   label.hidden = labelString === '';
   if (label.textContent !== labelString) label.textContent = labelString;
   // 글자 = 내부 7px × 배율, 최소 14(#337). 아래끝은 게이지 띠 위 2px(6-3-5절). 띠 위에 두면 막대를 덮는다.
   const scale = display.rect().width / INTERNAL_WIDTH;
+  placeRestart(scale, armed);
   const labelSize = `${labelFontPx(scale)}px`;
   if (label.style.fontSize !== labelSize) label.style.fontSize = labelSize;
   placeDom(label, { x: INTERNAL_WIDTH / 2, y: LABEL_BOTTOM });
@@ -488,6 +566,9 @@ function renderCard(): void {
 
 startLoop({
   step: () => {
+    // 로딩이 끝나야 카드 잠금·장면 시간이 흐른다(#387). 한 번 끝나면 다시 보지 않는다.
+    loaded ||= loadingDone(loadStates(), performance.now() - loadStart);
+    if (!loaded) return;
     cardTick(startCard);
     if (!startCard.open) sceneTick(data, scene);
   },
