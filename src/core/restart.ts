@@ -5,11 +5,12 @@ import type { Loaded } from './fallbacks';
 import type { HitBox } from './hit';
 
 /**
- * 처음부터 버튼 자리(내부 px): HUD 영역 오른쪽, x 416–476 × y 4–32. 높이는 얼굴 칸(28)과 같아 휴대폰에서도 누를 만하다.
- * 얼굴 칸 끝(x 392)과 24px 떨어뜨려 얼굴을 누르려다 잘못 누르지 않게 한다. `validate.ts` `HUD_BOX`(300,4,176,72) 안이라
- * 화면 데이터의 핫스팟·서는 자리와 겹치지 않는다(테스트가 본다).
+ * 처음부터 버튼 자리(내부 px): HUD 영역 오른쪽 끝, x 448–476 × y 4–32. 28×28 아이콘 버튼(#390), 얼굴 칸과 같은 크기라
+ * 휴대폰(1.0배 28 CSS px)에서도 누를 만하다. 처음엔 글자 버튼 60×28(x 416)이었는데 위쪽 줄에서 제일 큰 덩어리라
+ * 판을 날리는 버튼이 제일 눈에 띄었다. 얼굴 칸 끝(x 392)과 56px 떨어져 얼굴을 누르려다 잘못 누를 일도 줄었다.
+ * `validate.ts` `HUD_BOX`(300,4,176,72) 안이라 화면 데이터의 핫스팟·서는 자리와 겹치지 않는다(테스트가 본다).
  */
-export const RESTART_BOX: HitBox = { left: 416, top: 4, width: 60, height: 28 };
+export const RESTART_BOX: HitBox = { left: 448, top: 4, width: 28, height: 28 };
 
 /** 첫 번째 누름 뒤 두 번째를 기다리는 시간(ms). 지나면 다시 처음 누름으로 센다. */
 export const RESTART_ARM_MS = 3000;
