@@ -23,6 +23,11 @@ describe('처음부터 버튼 자리 (#387)', () => {
     const lastFace = Math.max(...Object.values(CHAR_SLOTS).map((s) => s.left + s.width));
     expect(RESTART_BOX.left - lastFace).toBeGreaterThanOrEqual(16);
   });
+
+  it('28×28 아이콘 버튼이다(#390, 얼굴 칸과 같은 크기, HUD 시트 칸 20×20 + 4px 여백). 시트 칸은 engine/hudIcons.test.ts가 본다', () => {
+    expect(RESTART_BOX.width).toBe(28);
+    expect(RESTART_BOX.height).toBe(28);
+  });
 });
 
 describe('처음부터 버튼 두 번 누르기 (#387)', () => {

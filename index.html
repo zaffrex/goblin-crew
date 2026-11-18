@@ -98,14 +98,19 @@
       #card[data-tight] ul { margin: 0.3em 0; }
       #card[data-tight] li { gap: 0.4em; }
       #card[data-tight] .start { margin-top: 0.3em; }
-      /* 처음부터 버튼(#387, #286 P1-7). 자리·크기·글자 크기는 main.ts가 `core/restart.ts` RESTART_BOX × 배율로 정한다.
-         모양은 HUD 이름표와 같은 어두운 바탕. 첫 누름 뒤(data-armed)에는 노랑으로 바뀌고 확인 글이 대상 라벨 자리에 뜬다. */
+      /* 처음부터 버튼(#387, #286 P1-7, 아이콘 #390). 자리·크기는 main.ts가 `core/restart.ts` RESTART_BOX × 배율로 정한다.
+         모양은 HUD 이름표와 같은 어두운 바탕. 아이콘(HUD 시트 `restart` 칸)은 가운데 `<span class="icon">`이고, 크기·시트 자리는 main.ts가 넣는다.
+         첫 누름 뒤(data-armed)에는 노랑으로 바뀌고 아이콘이 1px 내려앉으며(눌린 버튼), 확인 글이 대상 라벨 자리에 뜬다. */
       #restart {
-        position: fixed; margin: 0; box-sizing: border-box; padding: 0 0.3em; cursor: pointer; touch-action: manipulation;
-        font: 11px/1 system-ui, sans-serif; color: #fffdf5; white-space: nowrap;
+        position: fixed; margin: 0; box-sizing: border-box; padding: 0; cursor: pointer; touch-action: manipulation;
         background: rgb(0 0 0 / 0.6); border: 1px solid rgb(255 253 245 / 0.5); border-radius: 3px;
       }
-      #restart[data-armed] { color: #1d1d1d; background: #f2d65c; border-color: #1d1d1d; }
+      #restart .icon {
+        position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none;
+        background-repeat: no-repeat; image-rendering: pixelated;
+      }
+      #restart[data-armed] { background: #f2d65c; border-color: #1d1d1d; }
+      #restart[data-armed] .icon { transform: translate(-50%, calc(-50% + 1px)); }
       #restart[hidden], #loading[hidden] { display: none; }
       /* 로딩 화면(#387): JS가 오기 전부터 떠 있다. 그림이 다 오면 main.ts가 숨긴다. 그동안 캔버스는 잉크로 덮는다. */
       #loading {

@@ -10,6 +10,7 @@
     "stomp": 1,
     "squeak": 2,
     "hand": 3,
-    "look": 4
+    "look": 4,
+    "restart": 5
   }
 }

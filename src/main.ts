@@ -31,6 +31,7 @@ import { drawActiveMarker, drawCharacter, drawOutline, drawRoom, drawSpark, draw
 import { drawSceneBg, drawSceneFrame, loadSceneArt, sceneArtMeta } from './engine/sceneArt';
 import { drawHead, drawSprite, spriteMetas, spriteState } from './engine/sprites';
 import { drawFxText, fxTextState } from './engine/fxText';
+import { hudIconState, paintHudIcon } from './engine/hudIcons';
 
 function need<T extends HTMLElement>(selector: string): T {
   const el = document.querySelector<T>(selector);
@@ -78,7 +79,7 @@ let loaded = false;
 function loadStates(): Loaded[] {
   const bg: Loaded = !art?.bg ? 'none' : art.bgReady ? 'ready' : 'loading';
   const objects: Loaded = !art ? 'none' : art.objectsReady ? 'ready' : 'loading';
-  return [bg, objects, ...CHARACTERS.map((c) => spriteState(c.id)), fxTextState()];
+  return [bg, objects, ...CHARACTERS.map((c) => spriteState(c.id)), fxTextState(), hudIconState()];
 }
 
 // M1 판정 재생 도구(#101)용 읽기 전용 훅. 입력 판정이 쓰는 상자 그대로 돌려준다(scene.ts sceneLayout).
@@ -160,7 +161,12 @@ onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
 const restart = createRestartButton();
 /** 마우스가 버튼 위에 있나(설명은 대상 라벨 자리에, HUD 칸 호버와 같다). */
 let restartHover = false;
-restartEl.textContent = t('ui.restart');
+// 아이콘 버튼(#390, 설계 6-7-1절): 글자는 화면에 안 쓰고 읽기 프로그램용 이름으로만 둔다. 설명은 호버·확인 글이 대상 라벨 자리에.
+restartEl.setAttribute('aria-label', t('ui.restart'));
+const restartIcon = document.createElement('span');
+restartIcon.className = 'icon';
+restartIcon.setAttribute('aria-hidden', 'true');
+restartEl.append(restartIcon);
 restartEl.addEventListener('click', () => {
   if (!loaded || startCard.open) return;
   if (!restartPress(restart, performance.now())) return;
@@ -360,13 +366,12 @@ function renderLoading(): void {
   placeDom(loadingEl, { x: INTERNAL_WIDTH / 2, y: INTERNAL_HEIGHT / 2 });
 }
 
-/** 처음부터 버튼: HUD 오른쪽 위 `RESTART_BOX`. 크기는 상자 × 배율, 글자는 HUD 이름표와 같은 식. 카드가 떠 있으면 숨긴다. */
+/** 처음부터 버튼: HUD 오른쪽 위 `RESTART_BOX`(28×28 아이콘). 크기는 상자 × 배율, 아이콘은 시트 칸 20×20 × 배율. 카드가 떠 있으면 숨긴다. */
 function placeRestart(scale: number, armed: boolean): void {
   restartEl.hidden = startCard.open;
   if (restartEl.hidden) return;
   restartEl.toggleAttribute('data-armed', armed);
-  const size = `${hudTagFontPx(scale)}px`;
-  if (restartEl.style.fontSize !== size) restartEl.style.fontSize = size;
+  paintHudIcon(restartIcon, 'restart', scale);
   const w = `${Math.round(RESTART_BOX.width * scale)}px`;
   const h = `${Math.round(RESTART_BOX.height * scale)}px`;
   if (restartEl.style.width !== w) restartEl.style.width = w;
