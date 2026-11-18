@@ -4,7 +4,7 @@
 
 import type { CharacterId } from '../core/characters';
 import type { HitBox } from '../core/hit';
-import { gaugeShakeX, type HudId } from '../core/hud';
+import { gaugeChipWidth, gaugeShakeX, type HudId } from '../core/hud';
 import { hudIconId, ICON_INSET } from '../core/hudIcons';
 
 /** 보송 32색 중 HUD가 쓰는 것. 번호는 bosong-32.hex 줄 순서(0부터). */
@@ -13,10 +13,12 @@ const C = {
   plum: '#3a3142', // 1 버튼 바탕
   plumEdge: '#5e5068', // 2 버튼 테두리
   paper: '#e6dcd6', // 5 임시 글자
-  cream: '#fff8ee', // 6 무장 중 바탕
-  teal: '#5a93a8', // 25 찬 게이지 칸 그늘
-  tealLight: '#9cc9cf', // 26 찬 게이지 칸
-  tealGlow: '#d8f0ee', // 27 찬 게이지 칸 빛
+  cream: '#fff8ee', // 6 무장 중 바탕, 방금 깎인 게이지 조각
+  redShade: '#7a2c3a', // 7 깎인 칸 그늘
+  red: '#c2404a', // 8 깎인 칸
+  yellowShade: '#b8953a', // 14 남은 칸 그늘
+  yellow: '#f2d65c', // 15 남은 칸
+  yellowLight: '#fff1a8', // 16 남은 칸 빛
   hint: '#ff9f43', // 31 지금 캐릭터
 } as const;
 
@@ -30,7 +32,7 @@ export interface HudView {
   active: CharacterId;
   armed: string | null;
   gauge: number;
-  /** 게이지가 줄어드는 연출 중이면 잃은 칸 [from, to)와 경과 틱(칸 터짐 + 흔들림, 설계 6-2-5절). */
+  /** 게이지가 줄어드는 연출 중이면 잃은 칸 [from, to)와 경과 틱(크림 조각 + 흔들림, 설계 6-3-4절). */
   gaugeDrop: { from: number; to: number; t: number } | null;
   /** 능력 버튼 임시 글자(지금 캐릭터 능력 이름표의 첫 글자). 아이콘 시트가 없을 때만 쓴다. */
   abilityGlyph: string;
@@ -49,45 +51,66 @@ function frame(ctx: CanvasRenderingContext2D, b: HitBox, fill: string, edge: str
   ctx.fillRect(b.left + 1, b.top + 1, b.width - 2, b.height - 2);
 }
 
-/** 찬 칸(설계 6-2-4절): ink 테두리 + 26번 채움, 아래·오른쪽 안 1px 25번 그늘, 왼쪽 위 ㄱ자 27번 빛(가로 3·세로 3). "불 켜진 칸". */
-function fullCell(ctx: CanvasRenderingContext2D, b: HitBox): void {
-  frame(ctx, b, C.tealLight, C.ink);
-  const r = b.left + b.width - 2;
-  const bottom = b.top + b.height - 2;
-  ctx.fillStyle = C.teal;
-  ctx.fillRect(b.left + 1, bottom, b.width - 2, 1);
-  ctx.fillRect(r, b.top + 1, 1, b.height - 2);
-  ctx.fillStyle = C.tealGlow;
-  ctx.fillRect(b.left + 1, b.top + 1, 3, 1);
-  ctx.fillRect(b.left + 1, b.top + 1, 1, 3);
+/** 게이지 띠·막대 배치(core/hud.ts `GAUGE_BAND`·`GAUGE_TRACK`·`GAUGE_SEGS`). */
+export interface GaugeLayout {
+  band: HitBox;
+  track: HitBox;
+  segs: readonly HitBox[];
+}
+
+/** 칸 하나: 채움 + 윗줄 1px(없으면 채움 그대로) + 아랫줄 1px(6-3-3절). */
+function seg(ctx: CanvasRenderingContext2D, b: HitBox, fill: string, top: string | null, bottom: string): void {
+  ctx.fillStyle = fill;
+  ctx.fillRect(b.left, b.top, b.width, b.height);
+  if (top) {
+    ctx.fillStyle = top;
+    ctx.fillRect(b.left, b.top, b.width, 1);
+  }
+  ctx.fillStyle = bottom;
+  ctx.fillRect(b.left, b.top + b.height - 1, b.width, 1);
 }
 
 /**
- * 터지는 칸: 처음 12틱(0.2초)은 크림색으로 번쩍, 그다음 구멍. 시트 없이 사각형만 쓴다.
- * 흔들림(18틱)을 보고 눈이 게이지로 옮겨 오는 데 0.2초 안팎이라, 바뀌는 순간이 흔들림 안에 보이게 한다(PR #295 리뷰).
+ * 게이지(설계 6-3절, #312): 맨 아래 띠 + 5칸 막대. 노랑 = 남은 칸(왼쪽부터), 빨강 = 깎인 칸(계속 보임).
+ * 줄어드는 중(`drop`, `gauge` 이벤트 20틱)이면 막대만 0.3초 좌우로 흔들고, 잃은 칸 [from, to)를 크림 조각으로 덮었다가
+ * 8틱 뒤 노랑 쪽으로 줄인다(6-3-4절). 상태는 `drop`(t)뿐이라 새 상태가 없다. 사각형만 쓴다(시트 없음).
  */
-const BURST_FLASH_TICKS = 12;
+export function drawGauge(ctx: CanvasRenderingContext2D, g: GaugeLayout, gauge: number, drop: HudView['gaugeDrop']): void {
+  // 띠는 화면 폭 전체라 흔들지 않는다(흔들면 양 끝에 틈이 보인다).
+  ctx.fillStyle = C.plum;
+  ctx.fillRect(g.band.left, g.band.top, g.band.width, g.band.height);
+  ctx.fillStyle = C.plumEdge;
+  ctx.fillRect(g.band.left, g.band.top, g.band.width, 1);
 
-/**
- * 게이지(설계 6-2-4·6-2-5절, #285): 받침판 위에 찬 칸(밝음)/빈 칸(구멍). 23번 tealDeep은 진해서 찬 칸처럼 보여 쓰지 않는다.
- * 줄어드는 중이면 판째 0.3초 좌우로 흔들고, 잃은 칸은 잠깐 번쩍인 뒤 구멍이 된다.
- */
-export function drawGauge(ctx: CanvasRenderingContext2D, plate: HitBox, cells: readonly HitBox[], gauge: number, drop: HudView['gaugeDrop']): void {
   const dx = drop ? gaugeShakeX(drop.t) : 0;
   const at = (b: HitBox): HitBox => (dx ? { ...b, left: b.left + dx } : b);
-  frame(ctx, at(plate), C.plum, C.plumEdge);
-  cells.forEach((cell, i) => {
-    const b = at(cell);
-    if (drop && i >= drop.from && i < drop.to && drop.t < BURST_FLASH_TICKS) frame(ctx, b, C.cream, C.ink);
-    else if (i < gauge) fullCell(ctx, b);
-    else frame(ctx, b, C.ink, C.plumEdge);
+  const track = at(g.track);
+  ctx.fillStyle = C.ink;
+  ctx.fillRect(track.left, track.top, track.width, track.height);
+  g.segs.forEach((cell, i) => {
+    if (i < gauge) seg(ctx, at(cell), C.yellow, C.yellowLight, C.yellowShade);
+    else seg(ctx, at(cell), C.red, null, C.redShade);
   });
+  if (!drop || drop.to <= drop.from) return;
+  const first = g.segs[drop.from];
+  const last = g.segs[drop.to - 1];
+  if (!first || !last) return;
+  const full = last.left + last.width - first.left;
+  const width = gaugeChipWidth(full, drop.t);
+  if (width <= 0) return;
+  seg(ctx, at({ left: first.left, top: first.top, width, height: first.height }), C.cream, null, C.paper);
+  // 조각 위에도 칸 사이 눈금(ink 1px)을 다시 그린다. 2칸 이상이 한 조각이어도 칸 수가 보이게.
+  ctx.fillStyle = C.ink;
+  for (let i = drop.from + 1; i < drop.to; i++) {
+    const b = at(g.segs[i]!);
+    if (b.left - 1 < first.left + dx + width) ctx.fillRect(b.left - 1, b.top, 1, b.height);
+  }
 }
 
 export function drawHud(
   ctx: CanvasRenderingContext2D,
   hud: Record<string, HitBox>,
-  gauge: { plate: HitBox; cells: readonly HitBox[] },
+  gauge: GaugeLayout,
   view: HudView,
   drawFace: DrawFace,
   drawIcon: DrawIcon,
@@ -122,5 +145,5 @@ export function drawHud(
     const glyph = id === 'verb.ability' ? view.abilityGlyph : (GLYPH[id] ?? '?');
     ctx.fillText(glyph, b.left + b.width / 2, b.top + b.height / 2 + 1 + dy);
   }
-  drawGauge(ctx, gauge.plate, gauge.cells, view.gauge, view.gaugeDrop);
+  drawGauge(ctx, gauge, view.gauge, view.gaugeDrop);
 }

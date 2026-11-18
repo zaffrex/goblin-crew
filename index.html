@@ -40,6 +40,8 @@
         font: 11px/1 system-ui, sans-serif; color: #fffdf5;
         background: rgb(0 0 0 / 0.6); padding: 1px 4px; border-radius: 3px;
       }
+      /* 게이지 이름표(#312, 설계 6-3-2절): 왼쪽 끝 x 4, 띠 세로 가운데. 글자 크기가 배율마다 달라 세로 가운데는 여기서 맞춘다. */
+      .hudtag[data-anchor="middle-left"] { transform: translateY(-50%); }
       #clear, #faint {
         left: 50%; top: 50%; transform: translate(-50%, -50%);
         font: 700 28px/1.4 system-ui, sans-serif; color: #fffdf5;

@@ -5,7 +5,7 @@ import jjukJson from '../../public/sprites/jjuk-base.json';
 import mukjikJson from '../../public/sprites/mukjik-base.json';
 import ppikJson from '../../public/sprites/ppik-base.json';
 import { hitTest, type HitBox } from './hit';
-import { CHAR_SLOTS, GAUGE_BOX, HUD_AREA, VERB_SLOTS } from './hud';
+import { CHAR_SLOTS, GAUGE_BAND, GAUGE_SEGS, HUD_AREA, VERB_SLOTS } from './hud';
 import { worldTargets } from './interact';
 import { seenSayKey } from './sayText';
 import { parseSpriteMeta, spriteBox, spriteFrame } from './sprite';
@@ -279,10 +279,25 @@ describe('busy 중 HUD 칸 탭 (설계 5절 예외 셋, #266)', () => {
     const blank = { x: HUD_AREA.left + 14, y: HUD_AREA.top + HUD_AREA.height - 4 }; // 동사 이름표 띠
     expect(Object.values(sceneLayout(data, s).hud).some((b) => hitTest([{ id: 'b', box: b, z: 0 }], blank, 0))).toBe(false);
     const before = JSON.stringify(s);
-    expect(sceneTap(data, s, center(GAUGE_BOX), 0, false).kind).toBe('ignored');
+    expect(sceneTap(data, s, center(GAUGE_SEGS[2]!), 0, false).kind).toBe('ignored');
     expect(sceneTap(data, s, blank, 0, false).kind).toBe('ignored');
     expect(JSON.stringify(s)).toBe(before);
     expect(currentBubble(s)?.text).toBe('magpie_nest.enter');
+    // 띠 왼쪽 이름표 자리, 띠 맨 윗줄, 옛 게이지 자리(오른쪽 위 HUD 영역 빈 곳)도 같다(6-3-5·6-3-6절).
+    for (const p of [{ x: 20, y: 263 }, { x: 240, y: GAUGE_BAND.top }, { x: 440, y: 18 }]) expect(sceneTap(data, s, p, 0, false).kind).toBe('ignored');
+    expect(JSON.stringify(s)).toBe(before);
+  });
+
+  it('busy가 아닐 때 게이지 띠 탭은 걷지 않는다, 띠 바로 위 잔디는 252로 붙어 걷는다(#312)', () => {
+    const s = ready();
+    const before = JSON.stringify(s);
+    for (const p of [{ x: 20, y: 263 }, { x: 240, y: 256 }, { x: 240, y: 269 }]) {
+      expect(sceneTap(data, s, p, 0, false)).toMatchObject({ kind: 'intent', intent: { kind: 'none' } });
+    }
+    expect(JSON.stringify(s)).toBe(before);
+    const r = sceneTap(data, s, { x: 240, y: 255 }, 0, false);
+    expect(r).toMatchObject({ kind: 'intent', intent: { kind: 'walk' } });
+    expect(s.walkers.jjuk.target?.y).toBe(252);
   });
 });
 
@@ -711,9 +726,9 @@ describe('클리어 컷 L32 (magpie_nest.md 8절, #68)', () => {
     while (s.current?.ev.type !== 'clear') sceneTick(withLine, s);
     const ui = JSON.stringify(s.ui);
     // busy 중 HUD 띠 빈 곳 무시(5절)는 클리어 컷 분기 뒤에 와야 한다. 순서가 바뀌면 이 탭이 ignored가 된다.
-    expect(sceneTap(withLine, s, center(GAUGE_BOX), 0, false).kind).toBe('ignored');
+    expect(sceneTap(withLine, s, center(GAUGE_SEGS[2]!), 0, false).kind).toBe('ignored');
     for (let i = 0; i < TIMING.clearSkipAfter; i++) sceneTick(withLine, s);
-    expect(sceneTap(withLine, s, center(GAUGE_BOX), 0, false).kind).toBe('skipSay');
+    expect(sceneTap(withLine, s, center(GAUGE_SEGS[2]!), 0, false).kind).toBe('skipSay');
     expect(JSON.stringify(s.ui)).toBe(ui);
     sceneTick(withLine, s);
     expect(isBusy(s)).toBe(false);

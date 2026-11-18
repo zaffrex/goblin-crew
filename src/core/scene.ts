@@ -7,8 +7,8 @@
 
 import { CHARACTERS, characterHitBox, characterDef, type CharacterId } from './characters';
 import { TICK_MS, WALK_AREA, WALK_SPEED } from './config';
-import { hitTest, inBox, type HitBox } from './hit';
-import { HUD_AREA } from './hud';
+import { hitTest, type HitBox } from './hit';
+import { inHudZone } from './hud';
 import { hotspotBox, hudTargets, tap, type Intent, type TapContext, type UiState } from './interact';
 import { animOf, animTicks, type SceneAnim, type SceneArtMeta } from './sceneArt';
 import { FX_TICKS, fxTicks } from './fx';
@@ -688,14 +688,14 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
   }
   if (s.cleared) return { kind: 'ignored' };
   // 예외 셋(#266): busy 중에도 HUD 칸은 평소처럼 바로 받는다(전환·무장). 진행 중 이벤트·시간은 건드리지 않는다.
-  // HUD_AREA 안인데 칸이 아니면(게이지·빈 띠) 무시한다. 대사 넘기기는 월드 탭으로만 한다.
+  // HUD 영역 안인데 칸이 아니거나(빈 띠) 맨 아래 게이지 띠면 무시한다(6-3-5절). 대사 넘기기는 월드 탭으로만 한다.
   if (isBusy(s)) {
     if (hitTest(hudTargets(s.puzzle), p, slop)) {
       const r = tap(tapContext(data, s), s.ui, p, slop, touch);
       s.ui = r.ui;
       return { kind: 'intent', intent: r.intent };
     }
-    if (inBox(p, HUD_AREA)) return { kind: 'ignored' };
+    if (inHudZone(p)) return { kind: 'ignored' };
   }
   if (cur) {
     if (cur.ev.type === 'walk') {
