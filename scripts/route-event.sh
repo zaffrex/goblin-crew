@@ -31,7 +31,7 @@ if [ "$who" = "$BOT" ]; then
   first=$(head -n1 <<<"$body")
   author_role=$(jq -r --arg f "$first" '.roles | to_entries[] | select(.value.signature as $s | $f | contains($s)) | .key' "$TEAM" | head -n1)
 fi
-who_label=$([ -n "$author_role" ] && jq -r --arg r "$author_role" '.roles[$r].signature' "$TEAM" || { [ "$who" = "$CEO" ] && echo 사장님 || echo "$who"; })
+who_label=$([ -n "$author_role" ] && jq -r --arg r "$author_role" '.roles[$r].signature' "$TEAM" || { [ "$who" = "$CEO" ] && echo 진마씨 || echo "$who"; })
 
 # 3) 깨울 역할 결정
 # HTML 주석, 펜스 코드 블록(``` / ~~~), 인라인 코드(`..`, ``..``) 안의 토큰은 설명이므로 읽지 않는다.
@@ -58,7 +58,7 @@ if [ "$EVENT_NAME" = issues ] && [ "$ACTION" = opened ]; then
   if [ "${#wake[@]}" -eq 0 ] && [ "$has_role_label" = 0 ]; then wake[pm]=1; fi
 fi
 
-# 사장님 글은 토큰이 없어도 PM이 본다
+# 진마씨 글은 토큰이 없어도 PM이 본다
 if [ "$who" = "$CEO" ] && [ "${#wake[@]}" -eq 0 ] && [ "$EVENT_NAME" != pull_request ]; then wake[pm]=1; fi
 
 # 자기 자신은 깨우지 않는다

@@ -78,12 +78,12 @@ member_uid() { # Slack user id of a member's bot (empty if that member has no to
   api auth.test '{}' "$t" | jq -r '.user_id'
 }
 
-# user id -> display name (members shown as "Noah (PM)", the CEO as "사장님")
+# user id -> display name (members shown as "Noah (PM)", the CEO as "진마씨")
 declare -A UNAME
 user_name() {
   local u="$1"
   if [ -z "${UNAME[$u]:-}" ]; then
-    if [ "$u" = "$CEO_ID" ]; then UNAME[$u]="사장님"
+    if [ "$u" = "$CEO_ID" ]; then UNAME[$u]="진마씨"
     else
       local n; n=$(curl -sS -G https://slack.com/api/users.info -H "Authorization: Bearer $TOKEN" --data "user=$u" \
         | jq -r '(.user.profile.display_name | select(. != null and . != "")) // .user.real_name // .user.name // "unknown"')
