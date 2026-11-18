@@ -318,7 +318,7 @@ function longJohnsBody(im) {
 const longJohns = pic(longJohnsBody);
 
 // ═════════════ 시소 (seesaw: seesaw_left + seesaw_right, 널빤지 208,214 80×6) ═════════════
-// 널빤지 한 장, 수평 고정(설계 1-3절, 형식 5절). 받침(세제 통 242,220)은 배경 띠 (c) 몫이다.
+// 널빤지 한 장. 이 함수는 수평 모습이고, 사람이 탄 기울기는 seesawTilt(d)다(설계 1-5절, #397). 받침(세제 통 242,220)은 배경 띠 (c) 몫이다.
 // 양 끝에 발판 자국(밟혀서 닳은 칠), 가운데 못 두 개. 고리 쪽 왼쪽 끝은 신발 자국이 하나 더 있다(누가 자주 섰다).
 function seesawBody(im) {
   const X0 = 208, X1 = 288, Y0 = 214, HH = 6;
@@ -509,6 +509,8 @@ const whoosh = (side, lift) => (im) => {
   const x0 = side < 0 ? 209 : 279;
   for (const [dx, len] of [[0, 3], [4, 4], [8, 2]]) line(im, x0 + dx, 211 - lift, x0 + dx, 211 - lift - len, C.lint);
 };
+/** 멈춘 기울기 그림(#397 설계 1-5절). d = 오른쪽 끝이 내려간 px(음수 = 왼쪽 끝). 미리보기·기울기 칸이 같은 함수를 쓴다. */
+export const seesawTilt = (d) => plank(d);
 const BOUNCE = 7; // 끝이 움직이는 최대 px. 더 크면 위에 선 사람 발이 널빤지에 묻힌다(발 y 214, 캐릭터가 앞에 그려짐)
 const plankBounce = (side) => ({ // side = 내려가는 끝
   ms: [60, 120, 80],
