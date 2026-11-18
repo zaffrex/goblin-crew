@@ -19,6 +19,8 @@ export interface BubbleOptions {
   gap: number;
   /** 꼬리가 말풍선 모서리 둥근 곳에 걸리지 않게 좌우 끝에서 띄우는 거리. */
   tailInset: number;
+  /** 피할 상자(목표 줄·HUD 이름표, #351)와 말풍선 사이 최소 틈. 없으면 0. */
+  avoidGap?: number;
 }
 
 export interface BubblePlacement {
@@ -53,20 +55,49 @@ function clamp(v: number, lo: number, hi: number): number {
   return hi < lo ? lo : Math.min(hi, Math.max(lo, v));
 }
 
+/** 두 상자가 `gap`보다 가까운가(닿거나 겹침). 틈이 정확히 `gap`이면 겹치지 않은 것으로 본다. */
+function tooClose(a: Rect, b: Rect, gap: number): boolean {
+  return a.left < b.left + b.width + gap && b.left < a.left + a.width + gap
+    && a.top < b.top + b.height + gap && b.top < a.top + a.height + gap;
+}
+
+/**
+ * 피할 상자(#351, 설계 6-5절)를 **오른쪽으로만** 밀어서 피한다. 겹친 상자의 오른쪽 끝 + 틈으로 옮기고, 옮긴 자리에서
+ * 다른 상자와 또 겹치면 다시 민다(목표 줄 → 얼굴 이름표 순으로 부딪칠 수 있다). 화면 오른쪽 끝을 넘거나 꼬리가
+ * `tailInset` 밖으로 나가야 하면(화자를 못 가리키면) null.
+ */
+function pushRight(left: number, top: number, anchorX: number, size: Size, maxLeft: number, avoid: readonly Rect[], gap: number, tailInset: number): number | null {
+  for (let i = 0; i <= avoid.length; i++) {
+    const box = { left, top, width: size.width, height: size.height };
+    const hit = avoid.find((a) => tooClose(box, a, gap));
+    if (!hit) return left;
+    // 정수 CSS px로 올린다. main.ts가 left를 반올림하므로 소수면 틈이 0.5px 모자랄 수 있다.
+    left = Math.ceil(hit.left + hit.width + gap);
+    if (left > maxLeft || anchorX - left < tailInset) return null;
+  }
+  return null;
+}
+
 /**
  * 화자 머리 위 가운데에 놓고, 좌우는 게임 화면 안으로 민다.
- * 위가 넘치면 화자 발 아래로 뒤집고, 아래도 넘치면(화면보다 키 큰 화자는 없지만) 화면 안으로 끌어온다.
+ * 피할 상자(`avoid`, 목표 줄·HUD 이름표)와 `avoidGap`보다 가까우면 오른쪽으로 밀고, 못 밀면 발 아래로 뒤집는다(#351).
+ * 위가 넘쳐도 발 아래로 뒤집고, 아래도 넘치면(화면보다 키 큰 화자는 없지만) 화면 안으로 끌어온다.
  */
-export function placeBubble(anchor: BubbleAnchor, size: Size, bounds: Rect, opts: BubbleOptions): BubblePlacement {
+export function placeBubble(anchor: BubbleAnchor, size: Size, bounds: Rect, opts: BubbleOptions, avoid: readonly Rect[] = []): BubblePlacement {
+  const gap = opts.avoidGap ?? 0;
   const minLeft = bounds.left + opts.margin;
   const maxLeft = bounds.left + bounds.width - opts.margin - size.width;
-  const left = clamp(anchor.x - size.width / 2, minLeft, maxLeft);
+  const centred = clamp(anchor.x - size.width / 2, minLeft, maxLeft);
 
   const minTop = bounds.top + opts.margin;
   const maxTop = bounds.top + bounds.height - opts.margin - size.height;
-  const above = anchor.top - opts.gap - size.height;
-  const below = above < minTop;
-  const top = clamp(below ? anchor.bottom + opts.gap : above, minTop, maxTop);
+  const aboveTop = anchor.top - opts.gap - size.height;
+  const aboveLeft = aboveTop < minTop ? null : pushRight(centred, aboveTop, anchor.x, size, maxLeft, avoid, gap, opts.tailInset);
+  const below = aboveLeft === null;
+  let left = aboveLeft ?? centred;
+  const top = clamp(below ? anchor.bottom + opts.gap : aboveTop, minTop, maxTop);
+  // 뒤집은 자리에서도 피해 본다. 거기서도 못 피하면 가운데 그대로 둔다(더 갈 곳이 없다).
+  if (below) left = pushRight(centred, top, anchor.x, size, maxLeft, avoid, gap, opts.tailInset) ?? centred;
 
   const tailX = clamp(anchor.x - left, opts.tailInset, size.width - opts.tailInset);
   return { left, top, below, tailX };

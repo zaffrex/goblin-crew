@@ -15,12 +15,12 @@ import { dustPush, FX_COLORS, FX_STYLE, FX_TEXT_SPOT, SHAKE_FX, shakeOffset } fr
 import type { HitBox } from './core/hit';
 import { cardFacePx, cardInput, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
 import { createFirstNotes, currentNote, noteGauge, noteSwitch, noteTap } from './core/firstNotes';
-import { abilityText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, type HudId } from './core/hud';
+import { abilityText, cutFontPx, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { activeFx, activeMarkerVisible, charPose, createScene, currentBubble, drawOrder, gaugeDrop, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
 import { coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws } from './core/sceneArt';
-import { internalToScreen, screenToInternal, type Point } from './core/viewport';
+import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
 import { isTapKey } from './core/keys';
 import { createDisplay } from './engine/display';
 import { onPointerTap } from './engine/input';
@@ -187,7 +187,7 @@ function speakerBox(target: string, layout: ReturnType<typeof sceneLayout>): Bub
 }
 
 /** 말풍선 틈(CSS px). gap 안에 꼬리(index.html `#bubble::after`, 아래로 7px)가 들어간다. tailInset은 글자 크기를 따른다. */
-const BUBBLE_OPTS: Omit<BubbleOptions, 'tailInset'> = { margin: 4, gap: 9 };
+const BUBBLE_OPTS: Omit<BubbleOptions, 'tailInset'> = { margin: 4, gap: 9, avoidGap: 4 };
 /** 글·최대 폭·글자 크기가 같으면 크기도 같다. 매 프레임 재면 레이아웃을 강제로 다시 하므로 바뀔 때만 잰다. */
 let bubbleMeasured = { key: '', width: 0, height: 0 };
 
@@ -206,11 +206,21 @@ function placeBubbleDom(text: string, speaker: BubbleAnchor | null): void {
   const a = speaker ?? { x: INTERNAL_WIDTH / 2, top: 60, bottom: 60 };
   const head = toScreen(a.x, a.top);
   const anchor = { x: head.x, top: head.y, bottom: toScreen(a.x, a.bottom).y };
-  const p = placeBubble(anchor, bubbleMeasured, r, { ...BUBBLE_OPTS, tailInset: bubbleTailInset(fontPx) });
+  const p = placeBubble(anchor, bubbleMeasured, r, { ...BUBBLE_OPTS, tailInset: bubbleTailInset(fontPx) }, bubbleAvoidBoxes());
   bubble.style.left = `${Math.round(p.left)}px`;
   bubble.style.top = `${Math.round(p.top)}px`;
   bubble.style.setProperty('--tail-x', `${Math.round(p.tailX)}px`);
   bubble.toggleAttribute('data-below', p.below);
+}
+
+/**
+ * 말풍선이 피할 상자(#351, 설계 6-5절): 목표 줄 `#hud`와 얼굴 아래 특기 이름표. 실제 DOM 상자를 쓴다(글꼴·배율마다 폭이
+ * 달라 상수로는 못 맞춘다). 그래서 이 함수는 목표 줄·이름표를 놓은 **뒤에** 불러야 한다(render 끝).
+ */
+function bubbleAvoidBoxes(): Rect[] {
+  const els = [hud, ...hudTagLayer.querySelectorAll<HTMLElement>('.hudtag[data-anchor="top-center"]')];
+  return els.filter((el) => !el.hidden).map((el) => el.getBoundingClientRect()).filter((b) => b.width > 0)
+    .map((b) => ({ left: b.left, top: b.top, width: b.width, height: b.height }));
 }
 
 function placeDom(el: HTMLElement, at: Point): void {
@@ -377,12 +387,6 @@ function render(): void {
 
   renderCard();
 
-  // DOM 말풍선(ADR-0004 결정 3). 화자 머리 위. 카드가 떠 있으면 진입 대사는 아직이다.
-  const b = startCard.open ? null : currentBubble(scene);
-  bubble.hidden = !b;
-  // 폭은 글로만 정하고(화자 위치와 무관), 게임 화면 안으로 민다(#329).
-  if (b) placeBubbleDom(sayText(TEXT, b.text, b.speaker), speakerBox(b.speaker, layout));
-
   placeHudTags();
   const hudHover = scene.cleared || hoverHud === null ? null : hudHoverText(hoverHud, t);
   noteGauge(notes, layout.gauge, scene.tick, t('ui.hud.gauge_first_drop'));
@@ -404,6 +408,19 @@ function render(): void {
   const cut = layout.cut;
   faintCut.hidden = cut === null;
   if (cut !== null && faintCut.textContent !== t(cut)) faintCut.textContent = t(cut);
+  const cutSize = `${cutFontPx(scale)}px`;
+  const cutMax = `${bubbleMaxWidth(display.rect(), BUBBLE_OPTS)}px`;
+  for (const el of [clearCut, faintCut]) {
+    if (el.hidden) continue;
+    if (el.style.fontSize !== cutSize) el.style.fontSize = cutSize;
+    if (el.style.maxWidth !== cutMax) el.style.maxWidth = cutMax;
+  }
+
+  // DOM 말풍선(ADR-0004 결정 3). 화자 머리 위. 카드가 떠 있으면 진입 대사는 아직이다.
+  // 폭은 글로만 정하고(화자 위치와 무관), 게임 화면 안으로 민다(#329). 목표 줄·이름표를 피하므로(#351) 그것들을 놓은 뒤에 둔다.
+  const b = startCard.open ? null : currentBubble(scene);
+  bubble.hidden = !b;
+  if (b) placeBubbleDom(sayText(TEXT, b.text, b.speaker), speakerBox(b.speaker, layout));
 }
 
 /**

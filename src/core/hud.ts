@@ -46,6 +46,14 @@ export function labelFontPx(scale: number): number {
 }
 
 /**
+ * 클리어·기절 컷 글자 크기(CSS px, #352, 설계 6-6절): 내부 14px × 화면 CSS 배율, 최소 20. 2배는 예전 28px 그대로, 4배 56px.
+ * 말풍선(9 × 배율, 최소 16)보다 늘 커서 이 화면의 보상·벌 순간이 툴팁처럼 보이지 않는다.
+ */
+export function cutFontPx(scale: number): number {
+  return Math.max(20, Math.round(14 * scale));
+}
+
+/**
  * 목표 줄(`#hud`, 설계 6-2-2절, #336): 게임 화면 내부 왼쪽 위 점. 창이 아니라 캔버스 기준이라 휴대폰에서 검은 여백에 걸치지 않는다.
  * 글자 크기는 HUD 이름표와 같은 `hudTagFontPx`.
  */
