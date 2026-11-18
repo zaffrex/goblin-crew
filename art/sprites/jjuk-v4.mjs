@@ -871,6 +871,49 @@ Object.assign(POSES, {
   },
 });
 
+// step_up  시소 올라서기 깡충(#397, 설계 docs/design/screens/magpie_nest.md 1-5-3절). 엔진이 칸을 궤적 위에 놓는다:
+//   웅크림 0번(100ms) → 공중 1번(150ms, 기준점이 포물선으로 10px 솟는다) → 착지 0번(50ms). 내려서기는 1번 → 0번.
+//   0 웅크림: 무릎을 굽혀 몸을 낮추고(머리 3px) 상체는 앞으로, 뒷팔은 뒤로 젖혀 반동. 장대는 땅에서 들어 앞손에 쥔다. 이 악묾.
+//   1 공중: 앞 무릎을 접어 올리고 뒷발 앞코가 아래로 끌린다(기준점 = 뒷발 앞코). 뒷팔은 앞으로 휘두르고 장대도 같이 들린다.
+//      헤벌쭉 웃는 얼굴(낙천적인 쭉이에겐 깡충도 놀이다), 머리 가닥은 몸이 솟는 반대로 눌린다(뒤따름).
+//   뒷발 앞코가 칸 바닥 행에 닿아서 build.mjs "딛은 발" 검사를 그대로 지킨다. 높이는 엔진 궤적이 맡는다.
+Object.assign(POSES, {
+  step_up(k) {
+    if (k === 0) {
+      const d = 2.4;
+      const body = (y) => y + d;
+      const fwr = [21.6, body(24.4)];
+      return {
+        kind: 'pose',
+        chest: Math.round(d * S),
+        head: { x: 14, y: 1 + Math.round(d * S), eyes: 'squint', mouth: 'grit', hair: 1 },
+        neck: [[15.6, body(14)], [15.6, body(18.5)]],
+        torso: [[15.8, body(19.5), 3.4], [15.2, body(25), 3.6], [14.6, 30 + d * 0.8, 3.4]],
+        hip: [14.45, 30 + d * 0.8],
+        hipSpread: 2.0,
+        back: { sh: [13.2, body(20)], el: [10.4, body(24.4)], wr: [7.8, body(27.0)], hand: { rows: 'back', at: handAt([7.8, body(27.0)], -2, -1) } },
+        front: { sh: [16.8, body(20)], el: [18.6, body(24.8)], wr: fwr, hand: { rows: 'grip', at: handAt([23.4, fwr[1]], -3, -3) } },
+        pole: { top: [23.4, 5 + d], bot: [23.4, 43.0] },
+        legs: { back: { x: -2.8, lift: 0, toe: false }, front: { x: 3.2, lift: 0, toe: false } },
+      };
+    }
+    const fwr = [23.0, 21.8];
+    return {
+      kind: 'pose',
+      chest: 0,
+      head: { x: 14, y: 2, eyes: 'up', mouth: 'open', brows: 'up', hair: 2 },
+      neck: [[15.8, 14], [15.6, 18.5]],
+      torso: [[15.8, 19.5, 3.4], [15.2, 25, 3.6], [14.8, 30.6, 3.4]],
+      hip: [14.8, 30.6],
+      hipSpread: 1.4,
+      back: { sh: [13.4, 20], el: [15.8, 25.2], wr: [19.2, 26.6], hand: { rows: 'fwd', at: handAt([19.2, 26.6], -2, -1) } },
+      front: { sh: [16.8, 20], el: [20.4, 23.6], wr: fwr, hand: { rows: 'grip', at: handAt([25.0, fwr[1]], -3, -3) } },
+      pole: { top: [25.0, 5.6], bot: [25.0, 41.0] }, // 위 끝 5.6 = 집게가 칸 0행 안에
+      legs: { back: { x: -2.6, lift: -0.75, toe: true }, front: { x: 3.6, lift: 4.2, toe: true } }, // 앞코 신발은 1px 짧아서 발목을 1px 내려 바닥 행에 닿게 한다
+    };
+  },
+});
+
 // 장대 끝 집게 칸(8×8, 엔진이 tip에서 이은 장대 끝에 그린다). 기준점 (4,8) = 장대가 들어오는 아래 가운데.
 // 줄기(5~7행) 3·4열은 lint 2px = 시트 장대 0행과 같은 색이라, 엔진이 tip 0행을 위로 복사해 이어도 이음매가 없다(#188 Theo 리뷰 2).
 // 0 벌림 / 1 다묾(열쇠 고리를 문다).
@@ -920,6 +963,8 @@ export const SHEET = {
     // cue [0, 1]: 0번 칸에 `ビヨーン`, 장대가 멈추는 1번 칸에 고리 `キン`(규칙 9). 0번 칸 300ms = CLAW.growMs(PR #288 리뷰).
     { name: 'common.reach_wobble', frames: 4, ms: [300, 200, 200, 450], short: 10, cue: [0, 1] },
     { name: 'common.wet', frames: 4, ms: [100, 400, 300, 500] },
+    // 웅크림·공중(#397 1-5-3절). 착지는 엔진이 0번 칸을 50ms 다시 쓴다. 맨 뒤에 붙여서 앞 칸 번호(#357 납작 20)는 그대로다.
+    { name: 'step_up', frames: 2, ms: [100, 150] },
   ],
   pose,
   drawFrame,
