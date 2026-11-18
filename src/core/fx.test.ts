@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest';
 import screenJson from '../../content/screens/magpie_nest.json';
 import { CHARACTERS } from './characters';
 import { DUST_TICKS, dustPush, FX_STYLE, FX_TICKS, fxTicks, missingSignatures, SHAKE_TICKS, shakeOffset, SIGNATURE_TICKS, SIGNATURES } from './fx';
-import type { ShowItem } from './puzzle/types';
+import type { RuleShowItem, ShowItem } from './puzzle/types';
 
 /** 화면 데이터 안의 show 배열을 전부 모은다(규칙, 폴백 반응, 진입 연출, 손 놓기·자리 참 연출). 경로와 같이. */
-function allShows(o: unknown, path = ''): [string, ShowItem[]][] {
-  const isShow = (v: unknown): v is ShowItem[] =>
-    Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === 'object' && x !== null && ('anim' in x || 'say' in x || 'fx' in x));
+// 표시 `{ do: "here" }`가 섞인 규칙 show도 모은다. 안 그러면 표시를 넣은 순간 그 show가 검사에서 조용히 빠진다.
+function allShows(o: unknown, path = ''): [string, RuleShowItem[]][] {
+  const isShow = (v: unknown): v is RuleShowItem[] =>
+    Array.isArray(v) &&
+    v.length > 0 &&
+    v.every((x) => typeof x === 'object' && x !== null && ('anim' in x || 'say' in x || 'fx' in x || 'do' in x)) &&
+    v.some((x) => !('do' in x));
   if (isShow(o)) return [[path, o]];
   if (Array.isArray(o)) return o.flatMap((v, i) => allShows(v, `${path}/${i}`));
   if (typeof o === 'object' && o !== null) return Object.entries(o).flatMap(([k, v]) => allShows(v, `${path}/${k}`));
@@ -45,6 +49,22 @@ describe('특기 시그니처 (ability-feedback.md 2·5절, #284)', () => {
     expect(missingSignatures([{ anim: ['ppik', 'common.shiver'] }])).toEqual([]);
     // 다른 캐릭터의 특기 이름이라도 그 캐릭터 것이 아니면 보지 않는다.
     expect(missingSignatures([{ anim: ['ppik', 'common.stomp'] }])).toEqual([]);
+  });
+
+  it('효과 위치 표시는 줄로 치지 않는다: 특기 연출과 시그니처 사이에 표시가 껴도 통과, 빠지면 잡는다(ADR-0065, PR #245 Ben)', () => {
+    const stomp: RuleShowItem = { anim: ['mukjik', 'common.stomp'] };
+    const here: RuleShowItem = { do: 'here' };
+    expect(missingSignatures([stomp, here, { fx: ['stomp_text', 'mukjik'] }])).toEqual([]);
+    expect(missingSignatures([here, stomp, { fx: ['stomp_text', 'mukjik'] }])).toEqual([]);
+    expect(missingSignatures([stomp, here, { say: ['mukjik', 'x'] }])).toEqual([0]);
+    expect(missingSignatures([stomp, here])).toEqual([0]);
+    expect(missingSignatures([here, stomp])).toEqual([1]);
+  });
+
+  it('allShows는 표시가 섞인 show도 모은다', () => {
+    const shows = allShows({ rules: [{ show: [{ anim: ['mukjik', 'common.stomp'] }, { do: 'here' }, { say: ['mukjik', 'x'] }] }] });
+    expect(shows.map(([p]) => p)).toEqual(['/rules/0/show']);
+    expect(missingSignatures(shows[0]![1])).toEqual([0]);
   });
 
   it('둥지에 삑처럼 시그니처를 대상 위에 띄우는 예외는 통과한다(fx 이름만 본다, PR #289)', () => {
