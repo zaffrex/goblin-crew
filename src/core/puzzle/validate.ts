@@ -53,6 +53,17 @@ export const LINE_MAX = 14;
 export const LINES_MAX = 2;
 /** HUD 영역 [x, y, w, h] (docs/design/ui-interaction.md 6절). 핫스팟·서는 자리를 두지 않는다. 경고. */
 export const HUD_BOX: readonly [number, number, number, number] = [300, 4, 176, 72];
+/**
+ * 목표 줄 자리 [x, y, w, h] (docs/design/ui-interaction.md 6-2-2절, #349). 화면 2부터 핫스팟·서는 자리를 두지 않는다. 경고.
+ * 코어가 UI 모듈을 import하지 않게 `core/hud.ts` `GOAL_ZONE`과 따로 두고, `hud.test.ts`가 `GOAL_ZONE ⊆ GOAL_BOX`를 확인한다.
+ */
+export const GOAL_BOX: readonly [number, number, number, number] = [4, 4, 114, 34];
+
+type Rect = readonly [number, number, number, number];
+/** 두 상자가 겹치나(맞닿기만 하면 아니다). */
+const rectsOverlap = (a: Rect, b: Rect): boolean => a[0] < b[0] + b[2] && a[0] + a[2] > b[0] && a[1] < b[1] + b[3] && a[1] + a[3] > b[1];
+/** 점이 상자 안인가(왼쪽·위 끝 포함, 오른쪽·아래 끝 제외). */
+const rectHas = (r: Rect, x: number, y: number): boolean => x >= r[0] && x < r[0] + r[2] && y >= r[1] && y < r[1] + r[3];
 
 const CHAR_IDS: readonly CharacterId[] = CHARACTERS.map((c) => c.id);
 const ABILITIES: readonly AbilityVerb[] = CHARACTERS.map((c) => c.ability);
@@ -181,10 +192,8 @@ class Checker {
     if (x < 0 || y < 0 || x + w > SCREEN_W || y + h > SCREEN_H) {
       this.err(path, 'box-offscreen', `box가 화면(${SCREEN_W}×${SCREEN_H}) 밖으로 나간다`);
     }
-    const [hx, hy, hw, hh] = HUD_BOX;
-    if (x < hx + hw && x + w > hx && y < hy + hh && y + h > hy) {
-      this.warn(path, 'hud-overlap', 'HUD 영역과 겹친다(ui-interaction.md 6절)');
-    }
+    if (rectsOverlap([x, y, w, h], HUD_BOX)) this.warn(path, 'hud-overlap', 'HUD 영역과 겹친다(ui-interaction.md 6절)');
+    if (rectsOverlap([x, y, w, h], GOAL_BOX)) this.warn(path, 'goal-overlap', '목표 줄 자리와 겹친다(ui-interaction.md 6-2-2절)');
   }
 }
 
@@ -398,14 +407,14 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
     if (!(ABILITIES as readonly unknown[]).includes(v)) c.err(path, 'hint-ability', `hintAbility는 능력 동사(${ABILITIES.join('/')})`);
     else hintUses.push([path, v as string, target]);
   };
-  /** 점 [x, y]가 화면 안인지(오류), HUD와 겹치는지(경고). 서는 자리 x, y와 releasePoint에 쓴다. */
+  /** 점 [x, y]가 화면 안인지(오류), HUD·목표 줄 자리와 겹치는지(경고). 서는 자리 x, y와 releasePoint에 쓴다. */
   const point = (x: number, y: number, path: string): boolean => {
     if (x < 0 || y < 0 || x > SCREEN_W || y > SCREEN_H) {
       c.err(path, 'point-offscreen', `좌표 (${x}, ${y})가 화면(${SCREEN_W}×${SCREEN_H}) 밖이다`);
       return false;
     }
-    const [hx, hy, hw, hh] = HUD_BOX;
-    if (x >= hx && x < hx + hw && y >= hy && y < hy + hh) c.warn(path, 'hud-overlap', 'HUD 영역 안이다(ui-interaction.md 6절)');
+    if (rectHas(HUD_BOX, x, y)) c.warn(path, 'hud-overlap', 'HUD 영역 안이다(ui-interaction.md 6절)');
+    if (rectHas(GOAL_BOX, x, y)) c.warn(path, 'goal-overlap', '목표 줄 자리 안이다(ui-interaction.md 6-2-2절)');
     return true;
   };
   /** 걸어갈 자리: 있는 자리거나 `stay`. `hold` 자리는 걸어서 못 가니(`goTo` invalid) `step`이 예외를 던진다. */
