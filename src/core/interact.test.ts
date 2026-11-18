@@ -243,11 +243,11 @@ describe('원칙 1: 규칙 데이터를 읽지 않는다', () => {
 describe('라벨 문구 (설계 7절)', () => {
   const t = (id: string): string => (texts as Record<string, string>)[id] ?? id;
   it('동사: 대상 / 이름만 / 대상 없는 동사', () => {
-    expect(labelText({ verb: 'climb', target: 'seesaw_right' }, 'magpie_nest', t)).toBe('のる: シーソーの右はし');
+    expect(labelText({ verb: 'climb', target: 'seesaw_right' }, 'magpie_nest', t)).toBe('のる: シーソーの右端');
     expect(labelText({ verb: 'stretch', target: 'nest' }, 'magpie_nest', t)).toBe('のばす: カササギの巣');
     expect(labelText({ verb: null, target: 'mukjik' }, 'magpie_nest', t)).toBe('ズッシー');
     expect(labelText({ verb: 'release', target: null }, 'magpie_nest', t)).toBe('手をはなす');
-    expect(labelText({ verb: 'item', target: 'basket', item: 'item.shop_key' }, 'magpie_nest', t)).toBe('店のカギを使う: 洗たくかご');
+    expect(labelText({ verb: 'item', target: 'basket', item: 'item.shop_key' }, 'magpie_nest', t)).toBe('店のカギを使う: 洗濯かご');
   });
 
   it('화면 1의 모든 대상에 이름이 있다', () => {
