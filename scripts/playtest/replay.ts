@@ -15,7 +15,7 @@ import type { ScreenData } from '../../src/core/puzzle/types.ts';
 import { sayTextVariants } from '../../src/core/sayText.ts';
 import { CARD_TAP, closeStartCard } from './card.ts';
 import { Browser, sleep, type ConsoleError, type Page } from './cdp.ts';
-import { internalToPage, type Rect } from './coords.ts';
+import { bubbleCovers, internalToPage, type Rect } from './coords.ts';
 import { planAction, type Input, type Layout } from './plan.ts';
 import { checkStep, scenarios, selectedTarget, slopProbes, type Step } from './scenarios.ts';
 
@@ -105,6 +105,11 @@ interface ArtSeen {
 }
 
 const layoutOf = (page: Page) => page.evaluate<Layout>('window.__gcLayout()');
+/** C-7(#356): 말풍선이 덮으면 실패인 목표 물건. 화면 1의 목표(둥지 속 열쇠)와 그걸 지키는 까치. */
+const GOAL_TARGETS = new Set(['nest', 'magpie']);
+/** 지금 뜬 말풍선 상자와 화자(`data-speaker`, #356). 숨겨졌거나 화자 표시가 없는 옛 빌드면 null. */
+const bubbleBoxOf = (page: Page) =>
+  page.evaluate<{ rect: Rect; speaker: string | null; text: string } | null>(`(() => { const b = document.querySelector('#bubble'); if (!b || b.hidden) return null; const r = b.getBoundingClientRect(); return { rect: { left: r.left, top: r.top, width: r.width, height: r.height }, speaker: b.dataset.speaker ?? null, text: b.textContent || '' }; })()`);
 const saidCount = (page: Page) => page.evaluate<number>('window.__ptSaid.length');
 const fallbacksOf = (page: Page) => page.evaluate<string[] | null>(`typeof window.__gcFallbacks === 'function' ? window.__gcFallbacks() : null`);
 const canvasRect = (page: Page) =>
@@ -170,6 +175,18 @@ async function runScenarios(browser: Browser, v: Viewport, outDir: string, error
           await page.screenshot(join(outDir, file));
           r.shots.push(file);
         };
+        // C-7(#356): 새 말풍선마다 화면 물건(화자 자신 빼고)을 덮었는지 본다. 위·아래가 가리면 게임이 옆으로 옮긴다.
+        // 목표 물건(둥지·까치)은 0이어야 하고(❌), 장난감은 옆에 동료가 있으면 옛 자리에 남을 수 있어 경고(⚠️)만 한다.
+        const onBubble = async (suffix: string) => {
+          await shot(suffix);
+          const b = await bubbleBoxOf(page);
+          if (!b) return;
+          const covers = bubbleCovers(b.rect, b.speaker, (await layoutOf(page)).hotspots, await canvasRect(page));
+          for (const c of covers) {
+            const msg = `C-7 말풍선 \`${b.text.replace(/\n/g, ' / ')}\`이 ${c.id}를 ${Math.round(c.ratio * 100)}% 가림 (${suffix})`;
+            (GOAL_TARGETS.has(c.id) ? r.problems : r.warnings).push(msg);
+          }
+        };
         try {
           const before = await layoutOf(page);
           const plan = planAction(screen, before, step.action, v.input);
@@ -180,7 +197,7 @@ async function runScenarios(browser: Browser, v: Viewport, outDir: string, error
             await send(page, v, t.at);
             await sleep(80); // 한두 프레임: 탭이 처리되고 연출이 시작될 시간
             let b = 0;
-            await waitIdle(page, () => shot(`-b${++b}`));
+            await waitIdle(page, () => onBubble(`-b${++b}`));
           }
           const after = await layoutOf(page);
           r.said = (await page.evaluate<string[]>('window.__ptSaid')).slice(from);

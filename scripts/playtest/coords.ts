@@ -69,3 +69,32 @@ export function outsidePoint(box: Box, side: 'left' | 'right' | 'top' | 'bottom'
       return { x: c.x, y: y + h + dist };
   }
 }
+
+/** 내부 좌표 상자 → 페이지 CSS px 상자(경계 그대로, 중심 보정 없음). */
+export function internalBoxToPage(box: { left: number; top: number; width: number; height: number }, rect: Rect, internal: Size = INTERNAL): Rect {
+  const tl = internalToScreen({ x: box.left, y: box.top }, rect, internal);
+  const br = internalToScreen({ x: box.left + box.width, y: box.top + box.height }, rect, internal);
+  return { left: tl.x, top: tl.y, width: br.x - tl.x, height: br.y - tl.y };
+}
+
+/**
+ * C-7(#356): 말풍선이 화면 물건(화자 자신을 뺀 핫스팟)을 덮은 비율. 겹친 넓이 ÷ 핫스팟 넓이, 0보다 큰 것만.
+ * 게임 `placeBubble`의 `keep`과 같은 대상이다. 맞닿기만 한 것(겹친 넓이 0)은 세지 않는다.
+ */
+export function bubbleCovers(
+  bubble: Rect,
+  speaker: string | null,
+  hotspots: Record<string, { left: number; top: number; width: number; height: number }>,
+  rect: Rect,
+  internal: Size = INTERNAL,
+): { id: string; ratio: number }[] {
+  const out: { id: string; ratio: number }[] = [];
+  for (const [id, box] of Object.entries(hotspots)) {
+    if (id === speaker) continue;
+    const h = internalBoxToPage(box, rect, internal);
+    const w = Math.min(bubble.left + bubble.width, h.left + h.width) - Math.max(bubble.left, h.left);
+    const t = Math.min(bubble.top + bubble.height, h.top + h.height) - Math.max(bubble.top, h.top);
+    if (w > 0 && t > 0) out.push({ id, ratio: (w * t) / (h.width * h.height) });
+  }
+  return out;
+}

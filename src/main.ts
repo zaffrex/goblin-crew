@@ -183,7 +183,20 @@ function speakerBox(target: string, layout: ReturnType<typeof sceneLayout>): Bub
   const box: HitBox | undefined = layout.chars[target as CharacterId] ?? layout.hotspots[target] ?? layout.spots[target];
   const head = anchorOf(target, layout);
   if (!box || !head) return null;
-  return { x: head.x, top: head.y, bottom: box.top + box.height };
+  return { x: head.x, top: head.y, bottom: box.top + box.height, left: box.left, right: box.left + box.width };
+}
+
+/**
+ * 말풍선이 가리면 안 되는 물건(#356): 화자를 뺀 화면의 핫스팟(둥지·까치·바구니·내복). 내부 좌표.
+ * 위·아래 자리가 여기에 걸리면 `placeBubble`이 화자 옆으로 옮긴다. 서는 자리(`spots`)는 사람이 가리는 곳이라 넣지 않는다.
+ */
+function bubbleKeepBoxes(speaker: string, layout: ReturnType<typeof sceneLayout>): HitBox[] {
+  return Object.entries(layout.hotspots).filter(([id]) => id !== speaker).map(([, box]) => box);
+}
+
+/** 옆 배치가 가리면 안 되는 다른 사람 몸(#356). 위·아래 자리는 예전처럼 이걸 보지 않는다. 내부 좌표. */
+function bubbleBodyBoxes(speaker: string, layout: ReturnType<typeof sceneLayout>): HitBox[] {
+  return Object.entries(layout.chars).filter(([id]) => id !== speaker).map(([, box]) => box);
 }
 
 /** 말풍선 틈(CSS px). gap 안에 꼬리(index.html `#bubble::after`, 아래로 7px)가 들어간다. tailInset은 글자 크기를 따른다. */
@@ -191,7 +204,7 @@ const BUBBLE_OPTS: Omit<BubbleOptions, 'tailInset'> = { margin: 4, gap: 9, avoid
 /** 글·최대 폭·글자 크기가 같으면 크기도 같다. 매 프레임 재면 레이아웃을 강제로 다시 하므로 바뀔 때만 잰다. */
 let bubbleMeasured = { key: '', width: 0, height: 0 };
 
-function placeBubbleDom(text: string, speaker: BubbleAnchor | null): void {
+function placeBubbleDom(text: string, speaker: BubbleAnchor | null, keep: readonly HitBox[] = [], bodies: readonly HitBox[] = []): void {
   const r = display.rect();
   const fontPx = bubbleFontPx(r.width / INTERNAL_WIDTH);
   const fontSize = `${fontPx}px`;
@@ -205,12 +218,24 @@ function placeBubbleDom(text: string, speaker: BubbleAnchor | null): void {
   // 화자가 없으면(대상 상자가 없는 연출) 예전처럼 화면 위쪽 가운데.
   const a = speaker ?? { x: INTERNAL_WIDTH / 2, top: 60, bottom: 60 };
   const head = toScreen(a.x, a.top);
-  const anchor = { x: head.x, top: head.y, bottom: toScreen(a.x, a.bottom).y };
-  const p = placeBubble(anchor, bubbleMeasured, r, { ...BUBBLE_OPTS, tailInset: bubbleTailInset(fontPx) }, bubbleAvoidBoxes());
+  const anchor: BubbleAnchor = { x: head.x, top: head.y, bottom: toScreen(a.x, a.bottom).y };
+  if (a.left !== undefined && a.right !== undefined) {
+    anchor.left = toScreen(a.left, a.top).x;
+    anchor.right = toScreen(a.right, a.top).x;
+  }
+  const boxToScreen = (k: HitBox): Rect => {
+    const tl = toScreen(k.left, k.top);
+    const br = toScreen(k.left + k.width, k.top + k.height);
+    return { left: tl.x, top: tl.y, width: br.x - tl.x, height: br.y - tl.y };
+  };
+  const p = placeBubble(anchor, bubbleMeasured, r, { ...BUBBLE_OPTS, tailInset: bubbleTailInset(fontPx) }, bubbleAvoidBoxes(), keep.map(boxToScreen), bodies.map(boxToScreen));
   bubble.style.left = `${Math.round(p.left)}px`;
   bubble.style.top = `${Math.round(p.top)}px`;
   bubble.style.setProperty('--tail-x', `${Math.round(p.tailX)}px`);
+  bubble.style.setProperty('--tail-y', `${Math.round(p.tailY ?? 0)}px`);
   bubble.toggleAttribute('data-below', p.below);
+  if (p.side) bubble.dataset.side = p.side;
+  else delete bubble.dataset.side;
 }
 
 /**
@@ -420,7 +445,11 @@ function render(): void {
   // 폭은 글로만 정하고(화자 위치와 무관), 게임 화면 안으로 민다(#329). 목표 줄·이름표를 피하므로(#351) 그것들을 놓은 뒤에 둔다.
   const b = startCard.open ? null : currentBubble(scene);
   bubble.hidden = !b;
-  if (b) placeBubbleDom(sayText(TEXT, b.text, b.speaker), speakerBox(b.speaker, layout));
+  if (b) {
+    // 재생 도구(#356 C-7 가림 검사)가 화자 자신의 핫스팟을 빼려고 읽는다.
+    if (bubble.dataset.speaker !== b.speaker) bubble.dataset.speaker = b.speaker;
+    placeBubbleDom(sayText(TEXT, b.text, b.speaker), speakerBox(b.speaker, layout), bubbleKeepBoxes(b.speaker, layout), bubbleBodyBoxes(b.speaker, layout));
+  }
 }
 
 /**

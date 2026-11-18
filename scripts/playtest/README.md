@@ -31,6 +31,8 @@ node --import ./scripts/playtest/register.mjs scripts/playtest/replay.ts --url h
 - 한계: **재생이 지나간 자세만** 센다(정답 + A2·A3 오답). 사람이 아무 데나 눌러서 나오는 자세(예: 다른 캐릭터의 기본 실패 반응)는 안 잡힌다. 화면 1 전체 자세 목록은 `magpie_nest.json`의 `anim`에서 따로 뽑는다(#142 하위 작업).
 - 로드 실패(404)는 "읽히는 중"으로 남아 A7에 안 잡힌다. 그건 A4 콘솔 에러가 잡는다.
 
+**C-7 말풍선 가림(#356)**: 새 말풍선이 뜰 때마다 `#bubble` DOM 상자를 `__gcLayout().hotspots`(화자 자신은 `#bubble[data-speaker]`로 뺌)와 교차한다. 둥지·까치를 1px이라도 덮으면 그 행동이 ❌, 장난감(바구니·내복)은 ⚠️만. 게임은 위·아래 자리가 물건을 덮으면 화자 옆으로 옮기므로(`core/bubble.ts` `placeBubble`) 정상이면 ❌가 없다. 화자 표시가 없는 옛 빌드는 화자 자신도 세어서 더 엄격하게 나온다.
+
 | 파일 | 내용 |
 |---|---|
 | `coords.ts` | 화면 JSON 대상(핫스팟 `variants`, 서는 자리 `box`) → 내부 좌표 → CSS px. 게임 입력과 같은 `viewport.ts` 변환을 쓴다 |
