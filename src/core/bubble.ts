@@ -5,11 +5,16 @@
 
 import type { Rect, Size } from './viewport';
 
-/** 말풍선을 붙일 화자. x는 가운데, top은 머리 위끝, bottom은 발끝(화면 CSS px). */
+/**
+ * 말풍선을 붙일 화자. x는 가운데, top은 머리 위끝, bottom은 발끝(화면 CSS px).
+ * left·right는 몸 상자 좌우 끝(#356 옆 배치). 없으면 옆에는 두지 않는다.
+ */
 export interface BubbleAnchor {
   x: number;
   top: number;
   bottom: number;
+  left?: number;
+  right?: number;
 }
 
 export interface BubbleOptions {
@@ -28,8 +33,14 @@ export interface BubblePlacement {
   top: number;
   /** true면 화자 위에 자리가 없어 발 아래로 뒤집었다. 꼬리는 위를 향한다. */
   below: boolean;
-  /** 꼬리 끝 x(말풍선 왼쪽 끝 기준). 밀려도 꼬리는 화자를 가리킨다. */
+  /** 꼬리 끝 x(말풍선 왼쪽 끝 기준). 밀려도 꼬리는 화자를 가리킨다. 옆 배치면 쓰지 않는다. */
   tailX: number;
+  /**
+   * 옆 배치(#356): 위·아래에 두면 물건(`keep`)을 가려서 화자 오른쪽(`right`) 또는 왼쪽(`left`) 옆에 뒀다.
+   * 꼬리는 화자 쪽 세로 변에서 나오고 높이는 `tailY`(말풍선 위끝 기준). 위·아래 배치면 둘 다 없다.
+   */
+  side?: 'left' | 'right';
+  tailY?: number;
 }
 
 /** 말풍선 최대 폭: 게임 화면 폭에서 양쪽 틈을 뺀 것. 이 안에서는 작가 줄바꿈(`\n`)에서만 줄이 바뀐다. */
@@ -78,12 +89,47 @@ function pushRight(left: number, top: number, anchorX: number, size: Size, maxLe
   return null;
 }
 
+/** 두 상자가 1px이라도 겹치나. 맞닿기만 하면 겹치지 않은 것이다. */
+function overlaps(a: Rect, b: Rect): boolean {
+  return tooClose(a, b, 0);
+}
+
+/**
+ * 옆 배치(#356, 설계 6-5절): 말풍선 세로 변을 몸 상자 옆 `gap`에 붙이고, 위끝은 머리 위끝에 맞춘다(꼬리가 머리를 가리킨다).
+ * 아래가 넘치면 화면 안으로 올리되 꼬리가 몸 높이를 벗어나면(화자를 못 가리키면) 포기한다. 화면 좌우를 넘거나 피할 상자·
+ * `blockers`(물건 + 다른 사람 몸)와 겹쳐도 null. 옆에서는 밀지 않는다: 밀면 꼬리가 화자에서 떨어진다.
+ */
+function sideBubble(side: 'left' | 'right', anchor: BubbleAnchor, size: Size, bounds: Rect, opts: BubbleOptions, avoid: readonly Rect[], blockers: readonly Rect[]): BubblePlacement | null {
+  const edge = side === 'right' ? anchor.right : anchor.left;
+  if (edge === undefined) return null;
+  const left = side === 'right' ? Math.ceil(edge + opts.gap) : Math.floor(edge - opts.gap - size.width);
+  if (left < bounds.left + opts.margin || left + size.width > bounds.left + bounds.width - opts.margin) return null;
+  const top = clamp(anchor.top, bounds.top + opts.margin, bounds.top + bounds.height - opts.margin - size.height);
+  const tailY = Math.max(opts.tailInset, anchor.top - top + opts.tailInset);
+  if (tailY > size.height - opts.tailInset || top + tailY > anchor.bottom) return null;
+  const box = { left, top, width: size.width, height: size.height };
+  const gap = opts.avoidGap ?? 0;
+  if (avoid.some((a) => tooClose(box, a, gap)) || blockers.some((k) => overlaps(box, k))) return null;
+  return { left, top, below: false, tailX: opts.tailInset, side, tailY };
+}
+
 /**
  * 화자 머리 위 가운데에 놓고, 좌우는 게임 화면 안으로 민다.
  * 피할 상자(`avoid`, 목표 줄·HUD 이름표)와 `avoidGap`보다 가까우면 오른쪽으로 밀고, 못 밀면 발 아래로 뒤집는다(#351).
  * 위가 넘쳐도 발 아래로 뒤집고, 아래도 넘치면(화면보다 키 큰 화자는 없지만) 화면 안으로 끌어온다.
+ * 그렇게 놓은 자리가 가리면 안 되는 물건(`keep`, 화면의 다른 핫스팟)과 겹치면 화자 오른쪽 → 왼쪽 옆에 둔다(#356).
+ * 옆 자리는 물건에 더해 다른 사람 몸(`bodies`)과도 겹치면 안 된다. 바닥에서는 옆에 동료가 서 있어서, 물건 대신 동료 얼굴을
+ * 가리게 된다. 옆에도 자리가 없으면 위·아래 자리 그대로(예전과 같음).
  */
-export function placeBubble(anchor: BubbleAnchor, size: Size, bounds: Rect, opts: BubbleOptions, avoid: readonly Rect[] = []): BubblePlacement {
+export function placeBubble(anchor: BubbleAnchor, size: Size, bounds: Rect, opts: BubbleOptions, avoid: readonly Rect[] = [], keep: readonly Rect[] = [], bodies: readonly Rect[] = []): BubblePlacement {
+  const base = placeAboveOrBelow(anchor, size, bounds, opts, avoid);
+  const box = { left: base.left, top: base.top, width: size.width, height: size.height };
+  if (!keep.some((k) => overlaps(box, k))) return base;
+  const blockers = [...keep, ...bodies];
+  return sideBubble('right', anchor, size, bounds, opts, avoid, blockers) ?? sideBubble('left', anchor, size, bounds, opts, avoid, blockers) ?? base;
+}
+
+function placeAboveOrBelow(anchor: BubbleAnchor, size: Size, bounds: Rect, opts: BubbleOptions, avoid: readonly Rect[]): BubblePlacement {
   const gap = opts.avoidGap ?? 0;
   const minLeft = bounds.left + opts.margin;
   const maxLeft = bounds.left + bounds.width - opts.margin - size.width;

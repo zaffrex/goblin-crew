@@ -39,6 +39,10 @@
         border: solid #1d1d1d; border-width: 0 2px 2px 0; transform: rotate(45deg);
       }
       #bubble[data-below]::after { bottom: auto; top: -7px; border-width: 2px 0 0 2px; }
+      /* 옆 배치(#356): 화자 옆에 두면 꼬리가 화자 쪽 세로 변에서 나온다. 높이는 main.ts가 --tail-y로 정한다(머리 높이). */
+      #bubble[data-side]::after { bottom: auto; top: var(--tail-y, 50%); margin: -7px 0 0 0; }
+      #bubble[data-side="right"]::after { left: -7px; border-width: 0 0 2px 2px; }
+      #bubble[data-side="left"]::after { left: auto; right: -7px; border-width: 2px 2px 0 0; }
       /* 대상 라벨: 글자 크기는 main.ts가 배율로 정한다(내부 7px × 배율, 최소 14, #337). 여백·모서리는 em이라 같이 커진다.
          폭은 글로만(max-content): `left = 화면 가운데`라 자동 폭이면 `창 − left`에 묶여 1.0배에서 긴 안내가 접힌다(#329와 같은 원인). */
       #label {

@@ -138,3 +138,102 @@ describe('bubbleTailInset', () => {
     }
   });
 });
+
+describe('placeBubble side placement (#356, 6-5절)', () => {
+  // 667×375 @2(CSS 1.0배). 고리에 매달린 사람 몸 상자 ≈ 내부 x 148–172, 머리 위끝 96, 발끝 150. 둥지·까치·바구니 히트 박스.
+  const g = (left: number, top: number, width: number, height: number) => ({ left: PHONE.left + left, top: PHONE.top + top, width, height });
+  const GOAL = g(4.5, 3.8, 106.7, 29.6);
+  const TAGS = [g(298.7, 35.8, 31.6, 11), g(334.7, 35.8, 21.7, 11), g(366.7, 35.8, 21.7, 11)];
+  const NEST = g(128, 30, 36, 24);
+  const MAGPIE = g(134, 6, 24, 24);
+  const BASKET = g(144, 212, 32, 24);
+  const LONG_JOHNS = g(372, 112, 32, 40);
+  const KEEP = [NEST, MAGPIE, BASKET, LONG_JOHNS];
+  const HOOK = { x: PHONE.left + 160, top: PHONE.top + 96, bottom: PHONE.top + 150, left: PHONE.left + 148, right: PHONE.left + 172 };
+  const O: BubbleOptions = { margin: 4, gap: 9, tailInset: 14, avoidGap: 4 };
+  const boxOf = (p: { left: number; top: number }, s: { width: number; height: number }) => ({ left: p.left, top: p.top, width: s.width, height: s.height });
+  const hit = (a: { left: number; top: number; width: number; height: number }, b: typeof a) =>
+    a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height;
+
+  it('moves a bubble that would cover the nest to the right of the hanging speaker', () => {
+    // `取った！/店のカギだ！` 120×59: 위에 두면(#351 오른쪽 밀기 뒤 y 28–87) 둥지(30–54)를 덮는다.
+    const size = { width: 120, height: 59 };
+    const p = placeBubble(HOOK, size, PHONE, O, [GOAL, ...TAGS], KEEP);
+    expect(p.side).toBe('right');
+    expect(p.left).toBe(Math.ceil(HOOK.right + O.gap));
+    expect(p.top).toBe(HOOK.top);
+    expect(p.tailY).toBe(O.tailInset);
+    expect(p.below).toBe(false);
+    for (const k of KEEP) expect(hit(boxOf(p, size), k)).toBe(false);
+  });
+
+  it('also moves the flipped 184px bubble, which would cover the basket below', () => {
+    const size = { width: 184, height: 59 };
+    const p = placeBubble(HOOK, size, PHONE, O, [GOAL, ...TAGS], KEEP);
+    expect(p.side).toBe('right');
+    expect(p.left + size.width).toBeLessThanOrEqual(LONG_JOHNS.left);
+  });
+
+  it('uses the left side when the right side would leave the game screen', () => {
+    const size = { width: 120, height: 59 };
+    const near = { ...HOOK, x: PHONE.left + 400, left: PHONE.left + 388, right: PHONE.left + 412 };
+    const keep = [g(380, 30, 36, 24)];
+    const p = placeBubble(near, size, PHONE, O, [], keep);
+    expect(p.side).toBe('left');
+    expect(p.left + size.width).toBe(Math.floor(near.left - O.gap));
+  });
+
+  it('keeps the old place when neither side fits (no worse than before)', () => {
+    const wide = { width: 300, height: 59 };
+    const p = placeBubble(HOOK, wide, PHONE, O, [GOAL, ...TAGS], KEEP);
+    expect(p.side).toBeUndefined();
+    expect(p).toEqual(placeBubble(HOOK, wide, PHONE, O, [GOAL, ...TAGS]));
+  });
+
+  it('does not move when nothing is covered (same as before #356)', () => {
+    const floor = { x: PHONE.left + 400, top: PHONE.top + 200, bottom: PHONE.top + 244, left: PHONE.left + 388, right: PHONE.left + 412 };
+    expect(placeBubble(floor, SIZE, PHONE, O, [GOAL, ...TAGS], [NEST, MAGPIE])).toEqual(placeBubble(floor, SIZE, PHONE, O, [GOAL, ...TAGS]));
+  });
+
+  it('skips a side that hits an avoid box or another keep box', () => {
+    const size = { width: 120, height: 59 };
+    const blocker = g(190, 100, 20, 20);
+    const p = placeBubble(HOOK, size, PHONE, O, [GOAL, ...TAGS, blocker], KEEP);
+    expect(p.side).toBe('left');
+    const q = placeBubble(HOOK, size, PHONE, O, [GOAL, ...TAGS], [...KEEP, blocker]);
+    expect(q.side).toBe('left');
+  });
+
+  it('does not move beside the speaker onto a teammate (floor: keeps the old place over a toy)', () => {
+    // 667×375 실측: 바닥 오른쪽 プピ 위 말풍선이 내복을 덮는다. 오른쪽은 화면 밖, 왼쪽은 ノビー·ズッシー 얼굴이다.
+    const ppik = { x: PHONE.left + 440, top: PHONE.top + 205, bottom: PHONE.top + 244, left: PHONE.left + 428, right: PHONE.left + 452 };
+    const mates = [g(348, 205, 24, 39), g(388, 200, 26, 44)];
+    const size = { width: 195, height: 59 };
+    const p = placeBubble(ppik, size, PHONE, O, [GOAL, ...TAGS], KEEP, mates);
+    expect(p.side).toBeUndefined();
+    expect(p).toEqual(placeBubble(ppik, size, PHONE, O, [GOAL, ...TAGS]));
+    // 동료가 없으면 왼쪽 옆으로 간다(몸 상자를 안 넘기면 예전 동작과 다르다는 것을 확인).
+    expect(placeBubble(ppik, size, PHONE, O, [GOAL, ...TAGS], KEEP).side).toBe('left');
+  });
+
+  it('never places beside a speaker without body edges', () => {
+    const noEdges = { x: HOOK.x, top: HOOK.top, bottom: HOOK.bottom };
+    expect(placeBubble(noEdges, { width: 120, height: 59 }, PHONE, O, [GOAL, ...TAGS], KEEP).side).toBeUndefined();
+  });
+
+  it('lifts a side bubble off the bottom edge and moves the tail down, but only while it still points at the body', () => {
+    const low = { ...HOOK, top: PHONE.top + 230, bottom: PHONE.top + 268 };
+    // 머리 위 물건: 위 자리를 막아서 옆으로 가게 한다(두 경우 모두).
+    const keep = [g(130, 160, 40, 100)];
+    const size = { width: 120, height: 59 };
+    const p = placeBubble(low, size, PHONE, O, [], keep);
+    expect(p.side).toBe('right');
+    expect(p.top + size.height).toBe(PHONE.top + PHONE.height - O.margin);
+    expect(p.top + p.tailY!).toBe(low.top + O.tailInset);
+    // 머리가 화면 맨 아래라 꼬리가 말풍선 아래 모서리를 넘으면 포기한다.
+    const lower = { ...HOOK, top: PHONE.top + 262, bottom: PHONE.top + 269 };
+    const q = placeBubble(lower, size, PHONE, O, [], keep);
+    expect(q.side).toBeUndefined();
+    expect(q).toEqual(placeBubble(lower, size, PHONE, O, []));
+  });
+});
