@@ -205,7 +205,12 @@ describe('validateScreen', () => {
   });
 
   it('allows the effect position marker { do: "here" } only once, only in rule show with do (#206)', () => {
-    const bump = (s: Record<string, any>): Record<string, any> => s.rules.find((r: any) => r.id === 'seesaw_launch_bump');
+    // 화면 1 데이터는 11·13·14·15번에 표시가 이미 있다(#206). 검사는 표시를 뺀 13번에 다시 넣어 본다.
+    const bump = (s: Record<string, any>): Record<string, any> => {
+      const r = s.rules.find((x: any) => x.id === 'seesaw_launch_bump');
+      r.show = r.show.filter((x: any) => !('do' in x));
+      return r;
+    };
     const ok = mutate((s) => bump(s).show.splice(2, 0, { do: 'here' }));
     expect(ok.errors).toEqual([]);
     expect(ok.warnings).toEqual([]);
@@ -213,7 +218,7 @@ describe('validateScreen', () => {
     expect(codes(mutate((s) => bump(s).show.push({ do: 'here' }, { do: 'here' })))).toEqual(['do-here']);
     // 위치는 실제 데이터 길이에서 구한다(화면 데이터가 바뀌어도 깨지지 않게).
     const bumpIdx = BASE.rules.findIndex((r: any) => r.id === 'seesaw_launch_bump');
-    const bumpLen = (BASE.rules[bumpIdx] as any).show.length;
+    const bumpLen = (BASE.rules[bumpIdx] as any).show.filter((x: any) => !('do' in x)).length;
     expect(paths(mutate((s) => bump(s).show.push({ do: 'there' })))).toEqual([`rules[${bumpIdx}].show[${bumpLen}].do`]);
     expect(codes(mutate((s) => s.rules.find((r: any) => !r.do && r.show).show.push({ do: 'here' })))).toEqual(['do-here']);
     // 규칙 show 밖(onEnter, 폴백 ①, takenShow, releaseShow)은 오류.

@@ -85,6 +85,21 @@ export function scenarios(screen: ScreenData): Scenario[] {
         { check: 'A3', action: act('jjuk', 'stretch', 'nest'), label: '리셋 뒤: 고리에서 열쇠', expect: { cleared: true } },
       ],
     },
+    {
+      // #206·#339: 효과 위치 표시 `{ "do": "here" }`가 들어간 시소 규칙 11·13·14·15번을 차례로. 놓인 뒤 말풍선이 뜨는지
+      // 스크린샷으로 본다(11번은 고리 말풍선이 까치·둥지를 가리는지). 화자 ID는 magpie_nest.test.ts가 단언한다.
+      id: 'R206',
+      checks: 'A2',
+      title: '시소 반응 순서: 발사 → 부딪힘 → 반대쪽 → 혼자 맞기',
+      steps: [
+        ...launch('11번:', 'A2'),
+        { check: 'A2', action: act('ppik', 'move', 'seesaw_left'), label: '13번: 삑삑이 시소 왼쪽' },
+        { check: 'A2', action: act('mukjik', 'stomp', 'seesaw_right'), label: '13번: 쿵 → 삑삑이 날아가 쭉이와 부딪힘', expect: { says: ['magpie_nest.bump'], gauge: 4 } },
+        { check: 'A2', action: act('ppik', 'move', 'seesaw_right'), label: '14번: 삑삑이 시소 오른쪽' },
+        { check: 'A2', action: act('mukjik', 'stomp', 'seesaw_left'), label: '14번: 반대쪽 쿵 → 삑삑이 엉덩방아', expect: { says: ['magpie_nest.wrong_way'], gauge: 3 } },
+        { check: 'A2', action: act('mukjik', 'stomp', 'seesaw_right'), label: '15번: 빈 시소 쿵 → 묵직이 혼자 맞기', expect: { says: ['magpie_nest.self_smack'], gauge: 2 } },
+      ],
+    },
   ];
 }
 
