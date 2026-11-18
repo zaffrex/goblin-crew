@@ -98,6 +98,7 @@ const SPOT_KEYS = fieldsOf<SpotDef>({
   releasePoint: true,
   releaseShow: true,
   takenShow: true,
+  board: true,
   approach: true,
   hintAbility: true,
 });
@@ -407,7 +408,7 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
     if (!(ABILITIES as readonly unknown[]).includes(v)) c.err(path, 'hint-ability', `hintAbility는 능력 동사(${ABILITIES.join('/')})`);
     else hintUses.push([path, v as string, target]);
   };
-  /** 점 [x, y]가 화면 안인지(오류), HUD·목표 줄 자리와 겹치는지(경고). 서는 자리 x, y와 releasePoint에 쓴다. */
+  /** 점 [x, y]가 화면 안인지(오류), HUD·목표 줄 자리와 겹치는지(경고). 서는 자리 x, y와 releasePoint·board에 쓴다. */
   const point = (x: number, y: number, path: string): boolean => {
     if (x < 0 || y < 0 || x > SCREEN_W || y > SCREEN_H) {
       c.err(path, 'point-offscreen', `좌표 (${x}, ${y})가 화면(${SCREEN_W}×${SCREEN_H}) 밖이다`);
@@ -416,6 +417,14 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
     if (rectHas(HUD_BOX, x, y)) c.warn(path, 'hud-overlap', 'HUD 영역 안이다(ui-interaction.md 6절)');
     if (rectHas(GOAL_BOX, x, y)) c.warn(path, 'goal-overlap', '목표 줄 자리 안이다(ui-interaction.md 6-2-2절)');
     return true;
+  };
+  /** 바닥에 설 점 [x, y](releasePoint, board): 모양, 화면 안, 걷기 영역 안. 영역 밖이면 `areaCode` 오류. */
+  const floorPoint = (v: unknown, path: string, key: string, areaCode: string): void => {
+    if (!(Array.isArray(v) && v.length === 2 && v.every(isNum))) return c.err(path, 'schema', `${key}는 [x, y]`);
+    const [x, y] = v as [number, number];
+    if (point(x, y, path) && (x < WALK_AREA.left || x > WALK_AREA.right || y < WALK_AREA.top || y > WALK_AREA.bottom)) {
+      c.err(path, areaCode, `${key} (${x}, ${y})가 걷기 영역 밖이다(x ${WALK_AREA.left}~${WALK_AREA.right}, y ${WALK_AREA.top}~${WALK_AREA.bottom})`);
+    }
   };
   /** 걸어갈 자리: 있는 자리거나 `stay`. `hold` 자리는 걸어서 못 가니(`goTo` invalid) `step`이 예외를 던진다. */
   const approachDest = (v: unknown, path: string): void => {
@@ -452,21 +461,16 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
       else if (spotRef(s.releaseTo, `${p}.releaseTo`) && !isFree(s.releaseTo)) {
         c.err(`${p}.releaseTo`, 'hold-release', `releaseTo는 free: true 자리여야 한다: ${s.releaseTo}`);
       }
-      if (s.releasePoint !== undefined) {
-        const rp = s.releasePoint;
-        const rpp = `${p}.releasePoint`;
-        if (!(Array.isArray(rp) && rp.length === 2 && rp.every(isNum))) c.err(rpp, 'schema', 'releasePoint는 [x, y]');
-        else {
-          // 손 놓으면 releaseTo(free 자리 = 바닥)에 그 점으로 떨어지고, 거기서 다시 걷는다. 바닥 영역 밖이면
-          // 다음 걷기 첫 틱에 영역 안으로 튄다(scene.ts clampToArea).
-          const [x, y] = rp as [number, number];
-          if (point(x, y, rpp) && (x < WALK_AREA.left || x > WALK_AREA.right || y < WALK_AREA.top || y > WALK_AREA.bottom)) {
-            c.err(rpp, 'release-point-area', `releasePoint (${x}, ${y})가 걷기 영역 밖이다(x ${WALK_AREA.left}~${WALK_AREA.right}, y ${WALK_AREA.top}~${WALK_AREA.bottom})`);
-          }
-        }
-      }
+      // 손 놓으면 releaseTo(free 자리 = 바닥)에 그 점으로 떨어지고, 거기서 다시 걷는다. 바닥 영역 밖이면
+      // 다음 걷기 첫 틱에 영역 안으로 튄다(scene.ts clampToArea).
+      if (s.releasePoint !== undefined) floorPoint(s.releasePoint, `${p}.releasePoint`, 'releasePoint', 'release-point-area');
     } else {
       for (const k of ['releaseTo', 'releasePoint', 'releaseShow']) if (s[k] !== undefined) c.err(`${p}.${k}`, 'schema', `${k}는 hold 자리에만`);
+    }
+    // 오르내릴 바닥 점(#397): 걸어서 가는 높은 자리에만 뜻이 있다. 바닥(free)은 이미 바닥이고, hold는 걸어서 못 간다.
+    if (s.board !== undefined) {
+      if (s.free === true || s.hold === true) c.err(`${p}.board`, 'schema', 'board는 free·hold가 아닌 자리에만');
+      else floorPoint(s.board, `${p}.board`, 'board', 'board-area');
     }
     if (s.releaseShow !== undefined) {
       for (const [k, list, kp] of c.idMap(s.releaseShow, `${p}.releaseShow`)) {

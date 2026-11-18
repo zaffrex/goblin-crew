@@ -105,6 +105,20 @@ describe('validateScreen', () => {
     expect(codes(mutate((s) => (s.spots.hook.releasePoint = [WALK_AREA.left, WALK_AREA.bottom + 1])))).toEqual(['release-point-area']);
   });
 
+  it('board is an on-floor [x, y] on walkable non-free spots only (#397)', () => {
+    expect(BASE.spots.seesaw_left.board).toEqual([226, 240]);
+    expect(BASE.spots.seesaw_right.board).toEqual([290, 240]);
+    expect(paths(mutate((s) => (s.spots.seesaw_left.board = [226])))).toEqual(['spots.seesaw_left.board']);
+    expect(paths(mutate((s) => (s.spots.seesaw_left.board = ['226', 240])))).toEqual(['spots.seesaw_left.board']);
+    expect(paths(mutate((s) => (s.spots.floor.board = [226, 240])))).toEqual(['spots.floor.board']);
+    expect(paths(mutate((s) => (s.spots.hook.board = [160, 235])))).toEqual(['spots.hook.board']);
+    expect(codes(mutate((s) => (s.spots.seesaw_left.board = [226, 300])))).toEqual(['point-offscreen']);
+    // 판 위(y 214)는 걷기 영역(top 200) 안이라 통과, 영역 위로 올라가면 오류.
+    expect(codes(mutate((s) => (s.spots.seesaw_left.board = [226, WALK_AREA.top - 1])))).toEqual(['board-area']);
+    expect(mutate((s) => (s.spots.seesaw_left.board = [WALK_AREA.right, WALK_AREA.bottom])).errors).toEqual([]);
+    expect(codes(mutate((s) => (s.spots.seesaw_left.board = [WALK_AREA.right + 1, 240])))).toEqual(['board-area']);
+  });
+
   it('forbids move rules on hold spots: the UI never makes that action (#108, #115)', () => {
     const r = mutate((s) => s.rules.push({ id: 'hook_walk', target: 'hook', verb: 'move' }));
     expect(r.errors).toEqual([expect.objectContaining({ code: 'move-hold', path: `rules[${BASE.rules.length}].target` })]);

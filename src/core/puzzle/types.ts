@@ -58,6 +58,12 @@ export interface SpotDef {
   releaseShow?: Partial<Record<CharacterId | 'default', ShowItem[]>>;
   /** 정원이 차서 못 갈 때 연출. */
   takenShow?: ShowItem[];
+  /**
+   * 바닥보다 높은 자리(시소 끝)에 오르내릴 때 디딜 바닥 점(엔진 전용, 코어 규칙과 BFS는 안 쓴다, #397).
+   * 이 자리로 걷는 `walk`는 이 점까지 바닥을 걸은 뒤 깡충 올라서고, 이 자리에서 떠나는 `walk`는 먼저 이 점으로 뛰어내린다.
+   * `free`·`hold` 자리에는 둘 수 없다. 화면 1 시소 끝은 판 앞 바닥(`magpie_nest.md` 1-5-2절).
+   */
+  board?: [number, number];
   /** 이 자리를 대상으로 다른 동사를 쓸 때 걸어갈 자리. 기본 `floor`. */
   approach?: Approach;
   /** 힌트 ②에서 가리킬 능력(핫스팟과 같음). 서는 자리도 클릭 대상이라 둘 수 있다(PR #99 리뷰). */
