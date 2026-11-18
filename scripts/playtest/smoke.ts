@@ -48,8 +48,25 @@ interface Viewport {
 const VIEWPORTS: Viewport[] = [
   { name: 'desktop-1280x720', width: 1280, height: 720, dpr: 1, mobile: false },
   { name: 'mobile-844x390', width: 844, height: 390, dpr: 3, mobile: true },
+  // 작은 폰 가로(iPhone SE급). CSS 배율 1.0이라 카드·HUD 이름표가 압축 모양이 된다(#335, #325).
+  { name: 'mobile-667x375', width: 667, height: 375, dpr: 2, mobile: true },
   { name: 'portrait-390x844', width: 390, height: 844, dpr: 3, mobile: true },
 ];
+
+/** 시작 카드 맞춤 검사(#335). 카드가 없으면 빈 목록(카드 없음은 아래 경고가 잡는다). */
+const CARD_FIT = `(() => {
+  const c = document.querySelector('#card');
+  if (!c || c.hidden) return [];
+  const out = [];
+  if (c.scrollHeight > c.clientHeight + 1) out.push('세로 스크롤 ' + c.scrollHeight + ' > ' + c.clientHeight + 'px');
+  if (c.scrollWidth > c.clientWidth + 1) out.push('가로 스크롤 ' + c.scrollWidth + ' > ' + c.clientWidth + 'px');
+  const b = c.getBoundingClientRect();
+  const s = c.querySelector('.start')?.getBoundingClientRect();
+  if (!s) out.push('.start 없음');
+  else if (s.bottom > b.bottom + 1 || s.bottom > innerHeight) out.push('시작 줄이 카드/창 아래로 잘림');
+  if (b.top < 0 || b.left < 0 || b.right > innerWidth || b.bottom > innerHeight) out.push('카드가 창 밖으로 나감');
+  return out;
+})()`;
 
 /** 바닥 한가운데쯤. 지금 빌드(#43)에서 바닥을 누르면 걷고 안내(#hud)가 사라진다. */
 const FLOOR_POINT = { x: 240, y: 236 };
@@ -107,6 +124,8 @@ async function runViewport(browser: Browser, v: Viewport, outDir: string): Promi
 
   // 입력 경로: 실제 이벤트 → 브라우저 → 게임. 모바일은 터치, 데스크톱은 마우스.
   const sent = v.mobile ? 'touch' : 'mouse';
+  // 시작 카드가 스크롤 없이 다 보이나(#335): 카드 안 스크롤이 없고, 시작 줄이 카드·창 안에 있고, 글 줄이 카드 폭을 넘지 않는다.
+  for (const p of await page.evaluate<string[]>(CARD_FIT)) r.problems.push(`시작 카드: ${p}`);
   // 시작 카드(#285)가 있으면 먼저 닫는다. 닫는 탭은 카드가 받으니 포인터 기록에서 뺀다.
   const canvas = r.canvas;
   const tapAt = async (at: { x: number; y: number }) => {

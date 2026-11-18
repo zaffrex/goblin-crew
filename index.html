@@ -73,11 +73,18 @@
       #card p { margin: 0; }
       #card .goal { font-size: 1.4em; font-weight: 700; color: #f2d65c; }
       #card ul { list-style: none; margin: 0.4em 0; padding: 0; }
-      #card li { display: flex; align-items: center; gap: 0.6em; }
+      /* 특기 줄·게이지 줄은 자동 줄바꿈 금지(낱말 중간 `高い所 / に届く` 방지, #335). 줄바꿈은 작가가 정한 곳만(6-5절 원칙). */
+      #card li { display: flex; align-items: center; gap: 0.6em; white-space: nowrap; }
+      #card .gauge { white-space: nowrap; }
       #card canvas { flex: none; width: 48px; height: 48px; image-rendering: pixelated; }
       #card .name { flex: none; min-width: 4.5em; font-weight: 700; }
       #card .start { margin-top: 0.5em; text-align: right; opacity: 0.4; }
       #card[data-ready] .start { opacity: 1; }
+      /* 압축 카드(CSS 배율 1.2 미만, #335): 667×375 @2에서 `タップではじめる`가 스크롤 없이 보이게. 얼굴 크기는 main.ts. */
+      #card[data-tight] { line-height: 1.25; padding: 0.5em 0.8em; }
+      #card[data-tight] ul { margin: 0.3em 0; }
+      #card[data-tight] li { gap: 0.4em; }
+      #card[data-tight] .start { margin-top: 0.3em; }
     </style>
   </head>
   <body>

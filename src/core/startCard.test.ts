@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import texts from '../../content/text/ja.json';
-import { CARD_LOCK_TICKS, cardFacePx, cardInput, cardReady, cardText, cardTick, createStartCard } from './startCard';
+import { CARD_LOCK_TICKS, cardFacePx, cardTight, cardInput, cardReady, cardText, cardTick, createStartCard } from './startCard';
 
 const TEXT: Readonly<Record<string, string>> = texts;
 const t = (id: string): string => TEXT[id] ?? id;
@@ -46,9 +46,29 @@ describe('시작 카드 (ui-interaction.md 6-2-1절, #285)', () => {
   });
 
   it('얼굴은 정수 배율로 글자와 같이 커지고 최소 2배다(6-2-1절)', () => {
-    expect(cardFacePx(640 / 480)).toBe(48); // 휴대폰 가로 844×390
+    expect(cardFacePx(640 / 480, 3)).toBe(48); // 휴대폰 가로 844×390 @3
     expect(cardFacePx(2)).toBe(48); // 1280×720
     expect(cardFacePx(1600 / 480)).toBe(72);
     expect(cardFacePx(4)).toBe(96); // 1920×1080, 글자 32px의 3em
+  });
+
+  it('얼굴은 장치 px로 그림 24의 정수배다(소수 dpr 포함, #310)', () => {
+    // [CSS 배율, dpr]. 배율 × dpr은 display.ts가 고른 장치 정수 배율이다.
+    const cases: [number, number][] = [[2, 1], [4, 1], [3.2, 1.25], [4 / 1.5, 1.5], [2, 1.5], [640 / 480, 3], [1, 2], [2 / 3, 3], [1, 1], [1.6, 1.25]];
+    for (const [scale, dpr] of cases) {
+      const device = cardFacePx(scale, dpr) * dpr;
+      expect(Math.abs(device / 24 - Math.round(device / 24)), `${scale}×${dpr}`).toBeLessThan(1e-9);
+    }
+    expect(cardFacePx(3.2, 1.25)).toBe(76.8); // 1536×864 @1.25: 장치 96 = 4배(예전 72 CSS = 90 장치, 3.75배)
+    expect(cardFacePx(2, 1.5)).toBe(48); // 장치 72 = 3배
+  });
+
+  it('배율 1.2 미만은 압축 카드, 얼굴은 장치 정수배로 작게(#335)', () => {
+    expect(cardTight(1)).toBe(true); // 667×375 @2
+    expect(cardTight(640 / 480)).toBe(false); // 844×390 @3
+    expect(cardTight(2)).toBe(false);
+    expect(cardFacePx(1, 2)).toBe(36); // 장치 72 = 3배, 48이면 높이 상한(229px)을 넘는다
+    expect(cardFacePx(2 / 3, 3)).toBe(32); // 장치 96 = 4배
+    expect(cardFacePx(1, 1)).toBe(24);
   });
 });
