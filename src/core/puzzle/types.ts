@@ -18,6 +18,21 @@ export type ShowItem =
   | { say: [speaker: string, text: string | string[]] }
   | { fx: [effect: string, target: string] };
 
+/**
+ * 효과 위치 표시(ADR-0065 5절, #206). 규칙 `show` 안 이 자리에서 그 규칙 `do`의 이벤트(`item`·`place`·`gauge`)를 낸다.
+ * 규칙 `show`에서만 쓴다. 그래서 `ShowItem`이 아니라 `RuleShowItem`에만 있다.
+ */
+export interface DoHere {
+  do: 'here';
+}
+
+/** 규칙 `show` 한 줄. 연출 + 효과 위치 표시(한 번까지). */
+export type RuleShowItem = ShowItem | DoHere;
+
+export function isDoHere(item: RuleShowItem): item is DoHere {
+  return 'do' in item;
+}
+
 /** `approach`: 서는 자리 ID 하나, 또는 동사별 맵(`default` 키 가능). `stay`는 걷지 않음. */
 export type Approach = string | Partial<Record<Verb | 'default', string>>;
 
@@ -98,7 +113,8 @@ export interface RuleDef {
   verb: Verb;
   when?: Condition;
   do?: Effect;
-  show?: ShowItem[];
+  /** `{ "do": "here" }`가 있으면 효과 이벤트를 그 자리에, 없으면 맨 뒤에 낸다. */
+  show?: RuleShowItem[];
   note?: string;
 }
 

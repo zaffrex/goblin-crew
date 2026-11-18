@@ -285,8 +285,20 @@ function checkActorRef(c: Checker, v: unknown, path: string, scope: ShowScope, a
   c.err(path, 'ref-actor', `없는 ${allowTargets ? '대상' : '화자'}: ${v}`);
 }
 
-function showList(c: Checker, ctx: ValidateContext, raw: unknown, path: string, scope: ShowScope): void {
+/**
+ * 효과 위치 표시 `{ "do": "here" }`(ADR-0065 5절, #206)를 쓸 수 있는 연출인지. 규칙 `show`만 넘긴다.
+ * `effect`는 그 규칙의 `do`(검사 전 원본)다.
+ */
+interface DoHereScope {
+  effect: unknown;
+}
+
+/** 이벤트를 내는 효과 키. `set`은 이벤트가 없어서 표시를 옮겨도 아무것도 안 바뀐다. */
+const EVENT_EFFECT_KEYS = ['give', 'take', 'move', 'gauge'] as const satisfies readonly (keyof Effect)[];
+
+function showList(c: Checker, ctx: ValidateContext, raw: unknown, path: string, scope: ShowScope, doHere?: DoHereScope): void {
   if (raw === undefined) return;
+  let marked: string | undefined;
   c.arr(raw, path).forEach((item, i) => {
     const p = `${path}[${i}]`;
     if (!isObj(item) || Object.keys(item).filter((k) => k !== 'note').length !== 1) {
@@ -295,6 +307,17 @@ function showList(c: Checker, ctx: ValidateContext, raw: unknown, path: string, 
     }
     const [kind] = Object.keys(item).filter((k) => k !== 'note');
     const v = item[kind as string];
+    if (kind === 'do') {
+      if (!doHere) c.err(`${p}.do`, 'do-here', '효과 위치 표시 { "do": "here" }는 규칙(rules[].show)에서만 쓸 수 있다');
+      else if (v !== 'here') c.err(`${p}.do`, 'schema', '효과 위치 표시 값은 "here"만');
+      else if (marked !== undefined) c.err(p, 'do-here', `효과 위치 표시는 한 번만(먼저 ${marked})`);
+      else if (doHere.effect === undefined) c.err(p, 'do-here', '이 규칙에는 do가 없어 옮길 효과 이벤트가 없다');
+      else if (isObj(doHere.effect) && !EVENT_EFFECT_KEYS.some((k) => (doHere.effect as Obj)[k] !== undefined)) {
+        c.warn(p, 'do-here-noop', 'do에 이벤트를 내는 효과(give·take·move·gauge)가 없어 표시가 아무것도 바꾸지 않는다');
+      }
+      marked ??= p;
+      return;
+    }
     if (!Array.isArray(v) || v.length !== 2) {
       c.err(`${p}.${kind}`, 'schema', '[대상, 값] 2개 배열');
       return;
@@ -576,7 +599,7 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
         });
       }
     }
-    showList(c, ctx, r.show, `${p}.show`, scope(true));
+    showList(c, ctx, r.show, `${p}.show`, scope(true), { effect: r.do });
   });
 
   // --- 대상 T의 hintAbility A가 T로 이어지는지 (#229) ---

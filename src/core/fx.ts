@@ -2,7 +2,7 @@
 // 순수 로직이다. 엔진(main.ts)은 이 값으로 그리기만 한다. 글자는 시트 `fx-text`(core/fxText.ts)로 그리고, `FX_STYLE.color`는 시트가 없을 때 임시 별 칠에만 쓴다.
 
 import type { CharacterId } from './characters';
-import type { ShowItem } from './puzzle/types';
+import { isDoHere, type RuleShowItem } from './puzzle/types';
 
 /** 보송 32색 중 fx가 쓰는 색(`docs/design/art/bosong-32.hex`). 32색 밖의 색을 만들지 않으려고 이름으로만 고른다. */
 export const FX_COLORS = {
@@ -86,10 +86,10 @@ export function dustPush(t: number): number | null {
 }
 
 /** show 한 줄에서 [캐릭터, 연출] 또는 [fx, 대상]. 고른 줄이 아니면 null. */
-function animOf(item: ShowItem): [string, string] | null {
+function animOf(item: RuleShowItem): [string, string] | null {
   return 'anim' in item ? item.anim : null;
 }
-function fxOf(item: ShowItem): [string, string] | null {
+function fxOf(item: RuleShowItem): [string, string] | null {
   return 'fx' in item ? item.fx : null;
 }
 
@@ -97,15 +97,17 @@ function fxOf(item: ShowItem): [string, string] | null {
  * 5절 검사: show에서 `[캐릭터, 그 캐릭터 특기 연출]` 바로 다음 줄이 그 캐릭터의 시그니처 fx가 아닌 곳.
  * 돌려주는 값은 show 안 순서(0부터)다. 비어 있으면 통과. 다음 화면에서 시그니처를 빠뜨리지 않게 하려는 검사다.
  * fx 이름만 본다. 대상(뜨는 자리)은 보통 그 캐릭터지만, 둥지에 삑(메아리 개그)처럼 대상 위에 띄우는 예외가 있다(PR #289 Luna 답).
+ * 효과 위치 표시 `{ do: "here" }`(ADR-0065 5절)는 줄로 치지 않고 건너뛴다. `anim → 표시 → fx`도 통과다(PR #245 Ben 리뷰).
  */
-export function missingSignatures(show: readonly ShowItem[]): number[] {
+export function missingSignatures(show: readonly RuleShowItem[]): number[] {
   const out: number[] = [];
   show.forEach((item, i) => {
     const a = animOf(item);
     if (!a) return;
     const sig = (SIGNATURES as Record<string, { anims: readonly string[]; fx: string }>)[a[0]];
     if (!sig || !sig.anims.includes(a[1])) return;
-    const next = show[i + 1] ? fxOf(show[i + 1]!) : null;
+    const after = show.slice(i + 1).find((x) => !isDoHere(x));
+    const next = after ? fxOf(after) : null;
     if (!next || next[0] !== sig.fx) out.push(i);
   });
   return out;

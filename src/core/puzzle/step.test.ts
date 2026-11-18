@@ -497,3 +497,89 @@ describe('콘텐츠 오류는 PuzzleContentError', () => {
     expect(r.events).toEqual([]);
   });
 });
+
+describe('효과 위치 표시 { do: "here" } (ADR-0065 5절, #206)', () => {
+  // 화면 1 13번(seesaw_launch_bump) 모양: 시소 왼쪽 사람이 날아가 고리에 매달린 사람과 부딪혀 둘 다 바닥으로.
+  function bumpScreen(mark: boolean): ScreenData {
+    const screen = magpieScreen();
+    const show: NonNullable<ScreenData['rules'][number]['show']> = [
+      { anim: ['mukjik', 'common.stomp'] },
+      { anim: ['@seesaw_left', 'launch_to_hook'] },
+      { anim: ['@seesaw_left', 'common.flatten'] },
+      { anim: ['@hook', 'common.flatten'] },
+      { say: ['@hook', 'magpie_nest.bump'] },
+    ];
+    if (mark) show.splice(2, 0, { do: 'here' });
+    screen.rules.unshift({
+      id: 'bump', target: 'seesaw_right', verb: 'stomp',
+      when: { occupied: { seesaw_left: true, hook: true } },
+      do: { move: [{ from: 'seesaw_left', to: 'floor' }, { from: 'hook', to: 'floor' }], gauge: -1 },
+      show,
+    });
+    return screen;
+  }
+  const setup: Action[] = [
+    { char: 'jjuk', verb: 'move', target: 'seesaw_left' },
+    { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, // 쭉이 → 고리(launch_to_hook 규칙)
+    { char: 'ppik', verb: 'move', target: 'seesaw_left' },
+  ];
+  const stomp: Action = { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' };
+
+  it('표시 자리에 place·gauge를 끼우고, 표시 뒤 `@자리`도 효과 전 자리로 푼다', () => {
+    const screen = bumpScreen(true);
+    const s = run(screen, setup);
+    expect(s.at).toMatchObject({ jjuk: 'hook', ppik: 'seesaw_left' });
+    const r = step(screen, s, stomp);
+    expect(r.ruleId).toBe('bump');
+    expect(r.events).toEqual([
+      { type: 'anim', target: 'mukjik', name: 'common.stomp' },
+      { type: 'anim', target: 'ppik', name: 'launch_to_hook' },
+      { type: 'place', char: 'ppik', from: 'seesaw_left', to: 'floor' },
+      { type: 'place', char: 'jjuk', from: 'hook', to: 'floor' },
+      { type: 'gauge', delta: -1, value: 4 },
+      { type: 'anim', target: 'ppik', name: 'common.flatten' },
+      { type: 'anim', target: 'jjuk', name: 'common.flatten' },
+      { type: 'say', speaker: 'jjuk', text: 'magpie_nest.bump' },
+    ]);
+  });
+
+  it('바뀌는 건 이벤트 순서뿐: 결과 상태와 이벤트 집합은 표시가 없을 때와 같다', () => {
+    const marked = bumpScreen(true);
+    const plain = bumpScreen(false);
+    const a = step(marked, run(marked, setup), stomp);
+    const b = step(plain, run(plain, setup), stomp);
+    expect(a.state).toEqual(b.state);
+    expect(a.source).toBe(b.source);
+    const key = (e: unknown): string => JSON.stringify(e);
+    expect(a.events.map(key).sort()).toEqual(b.events.map(key).sort());
+    // 표시가 없으면 지금처럼 연출 다음 효과.
+    expect(b.events.map((e) => e.type)).toEqual(['anim', 'anim', 'anim', 'anim', 'say', 'place', 'place', 'gauge']);
+  });
+
+  it('표시가 맨 앞이면 효과가 먼저, 맨 뒤면 표시 없음과 같다', () => {
+    const screen = magpieScreen();
+    const s = run(screen, screen.solution!.slice(0, 3));
+    const take = screen.rules.find((r) => r.id === 'take_key')!;
+    const plain = step(screen, s, screen.solution![3]!).events;
+
+    take.show = [...take.show!, { do: 'here' }];
+    expect(step(screen, s, screen.solution![3]!).events).toEqual(plain);
+
+    take.show = [{ do: 'here' }, { anim: ['jjuk', 'reach_hang_up'] }];
+    expect(step(screen, s, screen.solution![3]!).events.map((e) => e.type)).toEqual(['item', 'place', 'anim', 'clear']);
+  });
+
+  it('faint는 표시와 상관없이 맨 뒤', () => {
+    const screen = bumpScreen(true);
+    const s = withState(run(screen, setup), { gauge: 1 });
+    const r = step(screen, s, stomp);
+    expect(r.events.at(-1)).toEqual({ type: 'faint', to: screen.start.at });
+    expect(r.events.at(-2)).toEqual({ type: 'say', speaker: 'jjuk', text: 'magpie_nest.bump' });
+  });
+
+  it('표시는 연출이 아니라 이벤트로 나오지 않는다', () => {
+    const screen = magpieScreen();
+    screen.rules.unshift({ id: 'noop', target: 'nest', verb: 'hand', do: { set: { 'magpie.on_ground': true } }, show: [{ do: 'here' }] });
+    expect(step(screen, initialState(screen), { char: 'jjuk', verb: 'hand', target: 'nest' }).events).toEqual([]);
+  });
+});
