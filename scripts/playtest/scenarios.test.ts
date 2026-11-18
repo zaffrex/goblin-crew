@@ -66,6 +66,12 @@ describe('M1 판정 시나리오 (scene.ts 직접, Chrome 없음)', () => {
       expect(problems).toEqual(KNOWN_A3);
       expect(s.cleared).toBe(true);
     });
+
+    it(`${input} R206: 시소 반응 11·13·14·15번 (#206, #339)`, () => {
+      const { s, problems } = run(input, 'R206');
+      expect(problems).toEqual([]);
+      expect(s.puzzle.at).toEqual({ jjuk: 'floor', mukjik: 'floor', ppik: 'floor' });
+    });
   }
 
   it('A6②: 터치 8px은 선택, 9px은 선택 안 됨', () => {

@@ -627,6 +627,9 @@
           ]
         },
         {
+          "do": "here"
+        },
+        {
           "say": [
             "@seesaw_left",
             "magpie_nest.launch"
@@ -677,6 +680,15 @@
             "seesaw_right",
             "plank_bounce"
           ]
+        },
+        {
+          "anim": [
+            "@seesaw_left",
+            "launch_to_hook"
+          ]
+        },
+        {
+          "do": "here"
         },
         {
           "anim": [
@@ -735,6 +747,9 @@
             "mukjik",
             "common.flatten"
           ]
+        },
+        {
+          "do": "here"
         },
         {
           "fx": [
@@ -815,6 +830,9 @@
             "long_johns",
             "flutter"
           ]
+        },
+        {
+          "do": "here"
         },
         {
           "anim": [

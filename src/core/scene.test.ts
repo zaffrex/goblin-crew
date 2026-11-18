@@ -750,36 +750,40 @@ describe('한 번 재생 연출의 마지막 장 유지와 매달림 (#189, 형�
     return s;
   }
 
-  it('발사 연출이 끝나도 말풍선 동안 시소 위에서 마지막 장(launch_to_hook)을 유지하고, 고리에 놓이면 매달림으로 바뀐다', () => {
+  it('발사 연출 마지막 장 뒤 효과 위치 표시에서 고리에 놓이고, 말풍선은 매달린 채 고리에서 뜬다(#339, ADR-0065 5절)', () => {
     const s = stompWithJjuk();
     while (!(s.current?.ev.type === 'anim' && s.current.ev.name === 'launch_to_hook')) sceneTick(data, s);
     // 퍼즐 상태는 이미 고리지만 몸은 아직 시소다 → 매달림이 아니다(방향 고정 없음).
     expect(s.puzzle.at.jjuk).toBe('hook');
     expect(charPose(data, s, 'jjuk')).toMatchObject({ holding: false, event: { name: 'launch_to_hook', ms: 0 } });
-    while (now(s) !== 'say') sceneTick(data, s);
     const seesaw = data.screen.spots.seesaw_left!;
     expect([s.walkers.jjuk.x, s.walkers.jjuk.y]).toEqual([seesaw.x, seesaw.y]);
-    const pose = charPose(data, s, 'jjuk');
-    expect(pose.holding).toBe(false);
-    expect(pose.event?.name).toBe('launch_to_hook');
-    expect(pose.event!.ms).toBeGreaterThan(0);
-    while (now(s) !== 'place') sceneTick(data, s);
+    // 표시 `{ do: "here" }`가 발사 장과 말풍선 사이라서 놓임이 말풍선보다 먼저다.
+    while (now(s) !== 'place' && now(s) !== 'say') sceneTick(data, s);
+    expect(now(s)).toBe('place');
+    expect(charPose(data, s, 'jjuk')).toMatchObject({ holding: true, event: null });
+    while (now(s) !== 'say') sceneTick(data, s);
+    const hook = data.screen.spots.hook!;
+    expect([s.walkers.jjuk.x, s.walkers.jjuk.y]).toEqual([hook.x, hook.y]);
+    expect(currentBubble(s)?.speaker).toBe('jjuk');
     expect(charPose(data, s, 'jjuk')).toMatchObject({ holding: true, event: null });
     idle(s);
     expect(s.held).toEqual({});
     expect(charPose(data, s, 'jjuk')).toMatchObject({ holding: true, event: null });
   });
 
-  it('캐릭터 연출은 다른 대상의 연출 동안에도 붙들고, 물건 anim은 붙들지 않고, 같은 캐릭터의 다음 연출이 놓게 한다', () => {
+  it('캐릭터 연출은 다른 대상의 연출 동안에도 붙들고, 물건 anim은 붙들지 않고, 같은 캐릭터의 다음 연출·놓임이 놓게 한다', () => {
     const s = stompWithJjuk();
     s.held.jjuk = { name: 'common.zap', ms: 500 }; // 앞에서 남은 연출이 있다고 치자
     while (!animOn(s, 'seesaw_right')) sceneTick(data, s);
     expect(charPose(data, s, 'mukjik').event?.name).toBe('common.stomp');
     while (!animOn(s, 'jjuk')) sceneTick(data, s);
     expect(s.held.jjuk).toBeUndefined();
+    expect(Object.keys(s.held)).toEqual(['mukjik']);
+    // 쭉이 발사 장은 끝나면 붙들지만 바로 뒤 place(표시 자리)가 놓는다. 묵직이 쿵은 말풍선까지 붙든다.
     while (now(s) !== 'say') sceneTick(data, s);
-    expect(Object.keys(s.held).sort()).toEqual(['jjuk', 'mukjik']);
-    expect(s.held.jjuk?.name).toBe('launch_to_hook');
+    expect(Object.keys(s.held)).toEqual(['mukjik']);
+    expect(s.held.mukjik?.name).toBe('common.stomp');
   });
 
   it('둥지 뻗기: 매달린 채 reach_hang_up 마지막 장 + 대상 점(reachPoint)을 말풍선 동안 유지, 바닥에 떨어지면 놓는다', () => {

@@ -62,10 +62,11 @@ interface Viewport {
   input: Input;
 }
 
-// smoke.ts와 같은 두 뷰포트(판정 절차 "뷰포트 2개").
+// 판정 절차 "뷰포트 2개"(D1·M3) + 가장 작은 실제 배율 M1(#339: 고리 말풍선이 둥지를 가리는지, ui-detail-checklist 1절).
 const VIEWPORTS: Viewport[] = [
   { name: 'desktop', width: 1280, height: 720, dpr: 1, input: 'mouse' },
   { name: 'mobile', width: 844, height: 390, dpr: 3, input: 'touch' },
+  { name: 'mobile-667x375', width: 667, height: 375, dpr: 2, input: 'touch' },
 ];
 
 interface StepResult {
