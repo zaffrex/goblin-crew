@@ -211,7 +211,10 @@ describe('validateScreen', () => {
     expect(ok.warnings).toEqual([]);
 
     expect(codes(mutate((s) => bump(s).show.push({ do: 'here' }, { do: 'here' })))).toEqual(['do-here']);
-    expect(paths(mutate((s) => bump(s).show.push({ do: 'there' })))).toEqual([`rules[${BASE.rules.findIndex((r: any) => r.id === 'seesaw_launch_bump')}].show[5].do`]);
+    // 위치는 실제 데이터 길이에서 구한다(화면 데이터가 바뀌어도 깨지지 않게).
+    const bumpIdx = BASE.rules.findIndex((r: any) => r.id === 'seesaw_launch_bump');
+    const bumpLen = (BASE.rules[bumpIdx] as any).show.length;
+    expect(paths(mutate((s) => bump(s).show.push({ do: 'there' })))).toEqual([`rules[${bumpIdx}].show[${bumpLen}].do`]);
     expect(codes(mutate((s) => s.rules.find((r: any) => !r.do && r.show).show.push({ do: 'here' })))).toEqual(['do-here']);
     // 규칙 show 밖(onEnter, 폴백 ①, takenShow, releaseShow)은 오류.
     expect(codes(mutate((s) => s.onEnter.push({ do: 'here' })))).toEqual(['do-here']);
