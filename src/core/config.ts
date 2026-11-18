@@ -11,4 +11,5 @@ export const TICK_MS = 1000 / TICK_HZ;
 export const WALK_SPEED = 1.5;
 
 // 임시 바닥 영역 (#35). M1에서는 화면 데이터(퍼즐 데이터 모델)로 옮긴다.
-export const WALK_AREA = { left: 16, top: 200, right: 463, bottom: 258 } as const;
+// 아래끝 252: 맨 아래 게이지 띠(y 256–269, #312 설계 6-3-5절) 위로 발을 올린다. 그림 아래끝과 띠 사이 잔디 3px.
+export const WALK_AREA = { left: 16, top: 200, right: 463, bottom: 252 } as const;

@@ -14,7 +14,7 @@ import { dustPush, FX_COLORS, FX_STYLE, FX_TEXT_SPOT, SHAKE_FX, shakeOffset } fr
 import type { HitBox } from './core/hit';
 import { cardFacePx, cardInput, cardReady, cardText, cardTick, createStartCard } from './core/startCard';
 import { createFirstNotes, currentNote, noteArmAbility, noteGauge, noteTap } from './core/firstNotes';
-import { abilityText, GAUGE_BOX, GAUGE_CELLS, GAUGE_PLATE, HUD_AREA, hudHoverText, hudTags, type HudId } from './core/hud';
+import { abilityText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, HUD_AREA, hudHoverText, hudTags, LABEL_BOTTOM, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { activeFx, activeMarkerVisible, charPose, createScene, currentBubble, drawOrder, gaugeDrop, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
@@ -145,10 +145,15 @@ canvas.addEventListener('pointermove', (e) => {
   canvas.style.cursor = 'default';
   if (!p || scene.cleared || startCard.open) return;
   // HUD 칸 설명은 busy 중에도 띄운다(칸은 busy 중에도 눌린다, #266). 월드 호버는 busy 중에는 끈다.
+  // 게이지 띠(6-3-5절): 어디든 올리면 게이지 설명. 누를 수 없으니 기본 화살표.
+  if (inBox(p, GAUGE_BAND)) {
+    hoverHud = 'gauge';
+    return;
+  }
   if (inBox(p, HUD_AREA)) {
-    // HUD 영역은 기본 화살표(PR #112 Luna 리뷰). 칸 위면 설명만 띄운다(누를 수 없는 게이지 포함).
+    // HUD 영역은 기본 화살표(PR #112 Luna 리뷰). 칸 위면 설명만 띄운다.
     const hit = Object.entries(sceneLayout(data, scene).hud).find(([, b]) => inBox(p, b));
-    hoverHud = hit ? (hit[0] as HudId) : inBox(p, GAUGE_BOX) ? 'gauge' : null;
+    hoverHud = hit ? (hit[0] as HudId) : null;
     return;
   }
   if (isBusy(scene)) return;
@@ -190,12 +195,13 @@ function placeHudTags(active: CharacterId): void {
       el = document.createElement('span');
       el.className = 'hudtag';
       el.dataset.id = tag.id;
+      el.dataset.anchor = tag.anchor;
       hudTagLayer.append(el);
       hudTagEls.set(tag.id, el);
     }
     if (el.textContent !== tag.text) el.textContent = tag.text;
     if (el.style.fontSize !== size) el.style.fontSize = size;
-    placeDom(el, { x: tag.x, y: tag.top });
+    placeDom(el, { x: tag.x, y: tag.y });
   }
 }
 
@@ -312,7 +318,7 @@ function render(): void {
   drawHud(
     ctx,
     layout.hud,
-    { plate: GAUGE_PLATE, cells: GAUGE_CELLS },
+    { band: GAUGE_BAND, track: GAUGE_TRACK, segs: GAUGE_SEGS },
     { active: layout.active, armed: layout.armed, gauge: layout.gauge, gaugeDrop: gaugeDrop(scene), abilityGlyph },
     drawHead,
     drawHudIcon,
@@ -339,7 +345,8 @@ function render(): void {
   const labelString = note ?? (shown ? labelText(shown, data.screen.id, t) : (hudHover ?? ''));
   label.hidden = labelString === '';
   if (label.textContent !== labelString) label.textContent = labelString;
-  placeDom(label, { x: INTERNAL_WIDTH / 2, y: INTERNAL_HEIGHT - 4 });
+  // 아래끝은 게이지 띠 위 2px(6-3-5절). 띠 위에 두면 막대를 덮는다.
+  placeDom(label, { x: INTERNAL_WIDTH / 2, y: LABEL_BOTTOM });
 
   clearCut.hidden = !(scene.cleared && !isBusy(scene));
   hud.hidden = scene.cleared;
