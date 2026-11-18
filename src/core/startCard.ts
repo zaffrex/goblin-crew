@@ -41,13 +41,25 @@ export function cardInput(c: StartCard): boolean {
 /** 얼굴 head 한 변(시트 px). HUD 캐릭터 칸과 같은 그림. */
 export const CARD_FACE_PX = 24;
 
+/** 이 화면 배율(CSS) 미만이면 카드를 압축한다(667×375 @2 = 1.0배 등, #335). HUD 이름표 압축(6-4-2절)과 같은 경계. */
+export const CARD_TIGHT_BELOW = 1.2;
+
+export function cardTight(scale: number): boolean {
+  return scale < CARD_TIGHT_BELOW;
+}
+
 /**
- * 카드 얼굴 CSS 크기 = head 24 × max(2, floor(화면 배율)). 정수 배율이라 픽셀이 고르게 커진다.
- * 글자는 내부 8px × 배율로 커지므로 얼굴도 같이 커져야 줄마다 약 3em을 지킨다(6-2-1절, PR #306 리뷰).
- * 휴대폰 가로(배율 1.33)·1280×720(2)은 48, 1600×900(3.33)은 72, 1920×1080(4)은 96(HUD 얼굴과 같은 크기).
+ * 카드 얼굴 CSS 크기. 그림 24px을 **장치 px 정수배 k**로 키운다(메인 캔버스처럼, #310). CSS = 24·k/dpr.
+ * - 보통: k = max(ceil(2·dpr), floor(배율·dpr)). 글자가 내부 8px × 배율로 커지니 얼굴도 같이 커져 줄마다 약 3em(6-2-1절, PR #306 리뷰).
+ *   dpr 1에서 1280×720(2)은 48, 1600×900(3.33)은 72, 1920×1080(4)은 96. 휴대폰 가로 844×390 @3은 48.
+ * - 압축(배율 1.2 미만, #335): k = max(1, floor(1.5·dpr)). 667×375 @2는 36(장치 72 = 3배). 48이면 카드가 높이 상한을 넘어
+ *   `タップではじめる`가 스크롤 아래로 숨는다. 32는 장치 64 = 2.67배라 픽셀이 고르지 않아서 쓰지 않는다.
  */
-export function cardFacePx(scale: number): number {
-  return CARD_FACE_PX * Math.max(2, Math.floor(scale));
+export function cardFacePx(scale: number, dpr = 1): number {
+  const d = dpr > 0 ? dpr : 1;
+  // 배율·dpr 곱은 장치 px 정수 배율이라 3.9999 같은 부동소수 오차만 흡수한다.
+  const k = cardTight(scale) ? Math.max(1, Math.floor(1.5 * d + 1e-6)) : Math.max(Math.ceil(2 * d - 1e-6), Math.floor(scale * d + 1e-6));
+  return (CARD_FACE_PX * k) / d;
 }
 
 export interface CardRow {

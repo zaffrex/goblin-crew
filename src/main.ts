@@ -13,7 +13,7 @@ import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/conf
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
 import { dustPush, FX_COLORS, FX_STYLE, FX_TEXT_SPOT, SHAKE_FX, shakeOffset } from './core/fx';
 import type { HitBox } from './core/hit';
-import { cardFacePx, cardInput, cardReady, cardText, cardTick, createStartCard } from './core/startCard';
+import { cardFacePx, cardInput, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
 import { createFirstNotes, currentNote, noteGauge, noteSwitch, noteTap } from './core/firstNotes';
 import { abilityText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
@@ -382,7 +382,11 @@ function render(): void {
   if (cut !== null && faintCut.textContent !== t(cut)) faintCut.textContent = t(cut);
 }
 
-/** 카드 글자 = 내부 8px × 화면 배율, 최소 13 CSS px. 폭은 캔버스의 80%, 높이는 85% 이하(6-2-1절). */
+/**
+ * 카드 글자 = 내부 8px × 화면 배율, 최소 13 CSS px. 폭은 캔버스의 80%, 높이는 85% 이하(6-2-1절).
+ * 배율 1.2 미만(667×375 @2 등)은 압축 카드(#335): 폭 90%, 얼굴 작게, 줄 간격 1.25(CSS `#card[data-tight]`).
+ * 13px 글자가 1.0배에서 내부 13px이라 80% 폭에 게이지 줄이 한 줄로 안 들어가고, 높이도 상한을 넘었다.
+ */
 const CARD_PX = 8;
 const CARD_MIN_CSS = 13;
 function renderCard(): void {
@@ -393,9 +397,11 @@ function renderCard(): void {
   const size = `${Math.max(CARD_MIN_CSS, Math.round(CARD_PX * scale))}px`;
   if (cardEl.style.fontSize !== size) cardEl.style.fontSize = size;
   // 얼굴 = head 24px × 정수 배율, 최소 2배. 글자가 배율로 커지는데 얼굴이 48px로 고정이면 큰 화면에서 줄보다 작아진다(PR #306 리뷰).
-  const face = `${cardFacePx(scale)}px`;
+  const tight = cardTight(scale);
+  cardEl.toggleAttribute('data-tight', tight);
+  const face = `${cardFacePx(scale, window.devicePixelRatio || 1)}px`;
   for (const f of cardFaces) if (f.el.style.width !== face) f.el.style.width = f.el.style.height = face;
-  cardEl.style.maxWidth = `${Math.floor(r.width * 0.8)}px`;
+  cardEl.style.maxWidth = `${Math.floor(r.width * (tight ? 0.9 : 0.8))}px`;
   cardEl.style.maxHeight = `${Math.floor(r.height * 0.85)}px`;
   // 뷰포트가 아니라 캔버스 가운데(캔버스가 세로 가운데가 아닐 때가 있다).
   placeDom(cardEl, { x: INTERNAL_WIDTH / 2, y: INTERNAL_HEIGHT / 2 });
