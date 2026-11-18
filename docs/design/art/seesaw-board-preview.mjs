@@ -29,7 +29,7 @@ const SPOTS = { left: 220, right: 284 };
 const WEIGHT = { jjuk: 1, ppik: 1, mukjik: 2 };
 const STEP = 3; // 무게 차 1당 오른쪽 끝이 내려가는 px
 const GROUND_Y = 240; // 올라서기 바닥 점 y(받침 바닥선 236보다 앞)
-const GROUND_DX = 6; // 바닥 점은 서는 자리에서 다가온 쪽으로 6px
+const GROUND_DX = 6; // 바닥 점 board = 서는 자리에서 오른쪽(시작 위치 쪽)으로 6px, 두 끝 모두 한 점
 const HOP = { // 올라서기: 웅크림 → 공중 → 착지 웅크림(ms), H = 직선 위로 솟는 높이(px)
   jjuk: { crouch: 80, air: 140, land: 60, H: 10 },
   ppik: { crouch: 60, air: 130, land: 60, H: 12 },
@@ -180,7 +180,7 @@ function hop(people, mover, from, to, spec, dBefore, dAfter, label) {
   follow(dB);
   frames[frames.length - 1] = { img: frame(dB, people), ms: HOP.mukjik.land };
   push(frame(dB, people), 700);
-  // 묵직이 내려서기: 갈 곳 쪽(오른쪽)으로 6px, 바닥 y 240
+  // 묵직이 내려서기: 같은 board 점으로
   hop(people, mk, { x: mk.x, y: mk.y }, { x: SPOTS.right + GROUND_DX, y: GROUND_Y }, { ...DOWN, crouch: 0 }, dB, dJ, '묵직이 내려서기');
   follow(dJ);
   push(frame(dJ, people), 900);
