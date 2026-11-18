@@ -63,6 +63,16 @@ for r in "${ROLES[@]}"; do
   [ -n "$dm" ] || continue
   CH_TOKEN[$dm]=$t; CH_NAME[$dm]="ceo-dm"; CH_DMROLE[$dm]=$r; CURSOR[$dm]=$start_cursor
 done
+# Handover gap (numbers only, no message text): seconds between the previous listener job ending and this one starting.
+# If the max over a week exceeds LOOKBACK_SECONDS, raise LOOKBACK_SECONDS (issue #11).
+gap_log() {
+  local prev end
+  prev=$(gh run list -R "$REPO" --workflow slack-listener.yml --status completed --limit 1 --json updatedAt --jq '.[0].updatedAt // empty' 2>/dev/null) || return 0
+  [ -n "$prev" ] || return 0
+  end=$(date -d "$prev" +%s 2>/dev/null) || return 0
+  log "handover gap: $(( $(date +%s) - end ))s since previous listener ended (lookback ${LOOKBACK}s)"
+}
+gap_log
 log "watching ${#CH_NAME[@]} conversations, ${#ROLE_OF_UID[@]} member bots"
 
 # --- wake bookkeeping ---------------------------------------------------------------------------
