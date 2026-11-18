@@ -20,6 +20,7 @@ import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { activeFx, activeMarkerVisible, charPose, createScene, currentBubble, drawOrder, gaugeDrop, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
 import { coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point } from './core/viewport';
+import { isTapKey } from './core/keys';
 import { createDisplay } from './engine/display';
 import { onPointerTap } from './engine/input';
 import { startLoop } from './engine/loop';
@@ -116,8 +117,9 @@ function buildCard(): { id: CharacterId; el: HTMLCanvasElement; ctx: CanvasRende
 window.addEventListener('pointerdown', (e) => {
   if (e.isPrimary && e.button === 0) cardInput(startCard);
 });
-window.addEventListener('keydown', () => {
-  cardInput(startCard);
+// 키는 "탭"으로 셀 수 있는 것만(반복·수정 키·브라우저 단축키 제외, PR #306 리뷰).
+window.addEventListener('keydown', (e) => {
+  if (isTapKey(e)) cardInput(startCard);
 });
 
 const inBox = (p: Point, b: HitBox): boolean => p.x >= b.left && p.x < b.left + b.width && p.y >= b.top && p.y < b.top + b.height;
