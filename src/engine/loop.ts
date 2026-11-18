@@ -1,9 +1,7 @@
 // requestAnimationFrame 루프. 코어는 고정 틱(step)으로, 렌더는 프레임마다 한 번.
 
 import { consumeFrame } from '../core/fixedStep';
-import { TICK_MS } from '../core/config';
-
-const MAX_STEPS_PER_FRAME = 5;
+import { MAX_STEPS_PER_FRAME, TICK_MS } from '../core/config';
 
 export interface LoopHandlers {
   step(): void;

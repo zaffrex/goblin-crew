@@ -6,6 +6,11 @@ export const INTERNAL_HEIGHT = 270;
 export const TICK_HZ = 60;
 export const TICK_MS = 1000 / TICK_HZ;
 
+// 한 프레임에 따라잡는 최대 틱 수. 15틱 = 250ms: 4fps까지 느려져도 게임 시간이 벽시계와 같다(#286 4번 (b),
+// `scripts/playtest/pace.ts` 측정. 예전 5틱(83ms)은 12fps 아래에서 걷기가 느려졌다: CPU ×64 휴대폰 0.4배).
+// 그보다 긴 공백(탭 전환, 디버거 멈춤)은 여기서 자르고 버린다(`fixedStep.ts` `consumeFrame`, `engine/loop.ts`). 틱은 그리기 없는 계산이라 15번 돌아도 싸다.
+export const MAX_STEPS_PER_FRAME = 15;
+
 // 걷기 속도: 틱당 1.5px = 초당 90px. 화면 끝에서 끝까지 약 5초.
 // 퍼즐 게임은 이동이 길면 지루하므로 #7 이후 실제 걷기 프레임에 맞춰 다시 정한다.
 export const WALK_SPEED = 1.5;
