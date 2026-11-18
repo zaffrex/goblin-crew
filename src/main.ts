@@ -7,13 +7,13 @@ import charactersJson from '../content/characters.json';
 import screenJson from '../content/screens/magpie_nest.json';
 import texts from '../content/text/ja.json';
 import { sayText } from './core/sayText';
-import { characterDef, type CharacterId } from './core/characters';
+import type { CharacterId } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
 import { dustPush, FX_COLORS, FX_STYLE, FX_TEXT_SPOT, SHAKE_FX, shakeOffset } from './core/fx';
 import type { HitBox } from './core/hit';
 import { cardFacePx, cardInput, cardReady, cardText, cardTick, createStartCard } from './core/startCard';
-import { createFirstNotes, currentNote, noteArmAbility, noteGauge, noteTap } from './core/firstNotes';
+import { createFirstNotes, currentNote, noteGauge, noteSwitch, noteTap } from './core/firstNotes';
 import { abilityText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, HUD_AREA, hudHoverText, hudTags, LABEL_BOTTOM, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
@@ -27,7 +27,6 @@ import { drawHud } from './engine/hud';
 import { drawActiveMarker, drawCharacter, drawOutline, drawRoom, drawSpark, drawStompDust, drawTarget, drawTargets } from './engine/placeholder';
 import { drawSceneBg, drawSceneFrame, loadSceneArt, sceneArtMeta } from './engine/sceneArt';
 import { drawHead, drawSprite, spriteMetas, spriteState } from './engine/sprites';
-import { drawHudIcon } from './engine/hudIcons';
 import { drawFxText, fxTextState } from './engine/fxText';
 
 function need<T extends HTMLElement>(selector: string): T {
@@ -79,8 +78,8 @@ let touchLabel: Label | null = null;
 let hoverLabel: Label | null = null;
 /** 데스크톱 호버 중인 HUD 칸(설명은 대상 라벨 자리에, 설계 6-1-3절). */
 let hoverHud: HudId | 'gauge' | null = null;
-/** 처음 한 번 안내(첫 무장 특기 설명, 첫 감소 게이지 뜻, 설계 6-2-3·6-2-5절). */
-const notes = createFirstNotes(scene.shownGauge);
+/** 처음 한 번 안내(첫 전환 특기 설명, 첫 감소 게이지 뜻, 설계 6-4-3·6-2-5절). */
+const notes = createFirstNotes(scene.shownGauge, scene.ui.active);
 /** 시작 카드(설계 6-2-1절). 떠 있는 동안 장면은 멈추고(진입 연출 포함) 입력은 카드만 받는다. */
 const startCard = createStartCard();
 /** 카드 특기 줄의 얼굴 칸. 얼굴 시트가 늦게 오면 다 그릴 때까지 프레임마다 다시 그린다. */
@@ -130,8 +129,9 @@ onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
   const r = sceneTap(data, scene, p, slop, slop > 0);
   if (r.kind !== 'intent') return;
   touchLabel = r.intent.kind === 'select' ? r.intent.label : null;
-  // 첫 무장 안내는 터치만(설계 6-2-3절, PR #295 리뷰). 마우스는 버튼 호버로 같은 글을 이미 봤고, 안내가 대상 호버 라벨을 가린다.
-  if (slop > 0 && r.intent.kind === 'arm' && r.intent.armed?.verb === 'ability') noteArmAbility(notes, scene.ui.active, abilityText(scene.ui.active, t));
+  // 첫 전환 안내는 터치만(설계 6-4-3절, PR #295 리뷰). 마우스는 얼굴 호버로 같은 글을 이미 봤고, 안내가 대상 호버 라벨을 가린다.
+  // 얼굴 탭·몸 탭 둘 다 전환이다. 처음 캐릭터는 시작 카드가 말했으니 띄우지 않는다(createFirstNotes).
+  if (slop > 0 && r.intent.kind === 'switch') noteSwitch(notes, r.intent.char, abilityText(r.intent.char, t));
 });
 // 목표 줄(설계 6-2-2절): 첫 행동 뒤에도 늘 보인다. 클리어 뒤에만 숨긴다(render).
 hud.textContent = t('ui.intro');
@@ -182,14 +182,14 @@ function placeDom(el: HTMLElement, at: Point): void {
   el.style.top = `${Math.round(s.y)}px`;
 }
 
-/** 늘 보이는 HUD 이름표(설계 6-1-2절). 글자 = 내부 7px × 화면 배율, 최소 11 CSS px. */
+/** 늘 보이는 HUD 이름표(설계 6-4-2절: 얼굴 아래 특기, 6-3-2절: 게이지). 글자 = 내부 7px × 화면 배율, 최소 11 CSS px. */
 const HUD_TAG_PX = 7;
 const HUD_TAG_MIN_CSS = 11;
 const hudTagEls = new Map<string, HTMLElement>();
-function placeHudTags(active: CharacterId): void {
+function placeHudTags(): void {
   const scale = display.rect().width / INTERNAL_WIDTH;
   const size = `${Math.max(HUD_TAG_MIN_CSS, Math.round(HUD_TAG_PX * scale))}px`;
-  for (const tag of hudTags(active, t)) {
+  for (const tag of hudTags(t)) {
     let el = hudTagEls.get(tag.id);
     if (!el) {
       el = document.createElement('span');
@@ -314,15 +314,7 @@ function render(): void {
     if (box && !(art?.outlined && lit.size > 0)) drawOutline(ctx, box, scene.tick);
   }
   ctx.restore();
-  const abilityGlyph = [...t(`ui.verb.${characterDef(layout.active).ability}`)][0] ?? '?';
-  drawHud(
-    ctx,
-    layout.hud,
-    { band: GAUGE_BAND, track: GAUGE_TRACK, segs: GAUGE_SEGS },
-    { active: layout.active, armed: layout.armed, gauge: layout.gauge, gaugeDrop: gaugeDrop(scene), abilityGlyph },
-    drawHead,
-    drawHudIcon,
-  );
+  drawHud(ctx, layout.hud, { band: GAUGE_BAND, track: GAUGE_TRACK, segs: GAUGE_SEGS }, { active: layout.active, gauge: layout.gauge, gaugeDrop: gaugeDrop(scene) }, drawHead);
   display.present();
 
   renderCard();
@@ -337,8 +329,8 @@ function render(): void {
     placeDom(bubble, bubbleAt ?? { x: INTERNAL_WIDTH / 2, y: 60 });
   }
 
-  placeHudTags(layout.active);
-  const hudHover = scene.cleared || hoverHud === null ? null : hudHoverText(hoverHud, layout.active, t);
+  placeHudTags();
+  const hudHover = scene.cleared || hoverHud === null ? null : hudHoverText(hoverHud, t);
   noteGauge(notes, layout.gauge, scene.tick, t('ui.hud.gauge_first_drop'));
   // 처음 한 번 안내가 떠 있으면 그게 먼저다(첫 감소는 busy 중에 뜬다). 다음 탭이나 2.5초 뒤 지운다.
   const note = scene.cleared ? null : currentNote(notes, scene.tick);

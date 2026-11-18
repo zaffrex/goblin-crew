@@ -33,13 +33,15 @@
         background: rgb(0 0 0 / 0.6); padding: 2px 8px; border-radius: 4px;
       }
       /* HUD 이름표(#255, 설계 6-1-2절): #label과 같은 모양. 글자 크기는 main.ts가 배율로 정한다(최소 11px).
-         line-height 1·padding 1px 4px: 휴대폰 가로에서도 아래끝이 HUD 영역(y 76) 안에 들어가게(PR #259 리뷰). */
+         line-height 1: 휴대폰 가로에서도 아래끝이 HUD 영역 안에 들어가게(PR #259 리뷰). */
       .hudtag {
         position: fixed; margin: 0; pointer-events: none; white-space: nowrap;
         transform: translateX(-50%);
         font: 11px/1 system-ui, sans-serif; color: #fffdf5;
         background: rgb(0 0 0 / 0.6); padding: 1px 4px; border-radius: 3px;
       }
+      /* 얼굴 아래 특기 이름표(#311, 설계 6-4-2절): 칸 간격 32px에 셋이 붙지 않게 좌우 padding만 2px. 바탕은 그대로, 버튼 모양은 없다. */
+      .hudtag[data-anchor="top-center"] { padding: 1px 2px; }
       /* 게이지 이름표(#312, 설계 6-3-2절): 왼쪽 끝 x 4, 띠 세로 가운데. 글자 크기가 배율마다 달라 세로 가운데는 여기서 맞춘다. */
       .hudtag[data-anchor="middle-left"] { transform: translateY(-50%); }
       #clear, #faint {

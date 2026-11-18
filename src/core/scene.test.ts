@@ -5,12 +5,12 @@ import jjukJson from '../../public/sprites/jjuk-base.json';
 import mukjikJson from '../../public/sprites/mukjik-base.json';
 import ppikJson from '../../public/sprites/ppik-base.json';
 import { hitTest, type HitBox } from './hit';
-import { CHAR_SLOTS, GAUGE_BAND, GAUGE_SEGS, HUD_AREA, VERB_SLOTS } from './hud';
+import { CHAR_SLOTS, GAUGE_BAND, GAUGE_SEGS, HUD_AREA } from './hud';
 import { worldTargets } from './interact';
 import { seenSayKey } from './sayText';
 import { parseSpriteMeta, spriteBox, spriteFrame } from './sprite';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { activeFx, activeMarkerVisible, approachPoint, bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, gaugeBeforeSay, gaugeDrop, isBusy, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
+import { activeFx, activeMarkerVisible, approachPoint, bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, gaugeBeforeSay, gaugeDrop, isBusy, runAction, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
 import type { Point } from './viewport';
 
 const data: SceneData = { screen: screenJson as unknown as ScreenData, characters: charactersJson as CharactersData };
@@ -229,7 +229,7 @@ describe('busy 중 HUD 칸 탭 (설계 5절 예외 셋, #266)', () => {
     expect(sceneTap(data, s, center(CHAR_SLOTS.ppik), 0, false).kind).toBe('intent');
     for (let i = 0; i < TIMING.saySkipAfter; i++) sceneTick(data, s);
     const before = playback(s);
-    expect(sceneTap(data, s, center(VERB_SLOTS.look), 0, false)).toMatchObject({ kind: 'intent', intent: { kind: 'arm', armed: { verb: 'look' } } });
+    expect(sceneTap(data, s, center(CHAR_SLOTS.mukjik), 0, false)).toMatchObject({ kind: 'intent', intent: { kind: 'switch', char: 'mukjik' } });
     expect(sceneTap(data, s, center(CHAR_SLOTS.jjuk), 0, false)).toMatchObject({ kind: 'intent', intent: { kind: 'switch', char: 'jjuk' } });
     expect(playback(s)).toBe(before);
     expect(currentBubble(s)?.text).toBe('magpie_nest.enter');
@@ -251,23 +251,8 @@ describe('busy 중 HUD 칸 탭 (설계 5절 예외 셋, #266)', () => {
     expect([s.walkers.jjuk.x, s.walkers.jjuk.y]).toEqual([220, 214]);
   });
 
-  it('busy 중 동사 무장은 busy가 끝난 뒤 월드 탭에 그대로 쓰인다', () => {
-    const s = ready();
-    sceneTap(data, s, NEST, 0, false); // 쭉이 뻗기: 둥지 → 높이가 모자라
-    expect(isBusy(s)).toBe(true);
-    sceneTap(data, s, center(VERB_SLOTS.look), 0, false);
-    expect(s.ui.armed).toEqual({ verb: 'look' });
-    idle(s);
-    const r = sceneTap(data, s, MAGPIE, 0, false);
-    expect(r).toMatchObject({ kind: 'intent', intent: { kind: 'act', action: { char: 'jjuk', verb: 'look', target: 'magpie' } } });
-  });
-
-  it('busy 중 같은 동사 다시 탭은 무장 해제, 내 얼굴 탭은 아무 일 없음', () => {
+  it('busy 중 내 얼굴 탭은 아무 일 없음', () => {
     const s = createScene(data);
-    sceneTap(data, s, center(VERB_SLOTS.hand), 0, false);
-    expect(s.ui.armed).toEqual({ verb: 'hand' });
-    sceneTap(data, s, center(VERB_SLOTS.hand), 0, false);
-    expect(s.ui.armed).toBeNull();
     expect(sceneTap(data, s, center(CHAR_SLOTS.jjuk), 0, false)).toMatchObject({ kind: 'intent', intent: { kind: 'none' } });
     expect(s.ui.active).toBe('jjuk');
   });
@@ -276,16 +261,19 @@ describe('busy 중 HUD 칸 탭 (설계 5절 예외 셋, #266)', () => {
     const s = createScene(data);
     untilSay(s);
     for (let i = 0; i < TIMING.saySkipAfter; i++) sceneTick(data, s);
-    const blank = { x: HUD_AREA.left + 14, y: HUD_AREA.top + HUD_AREA.height - 4 }; // 동사 이름표 띠
+    const blank = { x: HUD_AREA.left + 14, y: HUD_AREA.top + HUD_AREA.height - 4 }; // 얼굴 아래 특기 이름표 띠(6-4-2절)
     expect(Object.values(sceneLayout(data, s).hud).some((b) => hitTest([{ id: 'b', box: b, z: 0 }], blank, 0))).toBe(false);
     const before = JSON.stringify(s);
     expect(sceneTap(data, s, center(GAUGE_SEGS[2]!), 0, false).kind).toBe('ignored');
     expect(sceneTap(data, s, blank, 0, false).kind).toBe('ignored');
     expect(JSON.stringify(s)).toBe(before);
     expect(currentBubble(s)?.text).toBe('magpie_nest.enter');
-    // 띠 왼쪽 이름표 자리, 띠 맨 윗줄, 옛 게이지 자리(오른쪽 위 HUD 영역 빈 곳)도 같다(6-3-5·6-3-6절).
-    for (const p of [{ x: 20, y: 263 }, { x: 240, y: GAUGE_BAND.top }, { x: 440, y: 18 }]) expect(sceneTap(data, s, p, 0, false).kind).toBe('ignored');
+    // 띠 왼쪽 이름표 자리, 띠 맨 윗줄, 얼굴 칸 사이 틈도 같다(6-3-5절·6-4-2절).
+    for (const p of [{ x: 20, y: 263 }, { x: 240, y: GAUGE_BAND.top }, { x: 330, y: 18 }]) expect(sceneTap(data, s, p, 0, false).kind).toBe('ignored');
     expect(JSON.stringify(s)).toBe(before);
+    // 옛 게이지 자리(x 401–479)는 이제 하늘이라 월드 탭이다(6-4-2절): 말풍선을 넘긴다.
+    for (let i = 0; i < TIMING.saySkipAfter; i++) sceneTick(data, s);
+    expect(sceneTap(data, s, { x: 440, y: 18 }, 0, false).kind).toBe('skipSay');
   });
 
   it('busy가 아닐 때 게이지 띠 탭은 걷지 않는다, 띠 바로 위 잔디는 252로 붙어 걷는다(#312)', () => {
@@ -327,8 +315,8 @@ describe('대사 변형과 힌트 ② (ADR-0065 5절, ADR-0018 F3)', () => {
   it('みる는 대상별 폴백이어도 힌트 ② 횟수에 안 들어간다(#286)', () => {
     const s = ready();
     const seen: string[][] = [];
-    sceneTap(data, s, center(VERB_SLOTS.look), 0, false);
-    sceneTap(data, s, MAGPIE, 0, false); // 쭉이 みる: 까치 → 대상별 폴백 ①
+    // UI로는 みる를 못 낸다(6-4-4절). 데이터·힌트 규칙은 남아 있으니 행동을 직접 넣는다.
+    runAction(data, s, { char: 'jjuk', verb: 'look', target: 'magpie' }, null); // 쭉이 みる: 까치 → 대상별 폴백 ①
     seen.push(sayTexts(s));
     for (let i = 0; i < 2; i++) {
       sceneTap(data, s, MAGPIE, 0, false); // 쭉이 뻗기: 까치 → 폴백
@@ -389,7 +377,6 @@ describe('sceneLayout (재생 도구 훅)', () => {
     expect(l.hud['char.jjuk']).toEqual(CHAR_SLOTS.jjuk);
     expect(l.hotspots.magpie).toEqual({ left: 134, top: 6, width: 24, height: 24 });
     expect(l.at).toEqual({ jjuk: 'floor', mukjik: 'floor', ppik: 'floor' });
-    expect(l.armed).toBeNull();
   });
 });
 
@@ -463,8 +450,9 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
     sceneTap(data, s, SEESAW_LEFT, 0, false);
     idle(s);
     pick(s, 'mukjik');
-    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
-    sceneTap(data, s, SEESAW_RIGHT, 0, false);
+    sceneTap(data, s, SEESAW_RIGHT, 0, false); // 올라섬
+    idle(s);
+    sceneTap(data, s, SEESAW_RIGHT, 0, false); // 한 번 더 = 쿵(6-4-1절)
     idle(s);
   }
   /** 매달린 c에게 바닥을 누르게 해서 손을 놓게 한다(5절 1단계). */
@@ -505,8 +493,9 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
     sceneTap(data, s, SEESAW_RIGHT, 0, false);
     idle(s);
     pick(s, 'mukjik');
-    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
-    sceneTap(data, s, SEESAW_LEFT, 0, false);
+    sceneTap(data, s, SEESAW_LEFT, 0, false); // 올라섬
+    idle(s);
+    sceneTap(data, s, SEESAW_LEFT, 0, false); // 한 번 더 = 쿵
     idle(s);
     expect(s.puzzle.at.ppik).toBe('floor');
     expect(at(s, 'ppik')).toEqual({ x: data.screen.spots.seesaw_right!.x, y: data.screen.spots.floor!.y });
@@ -528,7 +517,6 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
     s.puzzle.gauge = 1;
     s.shownGauge = 1;
     pick(s, 'jjuk');
-    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
     sceneTap(data, s, NEST, 0, false); // 까치가 둥지에 있어서 쪼임(게이지 -1) → place 뒤 faint
     const seen = trail(s, 'jjuk');
     expect(s.puzzle.gauge).toBe(5);
@@ -553,7 +541,6 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
   it('#176: 고리 아닌 곳(시소 끝)에서 기절하면 지금처럼 그 x의 바닥 y에 선다', () => {
     const s = ready();
     pick(s, 'ppik');
-    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
     sceneTap(data, s, MAGPIE, 0, false); // 삑삑이 꽥: 까치가 바닥으로
     idle(s);
     pick(s, 'jjuk');
@@ -563,7 +550,6 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
     s.puzzle.gauge = 1;
     s.shownGauge = 1;
     const ground = data.screen.hotspots.magpie!.variants![0]!.box!;
-    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
     sceneTap(data, s, center({ left: ground[0], top: ground[1], width: ground[2], height: ground[3] }), 0, false); // 규칙 7: 쪼임 → 0
     idle(s);
     expect(s.puzzle.gauge).toBe(5);
@@ -574,7 +560,6 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
   /** 까치를 바닥에 내리고 쭉이를 왼쪽 시소 끝에 올린 뒤, 게이지 1에서 바닥 까치를 뻗게 한다(규칙 7 → 기절). */
   function peckFromSeesaw(s: SceneState): void {
     pick(s, 'ppik');
-    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
     sceneTap(data, s, MAGPIE, 0, false);
     idle(s);
     pick(s, 'jjuk');
@@ -583,7 +568,6 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
     s.puzzle.gauge = 1;
     s.shownGauge = 1;
     const ground = data.screen.hotspots.magpie!.variants![0]!.box!;
-    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
     sceneTap(data, s, center({ left: ground[0], top: ground[1], width: ground[2], height: ground[3] }), 0, false);
   }
 
@@ -701,7 +685,6 @@ describe('클리어 컷 L32 (magpie_nest.md 8절, #68)', () => {
     while (s.current?.ev.type !== 'clear') sceneTick(withLine, s);
     const ui = JSON.stringify(s.ui);
     expect(sceneTap(withLine, s, center(CHAR_SLOTS.ppik), 0, false).kind).toBe('ignored');
-    expect(sceneTap(withLine, s, center(VERB_SLOTS.look), 0, false).kind).toBe('ignored');
     expect(JSON.stringify(s.ui)).toBe(ui);
     while (isBusy(s)) sceneTick(withLine, s);
     expect(sceneTap(withLine, s, center(CHAR_SLOTS.ppik), 0, false).kind).toBe('ignored');
@@ -761,8 +744,9 @@ describe('한 번 재생 연출의 마지막 장 유지와 매달림 (#189, 형�
     sceneTap(data, s, SEESAW_LEFT, 0, false);
     idle(s);
     pick(s, 'mukjik');
-    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
-    sceneTap(data, s, SEESAW_RIGHT, 0, false);
+    sceneTap(data, s, SEESAW_RIGHT, 0, false); // 올라섬
+    idle(s);
+    sceneTap(data, s, SEESAW_RIGHT, 0, false); // 한 번 더 = 쿵
     return s;
   }
 
@@ -805,7 +789,6 @@ describe('한 번 재생 연출의 마지막 장 유지와 매달림 (#189, 형�
     s.walkers.jjuk.x = hook.x;
     s.walkers.jjuk.y = hook.y;
     pick(s, 'jjuk');
-    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
     sceneTap(data, s, NEST, 0, false);
     const [rx, ry] = data.screen.hotspots.nest!.reachPoint!;
     while (now(s) !== 'say') sceneTick(data, s);
@@ -817,7 +800,6 @@ describe('한 번 재생 연출의 마지막 장 유지와 매달림 (#189, 형�
   it('reachPoint가 없는 대상이면 대상 상자 아래 끝 가운데가 대상 점이다(#284: 바닥에서 고리 뻗기 → 고리 바로 아래에서 멈춤)', () => {
     const s = ready();
     pick(s, 'jjuk');
-    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
     sceneTap(data, s, HOOK, 0, false);
     const [bx, by, bw, bh] = data.screen.spots.hook!.box!;
     expect(charPose(data, s, 'jjuk').reach).toEqual({ x: bx + bw / 2, y: by + bh });
@@ -1124,9 +1106,6 @@ describe('대상 앞까지 걷기 (설계 5-1절, #219)', () => {
   const pick = (s: SceneState, c: 'jjuk' | 'mukjik' | 'ppik'): void => {
     sceneTap(data, s, center(CHAR_SLOTS[c]), 0, false);
   };
-  const ability = (s: SceneState): void => {
-    sceneTap(data, s, center(VERB_SLOTS.ability), 0, false);
-  };
   /** 5-1절 "화면 1 적용 결과" 표. 발밑 x 400(묵직이 시작 위치, 오른쪽)에서 계산한다. */
   const standX = (s: SceneState, char: 'jjuk' | 'mukjik' | 'ppik', verb: 'stretch' | 'stomp' | 'hand', target: string, from = 400): number | undefined =>
     approachPoint(data, s.puzzle, { char, verb, target }, { x: from, y: 244 })?.x;
@@ -1219,18 +1198,31 @@ describe('대상 앞까지 걷기 (설계 5-1절, #219)', () => {
     expect(s.walkers.jjuk.facing).toBe(-1);
   });
 
-  it('정답 3번: 묵직이가 시소 오른쪽 끝 옆(307)까지 걸어가서 쿵 → 쭉이가 고리로', () => {
+  it('바닥에서 시소 끝에 쿵(UI로는 못 냄, 6-4-4절): 묵직이가 오른쪽 끝 옆(307)까지 걸어가서 쿵 → 쭉이가 고리로', () => {
     const s = ready();
     pick(s, 'jjuk');
     sceneTap(data, s, SEESAW_LEFT, 0, false);
     idle(s);
     pick(s, 'mukjik');
-    ability(s);
-    sceneTap(data, s, SEESAW_RIGHT, 0, false);
+    runAction(data, s, { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, null);
     expect(s.queue[0]).toMatchObject({ type: 'walk', char: 'mukjik', face: -1 });
     idle(s);
     expect(s.walkers.mukjik.x).toBe(307);
     expect(s.walkers.mukjik.facing).toBe(-1);
+    expect(s.puzzle.at.jjuk).toBe('hook');
+  });
+
+  it('정답 3번(6-4-1절): 묵직이 오른쪽 끝에 올라선 뒤 한 번 더 = 쿵 → 쭉이가 고리로, 묵직이는 끝 자리에 선다', () => {
+    const s = ready();
+    pick(s, 'jjuk');
+    sceneTap(data, s, SEESAW_LEFT, 0, false);
+    idle(s);
+    pick(s, 'mukjik');
+    expect(sceneTap(data, s, SEESAW_RIGHT, 0, false)).toMatchObject({ intent: { kind: 'act', action: { verb: 'move' } } });
+    idle(s);
+    expect(s.puzzle.at.mukjik).toBe('seesaw_right');
+    expect(sceneTap(data, s, SEESAW_RIGHT, 0, false)).toMatchObject({ intent: { kind: 'act', action: { verb: 'stomp', target: 'seesaw_right' } } });
+    idle(s);
     expect(s.puzzle.at.jjuk).toBe('hook');
   });
 

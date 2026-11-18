@@ -13,80 +13,93 @@ import {
   GAUGE_TRACK,
   gaugeChipWidth,
   gaugeShakeX,
+  CHAR_SLOTS,
+  CHAR_TAG_TOP,
   HUD_AREA,
   hudHoverText,
   hudTags,
   inHudZone,
   LABEL_BOTTOM,
-  VERB_SLOTS,
-  VERB_TAG_TOP,
 } from './hud';
 import { TIMING } from './scene';
 
 const TEXT: Record<string, string> = texts;
 const t = (id: string): string => TEXT[id] ?? id;
 
-describe('hudTags (늘 보이는 이름표, 설계 6-1절)', () => {
-  it('능력 버튼 이름표는 지금 캐릭터 능력 동사다', () => {
-    const ability = (id: (typeof CHARACTERS)[number]['id']) => hudTags(id, t).find((x) => x.id === 'verb.ability')!.text;
-    expect(ability('jjuk')).toBe('のばす');
-    expect(ability('mukjik')).toBe('ドスン');
-    expect(ability('ppik')).toBe('プピッ');
+describe('hudTags (늘 보이는 이름표, 설계 6-4-2절)', () => {
+  it('얼굴 아래 특기 이름표 = 그 사람 능력 동사. 지금 캐릭터와 상관없이 셋 다 늘 보인다', () => {
+    const tags = Object.fromEntries(hudTags(t).map((x) => [x.id, x.text]));
+    expect(tags).toEqual({ 'char.jjuk': 'のばす', 'char.mukjik': 'ドスン', 'char.ppik': 'プピッ', gauge: 'ふわふわゲージ' });
+    // 대상 라벨 동사(7절)와 같은 낱말: 얼굴 아래 `ドスン`을 본 사람이 `ドスン: シーソーの右はし`를 잇는다.
+    for (const c of CHARACTERS) expect(tags[`char.${c.id}`]).toBe(TEXT[`ui.verb.${c.ability}`]);
   });
 
-  it('손·보기·게이지 이름표는 키 글자 그대로이고, 대상 라벨 동사와 같은 낱말이다', () => {
-    const tags = Object.fromEntries(hudTags('jjuk', t).map((x) => [x.id, x.text]));
-    expect(tags['verb.hand']).toBe(TEXT['ui.verb.hand']);
-    expect(tags['verb.look']).toBe(TEXT['ui.verb.look']);
-    expect(tags.gauge).toBe('ふわふわゲージ');
-  });
-
-  it('버튼 이름표는 버튼 가운데 아래 1px(top-center), 게이지 이름표는 띠 왼쪽 x 4·세로 가운데 y 263(middle-left, 6-3-2절)', () => {
-    const tags = hudTags('jjuk', t);
-    for (const tag of tags.filter((x) => x.id !== 'gauge')) {
-      const b = VERB_SLOTS[tag.id.slice('verb.'.length) as keyof typeof VERB_SLOTS];
-      expect(tag.x).toBe(b.left + b.width / 2);
-      expect(tag.y).toBe(b.top + b.height + 1);
-      expect(tag.anchor).toBe('top-center');
+  it('특기 이름표는 칸 가운데 아래, 위끝 y 36(막대 33–34 아래 1px). 게이지 이름표는 띠 왼쪽 x 4·세로 가운데 y 263', () => {
+    const tags = hudTags(t);
+    expect(CHAR_TAG_TOP).toBe(36);
+    for (const c of CHARACTERS) {
+      const tag = tags.find((x) => x.id === `char.${c.id}`)!;
+      const b = CHAR_SLOTS[c.id];
+      expect([tag.x, tag.y, tag.anchor]).toEqual([b.left + b.width / 2, b.top + b.height + 4, 'top-center']);
     }
     const g = tags.find((x) => x.id === 'gauge')!;
     expect([g.x, g.y, g.anchor]).toEqual([4, 263, 'middle-left']);
     expect(GAUGE_TAG_AT.y).toBe(GAUGE_BAND.top + GAUGE_BAND.height / 2);
     expect(GAUGE_TAG_AT.x).toBeLessThan(GAUGE_TRACK.left);
-    expect(VERB_TAG_TOP).toBe(65);
+  });
+
+  it('이름표 폭(6-4-2절 표): 휴대폰 가로 1.333배에서 이웃 이름표와 붙지 않고, 아래끝이 HUD 영역 안이다', () => {
+    // main.ts placeHudTags: 글자 max(11, round(7×배율)) CSS px, index.html 얼굴 이름표 padding 1px 2px, line-height 1.
+    const box = (scale: number) => {
+      const font = Math.max(11, Math.round(7 * scale));
+      return { w: (font * 3 + 4) / scale, h: (font + 2) / scale };
+    };
+    const gap = CHAR_SLOTS.mukjik.left - CHAR_SLOTS.jjuk.left;
+    expect(gap - box(1.333).w).toBeGreaterThan(4);
+    expect(gap - box(2.667).w).toBeGreaterThan(9);
+    for (const s of [1.1, 1.333, 2.667]) expect(CHAR_TAG_TOP + box(s).h).toBeLessThanOrEqual(HUD_AREA.top + HUD_AREA.height);
   });
 
   it('키가 없으면 키 이름이 보인다(빠진 번역을 숨기지 않는다)', () => {
-    const tags = hudTags('jjuk', (id) => ({ 'ui.verb.hand': 'さわる' })[id] ?? id);
+    const tags = hudTags((id) => ({ 'ui.verb.stretch': 'のばす' })[id] ?? id);
     expect(tags.find((x) => x.id === 'gauge')!.text).toBe('ui.hud.gauge');
+    expect(tags.find((x) => x.id === 'char.mukjik')!.text).toBe('ui.verb.stomp');
   });
 });
 
-describe('hudHoverText (데스크톱 호버 설명, 6-1-3절)', () => {
-  it('캐릭터 칸은 그 사람 이름으로 채운다', () => {
-    expect(hudHoverText('char.mukjik', 'jjuk', t)).toBe('ズッシーに交代');
+describe('hudHoverText (데스크톱 호버 설명, 6-4-3절)', () => {
+  it('얼굴 칸은 `{name}: {desc}` — 누구로 바꾸는지와 그 사람 특기를 말한다(#311)', () => {
+    expect(hudHoverText('char.jjuk', t)).toBe('ノビー: サオをのばして高い所に届く');
+    expect(hudHoverText('char.mukjik', t)).toBe('ズッシー: 全体重でドスンとふむ');
+    expect(hudHoverText('char.ppik', t)).toBe('プピ: ニワトリを鳴らして気を引く');
   });
 
-  it('능력 버튼은 `{verb}: {desc}` — 무엇을 하는지 말한다(6-2-3절, #285)', () => {
-    expect(hudHoverText('verb.ability', 'jjuk', t)).toBe('のばす: サオをのばして高い所に届く');
-    expect(hudHoverText('verb.ability', 'mukjik', t)).toBe('ドスン: 全体重でドスンとふむ');
-    expect(hudHoverText('verb.ability', 'ppik', t)).toBe('プピッ: ニワトリを鳴らして気を引く');
-  });
-
-  it('첫 무장 안내(abilityText)는 호버와 같은 글이고, 자리표시가 글자 그대로 남지 않는다', () => {
+  it('터치 첫 전환 안내(abilityText)는 호버와 같은 글이고, 자리표시가 남지 않고 20자 이하다', () => {
     for (const c of CHARACTERS) {
       const text = abilityText(c.id, t);
-      expect(text).toBe(hudHoverText('verb.ability', c.id, t));
+      expect(text).toBe(hudHoverText(`char.${c.id}`, t));
       expect(text).not.toMatch(/[{}]/);
       expect([...text].length).toBeLessThanOrEqual(20);
     }
   });
 
-  it('손·보기·게이지는 고정 설명, 아이템 칸은 없음', () => {
-    expect(hudHoverText('verb.hand', 'jjuk', t)).toBe('さわる: 動かす・拾う');
-    expect(hudHoverText('verb.look', 'jjuk', t)).toBe('みる: よく調べる');
-    expect(hudHoverText('gauge', 'jjuk', t)).toBe('ふわふわゲージ: ミスで1マス減る。0でみんなスタートへ');
-    expect(hudHoverText('item.0', 'jjuk', t)).toBeNull();
+  it('게이지는 고정 설명', () => {
+    expect(hudHoverText('gauge', t)).toBe('ふわふわゲージ: ミスで1マス減る。0でみんなスタートへ');
+  });
+
+  it('없앤 버튼 설명 키(능력·손·보기)는 텍스트에 없다', () => {
+    for (const k of ['ui.hud.ability_hover', 'ui.hud.hand_hover', 'ui.hud.look_hover']) expect(TEXT[k]).toBeUndefined();
+  });
+});
+
+describe('HUD 영역 (6-4-2절)', () => {
+  it('얼굴 3칸 + 이름표 띠 = (300,4)–(392,48). 오른쪽 하늘(x 392–)은 월드다', () => {
+    expect(HUD_AREA).toEqual({ left: 300, top: 4, width: 92, height: 44 });
+    const last = CHAR_SLOTS.ppik;
+    expect(last.left + last.width).toBeLessThanOrEqual(HUD_AREA.left + HUD_AREA.width);
+    expect(inHudZone({ x: 390, y: 46 })).toBe(true);
+    expect(inHudZone({ x: 400, y: 20 })).toBe(false);
+    expect(inHudZone({ x: 340, y: 60 })).toBe(false);
   });
 });
 
