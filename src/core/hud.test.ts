@@ -27,6 +27,7 @@ import {
   hudTags,
   inHudZone,
   LABEL_BOTTOM,
+  cutFontPx,
   labelFontPx,
 } from './hud';
 import type { HitBox } from './hit';
@@ -243,5 +244,15 @@ describe('대상 라벨 글자 크기(#label, #337)', () => {
       const font = labelFontPx(s);
       expect(([...longest].length * font + 1.2 * font) / s, `${s}배`).toBeLessThanOrEqual(INTERNAL_WIDTH);
     }
+  });
+});
+
+describe('cutFontPx (#352, 6-6절)', () => {
+  it('is internal 14px × scale, at least 20: 2x stays 28px, 4x 56px', () => {
+    expect([1, 1.333, 1.524, 2, 4].map(cutFontPx)).toEqual([20, 20, 21, 28, 56]);
+  });
+
+  it('is always bigger than the speech bubble at the same scale', () => {
+    for (const s of [0.8, 1, 1.333, 1.524, 2, 2.667, 4]) expect(cutFontPx(s)).toBeGreaterThan(Math.max(16, Math.round(9 * s)));
   });
 });

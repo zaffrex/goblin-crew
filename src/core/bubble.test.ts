@@ -70,6 +70,58 @@ describe('bubbleFontPx', () => {
   });
 });
 
+describe('placeBubble avoid boxes (#351, 6-5절)', () => {
+  // 667×375 @2 실측(main cba305e, Noto Sans CJK): 목표 줄 두 줄, 고리 위 쭉이 x ≈ 160(게임 원점). 화면 좌표로 옮긴다.
+  const g = (left: number, right: number, top: number, bottom: number) => ({ left: PHONE.left + left, top: PHONE.top + top, width: right - left, height: bottom - top });
+  const GOAL = g(4.5, 111.2, 3.8, 33.4);
+  const TAGS = [g(298.7, 330.3, 35.8, 46.8), g(334.7, 356.4, 35.8, 46.8), g(366.7, 388.4, 35.8, 46.8)];
+  const HOOK = { x: PHONE.left + 160, top: PHONE.top + 96, bottom: PHONE.top + 150 };
+  const O: BubbleOptions = { margin: 4, gap: 9, tailInset: 14, avoidGap: 4 };
+
+  it('pushes right past the goal line and keeps the tail on the speaker', () => {
+    // `取った！/店のカギだ！` 120×59: 가운데면 x 100–220이라 목표 줄 끝(111.2)을 덮는다.
+    const p = placeBubble(HOOK, { width: 120, height: 59 }, PHONE, O, [GOAL, ...TAGS]);
+    expect(p.below).toBe(false);
+    expect(p.left).toBe(Math.ceil(GOAL.left + GOAL.width + 4));
+    expect(p.left - PHONE.left).toBe(115.5);
+    expect(p.left + p.tailX).toBeCloseTo(HOOK.x);
+    expect(p.tailX).toBeGreaterThanOrEqual(O.tailInset);
+  });
+
+  it('flips below when the gap between the goal line and the face tags is too narrow', () => {
+    // `いてっ！まずは/カササギをどうにか…` 184px: 목표 줄 뒤(115.2)로 밀면 오른끝 299.2가 `のばす`(298.7)에 닿는다.
+    // 이름표 뒤로 밀면 꼬리가 화자(160)를 못 가리킨다 → 뒤집기.
+    const p = placeBubble(HOOK, { width: 184, height: 59 }, PHONE, O, [GOAL, ...TAGS]);
+    expect(p.below).toBe(true);
+    expect(p.top).toBe(HOOK.bottom + O.gap);
+    expect(p.left + p.tailX).toBeCloseTo(HOOK.x);
+  });
+
+  it('fits a 152px bubble between the goal line and the face tags', () => {
+    const p = placeBubble(HOOK, { width: 152, height: 59 }, PHONE, O, [GOAL, ...TAGS]);
+    expect(p.below).toBe(false);
+    expect(p.left + 152 + 4).toBeLessThanOrEqual(TAGS[0]!.left);
+  });
+
+  it('does not move when the boxes are not in the way (same as before #351)', () => {
+    const anchor = { x: 333.5, top: 252.5, bottom: 302.5 };
+    expect(placeBubble(anchor, SIZE, PHONE, O, [GOAL, ...TAGS])).toEqual(placeBubble(anchor, SIZE, PHONE, O));
+  });
+
+  it('treats a gap of exactly avoidGap as clear', () => {
+    const box = { left: 100, top: 100, width: 50, height: 50 };
+    // 말풍선 가운데 x 254 → left 154 = 박스 오른끝 150 + 4.
+    const p = placeBubble({ x: 254, top: 169, bottom: 200 }, { width: 200, height: 60 }, { left: 0, top: 0, width: 600, height: 400 }, O, [box]);
+    expect(p.left).toBe(154);
+  });
+
+  it('never pushes left or up: a box right of the speaker flips the bubble', () => {
+    const box = { left: PHONE.left + 200, top: PHONE.top + 40, width: 40, height: 20 };
+    const p = placeBubble(HOOK, { width: 120, height: 59 }, PHONE, O, [box]);
+    expect(p.below).toBe(true);
+  });
+});
+
 describe('bubbleTailInset', () => {
   it('is 0.875em: 14 at 16px, as before', () => {
     expect([16, 18, 36].map(bubbleTailInset)).toEqual([14, 16, 32]);
