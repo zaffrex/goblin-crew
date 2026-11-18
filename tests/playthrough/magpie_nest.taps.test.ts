@@ -3,14 +3,15 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { characterDef, characterHitBox, CHARACTERS, type CharacterId } from '../../src/core/characters';
 import type { HitBox } from '../../src/core/hit';
-import { CHAR_SLOTS, VERB_SLOTS, type VerbButton } from '../../src/core/hud';
+import { CHAR_SLOTS } from '../../src/core/hud';
 import { actionKey, resolveTap, tap, type TapContext, type UiState } from '../../src/core/interact';
 import { initialState, step } from '../../src/core/puzzle/step';
 import type { Action, PuzzleState, ScreenData } from '../../src/core/puzzle/types';
 import type { Point } from '../../src/core/viewport';
 
-// 화면 1 정답을 "실제 탭"으로 재생한다(docs/design/ui-interaction.md 10절, 재생 도구 #101 입력 계약).
-// 행동마다: (1) 캐릭터가 다르면 HUD 칸 (2) 기본 동사가 다르면 동사 버튼 (3) 대상 박스 가운데를 탭(터치는 2번).
+// 화면 1 정답을 "실제 탭"으로 재생한다(docs/design/ui-interaction.md 6-4-7절, 재생 도구 #101 입력 계약).
+// 행동마다: (1) 캐릭터가 다르면 얼굴 칸 (2) 기본 동사가 다르면 대상(빈 서는 자리)에 먼저 올라선다 (3) 대상 박스 가운데를 탭(터치는 2번).
+// 동사 버튼은 없다(#311).
 // 탭이 만든 행동이 solution 행동과 같아야 하고, 그걸 step에 넣으면 클리어해야 한다.
 
 const load = (rel: string): unknown => JSON.parse(readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8'));
@@ -39,16 +40,10 @@ function targetPoint(ctx: TapContext, target: string): Point {
   return center({ left: l, top: t, width: w, height: h });
 }
 
-function buttonFor(a: Action): VerbButton {
-  if (a.verb === 'hand' || a.verb === 'look') return a.verb;
-  if (a.verb === characterDef(a.char).ability) return 'ability';
-  throw new Error(`버튼으로 고를 수 없는 동사: ${a.verb}`);
-}
-
 function replay(touch: boolean): { taps: string[]; final: PuzzleState } {
   const slop = touch ? 8 : 0;
   let puzzle = initialState(screen);
-  let ui: UiState = { active: 'jjuk', armed: null, selected: null };
+  let ui: UiState = { active: 'jjuk', selected: null };
   const taps: string[] = [];
   const press = (p: Point, what: string): ReturnType<typeof tap>['intent'] => {
     const r = tap(ctxFor(puzzle), ui, p, slop, touch);
@@ -57,39 +52,49 @@ function replay(touch: boolean): { taps: string[]; final: PuzzleState } {
     return r.intent;
   };
 
+  /** 대상을 눌러 행동 하나를 실행한다(터치는 선택 + 실행). */
+  const run = (p: Point, target: string, expected: Action): void => {
+    let intent = press(p, target);
+    if (touch) {
+      expect(intent.kind).toBe('select');
+      intent = press(p, target);
+    }
+    expect(intent).toMatchObject({ kind: 'act', action: expected });
+    if (intent.kind !== 'act') throw new Error('unreachable');
+    puzzle = step(screen, puzzle, intent.action).state;
+  };
+
   for (const a of screen.solution ?? []) {
     if (ui.active !== a.char) press(center(CHAR_SLOTS[a.char]), `칸:${a.char}`);
     const p = targetPoint(ctxFor(puzzle), a.target);
     const dflt = resolveTap(ctxFor(puzzle), ui, p, slop);
-    if (dflt.kind !== 'act' || dflt.key !== actionKey(a)) press(center(VERB_SLOTS[buttonFor(a)]), `버튼:${buttonFor(a)}`);
-    let intent = press(p, a.target);
-    if (touch) {
-      expect(intent.kind).toBe('select');
-      intent = press(p, a.target);
+    if (dflt.kind !== 'act' || dflt.key !== actionKey(a)) {
+      // 기본 탭이 다르면 올라서기(move)뿐이다. 올라선 뒤 같은 자리를 다시 누르면 자기 능력(6-4-1절).
+      expect(dflt).toMatchObject({ kind: 'act', action: { char: a.char, verb: 'move', target: a.target } });
+      expect(a.verb).toBe(characterDef(a.char).ability);
+      run(p, a.target, { char: a.char, verb: 'move', target: a.target });
     }
-    expect(intent).toMatchObject({ kind: 'act', action: a });
-    if (intent.kind !== 'act') throw new Error('unreachable');
-    puzzle = step(screen, puzzle, intent.action).state;
+    run(p, a.target, a);
   }
   return { taps, final: puzzle };
 }
 
-describe('magpie_nest solution by taps (ui-interaction.md 10절)', () => {
-  it('데스크톱: 정답 4행동이 클릭으로 그대로 나오고 클리어한다. 무장은 3번(묵직이 쿵)만', () => {
+describe('magpie_nest solution by taps (ui-interaction.md 6-4-1·6-4-7절)', () => {
+  it('데스크톱: 얼굴 칸 + 대상 클릭만으로 정답 4행동이 나오고 클리어한다. 3번은 올라선 뒤 한 번 더', () => {
     const { taps, final } = replay(false);
     expect(taps).toEqual([
       '칸:ppik', 'magpie',
       '칸:jjuk', 'seesaw_left',
-      '칸:mukjik', '버튼:ability', 'seesaw_right',
+      '칸:mukjik', 'seesaw_right', 'seesaw_right',
       '칸:jjuk', 'nest',
     ]);
     expect(final.flags[screen.exitFlag]).toBe(true);
   });
 
-  it('터치: step 행동만 탭 2번', () => {
+  it('터치: step 행동만 탭 2번. 3번은 탭 4번(선택·올라섬·선택·쿵)', () => {
     const { taps, final } = replay(true);
     expect(taps.filter((t) => !t.includes(':'))).toEqual([
-      'magpie', 'magpie', 'seesaw_left', 'seesaw_left', 'seesaw_right', 'seesaw_right', 'nest', 'nest',
+      'magpie', 'magpie', 'seesaw_left', 'seesaw_left', 'seesaw_right', 'seesaw_right', 'seesaw_right', 'seesaw_right', 'nest', 'nest',
     ]);
     expect(final.flags[screen.exitFlag]).toBe(true);
   });

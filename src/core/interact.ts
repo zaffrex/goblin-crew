@@ -1,4 +1,5 @@
-// 탭 → 의도(intent) 판정 (docs/design/ui-interaction.md 2~4절, 결정 기록 2026-11-15-default-tap-verb).
+// 탭 → 의도(intent) 판정 (docs/design/ui-interaction.md 2·4절·6-4절, 결정 기록 2026-11-15-default-tap-verb).
+// 입력은 캐릭터 고르기 → 물건 누르기뿐이다. 동사 버튼(무장)은 없다(6-4절, #311 진마씨 결정).
 // 순수 함수만 둔다. 퍼즐 상태를 바꾸지 않고, `step`을 부르지 않는다. 엔진(main.ts)이 의도를 받아 실행한다.
 //
 // 원칙 1: 기본 탭 동사는 대상 종류와 지금 캐릭터 위치로만 정한다. **규칙 데이터(screen.rules·fallbacks)는 읽지 않는다.**
@@ -6,17 +7,13 @@
 
 import { characterDef, CHARACTERS, type CharacterId } from './characters';
 import { hitTest, type HitBox, type HitTarget } from './hit';
-import { CHAR_SLOTS, inHudZone, ITEM_SLOT, VERB_BUTTONS, VERB_SLOTS, type HudId, type VerbButton } from './hud';
+import { CHAR_SLOTS, inHudZone, type HudId } from './hud';
 import { FLOOR, type Action, type Box, type PuzzleState, type ScreenData, type Verb } from './puzzle/types';
 import type { Point } from './viewport';
-
-/** HUD 버튼으로 무장한 동사. 다음 실행 한 번에만 쓰인다(설계 3절). */
-export type Armed = { verb: VerbButton } | { verb: 'item'; item: string };
 
 /** UI 상태. 퍼즐 상태(PuzzleState)와 따로 둔다(ADR-0065 4절). JSON 직렬화 가능. */
 export interface UiState {
   active: CharacterId;
-  armed: Armed | null;
   /** 터치 첫 탭으로 고른 행동(actionKey). 같은 행동을 다시 탭하면 실행한다(설계 4절). */
   selected: string | null;
 }
@@ -56,8 +53,6 @@ export type Intent =
   | { kind: 'none'; label: Label | null }
   /** 캐릭터 전환. 퍼즐 행동이 아니다. */
   | { kind: 'switch'; char: CharacterId; label: Label }
-  /** 무장/해제(null). */
-  | { kind: 'arm'; armed: Armed | null }
   /** 퍼즐 상태가 그대로인 엔진 걷기(`floor`→`floor`). */
   | { kind: 'walk'; to: Point; label: Label }
   /** 터치 첫 탭: 고르기만 한다(라벨 + 외곽선). */
@@ -98,19 +93,16 @@ export function isHolding(ctx: TapContext, char: CharacterId): boolean {
 
 /**
  * 월드 히트 대상. 엔진 그리기·재생 도구 훅(`?playtest=1`)도 이 배열을 그대로 쓴다.
- * - 지금 캐릭터 몸은 뺀다. 단 `hold` 자리에 있으면 넣는다(설계 2절).
- * - `withChars: false`면 캐릭터를 모두 뺀다(무장 중 캐릭터 건너뛰기, 설계 3절).
+ * 지금 캐릭터 몸은 뺀다. 단 `hold` 자리에 있으면 넣는다(설계 2절).
  */
-export function worldTargets(ctx: TapContext, ui: UiState, withChars = true): WorldTarget[] {
+export function worldTargets(ctx: TapContext, ui: UiState): WorldTarget[] {
   const out: WorldTarget[] = [];
-  if (withChars) {
-    for (const c of CHARACTERS) {
-      if (c.id === ui.active && !isHolding(ctx, c.id)) continue;
-      const box = ctx.bodies[c.id];
-      const rank = ctx.order?.indexOf(c.id) ?? -1;
-      const z = CHAR_Z_BASE + (rank >= 0 ? rank : box.top + box.height);
-      out.push({ id: `char:${c.id}`, kind: 'char', ref: c.id, box, z });
-    }
+  for (const c of CHARACTERS) {
+    if (c.id === ui.active && !isHolding(ctx, c.id)) continue;
+    const box = ctx.bodies[c.id];
+    const rank = ctx.order?.indexOf(c.id) ?? -1;
+    const z = CHAR_Z_BASE + (rank >= 0 ? rank : box.top + box.height);
+    out.push({ id: `char:${c.id}`, kind: 'char', ref: c.id, box, z });
   }
   for (const [id, spot] of Object.entries(ctx.screen.spots)) {
     if (spot.box) out.push({ id: `spot:${id}`, kind: 'spot', ref: id, box: toHitBox(spot.box), z: 0 });
@@ -122,13 +114,9 @@ export function worldTargets(ctx: TapContext, ui: UiState, withChars = true): Wo
   return out;
 }
 
-/** HUD 히트 대상. 빈 아이템 칸은 대상이 아니다. */
-export function hudTargets(puzzle: PuzzleState): (HitTarget & { id: HudId })[] {
-  const out: (HitTarget & { id: HudId })[] = [];
-  for (const c of CHARACTERS) out.push({ id: `char.${c.id}`, box: CHAR_SLOTS[c.id], z: 0 });
-  for (const v of VERB_BUTTONS) out.push({ id: `verb.${v}`, box: VERB_SLOTS[v], z: 0 });
-  if (puzzle.items.length > 0) out.push({ id: 'item.0', box: ITEM_SLOT, z: 0 });
-  return out;
+/** HUD 히트 대상: 얼굴 칸 3개뿐(6-4-2절). 아이템 칸은 M2(6-4-6절). */
+export function hudTargets(): (HitTarget & { id: HudId })[] {
+  return CHARACTERS.map((c) => ({ id: `char.${c.id}` as const, box: CHAR_SLOTS[c.id], z: 0 }));
 }
 
 /** 행동 비교 키. 터치 "같은 대상 다시 탭"은 같은 행동(동사·대상·아이템까지)일 때만 실행한다. */
@@ -136,22 +124,17 @@ export function actionKey(a: Action): string {
   return [a.char, a.verb, a.target, a.item ?? ''].join('|');
 }
 
-function sameArmed(a: Armed | null, b: Armed): boolean {
-  return a !== null && a.verb === b.verb && (a.verb !== 'item' || (b.verb === 'item' && a.item === b.item));
-}
-
 function act(action: Action, label: Label, to: Point | null = null): Resolved {
   return { kind: 'act', action, key: actionKey(action), to, label };
 }
 
-/** 무장한 동사 또는 기본(자기 능력)으로 대상에 쓸 행동. */
-function armedOrAbility(char: CharacterId, armed: Armed | null, target: string): Resolved {
-  if (armed?.verb === 'item') return act({ char, verb: 'item', target, item: armed.item }, { verb: 'item', target, item: armed.item });
-  const verb = !armed || armed.verb === 'ability' ? characterDef(char).ability : armed.verb;
+/** 대상에 자기 능력을 쓰는 행동. */
+function ability(char: CharacterId, target: string): Resolved {
+  const verb = characterDef(char).ability;
   return act({ char, verb, target }, { verb, target });
 }
 
-/** 바닥(대상 없음). 무장은 풀린다. */
+/** 바닥(대상 없음). */
 function floorIntent(ctx: TapContext, char: CharacterId, p: Point): Resolved {
   const here = ctx.puzzle.at[char];
   const spot = ctx.screen.spots[here];
@@ -168,32 +151,15 @@ export function resolveTap(ctx: TapContext, ui: UiState, p: Point, slop: number)
   const me = ui.active;
 
   // 1. HUD. 영역 안이면 월드로 넘기지 않는다.
-  const hud = hitTest(hudTargets(ctx.puzzle), p, slop);
+  const hud = hitTest(hudTargets(), p, slop);
   if (hud) {
-    if (hud.id.startsWith('char.')) {
-      const char = hud.id.slice('char.'.length) as CharacterId;
-      return char === me ? { kind: 'none', label: { verb: null, target: char } } : { kind: 'switch', char, label: { verb: null, target: char } };
-    }
-    if (hud.id === 'item.0') {
-      const item = ctx.puzzle.items[0] as string;
-      const armed: Armed = { verb: 'item', item };
-      return { kind: 'arm', armed: sameArmed(ui.armed, armed) ? null : armed };
-    }
-    const armed: Armed = { verb: hud.id.slice('verb.'.length) as VerbButton };
-    return { kind: 'arm', armed: sameArmed(ui.armed, armed) ? null : armed };
+    const char = hud.id.slice('char.'.length) as CharacterId;
+    return char === me ? { kind: 'none', label: { verb: null, target: char } } : { kind: 'switch', char, label: { verb: null, target: char } };
   }
   if (inHudZone(p)) return { kind: 'none', label: null };
 
-  // 2. 월드. 무장 중이면 캐릭터를 건너뛰고, 뒤에 아무것도 없을 때만 캐릭터를 본다.
-  const hit = hitTest(worldTargets(ctx, ui, ui.armed === null), p, slop);
-  if (!hit && ui.armed !== null) {
-    const char = hitTest(worldTargets(ctx, ui, true), p, slop);
-    if (char?.kind === 'char') {
-      const id = char.ref as CharacterId;
-      return id === me ? { kind: 'arm', armed: null } : { kind: 'switch', char: id, label: { verb: null, target: id } };
-    }
-  }
-
+  // 2. 월드.
+  const hit = hitTest(worldTargets(ctx, ui), p, slop);
   if (!hit) return floorIntent(ctx, me, p);
   switch (hit.kind) {
     case 'char': {
@@ -204,12 +170,13 @@ export function resolveTap(ctx: TapContext, ui: UiState, p: Point, slop: number)
     }
     case 'spot':
       // hold 자리는 move로 못 간다(ADR-0065). 핫스팟처럼 내 능력(설계 2절, PR #115).
-      if (ui.armed === null && ctx.puzzle.at[me] !== hit.ref && !ctx.screen.spots[hit.ref]?.hold) {
+      // 내가 선 자리를 다시 누르면 내 능력(화면 1 정답 3번 "올라선 뒤 한 번 더 = 쿵", 6-4-1절).
+      if (ctx.puzzle.at[me] !== hit.ref && !ctx.screen.spots[hit.ref]?.hold) {
         return act({ char: me, verb: 'move', target: hit.ref }, { verb: 'climb', target: hit.ref });
       }
-      return armedOrAbility(me, ui.armed, hit.ref);
+      return ability(me, hit.ref);
     case 'hotspot':
-      return armedOrAbility(me, ui.armed, hit.ref);
+      return ability(me, hit.ref);
   }
 }
 
@@ -223,16 +190,14 @@ export function tap(ctx: TapContext, ui: UiState, p: Point, slop: number, touch:
     case 'none':
       return { ui, intent };
     case 'switch':
-      return { ui: { active: intent.char, armed: null, selected: null }, intent };
-    case 'arm':
-      return { ui: { ...ui, armed: intent.armed, selected: null }, intent };
+      return { ui: { active: intent.char, selected: null }, intent };
     case 'walk':
-      return { ui: { ...ui, armed: null, selected: null }, intent };
+      return { ui: { ...ui, selected: null }, intent };
     case 'act':
       if (touch && ui.selected !== intent.key) {
         return { ui: { ...ui, selected: intent.key }, intent: { kind: 'select', key: intent.key, label: intent.label } };
       }
-      return { ui: { ...ui, armed: null, selected: null }, intent };
+      return { ui: { ...ui, selected: null }, intent };
   }
 }
 

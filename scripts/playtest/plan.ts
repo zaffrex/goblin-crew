@@ -1,5 +1,5 @@
 // 재생 도구 2부-a: 정답 행동 `{char, verb, target}` → 실제로 누를 곳 목록 (#101).
-// 순수 함수만 둔다. Chrome 없이 테스트한다. 규칙 출처: docs/design/ui-interaction.md 2·3·4·10절.
+// 순수 함수만 둔다. Chrome 없이 테스트한다. 규칙 출처: docs/design/ui-interaction.md 2·4절·6-4-7절(#311, 동사 버튼 없음).
 //
 // 입력은 게임의 읽기 전용 훅 `window.__gcLayout()`(`?playtest=1`일 때만, #68)이 돌려주는 배치다.
 // 훅은 입력 판정이 쓰는 바로 그 히트 대상을 돌려준다(Slack #goblin-dev 11/15 Theo 합의). 그래서 여기서 상자를
@@ -17,8 +17,6 @@ import type { Point } from '../../src/core/viewport.ts';
  */
 export interface Layout {
   active: CharacterId;
-  /** 무장한 HUD 버튼 id(`verb.ability` 등). 없으면 null. */
-  armed: HudId | null;
   selected: string | null;
   busy: boolean;
   cleared: boolean;
@@ -32,16 +30,12 @@ export interface Layout {
 }
 
 /**
- * HUD 버튼 id. `src/core/hud.ts` `HudId`와 같은 점(`.`) 표기다(PR #111 Theo 리뷰).
+ * HUD 칸 id. `src/core/hud.ts` `HudId`와 같은 점(`.`) 표기다(PR #111 Theo 리뷰). 얼굴 칸뿐이다(6-4-2절).
  * 콜론(`char:jjuk`)은 월드 대상인 캐릭터 몸 id라서, 점으로 HUD 칸과 몸을 구분한다. 좌표는 훅에서 받는다.
  */
 export const HUD = {
   char: (c: CharacterId): HudId => `char.${c}`,
-  ability: 'verb.ability',
-  hand: 'verb.hand',
-  look: 'verb.look',
-  item: 'item.0',
-} as const satisfies Record<string, HudId | ((c: CharacterId) => HudId)>;
+} as const;
 
 /** 터치 여유(ADR-0007 결정 6). HUD는 거리 비교 없이 먼저 판정되니 월드 점은 HUD 영역에서 이만큼 떨어져야 한다. */
 const TOUCH_SLOP = 8;
@@ -64,7 +58,7 @@ export interface Tap {
 
 export interface Plan {
   taps: Tap[];
-  /** 기본 탭이 이 동사를 고르는지 (false면 동사 버튼으로 무장). */
+  /** 기본 탭이 이 동사를 고르는지. false면 빈 서는 자리에 먼저 올라선 뒤(`move`) 한 번 더 누른다(6-4-7절 3). */
   verbByDefault: boolean;
   warnings: string[];
 }
@@ -88,14 +82,12 @@ export function defaultVerb(screen: ScreenData, char: CharacterId, charAt: strin
   throw new Error(`화면 ${screen.id}에 없는 대상: ${target}`);
 }
 
-/** 동사 → 무장 버튼 id. `move`는 버튼이 없다(3절). */
-function verbButton(verb: Verb, char: CharacterId): HudId {
-  if (verb === abilityOf(char)) return HUD.ability;
-  if (verb === 'hand') return HUD.hand;
-  if (verb === 'look') return HUD.look;
-  if (verb === 'item') throw new Error('item 동사는 M1 재생 범위 밖 (화면 1은 열쇠를 얻는 순간 클리어)');
-  if (verb === 'move') throw new Error('move는 무장 버튼이 없다: 지금 서 있는 자리나 hold 자리로 move는 탭으로 못 고른다');
-  throw new Error(`${char}는 ${verb} 능력이 없다`);
+/**
+ * 기본 탭으로 못 내는 행동(6-4-7절 4: `hand`·`look`·`item`, 남이 선 자리, 서 있는 자리로 `move`).
+ * 화면 설계 규칙 위반(6-4-4절)이라 도구가 에러로 멈춘다.
+ */
+function unreachable(action: Action, why: string): never {
+  throw new Error(`기본 탭으로 못 내는 행동 ${action.char} ${action.verb} ${action.target}: ${why} (ui-interaction 6-4-4절)`);
 }
 
 const inside = (p: Point, b: HitBox) => distanceToBox(p, b) === 0;
@@ -115,12 +107,11 @@ export function clearPoint(box: HitBox, blockers: readonly HitBox[]): Point | nu
   return pts.find((p) => blockers.every((b) => !inside(p, b))) ?? null;
 }
 
-/** 정답 행동 하나 → 누를 곳 (10절). 배치 사본 하나로 전환·무장 뒤 상태까지 따라간다. */
+/** 정답 행동 하나 → 누를 곳 (6-4-7절). 배치 사본 하나로 전환·올라섬 뒤 상태까지 따라간다. */
 export function planAction(screen: ScreenData, layout: Layout, action: Action, input: Input, opts: PlanOptions = {}): Plan {
   const char = action.char;
   const taps: Tap[] = [];
   const warnings: string[] = [];
-  let armed = layout.armed;
 
   const hudTap = (id: string, why: string) => {
     const b = layout.hud[id];
@@ -128,25 +119,22 @@ export function planAction(screen: ScreenData, layout: Layout, action: Action, i
     taps.push({ id, at: clearPoint(b, [])!, why });
   };
 
-  // 1. 캐릭터 전환 (전환하면 무장이 풀린다, 3절)
-  if (layout.active !== char) {
-    hudTap(HUD.char(char), `${char}로 전환`);
-    armed = null;
-  }
+  // 1. 캐릭터 전환
+  if (layout.active !== char) hudTap(HUD.char(char), `${char}로 전환`);
 
-  // 2. 동사: 기본 탭과 같으면 대상만, 다르면 무장
-  const charAt = layout.at[char];
+  // 2. 동사: 기본 탭과 같으면 대상만. 아니면 자기 능력 + 빈 서는 자리일 때만 올라선 뒤 한 번 더(6-4-7절 3).
+  let charAt = layout.at[char];
   if (charAt === undefined) throw new Error(`훅 at에 ${char} 없음`);
   const def = defaultVerb(screen, char, charAt, action.target);
   const verbByDefault = def === action.verb;
+  let climb = false;
   if (!verbByDefault) {
-    const btn = verbButton(action.verb, char);
-    if (armed !== btn) hudTap(btn, `${action.verb} 무장`);
-    armed = btn;
-  } else if (armed !== null) {
-    // 남은 무장을 풀어야 기본 동사가 나온다. 같은 버튼을 다시 누르면 풀린다.
-    hudTap(armed, '남은 무장 해제');
-    armed = null;
+    if (action.verb === 'move') unreachable(action, screen.spots[action.target]?.hold ? 'hold 자리는 move로 못 간다(기본 탭이 능력)' : '이미 그 자리에 있다');
+    if (action.verb !== abilityOf(char)) unreachable(action, '능력이 아닌 동사(손·보기·아이템·남의 능력)');
+    // 여기 오면 def는 move다: 대상은 hold가 아닌 서는 자리이고 내가 거기 없다.
+    const taken = Object.entries(layout.at).some(([c, at]) => c !== char && at === action.target);
+    if (taken) unreachable(action, '남이 선 자리');
+    climb = true;
   }
 
   // 3. 대상 점: 다른 대상에 가리지 않는 곳
@@ -163,11 +151,9 @@ export function planAction(screen: ScreenData, layout: Layout, action: Action, i
       ...Object.entries(layout.spots).filter(([id]) => id !== action.target).map(([, b]) => b),
       ...Object.entries(layout.hotspots).filter(([id]) => id !== action.target).map(([, b]) => b),
     ];
-    // 무장 중에는 캐릭터를 건너뛴다(3절). 무장 없으면 다른 캐릭터는 가리고, 내 몸은 hold일 때만 가린다(2절).
-    if (armed === null) {
-      for (const [id, b] of Object.entries(layout.chars) as [CharacterId, HitBox][]) {
-        if (id !== char || holdNow) blockers.push(b);
-      }
+    // 다른 캐릭터는 가리고, 내 몸은 hold일 때만 가린다(2절). 올라선 뒤에도 내 몸은 대상에서 빠지니(대상은 hold가 아님) 같은 점을 다시 누른다.
+    for (const [id, b] of Object.entries(layout.chars) as [CharacterId, HitBox][]) {
+      if (id !== char || holdNow) blockers.push(b);
     }
     const p = clearPoint(box, blockers);
     if (!p) {
@@ -177,11 +163,19 @@ export function planAction(screen: ScreenData, layout: Layout, action: Action, i
   }
 
   // 4. 터치는 step 행동이 되는 탭을 2번 (4절). 바닥(`free` 자리)에서 바닥 걷기만 1번(`interact.ts` floorIntent).
-  const fromFree = charAt === 'floor' || screen.spots[charAt]?.free === true;
-  const isStepTap = action.target !== 'floor' || !fromFree;
-  const times = input === 'touch' && isStepTap ? 2 : 1;
-  for (let i = 0; i < times; i++) {
-    taps.push({ id: action.target, at: point, why: times === 2 ? (i === 0 ? '선택(첫 탭)' : '실행(같은 대상 다시 탭)') : `${action.verb} 실행` });
+  //    올라서기(`move`)가 끼면 그 탭들 뒤 busy가 끝나길 기다린 다음 같은 점을 다시 누른다(재생 도구가 탭마다 기다린다).
+  const press = (verb: string) => {
+    const fromFree = charAt === 'floor' || screen.spots[charAt]?.free === true;
+    const isStepTap = action.target !== 'floor' || !fromFree;
+    const times = input === 'touch' && isStepTap ? 2 : 1;
+    for (let i = 0; i < times; i++) {
+      taps.push({ id: action.target, at: point, why: times === 2 ? `${verb} ${i === 0 ? '선택(첫 탭)' : '실행(같은 대상 다시 탭)'}` : `${verb} 실행` });
+    }
+  };
+  if (climb) {
+    press('move(올라섬)');
+    charAt = action.target;
   }
+  press(action.verb);
   return { taps, verbByDefault, warnings };
 }

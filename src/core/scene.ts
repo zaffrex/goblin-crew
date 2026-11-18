@@ -198,7 +198,7 @@ export function createScene(data: SceneData): SceneState {
   const s: SceneState = {
     tick: 0,
     puzzle,
-    ui: { active: CHARACTERS[0]!.id, armed: null, selected: null },
+    ui: { active: CHARACTERS[0]!.id, selected: null },
     walkers,
     queue: [],
     current: null,
@@ -402,7 +402,7 @@ export function gaugeBeforeSay(events: readonly PuzzleEvent[]): readonly PuzzleE
   return out;
 }
 
-function runAction(data: SceneData, s: SceneState, action: Action, to: Point | null): void {
+export function runAction(data: SceneData, s: SceneState, action: Action, to: Point | null): void {
   const before = s.puzzle.flags;
   const prev = s.puzzle;
   const r = step(data.screen, s.puzzle, action, data.characters);
@@ -673,8 +673,8 @@ export type SceneTapResult =
   | { kind: 'intent'; intent: Intent };
 
 /**
- * 탭 하나. busy 동안은 새 행동을 받지 않고, 월드 탭으로 하는 전환·무장도 받지 않는다(설계 5절).
- * - HUD 칸: busy 중에도 바로 전환·무장한다(예외 셋, #266). HUD 띠의 빈 곳은 무시.
+ * 탭 하나. busy 동안은 새 행동을 받지 않고, 월드 탭으로 하는 전환도 받지 않는다(설계 5절).
+ * - 얼굴 칸: busy 중에도 바로 전환한다(예외 셋, #266·6-4-2절). HUD 영역의 빈 곳은 무시.
  * - 자동 걷기 중: 걷기만 끝 위치로 건너뛴다. 남은 이벤트는 그대로 재생한다.
  * - 말풍선이 뜬 뒤 1.0초(`saySkipAfter`, 이미 본 글이면 0.4초 `seenSaySkipAfter`)가 지났으면: 그 말풍선만 끝낸다.
  */
@@ -687,10 +687,10 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
     return { kind: 'skipSay' };
   }
   if (s.cleared) return { kind: 'ignored' };
-  // 예외 셋(#266): busy 중에도 HUD 칸은 평소처럼 바로 받는다(전환·무장). 진행 중 이벤트·시간은 건드리지 않는다.
+  // 예외 셋(#266): busy 중에도 얼굴 칸은 평소처럼 바로 받는다(전환). 진행 중 이벤트·시간은 건드리지 않는다.
   // HUD 영역 안인데 칸이 아니거나(빈 띠) 맨 아래 게이지 띠면 무시한다(6-3-5절). 대사 넘기기는 월드 탭으로만 한다.
   if (isBusy(s)) {
-    if (hitTest(hudTargets(s.puzzle), p, slop)) {
+    if (hitTest(hudTargets(), p, slop)) {
       const r = tap(tapContext(data, s), s.ui, p, slop, touch);
       s.ui = r.ui;
       return { kind: 'intent', intent: r.intent };
@@ -746,7 +746,6 @@ export function currentCut(s: SceneState): string | null {
  */
 export interface SceneLayout {
   active: CharacterId;
-  armed: `verb.${'ability' | 'hand' | 'look'}` | 'item.0' | null;
   selected: string | null;
   busy: boolean;
   cleared: boolean;
@@ -774,11 +773,9 @@ export function sceneLayout(data: SceneData, s: SceneState): SceneLayout {
     if (box) hotspots[id] = box;
   }
   const hud: Record<string, HitBox> = {};
-  for (const t of hudTargets(s.puzzle)) hud[t.id] = t.box;
-  const a = s.ui.armed;
+  for (const t of hudTargets()) hud[t.id] = t.box;
   return {
     active: s.ui.active,
-    armed: a === null ? null : a.verb === 'item' ? 'item.0' : `verb.${a.verb}`,
     selected: s.ui.selected,
     busy: isBusy(s),
     cleared: s.cleared,

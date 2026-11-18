@@ -3,8 +3,8 @@ import screenJson from '../../content/screens/magpie_nest.json';
 import texts from '../../content/text/ja.json';
 import { characterDef, characterHitBox, CHARACTERS, type CharacterId } from './characters';
 import type { HitBox } from './hit';
-import { CHAR_SLOTS, HUD_AREA, ITEM_SLOT, VERB_SLOTS } from './hud';
-import { labelText, resolveTap, tap, worldTargets, type TapContext, type UiState } from './interact';
+import { CHAR_SLOTS, HUD_AREA } from './hud';
+import { hudTargets, labelText, resolveTap, tap, worldTargets, type TapContext, type UiState } from './interact';
 import { initialState } from './puzzle/step';
 import type { PuzzleState, ScreenData } from './puzzle/types';
 import { HUD_BOX } from './puzzle/validate';
@@ -29,7 +29,7 @@ function puzzleWith(at: Partial<PuzzleState['at']>, flags: Record<string, boolea
   return { ...p, at: { ...p.at, ...at }, flags: { ...p.flags, ...flags }, items };
 }
 
-const ui = (active: CharacterId, armed: UiState['armed'] = null): UiState => ({ active, armed, selected: null });
+const ui = (active: CharacterId): UiState => ({ active, selected: null });
 const center = (b: HitBox): Point => ({ x: b.left + b.width / 2, y: b.top + b.height / 2 });
 
 describe('기본 탭 동사 (설계 2절)', () => {
@@ -108,83 +108,75 @@ describe('기본 탭 동사 (설계 2절)', () => {
   });
 });
 
-describe('무장 (설계 3절)', () => {
-  it('무장하면 서는 자리에도 그 동사. 다른 사람이 선 시소 끝에도 쓴다(캐릭터 건너뛰기)', () => {
+describe('고르고 누르기만 (설계 6-4절, #311)', () => {
+  const seesaw = { x: 269, y: 208 };
+
+  it('화면 1 정답 3번: 오른쪽 끝 = 올라섬, 올라선 뒤 같은 끝 한 번 더 = 쿵(6-4-1절)', () => {
+    const before = resolveTap(ctxFor(puzzleWith({ jjuk: 'seesaw_left' })), ui('mukjik'), seesaw, 0);
+    expect(before).toMatchObject({ kind: 'act', action: { char: 'mukjik', verb: 'move', target: 'seesaw_right' }, label: { verb: 'climb' } });
+    const after = resolveTap(ctxFor(puzzleWith({ jjuk: 'seesaw_left', mukjik: 'seesaw_right' })), ui('mukjik'), seesaw, 0);
+    expect(after).toMatchObject({ kind: 'act', action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, label: { verb: 'stomp' } });
+  });
+
+  it('남이 선 끝: 몸을 누르면 전환, 몸 밖은 올라서기뿐(능력은 못 고른다, 6-4-4절)', () => {
     const ctx = ctxFor(puzzleWith({ jjuk: 'seesaw_left' }));
-    expect(resolveTap(ctx, ui('mukjik', { verb: 'ability' }), { x: 225, y: 205 }, 0)).toMatchObject({
-      kind: 'act',
-      action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' },
-    });
-    expect(resolveTap(ctx, ui('mukjik', { verb: 'hand' }), { x: 225, y: 205 }, 0)).toMatchObject({
-      action: { verb: 'hand', target: 'seesaw_left' },
-      label: { verb: 'hand', target: 'seesaw_left' },
-    });
-  });
-
-  it('무장 중 캐릭터 뒤에 아무것도 없으면 전환 + 무장 해제', () => {
-    const r = tap(ctxFor(puzzleWith({})), ui('jjuk', { verb: 'look' }), { x: 440, y: 230 }, 0, false);
-    expect(r.intent).toMatchObject({ kind: 'switch', char: 'ppik' });
-    expect(r.ui).toEqual({ active: 'ppik', armed: null, selected: null });
-  });
-
-  it('무장 중 바닥을 누르면 무장을 풀고 걷는다', () => {
-    const r = tap(ctxFor(puzzleWith({})), ui('jjuk', { verb: 'hand' }), { x: 300, y: 240 }, 0, false);
-    expect(r.intent.kind).toBe('walk');
-    expect(r.ui.armed).toBeNull();
-  });
-
-  it('실행하면 무장이 풀린다', () => {
-    const r = tap(ctxFor(puzzleWith({})), ui('jjuk', { verb: 'look' }), { x: 146, y: 42 }, 0, false);
-    expect(r.intent).toMatchObject({ kind: 'act', action: { verb: 'look', target: 'nest' } });
-    expect(r.ui.armed).toBeNull();
-  });
-});
-
-describe('HUD (설계 6절)', () => {
-  const ctx = ctxFor(puzzleWith({}));
-
-  it('캐릭터 칸 = 전환(무장 해제), 지금 캐릭터 칸 = 아무 일 없음', () => {
-    const r = tap(ctx, ui('jjuk', { verb: 'hand' }), center(CHAR_SLOTS.mukjik), 0, false);
-    expect(r.intent).toMatchObject({ kind: 'switch', char: 'mukjik' });
-    expect(r.ui.armed).toBeNull();
-    expect(resolveTap(ctx, ui('jjuk'), center(CHAR_SLOTS.jjuk), 0).kind).toBe('none');
-  });
-
-  it('동사 버튼: 누르면 무장, 같은 버튼 다시 = 해제, 다른 버튼 = 바꿈', () => {
-    let u = ui('jjuk');
-    u = tap(ctx, u, center(VERB_SLOTS.hand), 0, true).ui;
-    expect(u.armed).toEqual({ verb: 'hand' });
-    u = tap(ctx, u, center(VERB_SLOTS.look), 0, true).ui;
-    expect(u.armed).toEqual({ verb: 'look' });
-    u = tap(ctx, u, center(VERB_SLOTS.look), 0, true).ui;
-    expect(u.armed).toBeNull();
-  });
-
-  it('빈 아이템 칸·버튼 사이 틈은 아무 일 없음(바닥 걷기로 새지 않는다)', () => {
-    expect(resolveTap(ctx, ui('jjuk'), center(ITEM_SLOT), 0)).toEqual({ kind: 'none', label: null });
-    expect(resolveTap(ctx, ui('jjuk'), { x: 330, y: 20 }, 0)).toEqual({ kind: 'none', label: null });
-  });
-
-  it('아이템이 있으면 아이템 칸 = item 무장, 대상에 item 행동', () => {
-    const c = ctxFor(puzzleWith({}, {}, ['item.shop_key']));
-    const u = tap(c, ui('jjuk'), center(ITEM_SLOT), 0, false).ui;
-    expect(u.armed).toEqual({ verb: 'item', item: 'item.shop_key' });
-    expect(resolveTap(c, u, { x: 160, y: 224 }, 0)).toMatchObject({
-      action: { char: 'jjuk', verb: 'item', target: 'basket', item: 'item.shop_key' },
-      label: { verb: 'item', item: 'item.shop_key' },
-    });
-  });
-
-  it('버튼 아래 이름표 띠(y 65–75)를 눌러도 걷지 않는다(설계 6-1-4절, #255)', () => {
-    const c = ctxFor(puzzleWith({}));
-    for (const y of [65, 70, 75]) {
-      const r = resolveTap(c, ui('jjuk'), { x: VERB_SLOTS.hand.left + 14, y }, 0);
-      expect(r.kind).toBe('none');
+    expect(resolveTap(ctx, ui('mukjik'), { x: 225, y: 205 }, 0)).toMatchObject({ kind: 'switch', char: 'jjuk' });
+    for (let x = 200; x < 250; x += 3) {
+      const r = resolveTap(ctx, ui('mukjik'), { x, y: 208 }, 0);
+      if (r.kind === 'act' && r.action.target === 'seesaw_left') expect(r.action.verb).toBe('move');
     }
   });
 
-  it('HUD 영역은 validate.ts의 HUD_BOX와 같다', () => {
-    expect([HUD_AREA.left, HUD_AREA.top, HUD_AREA.width, HUD_AREA.height]).toEqual([...HUD_BOX]);
+  it('UI로는 hand·look·item 행동이 나오지 않는다(화면 전체 점, 세 캐릭터, 여러 상태)', () => {
+    const states = [
+      puzzleWith({}),
+      puzzleWith({ jjuk: 'seesaw_left' }),
+      puzzleWith({ jjuk: 'hook' }, {}, ['item.shop_key']),
+      puzzleWith({}, { 'magpie.on_ground': true }),
+    ];
+    for (const p of states) {
+      for (const c of CHARACTERS) {
+        for (let x = 0; x < 480; x += 6) {
+          for (let y = 0; y < 270; y += 6) {
+            const r = resolveTap(ctxFor(p), ui(c.id), { x, y }, 8);
+            if (r.kind === 'act') expect(['move', c.ability]).toContain(r.action.verb);
+          }
+        }
+      }
+    }
+  });
+});
+
+describe('HUD (설계 6-4-2절)', () => {
+  const ctx = ctxFor(puzzleWith({}));
+
+  it('얼굴 칸 = 전환(선택 풀림), 지금 캐릭터 칸 = 아무 일 없음', () => {
+    const r = tap(ctx, { active: 'jjuk', selected: 'jjuk|move|seesaw_left|' }, center(CHAR_SLOTS.mukjik), 0, false);
+    expect(r.intent).toMatchObject({ kind: 'switch', char: 'mukjik' });
+    expect(r.ui).toEqual({ active: 'mukjik', selected: null });
+    expect(resolveTap(ctx, ui('jjuk'), center(CHAR_SLOTS.jjuk), 0).kind).toBe('none');
+  });
+
+  it('HUD 대상은 얼굴 3칸뿐(아이템 칸은 M2)', () => {
+    expect(hudTargets().map((t) => t.id)).toEqual(['char.jjuk', 'char.mukjik', 'char.ppik']);
+  });
+
+  it('칸 사이 틈·얼굴 아래 이름표 띠(y 36–47)를 눌러도 걷지 않는다', () => {
+    for (const p of [{ x: 330, y: 20 }, { x: 314, y: 36 }, { x: 346, y: 42 }, { x: 378, y: 47 }]) {
+      expect(resolveTap(ctx, ui('jjuk'), p, 0)).toEqual({ kind: 'none', label: null });
+    }
+  });
+
+  it('옛 버튼 자리(y 48–76)와 오른쪽(x 392–)은 이제 하늘이라 바닥 걷기', () => {
+    for (const p of [{ x: 314, y: 50 }, { x: 418, y: 50 }, { x: 440, y: 20 }]) expect(resolveTap(ctx, ui('jjuk'), p, 0).kind).toBe('walk');
+  });
+
+  it('HUD 영역은 validate.ts의 HUD_BOX 안에 있다(HUD_BOX는 코어라 넓게 둔다, 6-4-2절)', () => {
+    const [hx, hy, hw, hh] = HUD_BOX;
+    expect(HUD_AREA.left).toBeGreaterThanOrEqual(hx);
+    expect(HUD_AREA.top).toBeGreaterThanOrEqual(hy);
+    expect(HUD_AREA.left + HUD_AREA.width).toBeLessThanOrEqual(hx + hw);
+    expect(HUD_AREA.top + HUD_AREA.height).toBeLessThanOrEqual(hy + hh);
   });
 });
 
@@ -210,11 +202,14 @@ describe('터치 탭 2번 (설계 4절)', () => {
     expect(c.ui.selected).toBeNull();
   });
 
-  it('선택 뒤 무장하면 같은 자리라도 다른 행동이라 다시 선택부터', () => {
+  it('올라선 뒤 같은 끝은 다른 행동(쿵)이라 다시 선택부터: 정답 3번은 터치 4번(6-4-1절)', () => {
     const a = tap(ctx, ui('mukjik'), seesaw, 8, true);
-    const b = tap(ctx, a.ui, center(VERB_SLOTS.ability), 8, true);
-    expect(b.ui.selected).toBeNull();
-    expect(tap(ctx, b.ui, seesaw, 8, true).intent).toMatchObject({ kind: 'select', label: { verb: 'stomp' } });
+    const b = tap(ctx, a.ui, seesaw, 8, true);
+    expect(b.intent).toMatchObject({ kind: 'act', action: { verb: 'move' } });
+    const on = ctxFor(puzzleWith({ mukjik: 'seesaw_right' }));
+    const c = tap(on, b.ui, seesaw, 8, true);
+    expect(c.intent).toMatchObject({ kind: 'select', label: { verb: 'stomp' } });
+    expect(tap(on, c.ui, seesaw, 8, true).intent).toMatchObject({ kind: 'act', action: { verb: 'stomp', target: 'seesaw_right' } });
   });
 
   it('매달린 캐릭터의 손 놓기는 터치에서 2번, 전환·걷기는 1번', () => {
@@ -238,10 +233,8 @@ describe('원칙 1: 규칙 데이터를 읽지 않는다', () => {
     const points: Point[] = [];
     for (let x = 0; x < 480; x += 7) for (let y = 0; y < 270; y += 7) points.push({ x, y });
     for (const c of CHARACTERS) {
-      for (const armed of [null, { verb: 'ability' as const }, { verb: 'item' as const, item: 'item.shop_key' }]) {
-        for (const pt of points) {
-          expect(resolveTap(ctxFor(p, guarded), ui(c.id, armed), pt, 8)).toEqual(resolveTap(ctxFor(p), ui(c.id, armed), pt, 8));
-        }
+      for (const pt of points) {
+        expect(resolveTap(ctxFor(p, guarded), ui(c.id), pt, 8)).toEqual(resolveTap(ctxFor(p), ui(c.id), pt, 8));
       }
     }
   });

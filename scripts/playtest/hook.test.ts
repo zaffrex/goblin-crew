@@ -27,11 +27,12 @@ function replay(input: Input): { s: SceneState; results: string[] } {
     const layout: Layout = sceneLayout(data, s);
     const plan = planAction(data.screen, layout, action, input);
     expect(plan.warnings, JSON.stringify(action)).toEqual([]);
+    // 재생 도구는 탭마다 busy가 끝나길 기다린다(replay.ts waitIdle). 정답 3번은 올라선 뒤 다시 누른다(6-4-7절 3).
     for (const t of plan.taps) {
       const r = sceneTap(data, s, t.at, input === 'touch' ? 8 : 0, input === 'touch');
       results.push(r.kind === 'intent' ? r.intent.kind : r.kind);
+      idle(s);
     }
-    idle(s);
   }
   return { s, results };
 }
@@ -44,7 +45,7 @@ describe('화면 1 정답: 훅 배치 → plan → 실제 sceneTap → 연출 �
       expect(sceneLayout(data, s).cleared).toBe(true);
       expect(s.shownGauge).toBe(5);
       expect(results).not.toContain('ignored');
-      expect(results.filter((k) => k === 'act')).toHaveLength(4);
+      expect(results.filter((k) => k === 'act')).toHaveLength(5); // 정답 4 + 3번 올라섬 1(6-4-7절)
     });
   }
 
