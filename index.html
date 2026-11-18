@@ -27,9 +27,10 @@
       #bubble {
         width: max-content; box-sizing: border-box;
         font: 600 16px/1.35 system-ui, sans-serif; color: #1d1d1d;
-        background: #fffdf5; border: 2px solid #1d1d1d; border-radius: 10px; padding: 6px 10px;
+        background: #fffdf5; border: 2px solid #1d1d1d; border-radius: 0.625em; padding: 0.375em 0.625em;
       }
-      /* 꼬리: 45° 돌린 10px 네모의 두 변. 밀려도 화자를 가리킨다. 모양은 임시(Luna 규격 전, #329). */
+      /* 글자 크기는 main.ts가 배율에 맞춰 정한다(내부 9px × 배율, 최소 16). 여백·모서리는 em이라 같이 커지고 테두리는 2px 고정.
+         꼬리: 45° 돌린 10px 네모의 두 변. 밀려도 화자를 가리킨다. 글자가 커져도 10px 고정(gap 9 계산 유지, 6-5절). */
       #bubble::after {
         content: ""; position: absolute; left: var(--tail-x, 50%); bottom: -7px;
         width: 10px; height: 10px; margin-left: -7px; box-sizing: border-box; background: #fffdf5;
