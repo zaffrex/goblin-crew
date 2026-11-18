@@ -5,8 +5,8 @@
 // 읽으면 커서가 답을 알려 주게 된다(ADR-0018 F3). interact.test.ts가 이것을 검사한다.
 
 import { characterDef, CHARACTERS, type CharacterId } from './characters';
-import { hitTest, inBox, type HitBox, type HitTarget } from './hit';
-import { CHAR_SLOTS, HUD_AREA, ITEM_SLOT, VERB_BUTTONS, VERB_SLOTS, type HudId, type VerbButton } from './hud';
+import { hitTest, type HitBox, type HitTarget } from './hit';
+import { CHAR_SLOTS, inHudZone, ITEM_SLOT, VERB_BUTTONS, VERB_SLOTS, type HudId, type VerbButton } from './hud';
 import { FLOOR, type Action, type Box, type PuzzleState, type ScreenData, type Verb } from './puzzle/types';
 import type { Point } from './viewport';
 
@@ -182,7 +182,7 @@ export function resolveTap(ctx: TapContext, ui: UiState, p: Point, slop: number)
     const armed: Armed = { verb: hud.id.slice('verb.'.length) as VerbButton };
     return { kind: 'arm', armed: sameArmed(ui.armed, armed) ? null : armed };
   }
-  if (inBox(p, HUD_AREA)) return { kind: 'none', label: null };
+  if (inHudZone(p)) return { kind: 'none', label: null };
 
   // 2. 월드. 무장 중이면 캐릭터를 건너뛰고, 뒤에 아무것도 없을 때만 캐릭터를 본다.
   const hit = hitTest(worldTargets(ctx, ui, ui.armed === null), p, slop);

@@ -1,4 +1,4 @@
-# 사장님 가이드
+# 진마씨 가이드
 
 ## 지켜보기
 - **Slack**: `#goblin-dev`에서 작업 보고와 기술 토론을, `#goblin-meeting`에서 회의를, `#goblin-decisions`에서 결정 로그를, `#goblin-ceo`에서 주간 리포트와 결정 요청을 볼 수 있습니다. `#goblin-github`에는 GitHub 이벤트가 올라옵니다.
@@ -7,9 +7,9 @@
 - **Actions 탭**: 에이전트가 실행될 때마다 `agent` 워크플로 실행 기록이 남습니다.
 
 ## 개입하기
-- Slack 아무 채널에나 글을 쓰시면 됩니다. 에이전트는 실행할 때마다 Slack을 읽고, 사장님 글에 최우선으로 답합니다. 멘션이나 DM이 없으면 최대 약 1시간 걸립니다.
+- Slack 아무 채널에나 글을 쓰시면 됩니다. 에이전트는 실행할 때마다 Slack을 읽고, 진마씨 글에 최우선으로 답합니다. 멘션이나 DM이 없으면 최대 약 1시간 걸립니다.
 - 특정 멤버를 부르려면 `@Noah`처럼 멘션하거나, 그 멤버 앱에 DM을 보내세요. 2~4분 안에 답합니다(`slack-listener` 워크플로). 멘션 없이 채널에 쓰면 PM이, 멤버 글에 스레드로 답하면 그 글쓴이가 답합니다.
-- 결정은 모두 `docs/decisions/`(가벼운 결정, 사장님 결정)와 `docs/adr/`(제품에 영향을 주는 결정)에 문서로 남습니다.
+- 결정은 모두 `docs/decisions/`(가벼운 결정, 진마씨 결정)와 `docs/adr/`(제품에 영향을 주는 결정)에 문서로 남습니다.
 - 바로 반응이 필요하면 GitHub 이슈나 PR에 코멘트를 다세요. PM이 즉시 깨어납니다. 특정 역할을 부르려면 `[[designer]]`처럼 씁니다.
 - L3 결정 요청은 `#goblin-ceo`와 `ceo-decision` 라벨 이슈로 옵니다. 이슈에 답을 코멘트로 달아 주시면 됩니다.
 
@@ -21,5 +21,5 @@
 - **수동 실행**: `gh workflow run agent.yml -R zaffrex/goblin-crew -f role=pm -f mode=tick`
 
 ## 비용
-- Claude 사용량은 사장님 구독에서 차감됩니다 (`CLAUDE_CODE_OAUTH_TOKEN`). 한도에 닿으면 실행이 실패하고, 인프라가 `#goblin-dev`에 알립니다.
+- Claude 사용량은 진마씨 구독에서 차감됩니다 (`CLAUDE_CODE_OAUTH_TOKEN`). 한도에 닿으면 실행이 실패하고, 인프라가 `#goblin-dev`에 알립니다.
 - GitHub Actions는 public 저장소라 무료입니다.

@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { WALK_AREA } from '../../src/core/config';
 import { textFits, validateCharacters, validateScreen, validateTexts, type ValidationResult } from '../../src/core/puzzle/validate';
 
 // 화면 1을 기준으로 한 군데씩 망가뜨려 그 검사만 걸리는지 본다.
@@ -99,7 +100,9 @@ describe('validateScreen', () => {
     expect(codes(mutate((s) => (s.spots.hook.releasePoint = [160, 300])))).toEqual(['point-offscreen']);
     expect(codes(mutate((s) => (s.spots.hook.releasePoint = [160, 150])))).toEqual(['release-point-area']);
     expect(codes(mutate((s) => (s.spots.hook.releasePoint = [8, 235])))).toEqual(['release-point-area']);
-    expect(mutate((s) => (s.spots.hook.releasePoint = [16, 258])).errors).toEqual([]);
+    // 경계(왼쪽 아래 모서리)는 안이다. 아래끝은 게이지 띠(#312) 때문에 252이고, 그 1px 아래는 밖이다.
+    expect(mutate((s) => (s.spots.hook.releasePoint = [WALK_AREA.left, WALK_AREA.bottom])).errors).toEqual([]);
+    expect(codes(mutate((s) => (s.spots.hook.releasePoint = [WALK_AREA.left, WALK_AREA.bottom + 1])))).toEqual(['release-point-area']);
   });
 
   it('forbids move rules on hold spots: the UI never makes that action (#108, #115)', () => {

@@ -109,7 +109,7 @@ flush() {
   done
 }
 
-author_label() { if [ "$1" = ceo ]; then echo "사장님"; else field "$1" slack_username; fi; }
+author_label() { if [ "$1" = ceo ]; then echo "진마씨"; else field "$1" slack_username; fi; }
 
 process() { # process <channel-id> <message-json> <thread-parent-user>
   local ch="$1" m="$2" parent_user="$3"
