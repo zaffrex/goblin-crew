@@ -1,3 +1,5 @@
+> 결정 3(동사 버튼 무장)은 대체됨: [2026-11-18-one-click-interaction-bottom-gauge.md](2026-11-18-one-click-interaction-bottom-gauge.md). 결정 1(기본 탭 규칙)은 그대로 쓴다.
+
 # 결정: 기본 탭 동사는 "서는 자리 = 올라서기, 그 밖 = 자기 능력", 나머지 동사는 HUD 버튼으로 무장
 
 - 레벨: L1
