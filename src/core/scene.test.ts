@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import charactersJson from '../../content/characters.json';
 import screenJson from '../../content/screens/magpie_nest.json';
+import jaJson from '../../content/text/ja.json';
 import jjukJson from '../../public/sprites/jjuk-base.json';
 import mukjikJson from '../../public/sprites/mukjik-base.json';
 import ppikJson from '../../public/sprites/ppik-base.json';
@@ -10,7 +11,7 @@ import { worldTargets } from './interact';
 import { seenSayKey } from './sayText';
 import { parseSpriteMeta, spriteBox, spriteFrame } from './sprite';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { activeFx, activeMarkerVisible, approachPoint, bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, gaugeBeforeSay, gaugeDrop, isBusy, runAction, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
+import { activeFx, activeMarkerVisible, sayChars, sayDuration, approachPoint, bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, gaugeBeforeSay, gaugeDrop, isBusy, runAction, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
 import type { Point } from './viewport';
 
 const data: SceneData = { screen: screenJson as unknown as ScreenData, characters: charactersJson as CharactersData };
@@ -122,6 +123,55 @@ describe('busy 중 입력 (설계 5절)', () => {
     expect(TIMING.saySkipAfter).toBe(60);
     expect(TIMING.saySkipAfter).toBeLessThanOrEqual(TIMING.sayBase);
     expect(TIMING.clearSkipAfter).toBe(24);
+  });
+
+  describe('말풍선 길이는 화면 글 글자 수로 잰다(#304 3번)', () => {
+    const texts: Record<string, string> = { 'a.line': '取った\u200bで！', 'a.line.jjuk': 'お、ハイタッチ？\u200b…ちゃうんかい！', 'b.surrogate': '𠮷野家' };
+
+    it('줄바꿈 자리(U+200B·\\n)는 안 세고, 글자는 코드 포인트로 센다', () => {
+      expect(sayChars('取った\u200bで！')).toBe(5);
+      expect(sayChars('一\n二')).toBe(2);
+      expect(sayChars('𠮷野家')).toBe(3);
+    });
+
+    it('글 ID가 아니라 화자에 맞는 화면 글 길이로 잰다', () => {
+      const d = { texts };
+      expect(sayDuration(d, 'mukjik', 'a.line')).toBe(TIMING.sayBase + TIMING.sayPerChar * 5);
+      expect(sayDuration(d, 'jjuk', 'a.line')).toBe(TIMING.sayBase + TIMING.sayPerChar * 16);
+      // 같은 ID라도 화자 변형이 길면 더 오래 뜬다.
+      expect(sayDuration(d, 'jjuk', 'a.line')).toBeGreaterThan(sayDuration(d, 'ppik', 'a.line'));
+    });
+
+    it('상한(sayMax)을 넘지 않고, 글이 없으면 ID 길이로 잰다(옛 동작)', () => {
+      expect(sayDuration({ texts: { long: 'あ'.repeat(100) } }, 'jjuk', 'long')).toBe(TIMING.sayMax);
+      expect(sayDuration({}, 'jjuk', 'abc')).toBe(TIMING.sayBase + TIMING.sayPerChar * 3);
+      expect(sayDuration({ texts }, 'jjuk', 'no.such')).toBe(TIMING.sayBase + TIMING.sayPerChar * 'no.such'.length);
+    });
+
+    it('말풍선 최대 28자(ja-text.md 2절, 14자 × 2줄)는 상한에 잘리지 않는다', () => {
+      const max = sayDuration({ texts: { full: 'あ'.repeat(14) + '\u200b' + 'い'.repeat(14) } }, 'jjuk', 'full');
+      expect(max).toBe(TIMING.sayBase + TIMING.sayPerChar * 28);
+      expect(max).toBeLessThanOrEqual(TIMING.sayMax);
+    });
+
+    it('ja.json 대사는 모두 1.0초 넘김 가드보다 길고, 상한에 걸리지 않는다', () => {
+      const ja = jaJson as Record<string, string>;
+      for (const [id, text] of Object.entries(ja)) {
+        if (id.startsWith('ui.')) continue;
+        const ticks = sayDuration({ texts: ja }, 'jjuk', id);
+        expect(ticks, `${id}: ${text}`).toBeGreaterThan(TIMING.saySkipAfter);
+        expect(ticks, `${id}: ${text}`).toBeLessThan(TIMING.sayMax);
+      }
+    });
+
+    it('씬에 글을 넘기면 실제로 뜬 말풍선이 그 길이만큼 떠 있다', () => {
+      const d: SceneData = { ...data, texts: jaJson as Record<string, string> };
+      const s = createScene(d);
+      while (!currentBubble(s)) sceneTick(d, s);
+      const b = currentBubble(s)!;
+      expect(s.current!.duration).toBe(sayDuration(d, b.speaker, b.text));
+      expect(s.current!.duration).not.toBe(sayDuration({}, b.speaker, b.text));
+    });
   });
 
   /** 둥지를 계속 눌러 같은 글이 다시 뜰 때까지 돌린다. 매번 끝까지 띄운다(idle). 처음 본 글은 0.4초에 아직 안 넘어가는지도 본다. */
