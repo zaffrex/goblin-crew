@@ -18,7 +18,7 @@ DOS 시절 협동 퍼즐 어드벤처(Gobliiins류)의 **장르와 메커닉에�
 |---|---|---|---|
 | 진마씨(사람) | — | — | 아주 중대한 결정만 (L3) |
 | PM | Noah | `.claude/agents/pm.md` | 우선순위, 백로그, 회의 진행, 결정 기록, 진마씨 보고 |
-| 디자이너 | Luna | `.claude/agents/designer.md` | 게임 디자인(퍼즐/레벨), 아트 디렉션, UI/UX |
+| 디자이너 | Luna | `.claude/agents/designer.md` | 게임 디자인(퍼즐/레벨), 아트 디렉션, UI/UX, 일본어 대사 작가·감수 |
 | 프론트엔드 | Theo | `.claude/agents/frontend.md` | 게임 엔진/렌더링/입력/UI 구현 |
 | 백엔드 | Ben | `.claude/agents/backend.md` | 세이브, 계정, 리더보드, API, 데이터 |
 | 인프라 | Sam | `.claude/agents/infra.md` | CI/CD, 배포, 모니터링, 보안, 비용 |
