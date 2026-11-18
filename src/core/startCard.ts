@@ -62,6 +62,19 @@ export function cardFacePx(scale: number, dpr = 1): number {
   return (CARD_FACE_PX * k) / d;
 }
 
+/** 특기 줄 사이 간격(em). 줄 높이가 얼굴과 같으면 얼굴끼리 위아래가 붙는다(#342, 6-2-1절). */
+export const CARD_ROW_GAP_EM = 0.15;
+
+/**
+ * 특기 줄 사이 간격 CSS px = 0.15em을 **장치 px 정수로 반올림**(최소 1)한 값.
+ * 그냥 0.15em이면 13px @2에서 장치 3.9px라 아래 두 얼굴이 장치 px 경계를 벗어나 줄 굵기가 들쭉날쭉해진다(#310 원칙).
+ * 13px @2·@3 → 2, 32px @1 → 5.
+ */
+export function cardRowGapPx(fontPx: number, dpr = 1): number {
+  const d = dpr > 0 ? dpr : 1;
+  return Math.max(1, Math.round(CARD_ROW_GAP_EM * fontPx * d)) / d;
+}
+
 export interface CardRow {
   id: CharacterId;
   name: string;

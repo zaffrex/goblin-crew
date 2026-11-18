@@ -75,6 +75,8 @@
       #card ul { list-style: none; margin: 0.4em 0; padding: 0; }
       /* 특기 줄·게이지 줄은 자동 줄바꿈 금지(낱말 중간 `高い所 / に届く` 방지, #335). 줄바꿈은 작가가 정한 곳만(6-5절 원칙). */
       #card li { display: flex; align-items: center; gap: 0.6em; white-space: nowrap; }
+      /* 특기 줄 사이 틈(#342): 줄 높이 = 얼굴 크기라 틈이 0이면 얼굴 셋이 한 덩어리로 붙는다. 값은 main.ts가 0.15em을 장치 px로 반올림해 넣는다. */
+      #card li + li { margin-top: var(--row-gap, 0.15em); }
       #card .gauge { white-space: nowrap; }
       #card canvas { flex: none; width: 48px; height: 48px; image-rendering: pixelated; }
       #card .name { flex: none; min-width: 4.5em; font-weight: 700; }
