@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { CharactersData, ScreenData } from '../../src/core/puzzle/types';
 import { createScene, currentBubble, currentCut, isBusy, sceneLayout, sceneTap, sceneTick, type SceneData, type SceneState } from '../../src/core/scene';
+import { sayTextVariants } from '../../src/core/sayText';
 import { planAction, type Input } from './plan';
 import { checkStep, scenarios, selectedTarget, slopProbes } from './scenarios';
 
@@ -13,7 +14,7 @@ const data: SceneData = {
   screen: load('content/screens/magpie_nest.json') as ScreenData,
   characters: load('content/characters.json') as CharactersData,
 };
-const id = (s: string) => s;
+const id = (s: string) => [s];
 
 /**
  * 재생으로 찾은 알려진 버그 목록. 비어 있어야 정상이다(#129 수정으로 비움).
@@ -74,5 +75,27 @@ describe('M1 판정 시나리오 (scene.ts 직접, Chrome 없음)', () => {
       sceneTap(data, s, p.at, 8, true);
       expect(selectedTarget(sceneLayout(data, s).selected), p.label).toBe(p.selects ? p.target : null);
     }
+  });
+});
+
+describe('checkStep 말풍선 글 대조 (#304)', () => {
+  const TEXT = load('content/text/ja.json') as Record<string, string>;
+  const variants = (k: string) => sayTextVariants(TEXT, k);
+  const step = (says: string[]) => ({
+    action: { char: 'mukjik', verb: 'look', target: 'nest' },
+    check: 'A1',
+    label: 'みる 둥지',
+    expect: { says },
+  }) as unknown as Parameters<typeof checkStep>[1];
+  const layout = () => sceneLayout(data, createScene(data));
+
+  it('화자별 변형 글(묵직이 みる 둥지)이 뜨면 그 줄이 뜬 것으로 친다', () => {
+    const said = [TEXT['magpie_nest.look.nest.mukjik']!];
+    expect(checkStep(data.screen, step(['magpie_nest.look.nest']), layout(), said, variants)).toEqual([]);
+  });
+
+  it('다른 글이 뜨면 여전히 안 뜬 것으로 잡는다', () => {
+    const said = [TEXT['magpie_nest.enter'] ?? 'magpie_nest.enter'];
+    expect(checkStep(data.screen, step(['magpie_nest.look.nest']), layout(), said, variants)).toHaveLength(1);
   });
 });

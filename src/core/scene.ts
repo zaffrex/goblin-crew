@@ -12,6 +12,7 @@ import { HUD_AREA } from './hud';
 import { hotspotBox, hudTargets, tap, type Intent, type TapContext, type UiState } from './interact';
 import { animOf, animTicks, type SceneAnim, type SceneArtMeta } from './sceneArt';
 import { FX_TICKS, fxTicks } from './fx';
+import { seenSayKey } from './sayText';
 import { cueMs, spriteFacing, spriteFrame, spriteHit, type Pose, type SpriteMeta } from './sprite';
 import { approachFor, initialState, step } from './puzzle/step';
 import { GAUGE_MAX, type Action, type CharactersData, type PuzzleEvent, type PuzzleState, type ScreenData, type StepSource, type Verb } from './puzzle/types';
@@ -138,7 +139,8 @@ export interface SceneState {
   /** 캐릭터가 마지막으로 한 행동의 대상 점(핫스팟 `reachPoint`, 없으면 대상 상자 아래 끝 가운데, #284). 장대 잇기(5-1절)가 쓴다. 상자도 없으면 키가 없다. */
   reach: Partial<Record<CharacterId, Point>>;
   /**
-   * 끝까지 띄운 말풍선 글 ID(#284, `ability-feedback.md` 6절). 여기 있으면 `seenSaySkipAfter` 뒤에 넘길 수 있다.
+   * 끝까지 띄운 말풍선(#284, `ability-feedback.md` 6절). 키는 `seenSayKey(화자, 글 ID)`(#304: 화자별 변형 글은 따로 센다).
+   * 여기 있으면 `seenSaySkipAfter` 뒤에 넘길 수 있다.
    * 넘기기는 `saySkipAfter` 뒤에만 되니 "끝까지 띄움 = 적어도 1.0초 보임"이다. UI 상태라 세이브하지 않고, 게이지 0 리셋에서도 지우지 않는다.
    */
   seenSay: Record<string, true>;
@@ -656,7 +658,7 @@ export function sceneTick(data: SceneData, s: SceneState): void {
     if (!finished(s, s.current)) return;
     if (s.current.ev.type === 'faint') s.shownGauge = GAUGE_MAX;
     if (s.current.ev.type === 'walk' && s.current.ev.face !== undefined) s.walkers[s.current.ev.char].facing = s.current.ev.face;
-    if (s.current.ev.type === 'say') s.seenSay[s.current.ev.text] = true;
+    if (s.current.ev.type === 'say') s.seenSay[seenSayKey(s.current.ev.speaker, s.current.ev.text)] = true;
     holdLast(s, s.current);
     commitShown(s, s.current.seq, 'end');
     s.current = null;
@@ -701,7 +703,7 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
       if (w.target) teleport(w, w.target);
       return { kind: 'skipWalk' };
     }
-    if (cur.ev.type === 'say' && cur.t >= (s.seenSay[cur.ev.text] ? TIMING.seenSaySkipAfter : TIMING.saySkipAfter)) {
+    if (cur.ev.type === 'say' && cur.t >= (s.seenSay[seenSayKey(cur.ev.speaker, cur.ev.text)] ? TIMING.seenSaySkipAfter : TIMING.saySkipAfter)) {
       cur.duration = cur.t;
       return { kind: 'skipSay' };
     }

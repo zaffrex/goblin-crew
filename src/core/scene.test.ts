@@ -7,6 +7,7 @@ import ppikJson from '../../public/sprites/ppik-base.json';
 import { hitTest, type HitBox } from './hit';
 import { CHAR_SLOTS, GAUGE_BOX, HUD_AREA, VERB_SLOTS } from './hud';
 import { worldTargets } from './interact';
+import { seenSayKey } from './sayText';
 import { parseSpriteMeta, spriteBox, spriteFrame } from './sprite';
 import type { CharactersData, ScreenData } from './puzzle/types';
 import { activeFx, activeMarkerVisible, approachPoint, bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, gaugeBeforeSay, gaugeDrop, isBusy, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
@@ -45,6 +46,13 @@ function untilSay(s: SceneState): string {
     sceneTick(data, s);
   }
   throw new Error('말풍선이 안 떴다');
+}
+
+/** 지금 뜬 말풍선의 본 대사 표 키(화자 + 글 ID, #304). */
+function bubbleKey(s: SceneState): string {
+  const b = currentBubble(s);
+  if (!b) throw new Error('말풍선 없음');
+  return seenSayKey(b.speaker, b.text);
 }
 
 function sayTexts(s: SceneState): string[] {
@@ -121,7 +129,8 @@ describe('busy 중 입력 (설계 5절)', () => {
     const seen = new Set<string>();
     for (let n = 0; n < 10; n++) {
       sceneTap(data, s, NEST, 0, false);
-      const text = untilSay(s);
+      untilSay(s);
+      const text = bubbleKey(s);
       if (seen.has(text)) return text;
       for (let i = 0; i < TIMING.seenSaySkipAfter; i++) sceneTick(data, s);
       // 처음 보는 글(변형 `*_again` 포함)은 다른 글 ID라 1.0초 규칙이다.
@@ -147,7 +156,8 @@ describe('busy 중 입력 (설계 5절)', () => {
   it('탭으로 넘긴 말풍선도 본 것으로 친다(넘기기는 1.0초 뒤에만 되니 적어도 1.0초 보였다)', () => {
     const s = ready();
     sceneTap(data, s, NEST, 0, false);
-    const text = untilSay(s);
+    untilSay(s);
+    const text = bubbleKey(s);
     expect(s.seenSay[text]).toBeUndefined();
     for (let i = 0; i < TIMING.saySkipAfter; i++) sceneTick(data, s);
     expect(sceneTap(data, s, NEST, 0, false).kind).toBe('skipSay');
@@ -155,7 +165,20 @@ describe('busy 중 입력 (설계 5절)', () => {
     expect(s.seenSay[text]).toBe(true);
   });
 
-  it('새 판(createScene)은 본 대사가 비어 있다', () => {
+  it('같은 글 ID라도 다른 화자가 본 줄이면 처음 보는 대사다(화자별 변형 글, #304)', () => {
+    const s = ready();
+    sceneTap(data, s, NEST, 0, false);
+    untilSay(s);
+    const b = currentBubble(s)!;
+    const other = b.speaker === 'ppik' ? 'jjuk' : 'ppik';
+    s.seenSay[seenSayKey(other, b.text)] = true;
+    for (let i = 0; i < TIMING.seenSaySkipAfter; i++) sceneTick(data, s);
+    expect(sceneTap(data, s, NEST, 0, false).kind).toBe('ignored');
+    s.seenSay[seenSayKey(b.speaker, b.text)] = true;
+    expect(sceneTap(data, s, NEST, 0, false).kind).toBe('skipSay');
+  });
+
+    it('새 판(createScene)은 본 대사가 비어 있다', () => {
     expect(createScene(data).seenSay).toEqual({});
   });
 

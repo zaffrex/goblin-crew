@@ -12,6 +12,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import type { ScreenData } from '../../src/core/puzzle/types.ts';
+import { sayTextVariants } from '../../src/core/sayText.ts';
 import { CARD_TAP, closeStartCard } from './card.ts';
 import { Browser, sleep, type ConsoleError, type Page } from './cdp.ts';
 import { internalToPage, type Rect } from './coords.ts';
@@ -29,7 +30,7 @@ const { values: args } = parseArgs({
 
 const screen = JSON.parse(readFileSync('content/screens/magpie_nest.json', 'utf8')) as ScreenData;
 const TEXT = JSON.parse(readFileSync('content/text/ja.json', 'utf8')) as Record<string, string>;
-const text = (id: string): string => TEXT[id] ?? id;
+const textVariants = (id: string): string[] => sayTextVariants(TEXT, id);
 
 /**
  * 관찰 전용: 말풍선 `#bubble`과 게이지 0 컷 `#faint`(#129)에 뜬 글을 차례로 적는다. 숨겨졌다가 같은 글이 다시 뜨면 다시 적는다.
@@ -183,7 +184,7 @@ async function runScenarios(browser: Browser, v: Viewport, outDir: string, error
           const after = await layoutOf(page);
           r.said = (await page.evaluate<string[]>('window.__ptSaid')).slice(from);
           r.gauge = after.gauge;
-          r.problems.push(...checkStep(screen, step, after, r.said, text));
+          r.problems.push(...checkStep(screen, step, after, r.said, textVariants));
           await shot('');
         } catch (e) {
           r.problems.push(`재생 중단: ${(e as Error).message}`);
