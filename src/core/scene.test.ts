@@ -588,7 +588,7 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
     expect(at(s, 'ppik')).toEqual(BASKET);
   });
 
-  it('#176: 고리 아닌 곳(시소 끝)에서 기절하면 지금처럼 그 x의 바닥 y에 선다', () => {
+  it('#176: 고리 아닌 곳(시소 끝)에서 기절하면 바구니가 아니라 행동하러 걸어간 점에 선다', () => {
     const s = ready();
     pick(s, 'ppik');
     sceneTap(data, s, MAGPIE, 0, false); // 삑삑이 꽥: 까치가 바닥으로
@@ -604,8 +604,12 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
     idle(s);
     expect(s.puzzle.gauge).toBe(5);
     expect(s.puzzle.at.jjuk).toBe('floor');
-    expect(at(s, 'jjuk')).toEqual({ x: data.screen.spots.seesaw_left!.x, y: data.screen.spots.floor!.y });
+    // 판에서 바닥 점(226, 240)으로 내려서서 바닥 까치 옆(오른쪽 가장자리 112 + 2 + 몸 상자)까지 걸은 뒤 기절한다(#416).
+    expect(at(s, 'jjuk')).toEqual(JJUK_BY_GROUND_MAGPIE);
   });
+
+  /** 시소 왼쪽 끝에서 바닥 까치를 뻗을 때 쭉이가 서는 곳: 바닥 점 y, 까치 상자 오른쪽 옆(5-1절). */
+  const JJUK_BY_GROUND_MAGPIE = { x: 129, y: 240 };
 
   /** 까치를 바닥에 내리고 쭉이를 왼쪽 시소 끝에 올린 뒤, 게이지 1에서 바닥 까치를 뻗게 한다(규칙 7 → 기절). */
   function peckFromSeesaw(s: SceneState): void {
@@ -631,8 +635,8 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
     const seen = trail(s, 'mukjik');
     expect(s.puzzle.gauge).toBe(5);
     expect(seen).toEqual(['60,210']);
-    // 행동한 쭉이(시소 끝)는 지금처럼 그 x의 바닥 y로 내려온다.
-    expect(at(s, 'jjuk')).toEqual({ x: data.screen.spots.seesaw_left!.x, y: data.screen.spots.floor!.y });
+    // 행동한 쭉이(시소 끝)는 바닥 까치 옆까지 걸어간 점에 남는다(#416).
+    expect(at(s, 'jjuk')).toEqual(JJUK_BY_GROUND_MAGPIE);
   });
 
   it('#215: 시소에서 `move floor`로 내려와 선 사람도 기절 때 그 점에 남는다', () => {

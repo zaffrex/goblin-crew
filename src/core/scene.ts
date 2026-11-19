@@ -485,6 +485,21 @@ export function gaugeBeforeSay(events: readonly PuzzleEvent[]): readonly PuzzleE
   return out;
 }
 
+/**
+ * 행동하는 캐릭터가 판 끝(`board` 자리)에서 바닥(`free` 자리)으로 떠나는 `walk`로 `step` 결과가 시작하면 그 이벤트와 바닥 점.
+ * 대상의 `approach`가 바닥이라 `step`이 먼저 내려서게 한 경우다(1-5-2절 내려서기). 아니면 null.
+ */
+function stepDownWalk(
+  data: SceneData,
+  events: readonly PuzzleEvent[],
+  char: CharacterId,
+): { walk: Extract<PuzzleEvent, { type: 'walk' }>; board: readonly [number, number] } | null {
+  const first = events[0];
+  if (first?.type !== 'walk' || first.char !== char || !isFree(data, first.to)) return null;
+  const board = data.screen.spots[first.from]?.board;
+  return board ? { walk: first, board } : null;
+}
+
 export function runAction(data: SceneData, s: SceneState, action: Action, to: Point | null): void {
   const before = s.puzzle.flags;
   const prev = s.puzzle;
@@ -496,6 +511,18 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
   w.target = null;
   w.walkTicks = 0;
   const first = events[0];
+  const leaving = stepDownWalk(data, events, action.char);
+  let downFace: Facing | null = null;
+  if (leaving) {
+    // 판 끝에서 바닥으로 내려서는 `walk`로 시작하면(#416): 바닥 점에 내려선 뒤 그 걷기의 끝을 5-1절 설 곳으로 잇는다(1-5-2절
+    // "내려서기 → 대상 앞까지 걷기"). 설 곳·방향은 바닥 점에 선 사람 기준이다. 퍼즐 상태와 이벤트 순서는 그대로다.
+    const [bx, by] = leaving.board;
+    const down = approachPoint(data, { ...prev, at: { ...prev.at, [action.char]: leaving.walk.to } }, action, { x: bx, y: by });
+    if (down) {
+      s.floorTo[action.char] = { x: down.x, y: by };
+      downFace = down.face;
+    }
+  }
   const ap = first?.type === 'walk' && first.char === action.char ? null : approachPoint(data, prev, action, w);
   if (ap && Math.abs(ap.x - w.x) > APPROACH_SLOP) {
     // `floor`→`floor` 걷기. `walk` 이벤트와 똑같이 busy이고 탭으로 건너뛴다(5절 예외 둘). 설 점은 `floorPoint`가 쓴다.
@@ -523,7 +550,10 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
   else if (tb) s.reach[action.char] = { x: tb.left + tb.width / 2, y: tb.top + tb.height };
   else delete s.reach[action.char];
   const n = bump(s, variantKey(r.source, r.ruleId, action));
-  for (const ev of events) s.queue.push(ev.type === 'say' ? { ...ev, text: pickText(ev.text, n) } : ev);
+  for (const ev of events) {
+    if (ev.type === 'say') s.queue.push({ ...ev, text: pickText(ev.text, n) });
+    else s.queue.push(ev === leaving?.walk && downFace !== null ? { ...ev, face: downFace } : ev);
+  }
   const hint = hintEvent(data, s, r.source, action);
   if (hint) s.queue.push(hint);
 }

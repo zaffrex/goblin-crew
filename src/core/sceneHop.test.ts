@@ -185,3 +185,66 @@ describe('시소 끝 내려서기·판 위 걷기 (#397 1-5-2절)', () => {
     for (const id of ['jjuk', 'ppik', 'mukjik'] as const) expect(HOP.up[id].h).toBeGreaterThan(6.5);
   });
 });
+
+describe('판 끝에서 다른 대상 한 번 누르기 = 내려서기 → 대상 앞까지 걷기 → 행동 (#416, 1-5-2절·5-1절)', () => {
+  const ENDS = { seesaw_left: { board: LEFT_BOARD }, seesaw_right: { board: { x: 290, y: 240 } } } as const;
+  const VERB = { jjuk: 'stretch', mukjik: 'stomp', ppik: 'squeak' } as const;
+  // 판 밖 물건 2개 이상 + 높은 대상 + 다른 판 끝.
+  const TARGETS = ['basket', 'long_johns', 'magpie', 'nest'] as const;
+
+  /** 같은 행동을 그 바닥 점에 바닥으로 선 사람이 할 때 서는 곳·방향(5-1절 기준). */
+  function fromFloor(id: CharacterId, at: Point, verb: string, target: string): { at: Point; facing: 1 | -1 } {
+    const s = ready(base);
+    s.walkers[id].x = at.x;
+    s.walkers[id].y = at.y;
+    runAction(base, s, { char: id, verb: verb as never, target }, null);
+    while (isBusy(s)) sceneTick(base, s);
+    return { at: pos(s, id), facing: s.walkers[id].facing };
+  }
+
+  for (const id of ['jjuk', 'mukjik', 'ppik'] as const) {
+    for (const end of ['seesaw_left', 'seesaw_right'] as const) {
+      it(`${id} @ ${end}`, () => {
+        for (const target of TARGETS) {
+          const s = ready(base);
+          runAction(base, s, { char: id, verb: 'move', target: end }, null);
+          while (isBusy(s)) sceneTick(base, s);
+          runAction(base, s, { char: id, verb: VERB[id], target }, null);
+          // 한 번 누름에 걷기 하나 + 행동 연출이 모두 대기열에 있다(씹히지 않음).
+          expect(s.queue[0]).toMatchObject({ type: 'walk', from: end, to: 'floor' });
+          expect(s.queue.some((e) => e.type === 'anim' && e.target === id)).toBe(true);
+          const frames = record(base, s, id);
+          // 먼저 바닥 점으로 뛰어내린다(웅크림 없음).
+          expect(runs(frames)[0]).toEqual([1, 6]);
+          const landed = frames.findIndex((f) => f.hop === null);
+          expect(frames[landed - 1]!.at).toEqual(ENDS[end].board);
+          // 그다음 바닥 점에서 바닥으로 선 사람과 같은 설 곳·방향(판 밑으로 되돌아가지 않는다).
+          const want = fromFloor(id, ENDS[end].board, VERB[id], target);
+          expect({ at: pos(s, id), facing: s.walkers[id].facing }, `${id} ${end} → ${target}`).toEqual(want);
+          expect(s.puzzle.at[id]).toBe('floor');
+        }
+      });
+    }
+  }
+
+  it('묵직이가 서 있던 판 끝을 쿵: 판 옆 바닥(바닥에서 쿵 할 때와 같은 곳)에서 그 끝을 보고 찧는다(15번)', () => {
+    const s = ready(base);
+    runAction(base, s, { char: 'mukjik', verb: 'move', target: 'seesaw_right' }, null);
+    while (isBusy(s)) sceneTick(base, s);
+    runAction(base, s, { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, null);
+    while (isBusy(s)) sceneTick(base, s);
+    expect(pos(s, 'mukjik')).toEqual(fromFloor('mukjik', { x: 290, y: 240 }, 'stomp', 'seesaw_right').at);
+    // 판 끝(오른쪽 가장자리 288) 바깥에 서서 왼쪽을 본다.
+    expect(s.walkers.mukjik.x).toBeGreaterThan(288);
+    expect(s.walkers.mukjik.facing).toBe(-1);
+  });
+
+  it('바닥 클릭(move floor)은 지금처럼 누른 점으로 간다', () => {
+    const s = ready(base);
+    runAction(base, s, { char: 'jjuk', verb: 'move', target: 'seesaw_left' }, null);
+    while (isBusy(s)) sceneTick(base, s);
+    runAction(base, s, { char: 'jjuk', verb: 'move', target: 'floor' }, { x: 400, y: 230 });
+    while (isBusy(s)) sceneTick(base, s);
+    expect(pos(s, 'jjuk')).toEqual({ x: 400, y: 230 });
+  });
+});
