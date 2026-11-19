@@ -44,17 +44,25 @@ const ENGINE = {
     { id: 'ppik', hit: { dx: -14, width: 33 } },
   ],
   CELL_TOP: 64, // jjuk 칸 48×64, 기준점 (25, 64): 칸 위 끝 = 발 − 64. 장대 tip은 0행(public/sprites/jjuk-base.json)
+  CELL_W: 48,
+  ANCHOR_X: 25,
   CLAW_MAX: 64, // art/sprites/jjuk-v4.mjs CLAW.max: 칸 위로 늘어나는 최대 px
-  CLAW_H: 8, // 집게 칸 높이
-  SHORT: [0, 10], // anim short 범위. reach_wobble 10, 집기(P6) 새 칸은 0~10 안에서 정한다
+  CLAW_W: 8, // 집게 칸 8×8, 기준점 (4, 8): 집게 x = tip 화면 x − 4 .. + 4
+  CLAW_H: 8,
+  SHORT: [0, 10], // 닿음/못 닿음을 가르는 anim short 범위(reach_wobble 10, reach_hang_up 0)
+  WOBBLE_TIP_X: 40, // reach_wobble tip x(38~42). 못 닿을 때 집게가 어디 가는지 스케치용
 };
+// 집기(P6) 새 칸 조건(PR #424 Theo 리뷰): tip 0행, short 0, |tip x − 25| ≤ 5.
+// 장대는 tip x에서 수직으로 올라가고(대상 점 x는 안 쓴다), 바라보는 방향으로 tip x − 25만큼 옆에 선다.
+const GRAB = { short: 0, tipDx: 5 };
+const MIN_CLAW_OVERLAP = 4; // 닿음이면 집게 칸이 재킷 그림과 가로·세로 둘 다 이만큼 이상 겹친다(4×4 이상)
 const MIN_GAP_MISS = 16; // 못 닿을 때 집게 끝과 재킷 그림 사이 최소 틈(1-3 "아슬아슬하면 조금만 더로 읽힌다", F2)
 
 // 그림 상자(히트 상자와 다른 것만). JSON note와 같다.
 const ART = {
   fountain: [128, 180, 192, 18],
   jacket_top: [214, 32, 20, 14],
-  jacket_hand: [252, 104, 18, 16],
+  jacket_hand: [252, 106, 18, 18], // 내민 손에 걸쳐 늘어진 재킷. 소매 끝이 히트 아래 끝(대상 점 y 124)까지 처진다
   keeper: [40, 118, 36, 30],
   alarm_clock: [84, 140, 12, 12],
   duck: [180, 158, 14, 12],
@@ -153,6 +161,28 @@ for (const e of L.reachExpect) {
       }
     }
 }
+// 집기 칸: 양쪽 방향 × tip x 25±5 × 발 y 두 끝에서 집게 칸이 재킷(손) 그림과 겹쳐야 "집었다"로 읽힌다
+// (spritePole: 오른쪽이면 tip 화면 x = 발 x − 25 + tip x, 왼쪽이면 발 x − (48 − 25) + (48 − tip x))
+const tipScreenX = (footX, tx, facing) =>
+  facing === 1 ? footX - ENGINE.ANCHOR_X + tx : footX - (ENGINE.CELL_W - ENGINE.ANCHOR_X) + (ENGINE.CELL_W - tx);
+const span = (a0, a1, b0, b1) => Math.min(a1, b1) - Math.max(a0, b0);
+{
+  const art = box(ART.jacket_hand);
+  const footX = jhb.x + jhb.w / 2; // 높은 대상 → 상자 가운데 x 아래에 선다
+  const ty = reachY(jhb);
+  for (const foot of [WA.top, WA.bottom])
+    for (const tx of [ENGINE.ANCHOR_X - GRAB.tipDx, ENGINE.ANCHOR_X, ENGINE.ANCHOR_X + GRAB.tipDx])
+      for (const facing of [1, -1]) {
+        const r = clawTop(foot, ty, GRAB.short);
+        const cx = tipScreenX(footX, tx, facing) - ENGINE.CLAW_W / 2;
+        const ox = span(cx, cx + ENGINE.CLAW_W, art.x, art.x + art.w);
+        const oy = span(r.top, r.top + ENGINE.CLAW_H, art.y, art.y + art.h);
+        ok(
+          r.reaches && ox >= MIN_CLAW_OVERLAP && oy >= MIN_CLAW_OVERLAP,
+          `집기 칸 발 y ${foot}, tip x ${tx}, ${facing === 1 ? '오른쪽' : '왼쪽'}: 집게 ${cx}..${cx + ENGINE.CLAW_W} × ${r.top}..${r.top + ENGINE.CLAW_H}, 재킷 그림과 ${ox}×${oy} 겹침 ≥ ${MIN_CLAW_OVERLAP}×${MIN_CLAW_OVERLAP}`,
+        );
+      }
+}
 // 손 위 재킷은 어느 발 y에서도 칸 위에 있어야 장대가 보인다(대상 점이 칸 안이면 잇지 않는다)
 ok(reachY(jhb) < WA.top - ENGINE.CELL_TOP, `손 위 재킷 대상 y ${reachY(jhb)} < 맨 뒤 줄 칸 위 끝 ${WA.top - ENGINE.CELL_TOP} (장대가 보인다)`);
 
@@ -215,8 +245,8 @@ rect(222, 46, 3, 60, C.dusk); // 우산대
 rect(194, 46, 60, 6, C.lint); // 돌우산 갓
 rect(204, 42, 40, 4, C.lint);
 rect(236, 120, 20, 6, C.lint); // 내민 오른팔
-rect(252, 118, 10, 8, C.lint); // 손
 R(ART.jacket_top, C.ink);
+rect(252, 118, 10, 8, C.lint); // 손(재킷 뒤)
 for (let j = 0; j < ART.jacket_hand[3]; j++)
   for (let i = 0; i < ART.jacket_hand[2]; i++) if ((i + j) % 2 === 0) set(ART.jacket_hand[0] + i, ART.jacket_hand[1] + j, C.ink); // 손 위치 유령
 R(ART.duck, C.yel);
@@ -238,10 +268,18 @@ sil(start.ppik.x, start.ppik.y, 18, 47, C.yelD);
 for (const x of [stompX, jacketMid]) cross(x, WA.top, C.purD);
 // 장대: 맨 뒤 줄(발 200)에서 꼭대기로(못 닿음, 빨강) / 맨 앞 줄(발 252)에서 손으로(닿음, 초록)
 {
+  // 못 닿음: reach_wobble tip x 40, 양쪽 방향(집게 칸은 빨간 테두리)
   const r = clawTop(WA.top, reachY(jb), 10);
-  for (let y = WA.top - ENGINE.CELL_TOP; y >= r.top; y -= 2) set(jacketMid + 1, y, C.red);
-  const g = clawTop(WA.bottom, reachY(jhb), 10);
-  for (let y = WA.bottom - ENGINE.CELL_TOP; y >= g.top; y--) set(jhb.x + jhb.w / 2 + 1, y, C.grn);
+  for (const facing of [1, -1]) {
+    const sx = tipScreenX(jacketMid, ENGINE.WOBBLE_TIP_X, facing);
+    for (let y = WA.top - ENGINE.CELL_TOP; y >= r.top + ENGINE.CLAW_H; y -= 2) set(sx, y, C.red);
+    outline(box([sx - ENGINE.CLAW_W / 2, r.top, ENGINE.CLAW_W, ENGINE.CLAW_H]), C.red);
+  }
+  // 닿음: 집기 칸 tip x 25, short 0(집게 칸은 초록 칸)
+  const g = clawTop(WA.bottom, reachY(jhb), GRAB.short);
+  const gx = tipScreenX(jhb.x + jhb.w / 2, ENGINE.ANCHOR_X, 1);
+  for (let y = WA.bottom - ENGINE.CELL_TOP; y >= g.top + ENGINE.CLAW_H; y--) set(gx, y, C.grn);
+  rect(gx - ENGINE.CLAW_W / 2, g.top, ENGINE.CLAW_W, ENGINE.CLAW_H, C.grn);
 }
 // 히트 상자(점선), 서는 자리(+), 물 area(테두리 점선)
 for (const [, b] of boxes) outline(b, C.hint);
