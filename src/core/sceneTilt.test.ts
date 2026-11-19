@@ -1,4 +1,5 @@
 // 시소 기울기와 판 위 발 높이(#397, `docs/design/screens/magpie_nest.md` 1-5-4절, 형식 기록 12절 개정 5).
+// 쉬는 판(#437, 1-7절, 형식 기록 개정 7): d = 12 × 부호(무게 차).
 import { describe, expect, it } from 'vitest';
 import charactersJson from '../../content/characters.json';
 import screenJson from '../../content/screens/magpie_nest.json';
@@ -11,7 +12,7 @@ import { TICK_MS } from './config';
 import { parseSceneArt, sceneDraws, tiltDrop, type ScenePictureObject } from './sceneArt';
 import { parseSpriteMeta } from './sprite';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { boardDrop, createScene, floorTarget, HOP, isBusy, runAction, sceneTap, sceneTick, tiltOf, type SceneData, type SceneState } from './scene';
+import { boardDrop, createScene, floorTarget, HOP, isBusy, runAction, sceneLayout, sceneTap, sceneTick, tiltOf, type SceneData, type SceneState } from './scene';
 
 const art = parseSceneArt(artJson);
 const sprites = { jjuk: parseSpriteMeta(jjukJson), mukjik: parseSpriteMeta(mukjikJson), ppik: parseSpriteMeta(ppikJson) };
@@ -21,6 +22,9 @@ const tilt = seesaw.tilt!;
 const ENDS = ['seesaw_left', 'seesaw_right'] as const;
 const IDS = CHARACTERS.map((c) => c.id);
 const WEIGHT: Record<CharacterId, number> = { jjuk: 1, ppik: 1, mukjik: 2 };
+/** 쉬는 판 값(설계 1-7-1절 M). */
+const M = 12;
+const restOf = (sum: number): number => M * Math.sign(sum);
 /** 널빤지 윗면 y(수평 214)가 기울기 d일 때 열 x에서. 그림 원본 `plank(d)`와 같은 식. */
 const top = (d: number, x: number): number => 214 + tiltDrop(tilt, d, x);
 
@@ -46,24 +50,24 @@ const footY = (s: SceneState, id: CharacterId): number => s.walkers[id].y + boar
 const d = (s: SceneState): number => tiltOf(data, s, 'seesaw');
 
 describe('기울기 그림 메타 (형식 기록 12절)', () => {
-  it('시소에 기울기 4칸(−6, −3, 3, 6)과 판 밑 바닥 상자가 있다', () => {
-    expect(Object.keys(tilt.frames).map(Number).sort((a, b) => a - b)).toEqual([-6, -3, 3, 6]);
-    expect(tilt).toMatchObject({ step: 3, weight: WEIGHT, pivot: 247.5, run: 40 });
+  it('시소에 쉬는 판 2칸(−12, 12)과 판 밑 바닥 상자가 있다(1-7-1절)', () => {
+    expect(Object.keys(tilt.frames).map(Number).sort((a, b) => a - b)).toEqual([-M, M]);
+    expect(tilt).toMatchObject({ rest: M, weight: WEIGHT, pivot: 247.5, run: 40 });
     expect(seesaw.noFloor).toEqual({ box: [204, 200, 89, 38], y: 240 });
   });
 
-  it('설계 1-5-4절 발 높이 표와 같다', () => {
-    const table: [number, number, number][] = [[-6, 218, 209], [-3, 216, 211], [0, 214, 214], [3, 212, 217], [6, 210, 219]];
+  it('설계 1-7-1절 발 높이 표와 같다', () => {
+    const table: [number, number, number][] = [[-12, 222, 203], [0, 214, 214], [12, 206, 225]];
     for (const [dd, left, right] of table) expect([dd, top(dd, 220), top(dd, 284)]).toEqual([dd, left, right]);
   });
 
   it('d가 0이 아니면 멈춘 모습 대신 기울기 칸, anim 재생 중이면 anim 칸', () => {
     const view = (dd: number, playing: Parameters<typeof sceneDraws>[1]['playing'] = null) => ({ flagsOf: () => ({}), playing, clockMs: 0, tiltOf: () => dd });
     expect(sceneDraws(art, view(0)).byObject.seesaw).toEqual([seesaw.default.frame]);
-    expect(sceneDraws(art, view(-3)).byObject.seesaw).toEqual([tilt.frames['-3']]);
+    expect(sceneDraws(art, view(-M)).byObject.seesaw).toEqual([tilt.frames[String(-M)]]);
     expect(sceneDraws(art, view(9)).byObject.seesaw).toEqual([seesaw.default.frame]); // 칸 없는 값은 수평 그대로
     const bounce = art.anims['seesaw_right.plank_bounce']!;
-    expect(sceneDraws(art, view(-3, { object: 'seesaw', anim: bounce, ms: 0 })).byObject.seesaw).toEqual([bounce.frames[0]]);
+    expect(sceneDraws(art, view(-M, { object: 'seesaw', anim: bounce, ms: 0 })).byObject.seesaw).toEqual([bounce.frames[0]]);
   });
 
   it('그림 메타의 기울기 칸이 깨지면 파서가 막는다', () => {
@@ -73,8 +77,8 @@ describe('기울기 그림 메타 (형식 기록 12절)', () => {
   });
 });
 
-describe('보이는 탑승으로 기울기 정하기 (1-5-4절)', () => {
-  it('빈 판은 수평, 혼자 탄 가벼운 사람 3px, 묵직이 6px, 무게 차만 기운다', () => {
+describe('보이는 탑승으로 기울기 정하기 (1-5-4·1-7절)', () => {
+  it('빈 판·가벼운 둘은 수평, 무게가 다르면 무거운 쪽 끝이 12px 내려가 쉰다(혼자 탄 사람도 같다)', () => {
     const cases: [CharacterId, string][][] = [
       [],
       [['jjuk', 'seesaw_left']],
@@ -88,7 +92,7 @@ describe('보이는 탑승으로 기울기 정하기 (1-5-4절)', () => {
     for (const riders of cases) {
       const s = ready();
       for (const [id, end] of riders) board(s, id, end);
-      const want = 3 * riders.reduce((sum, [id, end]) => sum + (end === 'seesaw_right' ? 1 : -1) * WEIGHT[id], 0);
+      const want = restOf(riders.reduce((sum, [id, end]) => sum + (end === 'seesaw_right' ? 1 : -1) * WEIGHT[id], 0));
       expect(d(s)).toBe(want);
       for (const [id] of riders) expect(Math.round(footY(s, id))).toBe(top(want, s.walkers[id].x));
       // 탄 사람의 걷기 좌표(히트 박스)는 그대로 214다.
@@ -106,7 +110,8 @@ describe('보이는 탑승으로 기울기 정하기 (1-5-4절)', () => {
       const otherEnd = end === 'seesaw_left' ? 'seesaw_right' : 'seesaw_left';
       if (other) board(s, other, otherEnd);
       const before = d(s);
-      const after = before + 3 * (end === 'seesaw_right' ? 1 : -1) * WEIGHT[who];
+      const sumBefore = other ? (otherEnd === 'seesaw_right' ? 1 : -1) * WEIGHT[other] : 0;
+      const after = restOf(sumBefore + (end === 'seesaw_right' ? 1 : -1) * WEIGHT[who]);
       runAction(data, s, { char: who, verb: 'move', target: end }, null);
       let lastAir: number | null = null;
       let landed = false;
@@ -162,7 +167,7 @@ describe('보이는 탑승으로 기울기 정하기 (1-5-4절)', () => {
   it('판 위 끝 ↔ 끝 걷기는 계속 탄 채이고, 축을 넘는 틱에 기울기 부호가 바뀐다', () => {
     const s = ready();
     board(s, 'jjuk', 'seesaw_left');
-    expect(d(s)).toBe(-3);
+    expect(d(s)).toBe(-M);
     runAction(data, s, { char: 'jjuk', verb: 'move', target: 'seesaw_right' }, null);
     const seen: number[] = [];
     for (let i = 0; i < 600 && isBusy(s); i++) {
@@ -172,7 +177,7 @@ describe('보이는 탑승으로 기울기 정하기 (1-5-4절)', () => {
       expect(s.riding.jjuk).toBeDefined();
       expect(Math.round(footY(s, 'jjuk'))).toBe(top(dd, s.walkers.jjuk.x));
     }
-    expect(seen).toEqual([-3, 3]);
+    expect(seen).toEqual([-M, M]);
   });
 
   it('정답 11번: U6 동안은 쭉이 + 판 끝에 뛰어오른 묵직이 기울기, 발사가 시작되는 틱에 묵직이 혼자, ⑦ 뒤 수평(#414)', () => {
@@ -181,21 +186,32 @@ describe('보이는 탑승으로 기울기 정하기 (1-5-4절)', () => {
     runAction(data, s, { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, null);
     let sawBounce = false;
     let sawLaunch = false;
+    let launchTicks = 0;
     for (let i = 0; i < 3000 && isBusy(s); i++) {
       sceneTick(data, s);
       const ev = s.current?.ev;
+      // 발사 연출 내내 쭉이 발은 빠진 틱의 판 높이(206) 그대로다. ⑦로 판이 수평이 돼도 따라 내려가지 않는다(1-7-8절).
+      if (ev?.type === 'anim' && ev.name === 'launch_to_hook') {
+        launchTicks++;
+        expect(Math.round(footY(s, 'jjuk'))).toBe(206);
+      }
       if (ev?.type === 'anim' && ev.name === 'plank_bounce') {
         sawBounce = true;
-        expect(d(s)).toBe(3); // 멈춘 기울기(그림 고르기용): 왼쪽 쭉이 1 + 오른쪽 묵직이 2. 판은 U6 칸이 그린다
+        expect(d(s)).toBe(M); // 멈춘 기울기(그림 고르기용): 왼쪽 쭉이 1 < 오른쪽 묵직이 2. 판은 U6 칸이 그린다
       }
       if (ev?.type === 'anim' && ev.name === 'launch_to_hook' && s.current!.t === 0) {
         sawLaunch = true;
-        expect(d(s)).toBe(6); // 쭉이가 빠지고 묵직이 혼자(1-6-4절 표 "판 위(d 6)")
-        expect(boardDrop(data, s, 'jjuk')).toBe(0);
+        expect(d(s)).toBe(M); // 쭉이가 빠지고 묵직이 혼자. 쉬는 판이라 판 그림은 그대로(1-7-8절)
+        // 발사 동안 쭉이는 빠진 틱의 판 높이(들린 왼쪽 끝 206)에 그대로 선다. 걷기 좌표(214)로 내려가 판에 묻히지 않는다.
+        expect(Math.round(footY(s, 'jjuk'))).toBe(top(M, s.walkers.jjuk.x));
+        expect(top(M, s.walkers.jjuk.x)).toBe(206);
       }
     }
     expect([sawBounce, sawLaunch]).toEqual([true, true]);
+    expect(launchTicks).toBeGreaterThan(15);
     expect(s.puzzle.at.jjuk).toBe('hook');
+    // 고리로 옮겨진 뒤에는 잡아 둔 높이를 쓰지 않는다
+    expect(boardDrop(data, s, 'jjuk')).toBe(0);
     expect(s.riding.mukjik).toBeUndefined();
     expect(d(s)).toBe(0);
   });
@@ -217,24 +233,24 @@ describe('보이는 탑승으로 기울기 정하기 (1-5-4절)', () => {
     return seen;
   }
 
-  it('U6 칸별 기울기 메타(12-5절): 오른쪽 끝 4 → 7 → −2, 왼쪽 끝 반대', () => {
-    expect(art.anims['seesaw_right.plank_bounce']!.tilt).toEqual([4, 7, -2]);
-    expect(art.anims['seesaw_left.plank_bounce']!.tilt).toEqual([-4, -7, 2]);
+  it('U6 칸별 기울기 메타(12-5절, 1-7-7절): 오른쪽 끝 12 → 15 → 8, 왼쪽 끝 반대', () => {
+    expect(art.anims['seesaw_right.plank_bounce']!.tilt).toEqual([12, 15, 8]);
+    expect(art.anims['seesaw_left.plank_bounce']!.tilt).toEqual([-12, -15, -8]);
   });
 
-  it('정답 11번: U6 동안 왼쪽 쭉이 발이 칸마다 판을 따른다(211 → 209 → 215, 1-5-4절 표)', () => {
+  it('정답 11번: U6 동안 왼쪽 쭉이 발이 칸마다 판을 따른다(206 → 204 → 209, 1-7-7절 표)', () => {
     const s = ready();
     board(s, 'jjuk', 'seesaw_left');
     runAction(data, s, { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, null);
-    expect(bounceFeet(s, 'jjuk')).toEqual([[0, 211], [1, 209], [2, 215]]);
+    expect(bounceFeet(s, 'jjuk')).toEqual([[0, 206], [1, 204], [2, 209]]);
     expect(s.puzzle.at.jjuk).toBe('hook');
   });
 
-  it('14번: U6 동안 오른쪽에 탄 사람 발이 왼쪽 끝 이벤트 칸을 따른다(210 → 208 → 216)', () => {
+  it('14번: U6 동안 오른쪽에 탄 사람 발이 왼쪽 끝 이벤트 칸을 따른다(203 → 200 → 207)', () => {
     const s = ready();
     board(s, 'jjuk', 'seesaw_right');
     runAction(data, s, { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' }, null);
-    expect(bounceFeet(s, 'jjuk')).toEqual([[0, 210], [1, 208], [2, 216]]);
+    expect(bounceFeet(s, 'jjuk')).toEqual([[0, 203], [1, 200], [2, 207]]);
   });
 
   it('15번: 묵직이가 밟은 끝에 올라탄 채 U6 칸을 따라 내려갔다 올라온다(1-6-5절, 판 위·바닥 둘 다)', () => {
@@ -244,9 +260,9 @@ describe('보이는 탑승으로 기울기 정하기 (1-5-4절)', () => {
         if (onBoard) board(s, 'mukjik', end);
         runAction(data, s, { char: 'mukjik', verb: 'stomp', target: end }, null);
         const feet = bounceFeet(s, 'mukjik');
-        // 밟은 끝 이벤트: 오른쪽 끝(x 284)은 218 → 220 → 212, 왼쪽 끝(x 220)은 217 → 219 → 213(1-5-4절 표)
+        // 밟은 끝 이벤트: 오른쪽 끝(x 284)은 225 → 228 → 221, 왼쪽 끝(x 220)은 222 → 224 → 220(1-7-7절 표)
         expect(feet.map(([k]) => k)).toEqual([0, 1, 2]);
-        expect(feet.map(([, y]) => y)).toEqual(end === 'seesaw_right' ? [218, 220, 212] : [217, 219, 213]);
+        expect(feet.map(([, y]) => y)).toEqual(end === 'seesaw_right' ? [225, 228, 221] : [222, 224, 220]);
         expect(s.riding.mukjik).toBeUndefined();
         expect(d(s)).toBe(0);
       }
@@ -267,8 +283,8 @@ describe('보이는 탑승으로 기울기 정하기 (1-5-4절)', () => {
       sceneTick(noTilt, s);
       if (s.current?.ev.type === 'anim' && s.current.ev.name === 'plank_bounce') {
         n++;
-        // 멈춘 기울기: 왼쪽 쭉이 1 + 판 끝에 뛰어오른 오른쪽 묵직이 2(#414)
-        expect(Math.round(s.walkers.jjuk.y + boardDrop(noTilt, s, 'jjuk'))).toBe(top(3, s.walkers.jjuk.x));
+        // 멈춘 기울기: 왼쪽 쭉이 1 < 판 끝에 뛰어오른 오른쪽 묵직이 2(#414) → 쉬는 판
+        expect(Math.round(s.walkers.jjuk.y + boardDrop(noTilt, s, 'jjuk'))).toBe(top(M, s.walkers.jjuk.x));
       }
     }
     expect(n).toBeGreaterThan(0);
@@ -286,9 +302,23 @@ describe('보이는 탑승으로 기울기 정하기 (1-5-4절)', () => {
     while (!s.hops.mukjik) sceneTick(data, s);
     expect(d(s)).toBe(0);
     expect(sceneTap(data, s, { x: 300, y: 150 }, 0, false).kind).toBe('skipWalk');
-    expect(d(s)).toBe(6);
+    expect(d(s)).toBe(M);
     settle(s);
-    expect(d(s)).toBe(6);
+    expect(d(s)).toBe(M);
+  });
+
+  it('판 위 사람의 히트 박스는 그린 자리(판 높이)를 따른다(1-7-9절): 들린 쭉이 8px 위, 내려간 묵직이 11px 아래', () => {
+    const s = ready();
+    board(s, 'jjuk', 'seesaw_left');
+    board(s, 'mukjik', 'seesaw_right');
+    const flat: SceneData = { ...data, art: { ...art, objects: art.objects.map((o) => (o.key === 'seesaw' ? { ...o, tilt: undefined } : o)) } as typeof art };
+    const tilted = sceneLayout(data, s).chars;
+    const level = sceneLayout(flat, s).chars;
+    expect(tilted.jjuk.top - level.jjuk.top).toBe(top(M, 220) - 214);
+    expect(tilted.mukjik.top - level.mukjik.top).toBe(top(M, 284) - 214);
+    expect([top(M, 220) - 214, top(M, 284) - 214]).toEqual([-8, 11]);
+    // 바닥 사람은 그대로
+    expect(tilted.ppik).toEqual(level.ppik);
   });
 
   it('기울기 메타가 없으면(그림 없는 화면) 늘 0이고 발도 안 내려간다', () => {

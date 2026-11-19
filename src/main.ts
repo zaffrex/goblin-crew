@@ -443,7 +443,7 @@ function render(): void {
       continue;
     }
     const id = it.char;
-    // 판 위 발은 기울기만큼 내려 그린다(형식 기록 12절). 히트 박스·발 y 순서는 걷기 좌표 그대로다.
+    // 판 위 발은 기울기만큼 내려 그린다(형식 기록 12절). 히트 박스(`bodies`)도 같은 값을 따르고, 발 y 순서만 걷기 좌표 그대로다.
     const drop = boardDrop(data, scene, id);
     const w = drop === 0 ? scene.walkers[id] : { ...scene.walkers[id], y: scene.walkers[id].y + drop };
     // 시트에 그 연출이 있으면 시트가 재생하고(끝나면 마지막 장 유지, #189), 없으면 drawSprite가 null → 실루엣을 흔든다.

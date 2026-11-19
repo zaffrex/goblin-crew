@@ -64,13 +64,14 @@ export const TIMING = {
  * 시소 끝 깡충(`magpie_nest.md` 1-5-3절, #397). 웅크림·공중 ms는 시트 `step_up`의 `ms`가 있으면 그것을 쓰고,
  * 없으면(실루엣·테스트) 아래 표를 쓴다. 착지는 웅크림 칸을 `landMs` 동안 다시 쓴다(셋 같음, 엔진 상수).
  * 내려서기는 웅크림 없이 공중 → 착지이고 셋이 같다. `h`는 솟는 높이(px): y = 직선 − h·4u(1−u).
- * h는 8 이상이어야 착지 직전 발이 판 윗면 위에서 내려온다(직선 기울기 26px / 4 = 6.5 초과, 1-5-3절).
+ * 공중 마지막 틱 발이 판 윗면 이하여야 위에서 내려와 선다. 쉬는 판(1-7-3절)에서는 들린 끝(발 203)까지 37px라 h 10이 여유 0px다.
+ * 시트 `step_up` 공중 ms를 바꾸면 `sceneTilt.test.ts` 18가지 올라서기 검사가 잡는다.
  */
 export const HOP = {
   up: {
     jjuk: { crouchMs: 100, airMs: 150, h: 10 },
     ppik: { crouchMs: 50, airMs: 150, h: 12 },
-    mukjik: { crouchMs: 150, airMs: 150, h: 8 },
+    mukjik: { crouchMs: 150, airMs: 150, h: 10 },
   } satisfies Record<CharacterId, { crouchMs: number; airMs: number; h: number }>,
   down: { airMs: 100, h: 8 },
   landMs: 50,
@@ -111,7 +112,7 @@ export interface Hop {
   anim?: string;
   /** `eject`·`jostle`의 공중 칸 시각(ms, `anim` 안). */
   airMs?: number;
-  /** 출발점이 판 위다(제자리 쿵). 뜨는 틱에 판에서 빠지고, 공중 동안 발은 그때의 판 높이에서 출발한다. */
+  /** 출발점이 판 위다(제자리 쿵). 공중 동안도 판에 탄 것으로 센다(1-7-6절): 판은 쿵 칸까지 그대로이고 발은 판에서 뛰어 판에 내린다. */
   onBoard?: boolean;
   /** `stomp`: 남은 칸이 끝나면 뛰어내릴 바닥 점(`board`). */
   after?: Point;
@@ -228,6 +229,11 @@ export interface SceneState {
    * 그림 전용이다(기울기 칸, 판 위 발 높이). 판정·히트 박스는 안 쓴다.
    */
   riding: Partial<Record<CharacterId, string>>;
+  /**
+   * 판에서 빠진 채 그 자리에서 연출하는 사람의 발 높이(발사 `launch_to_hook`, 설계 1-7-8절). 빠지는 틱의 `boardDrop`을 잡아 두고,
+   * 몸이 그 점(`x`, `y`)을 떠나거나 다시 판에 타거나 깡충을 시작하면 쓰지 않는다. 그림 전용이다.
+   */
+  pinDrop: Partial<Record<CharacterId, { x: number; y: number; drop: number }>>;
   cleared: boolean;
 }
 
@@ -329,6 +335,7 @@ export function createScene(data: SceneData): SceneState {
     seenSay: {},
     hops: {},
     riding,
+    pinDrop: {},
     cleared: false,
   };
   // onEnter는 상태를 바꾸지 않는 연출이다(ADR-0065 5절). say 화자는 캐릭터 ID만 온다.
@@ -363,8 +370,10 @@ export function bodies(data: SceneData, s: SceneState): Record<CharacterId, HitB
     const w = s.walkers[c.id];
     const facing = charFacing(data, s, c.id);
     const meta = data.sprites?.[c.id];
-    const own = meta ? spriteHit(meta, charPose(data, s, c.id), w.x, w.y, facing) : null;
-    out[c.id] = own ?? characterHitBox(characterDef(c.id), w.x, w.y, facing);
+    // 판 위 사람은 그린 자리(발 + 판 높이)를 누른다(1-7-9절). 쉬는 판이라 걷기 좌표와 최대 11px 어긋난다.
+    const y = w.y + Math.round(boardDrop(data, s, c.id));
+    const own = meta ? spriteHit(meta, charPose(data, s, c.id), w.x, y, facing) : null;
+    out[c.id] = own ?? characterHitBox(characterDef(c.id), w.x, y, facing);
   }
   return out;
 }
@@ -793,7 +802,12 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
       // 15번(1-6-5절): 그림으로만 판에 탄 사람(쿵 남은 칸)에게 다음 캐릭터 연출이 오면 판이 튕겨 낸다. 그 연출은 착지하면서 시작한다.
       const eject = char ? ejectHop(data, s, char, ev.name) : null;
       // 캐릭터 anim이 시작될 때 퍼즐 자리가 이미 판 끝이 아니면 판에서 빠진다(발사 `launch_to_hook`, 1-5-4절). 이름은 보지 않는다.
-      if (char && !hasBoard(data, s.puzzle.at[char] ?? '')) delete s.riding[char];
+      // 몸은 그 틱의 판 높이에 둔 채 연출한다(1-7-8절: 들린 판에 발이 묻히지 않게). 다음에 움직일 때 푼다.
+      if (char && s.riding[char] !== undefined && !hasBoard(data, s.puzzle.at[char] ?? '')) {
+        const w = s.walkers[char];
+        s.pinDrop[char] = { x: w.x, y: w.y, drop: boardDrop(data, s, char) };
+        delete s.riding[char];
+      }
       if (char && eject) {
         s.hops[char] = eject;
         const lead = eject.air;
@@ -836,7 +850,7 @@ const ceilTicks = (ms: number): number => Math.ceil(ms / TICK_MS - 1e-9);
 
 /**
  * 판 끝에 뛰어오르는 쿵(#414, `magpie_nest.md` 1-6-2절). 시트 자세의 `air` 칸 앞이 웅크림, `air` 칸이 공중, 그 뒤가 착지 칸부터 끝까지다.
- * 바닥 점에서 뛰면 `HOP.stomp.h`, 이미 그 끝에 타 있으면 제자리에서 `hOnBoard`로 뛴다(뜨는 틱에 판에서 빠짐). 착지 목표는 그 끝 서는 자리이고,
+ * 바닥 점에서 뛰면 `HOP.stomp.h`, 이미 그 끝에 타 있으면 제자리에서 `hOnBoard`로 뛴다(공중 동안도 탄 채, 1-7-6절). 착지 목표는 그 끝 서는 자리이고,
  * 발 높이는 올라서기와 같이 착지 전 기울기를 향한다(1-5-4절 #406). 자세에 `air`가 없거나 그 자리에 `board`가 없으면 null(그냥 연출).
  */
 function stompHop(data: SceneData, s: SceneState, id: CharacterId, name: string, onto: string): Hop | null {
@@ -907,7 +921,8 @@ function ejectHop(data: SceneData, s: SceneState, id: CharacterId, name: string)
 }
 
 /**
- * 무게 `HOP.jostle.weight` 이상인 사람이 걸어서 `spot` 끝에 올라선 착지 틱에, 같은 판 반대쪽 끝에 탄 사람의 들썩(1-6-6절).
+ * 무게 `HOP.jostle.weight` 이상인 사람이 걸어서 `spot` 끝에 올라선 착지 틱(1-6-6절)이나 걸어서 내려서며 뜨는 틱(1-7-5절)에,
+ * 같은 판 반대쪽 끝에 탄 사람의 들썩.
  * 이름이 아니라 기울기 무게로 본다(#417 리뷰 (c)). 탄 채로 제자리에서 뜨니 발은 판을 따른다. 퍼즐 상태는 안 바뀐다.
  */
 function jostleHops(data: SceneData, s: SceneState, id: CharacterId, spot: string): [CharacterId, Hop][] {
@@ -973,8 +988,6 @@ function tickHops(data: SceneData, s: SceneState): void {
     h.t += 1;
     const w = s.walkers[c.id];
     const landed = h.t >= h.crouch + h.air;
-    // 제자리 쿵은 뜨는 틱에 판에서 빠진다(1-6-2절 "제자리", 1-5-4절 내려서기와 같음).
-    if (h.onBoard && h.t >= h.crouch && !landed) delete s.riding[c.id];
     // 착지 칸이 시작되는 틱에 판에 탄다 → 같은 틱에 기울기·이미 서 있던 사람 발이 새 값으로 간다(1-5-4절).
     // 걸어서 올라선 사람이 무거우면 같은 틱에 반대쪽 사람이 들썩한다(1-6-6절).
     if (h.up && landed && s.riding[c.id] !== h.spot) {
@@ -1015,8 +1028,12 @@ function nextLeg(data: SceneData, s: SceneState, p: Playing): void {
       // 올라서기는 도착 자리, 내려서기는 떠나는 자리가 판 끝이다. 내려서기는 뜨는 틱에 판에서 빠진다(1-5-4절).
       const spot = leg.up ? p.ev.to : p.ev.from;
       const fromDrop = leg.up ? 0 : boardDrop(data, s, id);
-      if (!leg.up) delete s.riding[id];
       s.hops[id] = { from: { x: w.x, y: w.y }, to: { ...leg.to }, t: 0, ...hopTiming(data, id, leg.up), spot, fromDrop };
+      if (!leg.up) {
+        delete s.riding[id];
+        // 무거운 사람이 내려서며 뜨면 판이 반대쪽을 떨어뜨린다 → 그 끝 사람이 들썩(1-7-5절). 같은 틱에 생겨 다음 틱부터 센다.
+        for (const [other, hop] of jostleHops(data, s, id, spot)) s.hops[other] = hop;
+      }
     }
   }
 }
@@ -1077,7 +1094,8 @@ function tiltObject(data: SceneData, spot: string): (SceneObject & { tilt: NonNu
 }
 
 /**
- * 물건의 지금 기울기 d(`magpie_nest.md` 1-5-4절, 형식 기록 12절). 그 물건 자리에 "보이게 탄"(`riding`) 사람만 센다.
+ * 물건의 지금 기울기 d(`magpie_nest.md` 1-7-1절, 형식 기록 12절 개정 7). 그 물건 자리에 "보이게 탄"(`riding`) 사람만 센다.
+ * 쉬는 판: 무게 차의 부호만 본다. 무게가 다르면 무거운 쪽 끝이 `rest`만큼 내려가 쉬고, 같으면 수평이다.
  * 어느 쪽 무게인지는 자리 이름이 아니라 지금 발 x가 축(`pivot`) 어느 쪽인가로 정한다(판 위 끝 ↔ 끝 걷기는 축을 넘는 틱에 바뀐다).
  * 그림 전용이다. 퍼즐 코어·규칙은 무게를 모른다.
  */
@@ -1092,7 +1110,7 @@ export function tiltOf(data: SceneData, s: SceneState, objectKey: string): numbe
     const x = s.walkers[c.id].x;
     sum += (x > t.pivot ? 1 : x < t.pivot ? -1 : 0) * (t.weight[c.id] ?? 1);
   }
-  return t.step * sum;
+  return t.rest * Math.sign(sum);
 }
 
 /**
@@ -1106,23 +1124,26 @@ function boardTilt(data: SceneData, s: SceneState, objectKey: string): number {
 }
 
 /**
- * 판 위 발이 내려간 px(그리기 전용, 1-5-4절). 엔진은 캐릭터를 (x, y + 이 값)에 그린다. 히트 박스·발 y 순서는 그대로다(6px 이하).
+ * 판 위 발이 내려간 px(그리기 전용, 1-5-4절). 엔진은 캐릭터를 (x, y + 이 값)에 그리고, 히트 박스·말풍선 자리(`bodies`)도 따른다(1-7-9절).
+ * 발 y 그리기 순서(`drawOrder`)는 걷기 좌표 그대로다.
  * - 탄 사람: 지금 기울기로 지금 x 열의 판 높이. U6처럼 칸별 기울기가 있는 물건 anim 동안은 그 칸의 판 높이(2026-11-19 개정).
+ *   제자리 쿵 공중(1-7-6절)도 탄 사람이라 판 높이 위에서 포물선을 돈다.
  * - 올라서기 공중: **착지 전** 기울기의 도착 열 높이를 향해 0 → 그 값으로(#406). 착지 칸부터는 탄 사람이다.
  * - 내려서기 공중: 뜰 때 높이 → 0. 바닥 점은 판 앞 바닥이라 0이다.
+ * - 발사 중(1-7-8절): 판에서 빠진 틱의 높이 그대로(`pinDrop`).
  */
 export function boardDrop(data: SceneData, s: SceneState, id: CharacterId): number {
   const h = s.hops[id];
+  const pin = s.pinDrop[id];
+  const w = s.walkers[id];
+  if (pin && !h && s.riding[id] === undefined && pin.x === w.x && pin.y === w.y) return pin.drop;
   if (h && !h.up) return h.t < h.air ? h.fromDrop * (1 - h.t / h.air) : 0;
   const spot = s.riding[id] ?? (h?.up ? h.spot : undefined);
   const o = spot === undefined ? null : tiltObject(data, spot);
   if (!o) return 0;
   if (s.riding[id] !== undefined) return tiltDrop(o.tilt, boardTilt(data, s, o.key), s.walkers[id].x);
-  const d = tiltOf(data, s, o.key);
   if (!h || h.t < h.crouch) return 0;
-  // 제자리 쿵(#414)은 판 위에서 뜬다: 뜨는 틱의 판 높이(이미 빠진 기울기)에서 착지 전 판 높이로.
-  const lo = h.onBoard ? tiltDrop(o.tilt, d, h.from.x) : 0;
-  return lo + ((h.t - h.crouch) / h.air) * (tiltDrop(o.tilt, d, h.to.x) - lo);
+  return ((h.t - h.crouch) / h.air) * tiltDrop(o.tilt, tiltOf(data, s, o.key), h.to.x);
 }
 
 /** 장면 상태 → 시트 자세(engine/sprites.ts `drawSprite`). 연출은 이벤트로만 안다(ADR-0065 5절). */
