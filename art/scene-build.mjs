@@ -21,8 +21,8 @@ const TILT_KEYS = ['step', 'weight', 'pivot', 'run', 'draw'];
 const NO_FLOOR_KEYS = ['box', 'y'];
 const STATE_KEYS = ['when', 'draw', 'loop', 'layer'];
 const OVERLAY_KEYS = ['sortY', 'draw'];
-const ANIM_KEYS = ['ms', 'frames', 'layer', 'variants'];
-const VARIANT_KEYS = ['when', 'ms', 'frames', 'layer'];
+const ANIM_KEYS = ['ms', 'frames', 'layer', 'tilt', 'variants'];
+const VARIANT_KEYS = ['when', 'ms', 'frames', 'layer', 'tilt'];
 const LOOP_KEYS = ['ms', 'frames'];
 
 /** 화면 JSON의 [x, y, w, h] 두 개가 겹치나 */
@@ -243,6 +243,7 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
 
   // ── 일시 연출(4·5절). 대상은 어떤 물건의 ID, ms 합 ≤ 1500. 연출은 움직이므로 히트 박스 겹침은 보지 않는다.
   const anims = {};
+  const tiltKeys = new Set(objects.filter((o) => o.tilt).map((o) => o.key));
   for (const [name, a] of Object.entries(SCENE.anims ?? {})) {
     const w = `anims['${name}']`;
     unknownKeys(a, ANIM_KEYS, w, problems);
@@ -264,7 +265,15 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
         const sum = ms.reduce((s, v) => s + v, 0);
         if (sum > ANIM_MAX_MS) problems.push(`${where}: ms 합 ${sum} > ${ANIM_MAX_MS}(busy 길이 상한, 넘으면 L1로 올린다)`);
       }
-      return { frames, ms: ms ?? [], layer: layerOf(src.layer, where) };
+      const res = { frames, ms: ms ?? [], layer: layerOf(src.layer, where) };
+      // 12-5절(개정 6): 칸별 기울기 d. 판 위 발이 그 칸의 판 높이를 따른다. 기울기 물건의 anim만, 칸 수와 같은 길이의 정수.
+      if (src.tilt !== undefined) {
+        if (!tiltKeys.has(owner.get(target))) problems.push(`${where}.tilt: 대상 물건에 tilt가 없다(칸별 기울기는 기울기 물건 anim만)`);
+        else if (!Array.isArray(src.tilt) || src.tilt.length !== frames.length || !src.tilt.every(Number.isInteger))
+          problems.push(`${where}.tilt: frames와 같은 길이(${frames.length})의 정수 배열이어야 한다`);
+        else res.tilt = [...src.tilt];
+      }
+      return res;
     };
     const out = { object: owner.get(target) ?? null, ...one(a, w) };
     // 4-1절(개정 1): 갈래는 첫 일치, 없으면 기본. 갈래 layer는 기본을 물려받지 않는다(없으면 back).
