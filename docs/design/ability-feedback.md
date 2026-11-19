@@ -66,8 +66,9 @@
 | `poof_text` | `ぼふっ` | `tan` | 8 | `park_fountain` 흙길 쿵. 히라가나라 부드럽게 읽힌다(돌 `ゴォン`과 대비) |
 | `quack_text` | `クワッ` | `white` | 8 | `park_fountain` 오리. 새 소리는 흰색(`ギャー`·`カチカチ`와 같은 규칙) |
 | `kokee_text` | `コケーッ` | `pinkL` | 10 | `park_fountain` 늦게 우는 닭 자명종(엔딩 반전의 신호). 시그니처 색(빨강·청록·노랑)과 안 겹치는 분홍, 크게 |
+| `shaa_text` | `シャーッ` | `aqua` | 8 | `park_fountain` 진입(`onEnter`) 물줄기 소리(9절, ADR-0003 규칙 4). 물빛이지만 `ドスン`(`tealM`)과 명도가 멀다. 배경 소리라 크게 하지 않는다. 2026-11-20 추가(#477) |
 
-- 글자는 **픽셀 그림 시트**로 만든다(32색 규칙, 캔버스에 그림). 브라우저 글꼴로 캔버스에 쓰면 테두리가 흐려지고 32색 밖의 색이 생긴다. 시트는 Luna가 `art/`에 만든다: 원본 `art/ui/fx-text.mjs` → `public/ui/fx-text.png` + `fx-text.json`(`cells`: fx 이름 → 칸 `[x, y, w, h]`), 기준점은 칸 아래 가운데 `(floor(w/2), h)`. 칸 = 글자 속 + 외곽선(ink, 8방향) 1px라서 칸 높이 = 표의 높이 + 2. `キン` 옆 반짝은 fx가 아닌 부품 칸 `ting_spark`(5×5)다. 미리보기: `docs/design/art/fx-text-preview-4x.png`(바탕 4종). 단어가 14개뿐이라(`park_fountain` 4개 포함, 2026-11-19) 글자 단위가 아니라 **단어 단위**로 그린다(가타카나 글꼴 세트를 만들지 않는다).
+- 글자는 **픽셀 그림 시트**로 만든다(32색 규칙, 캔버스에 그림). 브라우저 글꼴로 캔버스에 쓰면 테두리가 흐려지고 32색 밖의 색이 생긴다. 시트는 Luna가 `art/`에 만든다: 원본 `art/ui/fx-text.mjs` → `public/ui/fx-text.png` + `fx-text.json`(`cells`: fx 이름 → 칸 `[x, y, w, h]`), 기준점은 칸 아래 가운데 `(floor(w/2), h)`. 칸 = 글자 속 + 외곽선(ink, 8방향) 1px라서 칸 높이 = 표의 높이 + 2. `キン` 옆 반짝은 fx가 아닌 부품 칸 `ting_spark`(5×5)다. 미리보기: `docs/design/art/fx-text-preview-4x.png`(바탕 4종). 단어가 15개뿐이라(`park_fountain` 5개 포함, 2026-11-20) 글자 단위가 아니라 **단어 단위**로 그린다(가타카나 글꼴 세트를 만들지 않는다).
 - 시트가 들어오기 전 FE 임시 그림: 지금 `drawSpark`를 그대로 쓴다. 대신 fx마다 칠 색은 위 표대로 바꾸면 "다른 fx"인 것은 보인다. 재플레이는 시트가 들어온 뒤에 한다.
 - `park_fountain`의 `カーン`(장대로 돌우산 치기)은 새 fx 없이 `clang_text`를, 분수 메아리는 `small_squeak_text`를 다시 쓴다(2026-11-19, PR #446 Theo 리뷰 뒤 이름을 줄임).
 - `park_fountain`의 글자 아닌 fx: `shake`·`hop`·`nod`는 엔진 일반 변환(물건 그림을 흔들기 2px 좌우 / 위로 포물선 / 1px 숙이기, 새 칸 없음, Theo). `ripple`·`splash`는 물줄기와 같은 효과 자리 입자(물 4색 26·25·6·24), `pigeons_up`·`pigeons_turn`은 모양이 있어서 작은 스프라이트(비둘기 2마리, 칸 2개, Luna).

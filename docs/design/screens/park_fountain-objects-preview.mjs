@@ -8,12 +8,12 @@
 //   park_fountain-objects-run-2x.png     달려오기(run_in) 4칸 + 만세를 한 장에 겹친 궤적(엔진은 한 칸씩 그린다)
 //   park_fountain-objects-guest-gray-2x.png  위 화면 위 손님·관리인의 명도(흑백) (ADR-0007 결정 3-6)
 //   park_fountain-objects-keeper-5x.png  관리인 P1·P2 7칸 + 2번 규칙 `swat`을 5배로, 창·창턱·자명종(구도 시안 그림)과 함께
-//     순서: 졸기 | wake(벌떡·탁·갸웃) | clean_time(벽시계·꾹·털썩) | swat(졸면서 탁)
+//     순서: 졸기 | 꾸벅(대기 loop) | wake(벌떡·탁·갸웃) | clean_time(벽시계·꾹·털썩) | swat(졸면서 탁)
 // 검사(어기면 종료 코드 1): buildScene 문제 0건(배경 시안의 ink는 빼고 센다), 손님 주색과 뒤 배경(입구 기둥·흙길)의 명도 차 ≥ 30,
 //   넥타이 = 재킷 같은 분홍, 금색(yel 계열) 없음, 재회 자리 칸이 ノビー 칸(기준점 ±24)과 겹치지 않음,
 //   달려오기 칸이 입구 → 재회 자리로 x가 줄고 발 y가 늘어남(뒷걸음·튐 없음).
 //   관리인: 피부·작업복과 창 안 실내 명도 차 ≥ 30, 창 밖으로 나가는 칸은 탁(swat) 두 칸뿐, 탁 손바닥이 자명종 볏 바로 위(2px 안),
-//   제어판 빨간 단추는 꾹 칸에만(설계 7절 P2).
+//   제어판 빨간 단추는 꾹 칸에만(설계 7절 P2), 대기 꾸벅은 고개만 떨어진다(책상·포갠 팔 y ≥ 139는 졸기와 같고, 머리 맨 위가 2px 아래, #477).
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { inflateSync, deflateSync } from 'node:zlib';
@@ -52,8 +52,8 @@ function put(dst, i, dx = 0, dy = 0) {
 const G = meta.objects.find((o) => o.key === 'guest');
 const A = meta.anims;
 const K = meta.objects.find((o) => o.key === 'keeper');
-const keeperFrames = [K.default.frame, ...A['keeper.wake'].frames, ...A['keeper.clean_time'].frames, ...A['keeper.swat'].frames];
-const keeperNames = ['doze', 'jolt', 'swat', 'tilt', 'look', 'press', 'plop', 'swatAsleep'];
+const keeperFrames = [K.default.frame, K.default.loop.frames[1], ...A['keeper.wake'].frames, ...A['keeper.clean_time'].frames, ...A['keeper.swat'].frames];
+const keeperNames = ['doze', 'nod', 'jolt', 'swat', 'tilt', 'look', 'press', 'plop', 'swatAsleep'];
 // 창턱 닭 자명종: 아직 물건 시트에 없어서 구도 시안의 그림(84,140 12×12)을 그대로 찍어 탁 자리를 본다
 const CLOCK = { x: 84, y: 140 };
 const clock = (im) => stamp(im, CLOCK.x, CLOCK.y, ['....rr......', '...rrr......', '..wwww......', '.wwkwwww....', 'yywwwwwwww..', '.wwwccccwww.', '.wwcwwwwcww.', '.wwcwwkwcww.', '.wwcwwwwcww.', '..wwccccww..', '...ww..ww...', '...yy..yy...'], { r: C.red, w: C.white, k: C.plum, y: C.yel, c: C.redL });
@@ -198,13 +198,22 @@ for (const [name, k, at] of [['입구 대기', 'watch', GUEST_AT], ['재회 만�
     return ax < wx - 1 || ay < wy - 1 || ax + sw > wx + ww + 1 || ay + sh > wy + wh + 1;
   });
   check(outside.join() === 'swat,swatAsleep', `창 밖으로 나가는 칸은 탁 두 칸뿐: ${outside.join(', ')}`);
-  for (const n of [2, 7]) {
+  for (const n of [3, 8]) {
     const im = only2(keeperFrames[n]);
     let bottom = -1;
     for (let y = wy; y < CLOCK.y; y++) for (let x = CLOCK.x; x < CLOCK.x + 12; x++) if ([C.tan, C.woodL].includes(im.get(x, y))) bottom = Math.max(bottom, y);
     check(bottom >= CLOCK.y - 3 && bottom < CLOCK.y, `${keeperNames[n]}: 손바닥 아래 끝 y ${bottom}이 자명종 위 끝 ${CLOCK.y} 바로 위(2px 안)`);
   }
   const hasRed = keeperNames.filter((_, n) => { const im = only2(keeperFrames[n]); return im.c.includes(C.red); });
+  {
+    // 대기 꾸벅(#477): 몸·팔·책상은 졸기 그대로, 고개만 내려간다. 칸 전체를 옮기는 오프셋이면 이 검사가 깨진다
+    const nod = only2(keeperFrames[1]);
+    let same = true;
+    for (let y = 139; y < wy + wh; y++) for (let x = wx; x < wx + ww; x++) if (doze.get(x, y) !== nod.get(x, y)) same = false;
+    check(same, '꾸벅: 책상·포갠 팔(y ≥ 139)이 졸기와 같다');
+    const top = (im) => { for (let y = wy; y < wy + wh; y++) for (let x = wx + 13; x < 70; x++) if ([C.tan, C.woodL].includes(im.get(x, y))) return y; return -1; };
+    check(top(nod) - top(doze) === 2, `꾸벅: 머리 맨 위 y ${top(doze)} → ${top(nod)}(2px 아래)`);
+  }
   check(hasRed.join() === 'press', `제어판 빨간 단추는 꾹 칸에만: ${hasRed.join(', ')}`);
 }
 

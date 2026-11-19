@@ -8,7 +8,7 @@
 //   node docs/design/screens/park_fountain-objects-preview.mjs
 //
 // 뼈대 1: 손님 P8 4칸(설계 7절)과 멈춘 모습 2개, anim 4개(`guest.wait`·`run_in`·`cheer`·`soaked`).
-// 뼈대 2: 관리인 P1 4칸 + P2 3칸, anim 3개(`keeper.wake`·`clean_time`·`swat`). 커튼 P3·자명종 P7은 다음 판.
+// 뼈대 2: 관리인 P1 4칸 + P2 3칸, anim 3개(`keeper.wake`·`clean_time`·`swat`), 대기 꾸벅 `loop`(#477). 커튼 P3·자명종 P7은 다음 판.
 
 import { C, Image, EMPTY } from '../lib/pixel.mjs';
 import { stamp, outlined, line, fill, bay } from '../lib/texture.mjs';
@@ -445,6 +445,10 @@ const KEEPER_POSES = {
   // P1 0칸: 졸기(대기). 고개가 앞으로 2px 떨구고 팔은 창턱 안쪽 책상에 포갠다. 입가에 침 한 방울
   doze: { at: [54, 120], bodyDy: -2, head: { eyes: 'closed', mouth: 'drool' }, arms: [], folded: true,
     fx: (im) => { zz(im); im.set(61, 135, C.tealL); } },
+  // 9절 대기 꾸벅(졸기 덧그림, 칸으로 안 센다): 몸·포갠 팔은 그대로, 고개만 2px 떨어지며 창턱 자명종(오른쪽)으로 기운다.
+  // 시선이 자명종으로 가는 보조 단서(설계 9절). 턱이 깃에 묻히고 침이 한 줄 길어진다
+  nod: { at: [54, 122], bodyDy: -4, head: { eyes: 'closed', mouth: 'drool', tilt: true }, arms: [], folded: true,
+    fx: (im) => { zz(im); im.set(61, 137, C.tealL); im.set(61, 138, C.tealL); } },
   // P1 1칸: 벌떡. 몸째 2px 솟고 옆머리가 곤두서고 두 손바닥을 머리 옆으로
   jolt: { at: [54, 116], head: { eyes: 'wide', mouth: 'open', raised: true, spiky: true },
     arms: [[51, 133, 47, 121], [71, 133, 74, 121]],
@@ -472,7 +476,11 @@ const KEEPER_POSES = {
 export const KEEPER_WINDOW = WIN;
 const keeper = Object.fromEntries(Object.keys(KEEPER_POSES).map((k) => [k, keeperPic(k)]));
 
-OBJECTS.keeper = { draw: keeper.doze };
+OBJECTS.keeper = {
+  draw: keeper.doze,
+  // 9절 대기: 약 15초 졸다가 0.4초 꾸벅. anim(`keeper.wake` 등)이 끝나면 0부터 다시 센다(형식 개정 3, #237)
+  loop: { ms: [15000, 400], frames: [keeper.doze, keeper.nod] },
+};
 // 1번★·8절 ③: 벌떡 → 탁 → 갸웃. 말풍선(keeper_wake)이 갸웃 칸 상자에 붙도록 hold
 ANIMS['keeper.wake'] = { ms: [260, 340, 600], frames: [keeper.jolt, keeper.swat, keeper.tilt], hold: true };
 // 1번★·8절 ③: 벽시계 → 제어판 꾹 → 털썩. 대기열이 비면 졸기(draw)로 돌아간다
