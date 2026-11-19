@@ -13,7 +13,7 @@ import { hotspotBox, hudTargets, tap, type Intent, type TapContext, type UiState
 import { animOf, animTicks, tiltDrop, timedIndex, type SceneAnim, type SceneArtMeta, type SceneObject } from './sceneArt';
 import { FX_TICKS, fxTicks } from './fx';
 import { sayText, seenSayKey } from './sayText';
-import { cueMs, spriteFacing, spriteFrame, spriteHit, type Pose, type SpriteMeta } from './sprite';
+import { cueMs, spriteFacing, spriteFrame, spriteHit, type Pose, type SpriteAnim, type SpriteMeta } from './sprite';
 import { approachFor, initialState, step } from './puzzle/step';
 import { GAUGE_MAX, type Action, type CharactersData, type PuzzleEvent, type PuzzleState, type ScreenData, type StepSource, type Verb } from './puzzle/types';
 import type { Point } from './viewport';
@@ -74,6 +74,15 @@ export const HOP = {
   } satisfies Record<CharacterId, { crouchMs: number; airMs: number; h: number }>,
   down: { airMs: 100, h: 8 },
   landMs: 50,
+  /**
+   * 묵직이 쿵 = 판 끝에 뛰어올라 쿵(`magpie_nest.md` 1-6-2절, #414). 시간은 시트 자세의 `air` 칸이 정하고 높이만 여기 둔다.
+   * 바닥 점에서 뛰면 `h`, 이미 그 끝에 서 있으면(제자리) `hOnBoard`.
+   */
+  stomp: { h: 32, hOnBoard: 24 },
+  /** 15번: 빈 판에 쿵 하면 U6가 끝나는 틱에 판이 묵직이를 튕겨 낸다(1-6-5절). 바닥 점 바깥(+x)으로 `dx`, 바닥 y `y`. */
+  eject: { h: 24, airMs: 250, dx: 12, y: 244 },
+  /** 무게 `weight` 이상인 사람이 걸어서 한 끝에 올라서면 반대쪽 끝에 탄 사람이 들썩한다(1-6-6절). 수평 이동 없음. */
+  jostle: { h: 4, airMs: 100, landMs: 50, weight: 2 },
 } as const;
 
 /** 진행 중인 깡충 하나(틱 단위). 시작 틱이 t=0이고 `crouch + air + land` 틱에 `to`에 선다. */
@@ -91,6 +100,21 @@ export interface Hop {
   spot: string;
   /** 내려서기: 뜰 때 판 위 발이 내려가 있던 px(그 순간의 기울기). 공중 동안 0으로 줄인다. 올라서기는 0. */
   fromDrop: number;
+  /**
+   * 걷기 깡충이 아닌 것(#414). 없으면 `walk` 구간의 올라서기·내려서기다.
+   * - `stomp`: 시트 자세(`anim`, `air` 칸이 있는 `seesaw_stomp`)를 따라 판 끝에 뛰어올라 쿵. 착지 뒤 남은 칸은 대기열 밖에서 돌고, 끝나면 `after`로 내려선다(1-6-2절 ⑦).
+   * - `eject`: 15번 튕겨 나가기(1-6-5절). 공중 동안 `anim`의 `airMs` 칸에 멈춘다.
+   * - `jostle`: 반대쪽 들썩(1-6-6절). 공중 동안 `anim`의 `airMs` 칸, 착지 동안 서 있기 첫 칸.
+   */
+  kind?: 'stomp' | 'eject' | 'jostle';
+  /** 깡충 동안 `step_up` 대신 그릴 시트 자세. 시트에 그 자세가 없으면 비워 둔다(→ `step_up`). */
+  anim?: string;
+  /** `eject`·`jostle`의 공중 칸 시각(ms, `anim` 안). */
+  airMs?: number;
+  /** 출발점이 판 위다(제자리 쿵). 뜨는 틱에 판에서 빠지고, 공중 동안 발은 그때의 판 높이에서 출발한다. */
+  onBoard?: boolean;
+  /** `stomp`: 남은 칸이 끝나면 뛰어내릴 바닥 점(`board`). */
+  after?: Point;
 }
 
 /** `walk` 이벤트 하나를 이루는 구간(#397). 보통은 걷기 하나이고, 시소 끝에 오르내리면 걷기와 깡충 둘이다. */
@@ -101,8 +125,11 @@ export type WalkLeg = { kind: 'walk'; to: Point } | { kind: 'hop'; to: Point; up
  * `walk.face`는 엔진이 넣은 "대상 앞까지 걷기"(설계 5-1절)에만 있다: 도착하면 그 방향(대상 쪽)을 본다.
  */
 export type PlayEvent =
-  | Exclude<PuzzleEvent, { type: 'say' } | { type: 'walk' }>
-  | (Extract<PuzzleEvent, { type: 'walk' }> & { face?: Facing })
+  | Exclude<PuzzleEvent, { type: 'say' } | { type: 'walk' } | { type: 'anim' }>
+  /** `stay`: 그리지 않는 걷기(제자리 쿵 전에 퍼즐이 먼저 내려서게 한 것, 1-6-2절 "제자리"). 내려서기는 쿵 뒤 ⑦로 미룬다. */
+  | (Extract<PuzzleEvent, { type: 'walk' }> & { face?: Facing; stay?: true })
+  /** `onto`: 이 캐릭터 연출이 시트 `air` 칸을 따라 그 `board` 자리(판 끝)에 뛰어오른다(#414). */
+  | (Extract<PuzzleEvent, { type: 'anim' }> & { onto?: string })
   | { type: 'say'; speaker: string; text: string };
 
 export interface Playing {
@@ -126,6 +153,8 @@ export interface Playing {
   legs?: WalkLeg[];
   /** `walk`가 끝날 때 설 점. 탭 건너뛰기가 여기로 바로 옮긴다(깡충까지 건너뜀, 1-5-2절). */
   end?: Point;
+  /** 캐릭터 연출이 시작되기 전 틱 수(15번 튕겨 나가기 공중, 1-6-5절). 자세 시각과 칸 신호를 이만큼 늦춘다. */
+  lead?: number;
 }
 
 /**
@@ -224,9 +253,12 @@ export interface SceneData {
   texts?: Readonly<Record<string, string>>;
 }
 
-/** busy = 재생할 이벤트가 하나라도 남아 있다(설계 5절). */
+/**
+ * busy = 재생할 이벤트가 하나라도 남아 있다(설계 5절). 깡충도 센다: 쿵 남은 칸·⑦ 내려서기·들썩은 대기열 밖에서 돈다(#414 1-6-4·1-6-6절).
+ * 걷기 구간의 깡충은 그 `walk`가 `current`라 원래 busy다.
+ */
 export function isBusy(s: SceneState): boolean {
-  return s.current !== null || s.queue.length > 0 || s.overlays.length > 0;
+  return s.current !== null || s.queue.length > 0 || s.overlays.length > 0 || Object.keys(s.hops).length > 0;
 }
 
 /**
@@ -500,6 +532,23 @@ function stepDownWalk(
   return board ? { walk: first, board } : null;
 }
 
+/**
+ * `stomp`으로 `board`가 있는 자리(판 끝)를 누르면 설 곳은 그 바닥 점이다(x·y 둘 다, `magpie_nest.md` 1-6-2절 ①·10번, #417 리뷰 (e)).
+ * 그 끝(서는 자리)을 본다. 아니면 null(→ 5-1절 `approachPoint`).
+ */
+function stompBoard(data: SceneData, action: Action): { p: Point; face: Facing | null } | null {
+  const spot = action.verb === 'stomp' ? data.screen.spots[action.target] : undefined;
+  if (!spot?.board) return null;
+  const [x, y] = spot.board;
+  return { p: { x, y }, face: spot.x === x ? null : spot.x > x ? 1 : -1 };
+}
+
+/** 이 캐릭터 시트 자세에 공중 칸(`air`)이 있으면 그 자세(#414). */
+function airAnim(data: SceneData, id: string, name: string): (SpriteAnim & { ms: number[]; air: [number, number] }) | null {
+  const a = data.sprites?.[id]?.anims[name];
+  return a && 'ms' in a && a.air ? (a as SpriteAnim & { ms: number[]; air: [number, number] }) : null;
+}
+
 export function runAction(data: SceneData, s: SceneState, action: Action, to: Point | null): void {
   const before = s.puzzle.flags;
   const prev = s.puzzle;
@@ -512,8 +561,16 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
   w.walkTicks = 0;
   const first = events[0];
   const leaving = stepDownWalk(data, events, action.char);
+  const sb = stompBoard(data, action);
+  // 판 끝에 뛰어오르는 연출(#414): 이 캐릭터의 `air` 칸 자세. 그 끝에 이미 서 있으면 퍼즐의 내려서기는 그리지 않는다(1-6-2절 "제자리").
+  const jump = sb ? events.find((e) => e.type === 'anim' && e.target === action.char && airAnim(data, action.char, e.name) !== null) : undefined;
+  const stay = leaving !== null && jump !== undefined && leaving.walk.from === action.target ? leaving.walk : null;
   let downFace: Facing | null = null;
-  if (leaving) {
+  if (leaving && !stay && sb) {
+    // 다른 끝에서 판 끝을 쿵: 그 끝에서 내려선 뒤 누른 끝의 바닥 점까지 걷는다(1-6-2절 "다른 끝에 서 있을 때").
+    s.floorTo[action.char] = sb.p;
+    downFace = sb.face;
+  } else if (leaving && !stay) {
     // 판 끝에서 바닥으로 내려서는 `walk`로 시작하면(#416): 바닥 점에 내려선 뒤 그 걷기의 끝을 5-1절 설 곳으로 잇는다(1-5-2절
     // "내려서기 → 대상 앞까지 걷기"). 설 곳·방향은 바닥 점에 선 사람 기준이다. 퍼즐 상태와 이벤트 순서는 그대로다.
     const [bx, by] = leaving.board;
@@ -523,7 +580,15 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
       downFace = down.face;
     }
   }
-  const ap = first?.type === 'walk' && first.char === action.char ? null : approachPoint(data, prev, action, w);
+  const fromFloor = !(first?.type === 'walk' && first.char === action.char);
+  if (fromFloor && sb && isFree(data, prev.at[action.char] ?? '') && (w.x !== sb.p.x || w.y !== sb.p.y)) {
+    // 바닥에서 판 끝을 쿵: 그 끝의 바닥 점(x·y)까지 걸어가 그 끝을 본다(1-6-2절 ①). 끝이 차 있어도(10번) 같은 점에서 멈춘다.
+    const spot = prev.at[action.char]!;
+    s.floorTo[action.char] = sb.p;
+    s.queue.push(sb.face === null ? { type: 'walk', char: action.char, from: spot, to: spot } : { type: 'walk', char: action.char, from: spot, to: spot, face: sb.face });
+  }
+  const ap = !fromFloor || sb ? null : approachPoint(data, prev, action, w);
+  if (sb && fromFloor && sb.face !== null && w.x === sb.p.x && w.y === sb.p.y) w.facing = sb.face;
   if (ap && Math.abs(ap.x - w.x) > APPROACH_SLOP) {
     // `floor`→`floor` 걷기. `walk` 이벤트와 똑같이 busy이고 탭으로 건너뛴다(5절 예외 둘). 설 점은 `floorPoint`가 쓴다.
     const spot = prev.at[action.char]!;
@@ -552,6 +617,8 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
   const n = bump(s, variantKey(r.source, r.ruleId, action));
   for (const ev of events) {
     if (ev.type === 'say') s.queue.push({ ...ev, text: pickText(ev.text, n) });
+    else if (ev === stay) s.queue.push({ ...ev, stay: true });
+    else if (ev === jump && ev.type === 'anim') s.queue.push({ ...ev, onto: action.target });
     else s.queue.push(ev === leaving?.walk && downFace !== null ? { ...ev, face: downFace } : ev);
   }
   const hint = hintEvent(data, s, r.source, action);
@@ -633,6 +700,12 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
   else if (ev.type === 'faint') s.held = {};
   switch (ev.type) {
     case 'walk': {
+      if (ev.stay) {
+        // 제자리 쿵(1-6-2절): 퍼즐은 먼저 바닥으로 내려섰지만 몸은 판 위에 그대로 둔다. 내려서기는 쿵 뒤 ⑦이다.
+        const w = s.walkers[ev.char];
+        s.spotOf[ev.char] = ev.to;
+        return { ev, t: 0, duration: null, seq, legs: [], end: { x: w.x, y: w.y } };
+      }
       const p = destination(data, s, ev.char, ev.to);
       s.spotOf[ev.char] = ev.to;
       // 판 끝 ↔ 끝은 판 위로 걷는다(깡충 없음). 계속 탄 채라 자리만 바꾼다(어느 쪽 무게인지는 지금 x로 센다).
@@ -655,6 +728,9 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
       return { ev, t: 0, duration: TIMING.place, seq };
     case 'faint':
       for (const c of CHARACTERS) {
+        // 대기열 밖 깡충(쿵 남은 칸·⑦·튕겨 나가기) 도중이면 그 깡충이 끝날 바닥 점에 먼저 세운다(판 위 좌표로 바닥에 남지 않게).
+        const h = s.hops[c.id];
+        if (h) teleport(s.walkers[c.id], h.after ?? h.to);
         teleport(s.walkers[c.id], faintPoint(data, s, c.id, ev.to[c.id]));
         delete s.hops[c.id];
         s.spotOf[c.id] = ev.to[c.id];
@@ -672,14 +748,36 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
     case 'say':
       return { ev, t: 0, duration: sayDuration(data, ev.speaker, ev.text), seq };
     case 'anim': {
+      const char = isCharacter(ev.target) ? ev.target : null;
+      const cueTicks = (lead: number): number[] => cueMs(data.sprites?.[ev.target], ev.name).map((ms) => ceilTicks(ms) + lead);
+      // 판 끝에 뛰어올라 쿵(#414 1-6-2·1-6-4절): 이 이벤트는 착지 칸이 시작되는 틱에 끝나서 대기열이 U6로 넘어간다.
+      // 남은 칸(쿵·여운)과 ⑦ 내려서기는 깡충(`hops`)으로 대기열 밖에서 돈다.
+      const jump = char && ev.onto ? stompHop(data, s, char, ev.name, ev.onto) : null;
+      if (char && jump) {
+        s.hops[char] = jump;
+        const p: Playing = { ev, t: 0, duration: jump.crouch + jump.air, seq };
+        const cues = cueTicks(0);
+        if (cues.length > 0) p.cues = cues;
+        return p;
+      }
+      // 15번(1-6-5절): 그림으로만 판에 탄 사람(쿵 남은 칸)에게 다음 캐릭터 연출이 오면 판이 튕겨 낸다. 그 연출은 착지하면서 시작한다.
+      const eject = char ? ejectHop(data, s, char, ev.name) : null;
       // 캐릭터 anim이 시작될 때 퍼즐 자리가 이미 판 끝이 아니면 판에서 빠진다(발사 `launch_to_hook`, 1-5-4절). 이름은 보지 않는다.
-      if (isCharacter(ev.target) && !hasBoard(data, s.puzzle.at[ev.target] ?? '')) delete s.riding[ev.target];
+      if (char && !hasBoard(data, s.puzzle.at[char] ?? '')) delete s.riding[char];
+      if (char && eject) {
+        s.hops[char] = eject;
+        const lead = eject.air;
+        const p: Playing = { ev, t: 0, duration: lead + (charAnimTicks(data, char, ev.name) ?? TIMING.anim), seq, lead };
+        const cues = cueTicks(lead);
+        if (cues.length > 0) p.cues = cues;
+        return p;
+      }
       // 물건 anim은 갈래를 anim 직전 보이는 플래그로 고르고(4-1절), 그 길이가 busy 길이다(5절). 없으면 임시 길이.
       const obj = data.art?.objects.find((o) => o.ids.includes(ev.target));
       const art = data.art && obj ? animOf(data.art, ev.target, ev.name, shownFlags(s, obj.key)) : null;
       if (art) return { ev, t: 0, duration: animTicks(art.anim), seq, art };
       const p: Playing = { ev, t: 0, duration: charAnimTicks(data, ev.target, ev.name) ?? TIMING.anim, seq };
-      const cues = cueMs(data.sprites?.[ev.target], ev.name).map((ms) => Math.ceil(ms / TICK_MS - 1e-9));
+      const cues = cueTicks(0);
       if (cues.length > 0) p.cues = cues;
       return p;
     }
@@ -703,6 +801,112 @@ function walkLegs(data: SceneData, from: string, to: string, p: Point): WalkLeg[
 }
 
 const msTicks = (ms: number): number => Math.max(1, Math.round(ms / TICK_MS));
+/** 시트 ms → 틱(올림). 물건 anim 길이(`animTicks`)·칸 신호와 같은 셈이라 착지 칸 시작이 `cue` 틱과 맞는다. */
+const ceilTicks = (ms: number): number => Math.ceil(ms / TICK_MS - 1e-9);
+
+/**
+ * 판 끝에 뛰어오르는 쿵(#414, `magpie_nest.md` 1-6-2절). 시트 자세의 `air` 칸 앞이 웅크림, `air` 칸이 공중, 그 뒤가 착지 칸부터 끝까지다.
+ * 바닥 점에서 뛰면 `HOP.stomp.h`, 이미 그 끝에 타 있으면 제자리에서 `hOnBoard`로 뛴다(뜨는 틱에 판에서 빠짐). 착지 목표는 그 끝 서는 자리이고,
+ * 발 높이는 올라서기와 같이 착지 전 기울기를 향한다(1-5-4절 #406). 자세에 `air`가 없거나 그 자리에 `board`가 없으면 null(그냥 연출).
+ */
+function stompHop(data: SceneData, s: SceneState, id: CharacterId, name: string, onto: string): Hop | null {
+  const a = airAnim(data, id, name);
+  const board = data.screen.spots[onto]?.board;
+  if (!a || !board) return null;
+  const upTo = (k: number): number => ceilTicks(a.ms.slice(0, k).reduce((x, y) => x + y, 0));
+  const crouch = upTo(a.air[0]);
+  const landAt = upTo(a.air[1] + 1);
+  const w = s.walkers[id];
+  const onBoard = s.riding[id] === onto;
+  return {
+    from: { x: w.x, y: w.y },
+    to: spotPoint(data, onto),
+    t: 0,
+    crouch,
+    air: landAt - crouch,
+    land: upTo(a.ms.length) - landAt,
+    h: onBoard ? HOP.stomp.hOnBoard : HOP.stomp.h,
+    up: true,
+    spot: onto,
+    fromDrop: 0,
+    kind: 'stomp',
+    anim: name,
+    onBoard,
+    after: { x: board[0], y: board[1] },
+  };
+}
+
+/** 시트 자세 `name`의 k번째 칸이 시작되는 ms. 시트에 그 자세(ms)나 칸이 없으면 null. */
+function frameStartMs(data: SceneData, id: string, name: string, k: number): number | null {
+  const a = data.sprites?.[id]?.anims[name];
+  if (!a || !('ms' in a) || k >= a.ms.length) return null;
+  return a.ms.slice(0, k).reduce((x, y) => x + y, 0);
+}
+
+/** 튕겨 나가기·들썩의 공중 칸: `common.flatten` 2번(뿅, 놀란 눈, 1-6-5·1-6-6절). */
+const SURPRISE = { name: 'common.flatten', frame: 2 } as const;
+
+/**
+ * 15번 튕겨 나가기(1-6-5절). 쿵 남은 칸으로 판에 그림으로만 탄 사람에게 캐릭터 연출이 오면, 판 위 자리에서 바닥 점 바깥
+ * (`board.x + dx`, y `HOP.eject.y`)으로 H 24 공중을 돈 뒤 그 연출을 처음부터 시작한다. ⑦ 내려서기는 없다. 해당 없으면 null.
+ * 출발 발 높이는 그 틱의 판 높이다(판이 비어 수평으로 돌아온다).
+ */
+function ejectHop(data: SceneData, s: SceneState, id: CharacterId, name: string): Hop | null {
+  const h = s.hops[id];
+  if (h?.kind !== 'stomp' || h.t < h.crouch + h.air || !h.after) return null;
+  const w = s.walkers[id];
+  delete s.riding[id];
+  const o = tiltObject(data, h.spot);
+  const fromDrop = o ? tiltDrop(o.tilt, tiltOf(data, s, o.key), w.x) : 0;
+  const ms = name === SURPRISE.name ? frameStartMs(data, id, name, SURPRISE.frame) : null;
+  const hop: Hop = {
+    from: { x: w.x, y: w.y },
+    to: { x: h.after.x + HOP.eject.dx, y: HOP.eject.y },
+    t: 0,
+    crouch: 0,
+    air: msTicks(HOP.eject.airMs),
+    land: 0,
+    h: HOP.eject.h,
+    up: false,
+    spot: h.spot,
+    fromDrop,
+    kind: 'eject',
+  };
+  if (ms !== null) Object.assign(hop, { anim: name, airMs: ms });
+  return hop;
+}
+
+/**
+ * 무게 `HOP.jostle.weight` 이상인 사람이 걸어서 `spot` 끝에 올라선 착지 틱에, 같은 판 반대쪽 끝에 탄 사람의 들썩(1-6-6절).
+ * 이름이 아니라 기울기 무게로 본다(#417 리뷰 (c)). 탄 채로 제자리에서 뜨니 발은 판을 따른다. 퍼즐 상태는 안 바뀐다.
+ */
+function jostleHops(data: SceneData, s: SceneState, id: CharacterId, spot: string): [CharacterId, Hop][] {
+  const o = tiltObject(data, spot);
+  if (!o || (o.tilt.weight[id] ?? 1) < HOP.jostle.weight) return [];
+  const out: [CharacterId, Hop][] = [];
+  for (const c of CHARACTERS) {
+    const other = s.riding[c.id];
+    if (c.id === id || other === undefined || other === spot || !o.ids.includes(other) || s.hops[c.id]) continue;
+    const w = s.walkers[c.id];
+    const ms = frameStartMs(data, c.id, SURPRISE.name, SURPRISE.frame);
+    const hop: Hop = {
+      from: { x: w.x, y: w.y },
+      to: { x: w.x, y: w.y },
+      t: 0,
+      crouch: 0,
+      air: msTicks(HOP.jostle.airMs),
+      land: msTicks(HOP.jostle.landMs),
+      h: HOP.jostle.h,
+      up: true,
+      spot: other,
+      fromDrop: 0,
+      kind: 'jostle',
+    };
+    if (ms !== null) Object.assign(hop, { anim: SURPRISE.name, airMs: ms });
+    out.push([c.id, hop]);
+  }
+  return out;
+}
 
 /** 깡충 시간(틱). 웅크림·공중은 시트 `step_up` `ms`가 있으면 그 값(ADR-0007: 지속 시간은 시트 데이터), 없으면 `HOP` 표. */
 function hopTiming(data: SceneData, id: CharacterId, up: boolean): Pick<Hop, 'crouch' | 'air' | 'land' | 'h' | 'up'> {
@@ -727,24 +931,43 @@ export function hopFrame(h: Hop): 0 | 1 {
   return h.t >= h.crouch && h.t < h.crouch + h.air ? 1 : 0;
 }
 
-/** 깡충을 한 틱 보낸다. 끝나면 `to`에 세우고 지운다. */
-function tickHops(s: SceneState): void {
+/**
+ * 깡충을 한 틱 보낸다. 끝나면 `to`에 세우고 지운다. 쿵(`stomp`)이 끝나면 이어서 바닥 점으로 내려선다(1-6-2절 ⑦).
+ * 이 틱에 새로 생긴 깡충(⑦, 들썩)은 다음 틱부터 센다(그 틱이 t=0).
+ */
+function tickHops(data: SceneData, s: SceneState): void {
+  const born: [CharacterId, Hop][] = [];
   for (const c of CHARACTERS) {
     const h = s.hops[c.id];
     if (!h) continue;
     h.t += 1;
     const w = s.walkers[c.id];
+    const landed = h.t >= h.crouch + h.air;
+    // 제자리 쿵은 뜨는 틱에 판에서 빠진다(1-6-2절 "제자리", 1-5-4절 내려서기와 같음).
+    if (h.onBoard && h.t >= h.crouch && !landed) delete s.riding[c.id];
     // 착지 칸이 시작되는 틱에 판에 탄다 → 같은 틱에 기울기·이미 서 있던 사람 발이 새 값으로 간다(1-5-4절).
-    if (h.up && h.t >= h.crouch + h.air) s.riding[c.id] = h.spot;
+    // 걸어서 올라선 사람이 무거우면 같은 틱에 반대쪽 사람이 들썩한다(1-6-6절).
+    if (h.up && landed && s.riding[c.id] !== h.spot) {
+      s.riding[c.id] = h.spot;
+      if (h.kind === undefined) born.push(...jostleHops(data, s, c.id, h.spot));
+    }
     if (h.t >= h.crouch + h.air + h.land) {
       teleport(w, h.to);
       delete s.hops[c.id];
+      if (h.after) {
+        // ⑦ 내려서기(1-5-2절 그대로): 뜨는 틱에 판에서 빠지고, 바닥 점 쪽을 본다.
+        const fromDrop = boardDrop(data, s, c.id);
+        delete s.riding[c.id];
+        if (h.after.x !== w.x) w.facing = h.after.x > w.x ? 1 : -1;
+        born.push([c.id, { from: { x: w.x, y: w.y }, to: { ...h.after }, t: 0, ...hopTiming(data, c.id, false), spot: h.spot, fromDrop }]);
+      }
     } else {
       const q = hopPoint(h);
       w.x = q.x;
       w.y = q.y;
     }
   }
+  for (const [id, h] of born) s.hops[id] = h;
 }
 
 /** `walk`의 앞 구간이 끝났으면 다음 구간을 시작한다. 이미 그 자리면(걸을 거리 0) 바로 그다음으로 넘어간다. */
@@ -779,16 +1002,31 @@ function charAnimTicks(data: SceneData, target: string, name: string): number | 
 
 const isCharacter = (id: string): id is CharacterId => CHARACTERS.some((c) => c.id === id);
 
-/** 캐릭터 대상 연출이 끝나면 마지막 장을 붙든다(형식 기록 5절). 물건 anim은 시트 갈래가 따로 멈춘 모습을 정한다. */
+/**
+ * 캐릭터 대상 연출이 끝나면 마지막 장을 붙든다(형식 기록 5절). 물건 anim은 시트 갈래가 따로 멈춘 모습을 정한다.
+ * 판 끝 쿵은 착지 칸에서 이벤트가 끝나도 남은 칸이 깡충으로 이어지니 붙들지 않는다(#414).
+ */
 function holdLast(s: SceneState, p: Playing): void {
   if (p.ev.type !== 'anim' || p.art || !isCharacter(p.ev.target)) return;
+  if (s.hops[p.ev.target]?.kind === 'stomp') return;
   s.held[p.ev.target] = { name: p.ev.name, ms: p.t * TICK_MS };
 }
 
-/** 이 캐릭터의 지금 연출: 재생 중이면 그것, 아니면 붙들고 있는 마지막 장. 없으면 null. */
+/** 깡충이 정한 자세(#414): 쿵은 시작부터 지난 시간, 튕겨 나가기·들썩 공중은 멈춘 칸, 들썩 착지는 서 있기 첫 칸. 걷기 깡충은 null(`step_up`). */
+function hopPose(h: Hop): { name: string; ms: number } | null {
+  if (h.anim === undefined) return null;
+  if (h.kind === 'stomp') return { name: h.anim, ms: h.t * TICK_MS };
+  if (h.t < h.crouch + h.air) return { name: h.anim, ms: h.airMs ?? 0 };
+  return h.kind === 'jostle' ? { name: 'idle', ms: 0 } : null;
+}
+
+/** 이 캐릭터의 지금 연출: 깡충이 정한 자세, 재생 중인 연출(튕겨 나가기 뒤면 그만큼 늦게), 아니면 붙들고 있는 마지막 장. 없으면 null. */
 export function charEvent(s: SceneState, id: CharacterId): { name: string; ms: number } | null {
-  const ev = s.current?.ev;
-  if (ev?.type === 'anim' && ev.target === id) return { name: ev.name, ms: s.current!.t * TICK_MS };
+  const h = s.hops[id];
+  const own = h ? hopPose(h) : null;
+  if (own) return own;
+  const cur = s.current;
+  if (cur?.ev.type === 'anim' && cur.ev.target === id) return { name: cur.ev.name, ms: Math.max(0, cur.t - (cur.lead ?? 0)) * TICK_MS };
   return s.held[id] ?? null;
 }
 
@@ -852,7 +1090,9 @@ export function boardDrop(data: SceneData, s: SceneState, id: CharacterId): numb
   if (s.riding[id] !== undefined) return tiltDrop(o.tilt, boardTilt(data, s, o.key), s.walkers[id].x);
   const d = tiltOf(data, s, o.key);
   if (!h || h.t < h.crouch) return 0;
-  return ((h.t - h.crouch) / h.air) * tiltDrop(o.tilt, d, h.to.x);
+  // 제자리 쿵(#414)은 판 위에서 뜬다: 뜨는 틱의 판 높이(이미 빠진 기울기)에서 착지 전 판 높이로.
+  const lo = h.onBoard ? tiltDrop(o.tilt, d, h.from.x) : 0;
+  return lo + ((h.t - h.crouch) / h.air) * (tiltDrop(o.tilt, d, h.to.x) - lo);
 }
 
 /** 장면 상태 → 시트 자세(engine/sprites.ts `drawSprite`). 연출은 이벤트로만 안다(ADR-0065 5절). */
@@ -909,7 +1149,7 @@ export function sceneTick(data: SceneData, s: SceneState): void {
   s.tick += 1;
   // 엔진 걷기와 자동 걷기 모두 같은 속도로 진행한다. 다른 캐릭터의 걷기는 연출 중에도 계속된다.
   for (const c of CHARACTERS) stepWalker(s.walkers[c.id], TIMING.walkSpeed);
-  tickHops(s);
+  tickHops(data, s);
   tickOverlays(s);
   // 이벤트를 시작한 틱이 그 이벤트의 t=0 프레임이다. 길이 0 이벤트(clear)나 이미 도착한 걷기는 같은 틱에 다음으로 넘어간다.
   for (let guard = 0; guard < 64; guard++) {
@@ -985,7 +1225,8 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
     }
     return { kind: 'ignored' };
   }
-  if (s.queue.length > 0 || s.overlays.length > 0) return { kind: 'ignored' };
+  // 대기열 밖 깡충(쿵 남은 칸·⑦·들썩)도 busy다. 건너뛸 수 없다(1-6-2절 "탭 건너뛰기").
+  if (isBusy(s)) return { kind: 'ignored' };
 
   const r = tap(tapContext(data, s), s.ui, p, slop, touch);
   s.ui = r.ui;

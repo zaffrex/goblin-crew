@@ -68,6 +68,41 @@ const CASES: { id: string; action: Action; why: string; /** 찍기 전에 끝까
     action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' },
     why: '14번: 오른쪽에 탄 쭉이 발이 왼쪽 끝 이벤트 U6 칸을 따른다',
   },
+  // #414 묵직이 쿵 = 판 끝에 뛰어올라 쿵(magpie_nest.md 1-6절). `--only seesaw-stomp`로 이것만 찍는다.
+  {
+    id: 'seesaw-stomp-jostle',
+    pre: [{ char: 'jjuk', verb: 'move', target: 'seesaw_left' }],
+    action: { char: 'mukjik', verb: 'move', target: 'seesaw_right' },
+    why: '1-6-6절: 묵직이가 걸어서 올라서는 착지 칸에 왼쪽 쭉이가 들썩(H 4, 150ms)',
+  },
+  {
+    id: 'seesaw-stomp-in-place',
+    pre: [{ char: 'jjuk', verb: 'move', target: 'seesaw_left' }, { char: 'mukjik', verb: 'move', target: 'seesaw_right' }],
+    action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' },
+    why: '정답 11번(UI 경로): 판 위에서 제자리 높이 뛰기(H 24) → 쿵 칸에 U6 → 쭉이 발사 → ⑦ 내려서기',
+  },
+  {
+    id: 'seesaw-stomp-from-floor',
+    pre: [{ char: 'ppik', verb: 'move', target: 'seesaw_left' }],
+    action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' },
+    why: '12번: 바닥 점(290, 240)에서 높이 뛰기(H 32) → 쿵 칸에 U6 → 삑삑이 발사',
+  },
+  {
+    id: 'seesaw-stomp-wrong-way',
+    pre: [{ char: 'jjuk', verb: 'move', target: 'seesaw_right' }],
+    action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' },
+    why: '14번: 왼쪽 끝에 뛰어올라 쿵 → 오른쪽 쭉이가 빨랫줄로',
+  },
+  {
+    id: 'seesaw-stomp-self-smack-right',
+    action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' },
+    why: '15번(1-6-5절): 빈 판에 쿵 → 빈 왼쪽만 휙 → U6 끝에 판이 묵직이를 (302, 244)로 튕겨 냄 → 납작',
+  },
+  {
+    id: 'seesaw-stomp-self-smack-left',
+    action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' },
+    why: '15번 거울: 왼쪽 끝 → (238, 244)로 튕겨 냄',
+  },
 ];
 
 /** replay.ts와 같은 관찰 전용 말풍선 기록기. */

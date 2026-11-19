@@ -46,6 +46,11 @@ export type SpriteAnim = ({ frames: number[]; ms: number[] } | { frames: number[
    * 숫자 하나는 `[n]`과 같다.
    */
   cue?: number | number[];
+  /**
+   * 공중 칸 [첫, 끝](칸 순서, 시트 파이프라인 기록 5-4절, #414). 이 칸들 동안 엔진이 몸을 궤적 위에 놓고, 끝 다음 칸(착지 칸)이
+   * 시작되는 틱에 내려앉는다(묵직이 `seesaw_stomp`, `magpie_nest.md` 1-6-2절). 높이는 엔진 상수(`HOP`)다. `ms` 자세에만 둔다.
+   */
+  air?: [first: number, last: number];
 };
 
 /** 장대 끝 집게 칸 줄(5-1절). `anchor`는 장대가 들어오는 아래 가운데(픽셀 경계). */
@@ -111,6 +116,7 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
     hit?: unknown;
     cue?: unknown;
     short?: unknown;
+    air?: unknown;
   };
   for (const [name, a] of Object.entries(m.anims as Record<string, RawAnim>)) {
     if (!Array.isArray(a.frames) || a.frames.length === 0 || !a.frames.every(isInt)) fail(`${name}.frames`);
@@ -126,6 +132,11 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
       const inRange = (c: unknown): boolean => isInt(c) && c >= 0 && c < n;
       const ascending = cues.every((c, i) => i === 0 || (c as number) > (cues[i - 1] as number));
       if (!('ms' in a) || cues.length === 0 || !cues.every(inRange) || !ascending) fail(`${name}.cue는 ms 자세의 칸 순서(0~${n - 1}) 하나 또는 오름차순 배열`);
+    }
+    if ('air' in a) {
+      const n = a.frames!.length;
+      const air = a.air as number[];
+      if (!('ms' in a) || !intTuple(air, 2) || air[0]! < 0 || air[1]! < air[0]! || air[1]! >= n - 1) fail(`${name}.air는 ms 자세의 [첫, 끝] 칸 순서(끝 다음에 착지 칸, 0~${n - 2})`);
     }
     if ('tip' in a || 'claw' in a) {
       const n = a.frames!.length;
