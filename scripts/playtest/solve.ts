@@ -27,6 +27,8 @@ const { values: args } = parseArgs({
 const id = args.screen!;
 if (!/^[a-z0-9_]+$/.test(id)) throw new Error(`--screen ${id}: 화면 ID 형식이 아님`);
 const screen = JSON.parse(readFileSync(`content/screens/${id}.json`, 'utf8')) as ScreenData;
+const solution = screen.solution ?? [];
+if (!solution.length) throw new Error(`${id}: 화면 JSON에 solution이 없음`);
 const input: Input = args.touch ? 'touch' : 'mouse';
 const viewport = args.touch ? { width: 844, height: 390, dpr: 3, mobile: true } : { width: 1280, height: 720, dpr: 1, mobile: false };
 
@@ -68,7 +70,7 @@ async function main(): Promise<number> {
     await closeStartCard(page, () => send(page, CARD_TAP));
     await waitIdle(page);
     await page.screenshot(join(args.out!, `${id}-0-start.png`));
-    for (const [i, action] of screen.solution.entries()) {
+    for (const [i, action] of solution.entries()) {
       const plan = planAction(screen, await layoutOf(page), action, input);
       for (const w of plan.warnings) console.log(`  ⚠️ ${w}`);
       for (const t of plan.taps) {
@@ -87,7 +89,7 @@ async function main(): Promise<number> {
     await browser.close();
   }
   console.log(`URL: ${u.href}`);
-  console.log(problems.length ? problems.map((p) => `❌ ${p}`).join('\n') : `✅ ${id} 클리어 (${screen.solution.length}행동, ${input})`);
+  console.log(problems.length ? problems.map((p) => `❌ ${p}`).join('\n') : `✅ ${id} 클리어 (${solution.length}행동, ${input})`);
   return problems.length ? 1 : 0;
 }
 
