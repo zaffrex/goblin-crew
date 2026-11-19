@@ -1,4 +1,5 @@
 // 13번 `seesaw_launch_bump` 연출(#357): 납작한 채로 한마디, 바구니 안 두 사람은 좌우로 벌린다.
+// 15번 `seesaw_self_smack` 연출(#433): 묵직이도 납작한 채로 한마디.
 import { describe, expect, it } from 'vitest';
 import charactersJson from '../../content/characters.json';
 import screenJson from '../../content/screens/magpie_nest.json';
@@ -47,7 +48,7 @@ function bumpUntilSay(flyer: CharacterId, hung: CharacterId): SceneState {
 
 describe('시트 `common.flatten_stay` (#357 1번)', () => {
   it('새 칸 없이 `common.flatten` 0·1번(꽝 → 납작)만 같은 박자로 잇는다', () => {
-    for (const id of ['jjuk', 'ppik'] as const) {
+    for (const id of ['jjuk', 'mukjik', 'ppik'] as const) {
       const f = sprites[id].anims['common.flatten']!;
       expect(sprites[id].anims['common.flatten_stay'], id).toMatchObject({ frames: f.frames.slice(0, 2), ms: [100, 600] });
     }
@@ -96,4 +97,27 @@ describe('13번 부딪힘 연출 (#357)', () => {
     settle(s);
     expect([s.walkers.mukjik.x, s.walkers.ppik.x, s.walkers.jjuk.x]).toEqual([rx, rx - RELEASE_SPREAD, rx + RELEASE_SPREAD]);
   });
+});
+
+describe('15번 혼자 맞기 연출 (#433)', () => {
+  const flat = sprites.mukjik.anims['common.flatten']!.frames[1]!;
+  for (const end of ['seesaw_left', 'seesaw_right'] as const) {
+    it(`${end}: 말풍선이 떠 있는 내내 묵직이는 납작 칸이고, 끝나면 놓는다`, () => {
+      const s = createScene(data);
+      settle(s);
+      runAction(data, s, { char: 'mukjik', verb: 'stomp', target: end }, null);
+      for (let i = 0; i < 5000 && currentBubble(s) === null; i++) sceneTick(data, s);
+      expect(currentBubble(s)).not.toBeNull();
+      let ticks = 0;
+      while (currentBubble(s) !== null) {
+        expect(frameOf(s, 'mukjik'), `tick ${ticks}`).toBe(flat);
+        sceneTick(data, s);
+        ticks++;
+      }
+      expect(ticks).toBeGreaterThan(60);
+      settle(s);
+      expect(s.held).toEqual({});
+      expect(frameOf(s, 'mukjik')).not.toBe(flat);
+    });
+  }
 });

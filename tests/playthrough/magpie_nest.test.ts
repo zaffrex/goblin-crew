@@ -132,7 +132,7 @@ describe('magpie_nest 효과 위치 표시 순서 (#206, #339)', () => {
       expect(stomp({}, target)).toEqual([
         ...STOMP,
         `anim ${target} plank_bounce`,
-        'anim mukjik common.flatten',
+        'anim mukjik common.flatten_stay',
         'gauge -1',
         'fx stars mukjik',
         'say mukjik',

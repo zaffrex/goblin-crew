@@ -76,6 +76,16 @@
         450
       ]
     },
+    "common.flatten_stay": {
+      "frames": [
+        12,
+        13
+      ],
+      "ms": [
+        100,
+        600
+      ]
+    },
     "step_up": {
       "frames": [
         16,
