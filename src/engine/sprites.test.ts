@@ -21,4 +21,13 @@ describe('캐릭터 히트 영역 = 시트 메타 (#46)', () => {
     const def = characterDef(m.character);
     expect(def.hit, `characters.ts의 ${m.character} hit를 ${JSON.stringify(want)}로 맞춰 주세요`).toEqual(want);
   });
+
+  it.each(SHEET_METAS.map((m) => [m.character, m] as const))('%s: 얼굴 상자가 시트 메타 head·anchor와 같다(#427)', (_, m) => {
+    expect(m.head, `${m.character} 시트에 head가 없어요(얼굴 전환 상자 2-1절)`).toBeDefined();
+    const [hx, hy, hw, hh] = m.head!;
+    const [ax, ay] = m.anchor;
+    const want = { dx: hx - ax, dy: hy - ay, width: hw, height: hh };
+    const def = characterDef(m.character);
+    expect(def.face, `characters.ts의 ${m.character} face를 ${JSON.stringify(want)}로 맞춰 주세요`).toEqual(want);
+  });
 });

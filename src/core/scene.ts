@@ -5,7 +5,7 @@
 // 엔진은 `step`이 돌려준 이벤트로만 반응한다(ADR-0065 5절). 퍼즐 상태를 들여다보고 연출을 추측하지 않는다.
 // 예외: 바닥(`free`) 자리 캐릭터의 좌표는 퍼즐 상태에 없어서 엔진 걷기(walker)가 들고 있다.
 
-import { CHARACTERS, characterHitBox, characterDef, type CharacterId } from './characters';
+import { CHARACTERS, characterFaceBox, characterHitBox, characterDef, type CharacterId } from './characters';
 import { TICK_MS, WALK_AREA, WALK_SPEED } from './config';
 import { hitTest, type HitBox } from './hit';
 import { inHudZone } from './hud';
@@ -388,8 +388,22 @@ export function drawOrder(data: SceneData, s: SceneState): CharacterId[] {
   });
 }
 
+/**
+ * 판정용 얼굴 상자(설계 2-1절, #427). 몸 상자와 같은 발 위치·방향(`charFacing`)에 `characterFaceBox`를 놓는다.
+ * 바닥에 선 다른 캐릭터의 전환 상자로만 쓴다. 바닥에서 busy가 아닐 때는 늘 서 있기 자세라 서 있기 기준 값 하나면 된다
+ * (연출 자세는 busy라 월드 탭을 판정하지 않는다).
+ */
+export function faces(data: SceneData, s: SceneState): Record<CharacterId, HitBox> {
+  const out = {} as Record<CharacterId, HitBox>;
+  for (const c of CHARACTERS) {
+    const w = s.walkers[c.id];
+    out[c.id] = characterFaceBox(characterDef(c.id), w.x, w.y, charFacing(data, s, c.id));
+  }
+  return out;
+}
+
 export function tapContext(data: SceneData, s: SceneState): TapContext {
-  return { screen: data.screen, puzzle: s.puzzle, bodies: bodies(data, s), order: drawOrder(data, s) };
+  return { screen: data.screen, puzzle: s.puzzle, bodies: bodies(data, s), faces: faces(data, s), order: drawOrder(data, s) };
 }
 
 function pickText(text: string | string[], count: number): string {

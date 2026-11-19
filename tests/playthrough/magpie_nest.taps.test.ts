@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { characterDef, characterHitBox, CHARACTERS, type CharacterId } from '../../src/core/characters';
+import { characterDef, characterFaceBox, characterHitBox, CHARACTERS, type CharacterId } from '../../src/core/characters';
 import type { HitBox } from '../../src/core/hit';
 import { CHAR_SLOTS } from '../../src/core/hud';
 import { actionKey, resolveTap, tap, type TapContext, type UiState } from '../../src/core/interact';
@@ -20,12 +20,14 @@ const FLOOR_AT: Record<CharacterId, Point> = { jjuk: { x: 360, y: 244 }, mukjik:
 
 function ctxFor(puzzle: PuzzleState): TapContext {
   const bodies = {} as Record<CharacterId, HitBox>;
+  const faces = {} as Record<CharacterId, HitBox>;
   for (const c of CHARACTERS) {
     const spot = screen.spots[puzzle.at[c.id]];
     const at = spot && !spot.free ? { x: spot.x, y: spot.y } : FLOOR_AT[c.id];
     bodies[c.id] = characterHitBox(characterDef(c.id), at.x, at.y, 1);
+    faces[c.id] = characterFaceBox(characterDef(c.id), at.x, at.y, 1);
   }
-  return { screen, puzzle, bodies };
+  return { screen, puzzle, bodies, faces };
 }
 
 const center = (b: HitBox): Point => ({ x: b.left + b.width / 2, y: b.top + b.height / 2 });

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { CHARACTERS, characterDef, characterHitBox, type CharacterId } from '../../src/core/characters';
+import { CHARACTERS, characterDef, characterFaceBox, characterHitBox, type CharacterId } from '../../src/core/characters';
 import { distanceToBox, type HitBox } from '../../src/core/hit';
 import { hudTargets, resolveTap, tap, type TapContext, type UiState } from '../../src/core/interact';
 import { initialState, step } from '../../src/core/puzzle/step';
@@ -28,10 +28,21 @@ function fakeLayout(state: PuzzleState, active: CharacterId): Layout {
   return { active, selected: null, busy: false, cleared: false, gauge: state.gauge, at: { ...state.at }, chars, spots, hotspots, hud };
 }
 
+/** fakeLayout과 같은 자리·방향의 얼굴 상자(설계 2-1절). 재생 도구는 얼굴 칸(HUD)으로 고르니 훅에는 없다. */
+function fakeFaces(state: PuzzleState): Record<CharacterId, HitBox> {
+  const out = {} as Record<CharacterId, HitBox>;
+  for (const c of CHARACTERS) {
+    const s = screen.spots[state.at[c.id]]!;
+    out[c.id] = characterFaceBox(characterDef(c.id), s.x, s.y, 1);
+  }
+  return out;
+}
+
 const ctxOf = (state: PuzzleState, layout: Layout): TapContext => ({
   screen,
   puzzle: state,
   bodies: layout.chars as Record<CharacterId, HitBox>,
+  faces: fakeFaces(state),
 });
 
 /**

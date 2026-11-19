@@ -664,20 +664,24 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
     expect(at(s, 'ppik')).toEqual(BASKET);
     expect(pair(s, 'jjuk', 'ppik')).toEqual(['jjuk', 'ppik']);
     pick(s, 'mukjik'); // 지금 캐릭터 몸은 판정에서 빠지므로 제3자로 바꾼다
-    expect(hitAt(s, { x: 160, y: 225 })).toBe('char:ppik');
+    // 바구니 안도 바닥(`floor`)이라 전환은 얼굴 상자다(ui-interaction.md 2-1절, #427). 두 얼굴이 겹치는 줄(y 186–194)을 누른다.
+    const both = { x: 160, y: 190 };
+    expect(hitAt(s, both)).toBe('char:ppik');
     // 반대 순서면 쭉이가 위다(순번이 이긴다는 확인).
     s.landed.jjuk = (s.landed.ppik ?? 0) + 1;
     expect(pair(s, 'jjuk', 'ppik')).toEqual(['ppik', 'jjuk']);
-    expect(hitAt(s, { x: 160, y: 225 })).toBe('char:jjuk');
+    expect(hitAt(s, both)).toBe('char:jjuk');
   });
 
-  it('바구니 안 캐릭터 상자가 바구니 핫스팟을 덮고, 좌우 끝은 바구니가 받는다', () => {
+  it('바구니 안 캐릭터는 얼굴만 전환이고, 얼굴 아래(바구니와 겹친 몸)는 바구니가 받는다(2-1절, #427)', () => {
     const s = ready();
     launch(s, 'jjuk');
     letGo(s, 'jjuk');
     pick(s, 'mukjik');
     const [bx, by, bw] = data.screen.hotspots.basket!.box!;
-    expect(hitAt(s, { x: 160, y: 230 })).toBe('char:jjuk');
+    const face = tapContext(data, s).faces.jjuk;
+    expect(hitAt(s, { x: face.left + face.width / 2, y: face.top + face.height / 2 })).toBe('char:jjuk');
+    expect(hitAt(s, { x: 160, y: 230 })).toBe('hotspot:basket'); // 예전에는 쭉이 몸
     expect(hitAt(s, { x: bx, y: by + 12 })).toBe('hotspot:basket');
     expect(hitAt(s, { x: bx + bw - 1, y: by + 12 })).toBe('hotspot:basket');
   });
@@ -1390,5 +1394,28 @@ describe('게이지 감소 시점: 첫 say 바로 앞 (ui-interaction.md 6-2-5�
     expect(drops).toBeGreaterThan(0);
     expect(gaugeAtFirstSay).toBe(4);
     expect(gaugeDrop(s)).toBeNull();
+  });
+});
+
+describe('바닥 동료는 얼굴로 고른다 (ui-interaction.md 2-1절, #427)', () => {
+  it('시작 배치: 동료 발 옆 땅은 걷기, 얼굴은 전환(엔진 그대로의 판정 경로)', () => {
+    const s = ready();
+    expect(s.ui.active).toBe('jjuk');
+    const r = sceneTap(data, s, { x: 414, y: 240 }, 8, true); // 묵직이 오른발 옆 땅(예전엔 묵직이로 전환)
+    expect(r).toMatchObject({ kind: 'intent', intent: { kind: 'walk' } });
+    expect(s.ui.active).toBe('jjuk');
+    idle(s);
+    const face = tapContext(data, s).faces.ppik;
+    sceneTap(data, s, { x: face.left + face.width / 2, y: face.top + face.height / 2 }, 0, false);
+    expect(s.ui.active).toBe('ppik');
+  });
+
+  it('얼굴 상자는 그리는 방향(charFacing)을 따라 뒤집힌다', () => {
+    const s = ready();
+    const right = tapContext(data, s).faces.mukjik;
+    s.walkers.mukjik.facing = -s.walkers.mukjik.facing as 1 | -1;
+    const flipped = tapContext(data, s).faces.mukjik;
+    expect(flipped.top).toBe(right.top);
+    expect(flipped.left).not.toBe(right.left);
   });
 });
