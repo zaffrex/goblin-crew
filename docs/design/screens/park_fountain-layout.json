@@ -1,0 +1,32 @@
+{
+  "id": "park_fountain",
+  "note": "회색 배치 v1, 설계 park_fountain.md 1절 (#380). 시작 좌표(엔진 배치, floor ±40): ノビー(jjuk) 336,244 / ズッシー(mukjik) 376,244 / プピ(ppik) 416,244. 검사·스케치: node docs/design/screens/park_fountain-layout.mjs. 화면 JSON PR에서 지운다.",
+  "spots": {
+    "floor": { "x": 376, "y": 244, "free": true }
+  },
+  "hotspots": {
+    "fountain": { "box": [128, 180, 192, 24], "hintAbility": "stomp", "note": "테두리 앞면 그림 128,180,192×18. 아래 끝 204 > WALK_AREA.top 200 = 바닥 대상" },
+    "jacket": {
+      "box": [212, 27, 24, 24],
+      "hintAbility": "stretch",
+      "variants": [{ "when": { "flags": { "jacket.on_hand": true } }, "box": [249, 100, 24, 24] }],
+      "note": "꼭대기(돌우산 위) 그림 214,32,20×14 / 손 그림 252,104,18×16. reachPoint 없음: 장대 대상 점 = 상자 아래 끝 가운데(꼭대기 224,51 / 손 261,124)"
+    },
+    "keeper": { "box": [36, 114, 44, 36], "hintAbility": "squeak", "note": "창 전체. 조는 얼굴 그림 40,118,36×30" },
+    "alarm_clock": { "box": [80, 134, 24, 24], "hintAbility": "squeak", "note": "창턱 닭 자명종 그림 84,140,12×12" },
+    "duck": { "box": [175, 150, 24, 24], "note": "장난감. 연못 위 그림 180,158,14×12" },
+    "guest": { "box": [438, 176, 24, 56], "note": "장난감. 그림 440,176,20×56, 히트 폭만 24로(ADR-0007 결정 6)" }
+  },
+  "reachExpect": [
+    { "from": "floor", "to": "jacket", "flags": { "jacket.on_hand": false }, "reach": false, "footY": [200, 252] },
+    { "from": "floor", "to": "jacket", "flags": { "jacket.on_hand": true }, "reach": true, "footY": [200, 252] }
+  ],
+  "effects": {
+    "water": {
+      "note": "그림 메타 효과 자리(scene-art-format 개정 4, 11절). 화면 JSON이 아니라 art/scenes/park_fountain.mjs로 옮긴다. colors = 물 밝음·물 중간·물보라 흰색·그림자(bosong-32 번호)",
+      "effect": "fountain_water",
+      "area": [152, 8, 144, 172],
+      "colors": [26, 25, 6, 24]
+    }
+  }
+}
