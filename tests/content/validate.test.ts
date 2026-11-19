@@ -220,7 +220,12 @@ describe('validateScreen', () => {
 
   it('checks show: speakers, @spot, self scope, text IDs and bubble size', () => {
     expect(codes(mutate((s) => (s.rules[0].show = [{ say: ['@roof', 'magpie_nest.enter'] }])))).toEqual(['ref-spot']);
-    expect(codes(mutate((s) => (s.rules[0].show = [{ say: ['magpie', 'magpie_nest.enter'] }])))).toEqual(['ref-actor']);
+    // say 화자는 핫스팟도 된다(관리인·손님처럼 사람이 아닌 화자, ADR-0065 5절 2026-11-19 개정, #380).
+    expect(mutate((s) => (s.rules[0].show = [{ say: ['magpie', 'magpie_nest.enter'] }])).errors).toEqual([]);
+    expect(mutate((s) => (s.onEnter = [{ say: ['magpie', 'magpie_nest.enter'] }])).errors).toEqual([]);
+    // 서는 자리 ID(맨 이름)와 없는 ID는 화자가 아니다. 자리에 선 사람은 `@자리`로 쓴다.
+    expect(codes(mutate((s) => (s.rules[0].show = [{ say: ['hook', 'magpie_nest.enter'] }])))).toEqual(['ref-actor']);
+    expect(codes(mutate((s) => (s.rules[0].show = [{ say: ['crow', 'magpie_nest.enter'] }])))).toEqual(['ref-actor']);
     // anim·fx는 핫스팟도 대상이 된다.
     expect(mutate((s) => (s.rules[0].show = [{ anim: ['magpie', 'fly_down'] }, { fx: ['stars', 'nest'] }])).errors).toEqual([]);
     expect(codes(mutate((s) => (s.rules[0].show = [{ say: ['self', 'magpie_nest.nope'] }])))).toEqual(['ref-text']);
@@ -302,6 +307,9 @@ describe('validateTexts / validateCharacters / textFits', () => {
     expect(r.errors.map((e) => e.code)).toEqual(['ref-char', 'schema', 'ref-text']);
     const fb = { jjuk: { look: { show: [{ say: ['@hook', t] }] } } };
     expect(validateCharacters({ fallbacks: fb, hints: full }, ctx).errors.map((e) => e.code)).toEqual(['ref-spot']);
+    // 공통 실패 리액션은 화면을 몰라서 핫스팟 화자도 못 쓴다(#380).
+    const fbHot = { jjuk: { look: { show: [{ say: ['magpie', t] }] } } };
+    expect(validateCharacters({ fallbacks: fbHot, hints: full }, ctx).errors.map((e) => e.code)).toEqual(['ref-actor']);
   });
 
   it('characters: every character needs hints for both other abilities; own ability warns (#108)', () => {
