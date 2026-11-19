@@ -212,6 +212,11 @@ export interface SceneState {
    * 기절, 또는 대기열이 빌 때까지 마지막 장으로 그린다. `ms`는 끝난 시점(연출 길이). 그림 전용이다.
    */
   held: Partial<Record<CharacterId, { name: string; ms: number }>>;
+  /**
+   * 물건 키 → 끝난 `hold` 물건 anim(그림 형식 13절, 개정 8, #450)과 그 anim을 시작한 틱. 대기열이 빌 때까지(캐릭터 `held`와 같은 때),
+   * 기절, 또는 같은 물건의 다음 anim이 시작될 때까지 마지막 칸으로 그린다. 그림 전용이다(판정·히트 박스는 안 쓴다).
+   */
+  heldArt: Record<string, { anim: SceneAnim; since: number }>;
   /** 캐릭터가 마지막으로 한 행동의 대상 점(핫스팟 `reachPoint`, 없으면 대상 상자 아래 끝 가운데, #284). 장대 잇기(5-1절)가 쓴다. 상자도 없으면 키가 없다. */
   reach: Partial<Record<CharacterId, Point>>;
   /**
@@ -331,6 +336,7 @@ export function createScene(data: SceneData): SceneState {
     spotOf: { ...puzzle.at },
     landed: {},
     held: {},
+    heldArt: {},
     reach: {},
     seenSay: {},
     hops: {},
@@ -741,7 +747,10 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
   // 그 캐릭터가 움직이거나 다른 연출을 시작하면 붙들고 있던 마지막 장을 놓는다(#189).
   if (ev.type === 'walk' || ev.type === 'release' || ev.type === 'place') delete s.held[ev.char];
   else if (ev.type === 'anim') delete s.held[ev.target as CharacterId];
-  else if (ev.type === 'faint') s.held = {};
+  else if (ev.type === 'faint') {
+    s.held = {};
+    s.heldArt = {};
+  }
   switch (ev.type) {
     case 'walk': {
       if (ev.stay) {
@@ -824,7 +833,11 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
       // 물건 anim은 갈래를 anim 직전 보이는 플래그로 고르고(4-1절), 그 길이가 busy 길이다(5절). 없으면 임시 길이.
       const obj = data.art?.objects.find((o) => o.ids.includes(ev.target));
       const art = data.art && obj ? animOf(data.art, ev.target, ev.name, shownFlags(s, obj.key)) : null;
-      if (art) return { ev, t: 0, duration: animTicks(art.anim), seq, art };
+      if (art) {
+        // 같은 물건의 다음 anim이 붙든 칸을 바꾼다(13절). 끝나면 이 anim이 `hold`인지에 따라 다시 붙들거나 멈춘 모습이다.
+        delete s.heldArt[art.object];
+        return { ev, t: 0, duration: animTicks(art.anim), seq, art };
+      }
       const p: Playing = { ev, t: 0, duration: charAnimTicks(data, ev.target, ev.name) ?? TIMING.anim, seq };
       const cues = cueTicks(0);
       if (cues.length > 0) p.cues = cues;
@@ -1059,9 +1072,18 @@ const isCharacter = (id: string): id is CharacterId => CHARACTERS.some((c) => c.
  * 판 끝 쿵은 착지 칸에서 이벤트가 끝나도 남은 칸이 깡충으로 이어지니 붙들지 않는다(#414).
  */
 function holdLast(s: SceneState, p: Playing): void {
+  // 물건 anim은 `hold`가 있을 때만 붙든다(13절, #450). 없으면 지금처럼 멈춘 모습으로 돌아간다.
+  if (p.art?.anim.hold) s.heldArt[p.art.object] = { anim: p.art.anim, since: s.tick - p.t };
   if (p.ev.type !== 'anim' || p.art || !isCharacter(p.ev.target)) return;
   if (s.hops[p.ev.target]?.kind === 'stomp') return;
   s.held[p.ev.target] = { name: p.ev.name, ms: p.t * TICK_MS };
+}
+
+/** 붙든 물건 anim(13절)을 그리기 쪽 모양(`SceneView.held`)으로. ms는 그 anim 시작 뒤 지난 시간이다. */
+export function heldArtView(s: SceneState): Record<string, { anim: SceneAnim; ms: number }> {
+  const out: Record<string, { anim: SceneAnim; ms: number }> = {};
+  for (const [k, h] of Object.entries(s.heldArt)) out[k] = { anim: h.anim, ms: (s.tick - h.since) * TICK_MS };
+  return out;
 }
 
 /** 깡충이 정한 자세(#414): 쿵은 시작부터 지난 시간, 튕겨 나가기·들썩 공중은 멈춘 칸, 들썩 착지는 서 있기 첫 칸. 걷기 깡충은 null(`step_up`). */
@@ -1212,7 +1234,10 @@ export function sceneTick(data: SceneData, s: SceneState): void {
     if (s.current === null) {
       const next = s.queue.shift();
       if (!next) {
-        if (s.overlays.length === 0) s.held = {};
+        if (s.overlays.length === 0) {
+          s.held = {};
+          s.heldArt = {};
+        }
         return;
       }
       s.current = start(data, s, next);

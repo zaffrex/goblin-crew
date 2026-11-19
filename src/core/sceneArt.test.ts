@@ -5,8 +5,8 @@ import sheetJson from '../../public/scenes/magpie_nest-objects.json';
 import ppikJson from '../../public/sprites/ppik-base.json';
 import { CHAR_SLOTS } from './hud';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { createScene, isBusy, sceneTap, sceneTick, shownFlags, TIMING, type SceneData, type SceneState } from './scene';
-import { animOf, animTicks, coveredIds, litFrames, loopStarts, objectOf, parseSceneArt, pictureOf, sceneDraws, timedFrame, type LoopStarts, type SceneArtMeta, type ScenePictureObject, type SceneView } from './sceneArt';
+import { createScene, heldArtView, isBusy, sceneTap, sceneTick, shownFlags, TIMING, type SceneData, type SceneState } from './scene';
+import { animFrameBox, animOf, animTicks, coveredIds, litFrames, loopStarts, objectOf, parseSceneArt, pictureOf, sceneDraws, timedFrame, type LoopStarts, type SceneArtMeta, type ScenePictureObject, type SceneView } from './sceneArt';
 import { parseSpriteMeta, type SpriteMeta } from './sprite';
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -452,5 +452,132 @@ describe('효과 자리 (형식 기록 11절, 개정 4)', () => {
     while (!(s.current?.ev.type === 'anim' && s.current.ev.target === 'magpie')) sceneTick(d, s);
     expect(s.current.duration).toBe(18);
     expect(s.current.art).toMatchObject({ object: 'water', anim: { mode: 'stop' } });
+  });
+});
+
+describe('붙드는 anim `hold` (형식 기록 13절, 개정 8, #450)', () => {
+  /** fly_down(둥지 → 바닥)을 붙드는 시트. 마지막 칸 9는 front. */
+  function holdMeta(): SceneArtMeta {
+    const m = meta();
+    m.anims['magpie.fly_down']!.hold = true;
+    m.anims['magpie.ruffle']!.hold = true;
+    return parseSceneArt(clone(m));
+  }
+
+  it('parse: hold는 true만, 갈래에는 못 적는다. 갈래는 anim의 hold를 물려받는다', () => {
+    const bad = (edit: (m: SceneArtMeta) => void) => {
+      const m = clone(holdMeta());
+      edit(m);
+      return () => parseSceneArt(m);
+    };
+    expect(bad(() => {})).not.toThrow();
+    expect(bad((m) => ((m.anims['magpie.fly_down'] as unknown as Record<string, unknown>).hold = false))).toThrow('hold: true만');
+    expect(bad((m) => (m.anims['magpie.ruffle']!.variants![0]!.hold = true))).toThrow('hold는 anim에만');
+    const m = holdMeta();
+    expect(animOf(m, 'magpie', 'ruffle', { 'magpie.on_ground': true })!.anim).toMatchObject({ frames: [9, 10], hold: true });
+    expect(animOf(m, 'magpie', 'ruffle', {})!.anim.hold).toBe(true);
+    expect(animOf(meta(), 'magpie', 'ruffle', { 'magpie.on_ground': true })!.anim.hold).toBeUndefined();
+  });
+
+  it('sceneDraws: 붙든 물건은 멈춘 모습 대신 마지막 칸(그 layer), 재생 중인 anim이 붙든 것보다 먼저다', () => {
+    const m = holdMeta();
+    const fly = m.anims['magpie.fly_down']!;
+    const held = sceneDraws(m, view({ held: { magpie: { anim: fly, ms: 5000 } } }));
+    expect(held.front).toEqual([9]);
+    expect(held.byObject.magpie).toEqual([9]);
+    expect(held.back).not.toContain(pobj(m, 'magpie').default.frame);
+    const ruffle = animOf(m, 'magpie', 'ruffle', {})!;
+    const both = sceneDraws(m, view({ playing: { object: 'magpie', anim: ruffle.anim, ms: 120 }, held: { magpie: { anim: fly, ms: 5000 } } }));
+    expect(both.front).toEqual([]);
+    expect(both.byObject.magpie).toEqual([6]);
+  });
+
+  it('loopStarts: 붙든 동안은 anim 중으로 보고, 놓은 프레임부터 멈춘 모습 loop를 0으로 센다', () => {
+    const m = holdMeta();
+    const fly = m.anims['magpie.fly_down']!;
+    let st = loopStarts(m, view({ clockMs: 0 }), {});
+    st = loopStarts(m, view({ clockMs: 1000, held: { magpie: { anim: fly, ms: 900 } } }), st);
+    expect(st.magpie!.pic).toBeNull();
+    st = loopStarts(m, view({ clockMs: 1500 }), st);
+    expect(st.magpie).toMatchObject({ atMs: 1500 });
+    expect(st.magpie!.pic).not.toBeNull();
+  });
+
+  it('효과 자리: 붙든 burst는 연출 모드 그대로, 자리 시계는 길이를 넘어 계속 간다(on 높이로 뿜음)', () => {
+    const m = fxMeta();
+    const burst = { ...m.anims['magpie.fly_down']!, mode: 'burst', hold: true as const };
+    const d = sceneDraws(m, view({ clockMs: 9000, flagsOf: () => ({ ...screen.flags, 'magpie.on_ground': true }), held: { water: { anim: burst, ms: 2000 } } }));
+    expect(d.back[1]).toMatchObject({ key: 'water', mode: 'burst', slotMs: 2000, durMs: 300 });
+  });
+
+  it('animFrameBox: 재생 중·붙든 anim 칸의 그림 상자, 멈춘 모습·시트 밖 대상·효과 anim은 null', () => {
+    const m = holdMeta();
+    const fly = m.anims['magpie.fly_down']!;
+    const f9 = m.frames[9]!;
+    const box9 = { left: f9.at[0], top: f9.at[1], width: f9.src[2], height: f9.src[3] };
+    expect(animFrameBox(m, view({ held: { magpie: { anim: fly, ms: 5000 } } }), 'magpie')).toEqual(box9);
+    const f5 = m.frames[5]!;
+    expect(animFrameBox(m, view({ playing: { object: 'magpie', anim: fly, ms: 50 } }), 'magpie')).toEqual({ left: f5.at[0], top: f5.at[1], width: f5.src[2], height: f5.src[3] });
+    expect(animFrameBox(m, view(), 'magpie')).toBeNull();
+    expect(animFrameBox(m, view({ held: { magpie: { anim: fly, ms: 5000 } } }), 'nest')).toBeNull();
+    expect(animFrameBox(m, view({ held: { magpie: { anim: fly, ms: 5000 } } }), 'jjuk')).toBeNull();
+  });
+
+  describe('장면: 대기열이 빌 때까지 붙든다', () => {
+    const hd: SceneData = { screen, characters, art: holdMeta() };
+    /** 대기열에 직접 넣고 다 돌 때까지 틱마다 (재생 중 이벤트, 붙든 물건) 변화를 적는다. */
+    function run(s: SceneState, d: SceneData): string[] {
+      const out: string[] = [];
+      let last = '';
+      while (isBusy(s)) {
+        sceneTick(d, s);
+        const ev = s.current?.ev;
+        const name = !ev ? 'idle' : ev.type === 'anim' ? `${ev.target}.${ev.name}` : ev.type;
+        const line = `${name}|${Object.keys(s.heldArt).join(',')}`;
+        if (line !== last && ev) out.push(line);
+        last = line;
+      }
+      out.push(`end|${Object.keys(s.heldArt).join(',')}`);
+      return out;
+    }
+
+    it('hold anim은 뒤 말풍선 동안 마지막 칸을 붙들고, 대기열이 비면 놓는다', () => {
+      const s = ready(hd);
+      s.queue.push({ type: 'anim', target: 'magpie', name: 'fly_down' }, { type: 'say', speaker: 'magpie', text: 'x' });
+      expect(run(s, hd)).toEqual(['magpie.fly_down|', 'say|magpie', 'end|']);
+    });
+
+    it('붙든 ms는 anim 시작부터 센다(말풍선 동안 길이를 넘어 커진다)', () => {
+      const s = ready(hd);
+      s.queue.push({ type: 'anim', target: 'magpie', name: 'fly_down' }, { type: 'say', speaker: 'magpie', text: 'x' });
+      while (s.current?.ev.type !== 'say') sceneTick(hd, s);
+      expect(heldArtView(s).magpie!.ms).toBe(12 * (1000 / 60));
+      sceneTick(hd, s);
+      sceneTick(hd, s);
+      expect(heldArtView(s).magpie!.ms).toBeCloseTo(14 * (1000 / 60));
+    });
+
+    it('같은 물건의 다음 anim이 시작되면 붙든 칸을 놓는다(그 anim이 hold가 아니면 끝나고 멈춘 모습)', () => {
+      const m = holdMeta();
+      delete m.anims['magpie.ruffle']!.hold;
+      const d: SceneData = { screen, characters, art: m };
+      const s = ready(d);
+      s.queue.push({ type: 'anim', target: 'magpie', name: 'fly_down' }, { type: 'anim', target: 'magpie', name: 'ruffle' }, { type: 'say', speaker: 'magpie', text: 'x' });
+      expect(run(s, d)).toEqual(['magpie.fly_down|', 'magpie.ruffle|', 'say|', 'end|']);
+    });
+
+    it('hold 없는 물건 anim은 예전과 같다(둥지 화면 회귀)', () => {
+      const s = ready();
+      s.queue.push({ type: 'anim', target: 'magpie', name: 'fly_down' }, { type: 'say', speaker: 'magpie', text: 'x' });
+      expect(run(s, data)).toEqual(['magpie.fly_down|', 'say|', 'end|']);
+    });
+
+    it('기절은 붙든 칸을 놓는다', () => {
+      const s = ready(hd);
+      s.queue.push({ type: 'anim', target: 'magpie', name: 'fly_down' }, { type: 'faint', to: { ...s.puzzle.at } });
+      const out = run(s, hd);
+      expect(out).toContain('faint|');
+      expect(out.at(-1)).toBe('end|');
+    });
   });
 });

@@ -18,8 +18,8 @@ import { createFirstNotes, currentNote, noteGauge, noteSwitch, noteTap } from '.
 import { abilityText, cutFontPx, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
-import { activeFx, activeMarkerVisible, boardDrop, charPose, createScene, currentBubble, drawOrder, gaugeDrop, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, tiltOf, type SceneData } from './core/scene';
-import { coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws } from './core/sceneArt';
+import { activeFx, activeMarkerVisible, boardDrop, charPose, createScene, currentBubble, drawOrder, gaugeDrop, heldArtView, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, tiltOf, type SceneData } from './core/scene';
+import { animFrameBox, coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
 import { isTapKey } from './core/keys';
 import { createRestartButton, loadingDone, RESTART_BOX, restartArmed, restartPress } from './core/restart';
@@ -229,8 +229,15 @@ function anchorOf(target: string, layout: ReturnType<typeof sceneLayout>): Point
   return { x: box.left + box.width / 2, y: top };
 }
 
-/** 말풍선 화자 상자(#329): 가운데 x, 머리 위끝, 발끝. 내부 좌표. 위로 넘치면 발 아래로 뒤집는다. */
-function speakerBox(target: string, layout: ReturnType<typeof sceneLayout>): BubbleAnchor | null {
+/**
+ * 말풍선 화자 상자(#329): 가운데 x, 머리 위끝, 발끝. 내부 좌표. 위로 넘치면 발 아래로 뒤집는다.
+ * `frameBox`(그 물건이 지금 그리는 anim 칸 상자, 그림 형식 13절 #450)가 있으면 핫스팟 상자 대신 그걸 쓴다.
+ */
+function speakerBox(target: string, layout: ReturnType<typeof sceneLayout>, frameBox: HitBox | null = null): BubbleAnchor | null {
+  if (frameBox) {
+    const b = frameBox;
+    return { x: b.left + b.width / 2, top: b.top, bottom: b.top + b.height, left: b.left, right: b.left + b.width };
+  }
   const box: HitBox | undefined = layout.chars[target as CharacterId] ?? layout.hotspots[target] ?? layout.spots[target];
   const head = anchorOf(target, layout);
   if (!box || !head) return null;
@@ -409,8 +416,10 @@ function render(): void {
   // 물건 그림(형식 기록 4·6절): 보이는 플래그로 멈춘 모습, 재생 중 물건 anim은 그 프레임.
   const playing = scene.current?.art ? { ...scene.current.art, ms: scene.current.t * TICK_MS } : null;
   let draws: SceneDraws | null = null;
+  let artView: SceneView | null = null;
   if (art) {
-    const view = { flagsOf: (k: string) => shownFlags(scene, k), playing, clockMs: scene.tick * TICK_MS, tiltOf: (k: string) => tiltOf(data, scene, k) };
+    const view: SceneView = { flagsOf: (k: string) => shownFlags(scene, k), playing, held: heldArtView(scene), clockMs: scene.tick * TICK_MS, tiltOf: (k: string) => tiltOf(data, scene, k) };
+    artView = view;
     loopClock = loopStarts(art.meta, view, loopClock);
     draws = sceneDraws(art.meta, { ...view, loopStarts: loopClock });
   }
@@ -539,7 +548,9 @@ function render(): void {
   if (b) {
     // 재생 도구(#356 C-7 가림 검사)가 화자 자신의 핫스팟을 빼려고 읽는다.
     if (bubble.dataset.speaker !== b.speaker) bubble.dataset.speaker = b.speaker;
-    placeBubbleDom(sayText(TEXT, b.text, b.speaker), speakerBox(b.speaker, layout), bubbleKeepBoxes(b.speaker, layout), bubbleBodyBoxes(b.speaker, layout));
+    // 핫스팟 화자가 지금 anim 칸(재생 중·붙든 hold)을 그리면 그 칸에 붙인다(#450). 캐릭터 ID는 물건 `ids`에 없어서(ADR-0065 예약어) null이다.
+    const frameBox = art && artView ? animFrameBox(art.meta, artView, b.speaker) : null;
+    placeBubbleDom(sayText(TEXT, b.text, b.speaker), speakerBox(b.speaker, layout, frameBox), bubbleKeepBoxes(b.speaker, layout), bubbleBodyBoxes(b.speaker, layout));
   }
 }
 
