@@ -37,6 +37,7 @@
     }
   },
   "onEnter": [
+    { "fx": ["shaa_text", "fountain"] },
     { "anim": ["guest", "wait"] },
     { "say": ["ppik", "park_fountain.enter"] }
   ],
