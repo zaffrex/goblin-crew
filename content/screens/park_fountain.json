@@ -1,0 +1,319 @@
+{
+  "id": "park_fountain",
+  "note": "엔딩 화면(설계 docs/design/screens/park_fountain.md, #380). 좌표는 회색 배치 v1(park_fountain-layout.json). 시작 좌표(엔진 배치, floor ±40): jjuk 336,244 / mukjik 376,244 / ppik 416,244. 아직 main.ts에 연결하지 않았다(화면 순서·그림은 별도 PR).",
+  "start": {
+    "at": { "jjuk": "floor", "mukjik": "floor", "ppik": "floor" },
+    "items": []
+  },
+  "exitFlag": "jacket.taken",
+  "flags": {
+    "fountain.off": false,
+    "jacket.on_hand": false,
+    "jacket.taken": false
+  },
+  "solution": [
+    { "char": "ppik", "verb": "squeak", "target": "keeper" },
+    { "char": "mukjik", "verb": "stomp", "target": "fountain" },
+    { "char": "jjuk", "verb": "stretch", "target": "jacket" }
+  ],
+  "spots": {
+    "floor": { "x": 376, "y": 244, "free": true, "note": "자리 하나뿐(설계 1-2). 분수대 테두리에 올라서는 자리는 두지 않는다(13절 Q3)" }
+  },
+  "hotspots": {
+    "fountain": { "box": [128, 180, 192, 24], "hintAbility": "stomp", "note": "테두리 앞면 그림 128,180,192×18. 아래 끝 204 > WALK_AREA.top 200이라 바닥 대상(쿵은 모서리 옆 x 339 또는 109)" },
+    "jacket": {
+      "box": [212, 27, 24, 24],
+      "hintAbility": "stretch",
+      "variants": [{ "when": { "flags": { "jacket.on_hand": true } }, "box": [249, 100, 24, 24] }],
+      "note": "꼭대기(돌우산 위) 그림 214,32,20×14 / 손 그림 252,106,18×18. reachPoint 없음: 장대 대상 점 = 상자 아래 끝 가운데(꼭대기 224,51 못 닿음 / 손 261,124 닿음)"
+    },
+    "keeper": { "box": [36, 114, 44, 36], "hintAbility": "squeak", "note": "창 전체. 조는 얼굴 그림 40,118,36×30. 말풍선 화자(ADR-0065 개정 #434)" },
+    "alarm_clock": { "box": [80, 134, 24, 24], "hintAbility": "squeak", "note": "창턱 닭 자명종 그림 84,140,12×12. プピッ는 관리인과 같은 결과" },
+    "duck": { "box": [175, 150, 24, 24], "note": "장난감. 연못 위 그림 180,158,14×12" },
+    "guest": { "box": [438, 176, 24, 56], "note": "장난감. 그림 440,176,20×56, 히트 폭만 24(ADR-0007 결정 6). 말풍선 화자" }
+  },
+  "onEnter": [
+    { "anim": ["guest", "wait"] },
+    { "say": ["ppik", "park_fountain.enter"] }
+  ],
+  "rules": [
+    {
+      "id": "keeper_wake",
+      "target": "keeper",
+      "verb": "squeak",
+      "when": { "flags": { "fountain.off": false } },
+      "do": { "set": { "fountain.off": true } },
+      "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "anim": ["keeper", "wake"] },
+        { "say": ["keeper", "park_fountain.keeper_wake"] },
+        { "anim": ["keeper", "clean_time"] },
+        { "anim": ["fountain", "water_off"] },
+        { "say": ["ppik", "park_fountain.fountain_off"] }
+      ],
+      "note": "#1 정답. 관리인이 자명종 탁 → 갸웃 → 벽시계 → 제어판 꾹 → 다시 존다(P1·P2, 설계 0절 KX3)"
+    },
+    {
+      "id": "keeper_wake_clock",
+      "target": "alarm_clock",
+      "verb": "squeak",
+      "when": { "flags": { "fountain.off": false } },
+      "do": { "set": { "fountain.off": true } },
+      "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "anim": ["keeper", "wake"] },
+        { "say": ["keeper", "park_fountain.keeper_wake"] },
+        { "anim": ["keeper", "clean_time"] },
+        { "anim": ["fountain", "water_off"] },
+        { "say": ["ppik", "park_fountain.fountain_off"] }
+      ],
+      "note": "#1 정답(자명종을 눌렀을 때). keeper_wake와 같은 효과"
+    },
+    {
+      "id": "keeper_wake_done",
+      "target": "keeper",
+      "verb": "squeak",
+      "when": { "flags": { "fountain.off": true } },
+      "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "anim": ["keeper", "swat"] },
+        { "say": ["keeper", "park_fountain.keeper_done"] }
+      ],
+      "note": "#2 이미 꺼짐. 눈 감은 채 손만 들어 자명종 탁(P1 3칸 + 눈 감은 덧그림)"
+    },
+    {
+      "id": "keeper_wake_done_clock",
+      "target": "alarm_clock",
+      "verb": "squeak",
+      "when": { "flags": { "fountain.off": true } },
+      "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "anim": ["keeper", "swat"] },
+        { "say": ["keeper", "park_fountain.keeper_done"] }
+      ],
+      "note": "#2 이미 꺼짐(자명종을 눌렀을 때)"
+    },
+    {
+      "id": "fountain_stomp_drop",
+      "target": "fountain",
+      "verb": "stomp",
+      "when": { "flags": { "jacket.on_hand": false } },
+      "do": { "set": { "jacket.on_hand": true } },
+      "show": [
+        { "anim": ["mukjik", "sit_corner"] },
+        { "fx": ["gon_text", "fountain"] },
+        { "fx": ["shake", "fountain"] },
+        { "anim": ["jacket", "slide"] },
+        { "say": ["mukjik", "park_fountain.drop"] }
+      ],
+      "note": "#3 정답(주 아하). 모서리 돌에 일부러 털썩 앉기(P4) → ゴォン + 분수대 흔들림 → 재킷이 손으로(P5)"
+    },
+    {
+      "id": "fountain_stomp_done",
+      "target": "fountain",
+      "verb": "stomp",
+      "when": { "flags": { "jacket.on_hand": true } },
+      "show": [
+        { "anim": ["mukjik", "sit_corner"] },
+        { "fx": ["gon_text", "fountain"] },
+        { "fx": ["ripple", "duck"] },
+        { "say": ["mukjik", "park_fountain.drop_done"] }
+      ],
+      "note": "#4 이미 손에. 연못 물결, 재킷은 꽉"
+    },
+    {
+      "id": "jacket_reach_wet",
+      "target": "jacket",
+      "verb": "stretch",
+      "when": { "flags": { "fountain.off": false } },
+      "do": { "gauge": -1 },
+      "show": [
+        { "anim": ["jjuk", "common.stretch"] },
+        { "fx": ["stretch_text", "jjuk"] },
+        { "fx": ["splash", "jjuk"] },
+        { "anim": ["jjuk", "common.wet"] },
+        { "say": ["jjuk", ["park_fountain.wet", "park_fountain.wet_again"]] }
+      ],
+      "note": "#5 다치는 실패. 물이 뿜는 동안은 재킷이 어디 있든 젖는다(설계 0-1)"
+    },
+    {
+      "id": "jacket_reach_high",
+      "target": "jacket",
+      "verb": "stretch",
+      "when": { "flags": { "fountain.off": true, "jacket.on_hand": false } },
+      "show": [
+        { "anim": ["jjuk", "common.reach_wobble"] },
+        { "fx": ["stretch_text", "jjuk"] },
+        { "say": ["jjuk", ["park_fountain.high", "park_fountain.high_again"]] }
+      ],
+      "note": "#6 꼭대기는 못 닿음(18px 틈, 설계 1-3)"
+    },
+    {
+      "id": "jacket_ground_stomp",
+      "target": "jacket",
+      "verb": "stomp",
+      "when": { "flags": { "jacket.on_hand": false } },
+      "show": [
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "fx": ["poof_text", "mukjik"] },
+        { "fx": ["pigeons_up", "mukjik"] },
+        { "say": ["mukjik", ["park_fountain.soft", "park_fountain.soft_again"]] }
+      ],
+      "note": "#7 흙길 쿵은 안 울린다(단서 ②). 재킷 밑 흙길 x 224에서 발 구르기"
+    },
+    {
+      "id": "jacket_take",
+      "target": "jacket",
+      "verb": "stretch",
+      "when": { "flags": { "fountain.off": true, "jacket.on_hand": true } },
+      "do": { "set": { "jacket.taken": true } },
+      "show": [
+        { "anim": ["jjuk", "take_up"] },
+        { "fx": ["stretch_text", "jjuk"] },
+        { "anim": ["jacket", "cover"] },
+        { "say": ["jjuk", "park_fountain.take"] },
+        { "anim": ["guest", "run_in"] },
+        { "anim": ["guest", "cheer"] },
+        { "say": ["guest", "park_fountain.guest_thanks"] },
+        { "fx": ["kokee_text", "alarm_clock"] },
+        { "anim": ["alarm_clock", "ring_late"] },
+        { "anim": ["keeper", "wake"] },
+        { "anim": ["keeper", "clean_time"] },
+        { "anim": ["fountain", "water_burst"] },
+        { "anim": ["guest", "soaked"] },
+        { "anim": ["jjuk", "common.wet"] },
+        { "anim": ["mukjik", "common.wet"] },
+        { "anim": ["ppik", "common.wet"] },
+        { "say": ["keeper", "park_fountain.keeper_again"] },
+        { "say": ["guest", "park_fountain.guest_hand"] }
+      ],
+      "note": "#8 정답 → 클리어. 설계 8절 ①~④를 이 show 하나로 쓴다(step이 clear 이벤트를 show 뒤에 붙임). 마지막 プピ 한마디는 엔진이 <화면 ID>.clear로 띄운다(main.ts clearLine). 물 다시 솟음은 연출이고 fountain.off는 그대로다"
+    },
+    {
+      "id": "fountain_tap",
+      "target": "fountain",
+      "verb": "stretch",
+      "when": { "flags": { "jacket.on_hand": false } },
+      "show": [
+        { "anim": ["jjuk", "common.stretch"] },
+        { "fx": ["stretch_text", "jjuk"] },
+        { "fx": ["kaan_text", "fountain"] },
+        { "anim": ["jacket", "twitch"] },
+        { "say": ["jjuk", "park_fountain.tap"] }
+      ],
+      "note": "#9 단서 ①. 소매가 움찔(P5 0칸), 상태는 안 바뀐다"
+    },
+    {
+      "id": "fountain_tap_hand",
+      "target": "fountain",
+      "verb": "stretch",
+      "when": { "flags": { "jacket.on_hand": true } },
+      "show": [
+        { "anim": ["jjuk", "common.stretch"] },
+        { "fx": ["stretch_text", "jjuk"] },
+        { "fx": ["kaan_text", "fountain"] },
+        { "fx": ["shake", "jacket"] },
+        { "say": ["jjuk", "park_fountain.tap_hand"] }
+      ],
+      "note": "#10 폴백이 아니라 규칙: 폴백이면 힌트 ②(hint_stomp)가 이미 끝난 쿵을 가리킨다(설계 3절)"
+    }
+  ],
+  "fallbacks": {
+    "fountain": {
+      "squeak": { "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "fx": ["echo_text", "fountain"] },
+        { "say": ["ppik", "park_fountain.fountain_squeak"] }
+      ] }
+    },
+    "jacket": {
+      "stomp": { "show": [
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "fx": ["nod", "jacket"] },
+        { "say": ["mukjik", "park_fountain.jacket_stomp_hand"] }
+      ] },
+      "squeak": { "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "fx": ["pigeons_turn", "jacket"] },
+        { "say": ["ppik", "park_fountain.jacket_squeak"] }
+      ] }
+    },
+    "keeper": {
+      "stretch": { "show": [
+        { "anim": ["jjuk", "common.stretch"] },
+        { "fx": ["stretch_text", "jjuk"] },
+        { "anim": ["keeper", "curtain"] },
+        { "say": ["keeper", "park_fountain.keeper_poke"] }
+      ] },
+      "stomp": { "show": [
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "fx": ["shake", "keeper"] },
+        { "say": ["mukjik", "park_fountain.keeper_rattle"] }
+      ] }
+    },
+    "alarm_clock": {
+      "stretch": { "show": [
+        { "anim": ["jjuk", "common.stretch"] },
+        { "fx": ["stretch_text", "jjuk"] },
+        { "anim": ["alarm_clock", "spring"] },
+        { "say": ["jjuk", "park_fountain.clock_broken"] }
+      ] },
+      "stomp": { "show": [
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "anim": ["alarm_clock", "fall"] },
+        { "say": ["mukjik", "park_fountain.clock_fall"] }
+      ] }
+    },
+    "duck": {
+      "stretch": { "show": [
+        { "anim": ["jjuk", "common.stretch"] },
+        { "fx": ["stretch_text", "jjuk"] },
+        { "anim": ["duck", "peck"] },
+        { "say": ["jjuk", "park_fountain.duck_peck"] }
+      ] },
+      "stomp": { "show": [
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "anim": ["duck", "flap"] },
+        { "anim": ["mukjik", "common.wet"] },
+        { "say": ["mukjik", "park_fountain.duck_splash"] }
+      ] },
+      "squeak": { "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "fx": ["quack_text", "duck"] },
+        { "say": ["ppik", "park_fountain.duck_reply"] }
+      ] }
+    },
+    "guest": {
+      "stretch": { "show": [
+        { "anim": ["jjuk", "common.stretch"] },
+        { "fx": ["stretch_text", "jjuk"] },
+        { "fx": ["shake", "guest"] },
+        { "say": ["jjuk", "park_fountain.guest_shake"] }
+      ] },
+      "stomp": { "show": [
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "fx": ["hop", "guest"] },
+        { "say": ["mukjik", "park_fountain.guest_jump"] }
+      ] },
+      "squeak": { "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "fx": ["hop", "guest"] },
+        { "say": ["ppik", "park_fountain.guest_smile"] }
+      ] }
+    }
+  }
+}
