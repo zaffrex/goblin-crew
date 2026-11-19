@@ -100,12 +100,12 @@ let hoverLabel: Label | null = null;
 let hoverHud: HudId | 'gauge' | null = null;
 /** 처음 한 번 안내(첫 전환 특기 설명, 첫 감소 게이지 뜻, 설계 6-4-3·6-2-5절). */
 const notes = createFirstNotes(scene.shownGauge, scene.ui.active);
-/** 시작 카드(설계 6-2-1절). 떠 있는 동안 장면은 멈추고(진입 연출 포함) 입력은 카드만 받는다. */
 /** 배포 빌드의 커밋 앞 7자리(#460). 로컬 빌드는 `dev`. */
 function buildTag(sha: string | undefined): string {
   return sha ? sha.slice(0, 7) : 'dev';
 }
 
+/** 시작 카드(설계 6-2-1절). 떠 있는 동안 장면은 멈추고(진입 연출 포함) 입력은 카드만 받는다. */
 const startCard = createStartCard();
 /** 카드 특기 줄의 얼굴 칸. 얼굴 시트가 늦게 오면 다 그릴 때까지 프레임마다 다시 그린다. */
 const cardFaces = buildCard();
