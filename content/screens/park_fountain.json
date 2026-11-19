@@ -183,16 +183,16 @@
         { "fx": ["kokee_text", "alarm_clock"] },
         { "anim": ["alarm_clock", "ring_late"] },
         { "anim": ["keeper", "wake"] },
+        { "say": ["keeper", "park_fountain.keeper_again"] },
         { "anim": ["keeper", "clean_time"] },
         { "anim": ["fountain", "water_burst"] },
         { "anim": ["guest", "soaked"] },
         { "anim": ["jjuk", "common.wet"] },
         { "anim": ["mukjik", "common.wet"] },
         { "anim": ["ppik", "common.wet"] },
-        { "say": ["keeper", "park_fountain.keeper_again"] },
         { "say": ["guest", "park_fountain.guest_hand"] }
       ],
-      "note": "#8 정답 → 클리어. 설계 8절 ①~④를 이 show 하나로 쓴다(step이 clear 이벤트를 show 뒤에 붙임). 마지막 プピ 한마디는 엔진이 <화면 ID>.clear로 띄운다(main.ts clearLine). 물 다시 솟음은 연출이고 fountain.off는 그대로다"
+      "note": "#8 정답 → 클리어. 설계 8절 ①~④를 이 show 하나로 쓴다(step이 clear 이벤트를 show 뒤에 붙임). 마지막 プピ 한마디는 엔진이 <화면 ID>.clear로 띄운다(main.ts clearLine). 물 다시 솟음은 연출이고 fountain.off는 그대로다. 관리인 말은 wake 바로 뒤(말 → 꾹 → 솟음 순서로 물보라가 마지막 웃음, PR #446 Theo 리뷰 반영)"
     },
     {
       "id": "fountain_tap",
@@ -202,7 +202,7 @@
       "show": [
         { "anim": ["jjuk", "common.stretch"] },
         { "fx": ["stretch_text", "jjuk"] },
-        { "fx": ["kaan_text", "fountain"] },
+        { "fx": ["clang_text", "fountain"] },
         { "anim": ["jacket", "twitch"] },
         { "say": ["jjuk", "park_fountain.tap"] }
       ],
@@ -216,7 +216,7 @@
       "show": [
         { "anim": ["jjuk", "common.stretch"] },
         { "fx": ["stretch_text", "jjuk"] },
-        { "fx": ["kaan_text", "fountain"] },
+        { "fx": ["clang_text", "fountain"] },
         { "fx": ["shake", "jacket"] },
         { "say": ["jjuk", "park_fountain.tap_hand"] }
       ],
@@ -228,7 +228,7 @@
       "squeak": { "show": [
         { "anim": ["ppik", "common.squeeze_chicken"] },
         { "fx": ["squeak_text", "ppik"] },
-        { "fx": ["echo_text", "fountain"] },
+        { "fx": ["small_squeak_text", "fountain"] },
         { "say": ["ppik", "park_fountain.fountain_squeak"] }
       ] }
     },
