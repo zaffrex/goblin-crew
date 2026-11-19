@@ -814,7 +814,7 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
         return p;
       }
       // 15번(1-6-5절): 그림으로만 판에 탄 사람(쿵 남은 칸)에게 다음 캐릭터 연출이 오면 판이 튕겨 낸다. 그 연출은 착지하면서 시작한다.
-      const eject = char ? ejectHop(data, s, char, ev.name) : null;
+      const eject = char ? ejectHop(data, s, char) : null;
       // 캐릭터 anim이 시작될 때 퍼즐 자리가 이미 판 끝이 아니면 판에서 빠진다(발사 `launch_to_hook`, 1-5-4절). 이름은 보지 않는다.
       // 몸은 그 틱의 판 높이에 둔 채 연출한다(1-7-8절: 들린 판에 발이 묻히지 않게). 다음에 움직일 때 푼다.
       if (char && s.riding[char] !== undefined && !hasBoard(data, s.puzzle.at[char] ?? '')) {
@@ -912,15 +912,16 @@ const SURPRISE = { name: 'common.flatten', frame: 2 } as const;
  * 15번 튕겨 나가기(1-6-5절). 쿵 남은 칸으로 판에 그림으로만 탄 사람에게 캐릭터 연출이 오면, 판 위 자리에서 바닥 점 바깥
  * (`board.x + dx`, y `HOP.eject.y`)으로 H 24 공중을 돈 뒤 그 연출을 처음부터 시작한다. ⑦ 내려서기는 없다. 해당 없으면 null.
  * 출발 발 높이는 그 틱의 판 높이다(판이 비어 수평으로 돌아온다).
+ * 공중 칸은 뒤에 올 연출 이름과 상관없이 늘 `SURPRISE`다(들썩과 같다). 15번이 `common.flatten_stay`를 써도 뿅이 남는다(#433).
  */
-function ejectHop(data: SceneData, s: SceneState, id: CharacterId, name: string): Hop | null {
+function ejectHop(data: SceneData, s: SceneState, id: CharacterId): Hop | null {
   const h = s.hops[id];
   if (h?.kind !== 'stomp' || h.t < h.crouch + h.air || !h.after) return null;
   const w = s.walkers[id];
   delete s.riding[id];
   const o = tiltObject(data, h.spot);
   const fromDrop = o ? tiltDrop(o.tilt, tiltOf(data, s, o.key), w.x) : 0;
-  const ms = name === SURPRISE.name ? frameStartMs(data, id, name, SURPRISE.frame) : null;
+  const ms = frameStartMs(data, id, SURPRISE.name, SURPRISE.frame);
   const hop: Hop = {
     from: { x: w.x, y: w.y },
     to: { x: h.after.x + HOP.eject.dx, y: HOP.eject.y },
@@ -934,7 +935,7 @@ function ejectHop(data: SceneData, s: SceneState, id: CharacterId, name: string)
     fromDrop,
     kind: 'eject',
   };
-  if (ms !== null) Object.assign(hop, { anim: name, airMs: ms });
+  if (ms !== null) Object.assign(hop, { anim: SURPRISE.name, airMs: ms });
   return hop;
 }
 

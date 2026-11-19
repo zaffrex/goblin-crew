@@ -416,6 +416,8 @@ export const SHEET = {
     // cue 2: 시그니처 `ドスン`+흔들림+먼지(stomp_text)는 발이 닿는 쿵 칸(400ms)에 뜬다(ability-feedback.md 2·2-1절, #284).
     { name: 'common.stomp', frames: 4, ms: [300, 100, 400, 300], cue: [2] },
     { name: 'common.flatten', frames: 4, ms: [100, 600, 150, 450] },
+    // 납작에서 멈춤(#433, 15번 혼자 맞기): 쭉이·삑삑이 시트와 같다(#357). 새 칸 없이 꽝 → 납작 두 칸만, 엔진이 납작 장을 다음 말풍선이 끝날 때까지 붙든다.
+    { name: 'common.flatten_stay', reuse: [['common.flatten', 0], ['common.flatten', 1]], ms: [100, 600] },
     // 웅크림·공중(#397 1-5-3절). 착지는 엔진이 0번 칸을 50ms 다시 쓴다. 맨 뒤에 붙여서 앞 칸 번호(#357 납작 12)는 그대로다.
     { name: 'step_up', frames: 2, ms: [150, 150] },
     // 시소 끝에 뛰어올라 쿵(#414, magpie_nest.md 1-6-2·1-6-3절). 새 칸 없이 웅크림 → 무릎 들기 → 내려찍기 → 쿵 → 여운을 잇는다.

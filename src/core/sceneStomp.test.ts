@@ -196,14 +196,14 @@ function drawnTilt(s: SceneState): number {
 
 describe('15번: 빈 판에 쿵 하면 판이 묵직이를 튕겨 낸다 (1-6-5절)', () => {
   for (const end of ENDS) {
-    it(`${end}: U6가 끝나는 틱에 뿅 칸으로 바닥 점 바깥 +12(y 244)로 날아가 착지하면서 납작 0번부터, ⑦ 없음`, () => {
+    it(`${end}: U6가 끝나는 틱에 뿅 칸으로 바닥 점 바깥 +12(y 244)로 날아가 착지하면서 납작 0번부터(flatten_stay, #433), ⑦ 없음`, () => {
       const s = ready();
       runAction(data, s, { char: 'mukjik', verb: 'stomp', target: end }, null);
       untilStomp(s);
       while (!playing(s, 'plank_bounce')) sceneTick(data, s);
       while (playing(s, 'plank_bounce')) sceneTick(data, s);
       // U6가 끝난 틱 = 납작 이벤트 시작 틱. 그 틱에 판에서 빠진다(빈 판 = 수평).
-      expect(playing(s, 'common.flatten')).toBe(true);
+      expect(playing(s, 'common.flatten_stay')).toBe(true);
       expect(s.current!.t).toBe(0);
       expect(s.current!.lead).toBe(15);
       expect(s.riding.mukjik).toBeUndefined();
@@ -236,7 +236,7 @@ describe('15번: 빈 판에 쿵 하면 판이 묵직이를 튕겨 낸다 (1-6-5�
     let gaugeAt = -1;
     for (let i = 0; i < 3000 && isBusy(s); i++) {
       sceneTick(data, s);
-      if (playing(s, 'common.flatten')) flatEnd = s.tick;
+      if (playing(s, 'common.flatten_stay')) flatEnd = s.tick;
       if (gaugeAt < 0 && s.shownGauge < g) gaugeAt = s.tick;
     }
     expect(gaugeAt).toBe(flatEnd + 1);
