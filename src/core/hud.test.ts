@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import screenJson from '../../content/screens/magpie_nest.json';
+import fountainJson from '../../content/screens/park_fountain.json';
 import texts from '../../content/text/ja.json';
 import { CHARACTERS } from './characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, WALK_AREA } from './config';
@@ -218,6 +219,34 @@ describe('목표 줄(#hud, 6-2-2절, #336)', () => {
     expect(width(15, hudTagFontPx(1.333)) > goalMaxWidthPx(1.333)).toBe(true);
     expect(width(15, hudTagFontPx(2)) <= goalMaxWidthPx(2)).toBe(true);
     expect(width(15, hudTagFontPx(4)) <= goalMaxWidthPx(4)).toBe(true);
+  });
+
+  it('화면마다 목표 줄(`<화면 ID>.intro`)도 줄바꿈 자리 하나, 조각 9자·전체 18자 이하이고 배율마다 들어간다(#380)', () => {
+    const keys = Object.keys(TEXT).filter((k) => k === 'ui.intro' || k.endsWith('.intro'));
+    expect(keys).toContain('park_fountain.intro');
+    for (const k of keys) {
+      const ps = TEXT[k]!.split('\u200b');
+      expect(ps.length, k).toBe(2);
+      for (const p of ps) expect([...p].length, `${k} "${p}"`).toBeLessThanOrEqual(9);
+      expect([...ps.join('')].length, k).toBeLessThanOrEqual(18);
+      for (const s of SCALES) {
+        const font = hudTagFontPx(s);
+        const max = goalMaxWidthPx(s);
+        const oneLine = width([...ps.join('')].length, font) <= max;
+        for (const p of oneLine ? [ps.join('')] : ps) expect(width([...p].length, font), `${k} ${s}배 "${p}"`).toBeLessThanOrEqual(max);
+        expect(((oneLine ? 1 : 2) * 1.25 * font + 0.2 * font) / s, `${k} ${s}배 높이`).toBeLessThanOrEqual(GOAL_ZONE.height);
+      }
+    }
+  });
+
+  it('GOAL_ZONE은 화면 2 핫스팟·서는 자리와도 겹치지 않는다(화면 설계 규칙, #380)', () => {
+    const screen = fountainJson as unknown as { hotspots: Record<string, { box?: number[]; variants?: { box?: number[] }[] }>; spots: Record<string, { box?: number[] }> };
+    const boxes = [
+      ...Object.entries(screen.hotspots).flatMap(([id, v]) => [[id, v.box], ...(v.variants ?? []).map((x) => [`${id} variant`, x.box])] as [string, number[] | undefined][]),
+      ...Object.entries(screen.spots).map(([id, v]) => [id, v.box] as [string, number[] | undefined]),
+    ].filter((e): e is [string, number[]] => !!e[1]);
+    expect(boxes.length).toBeGreaterThan(5);
+    for (const [id, [left, top, w, h]] of boxes) expect(boxesOverlap(GOAL_ZONE, { left: left!, top: top!, width: w!, height: h! }), id).toBe(false);
   });
 
   it('GOAL_ZONE은 화면 1 핫스팟·서는 자리·HUD 영역과 겹치지 않는다', () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import texts from '../../content/text/ja.json';
+import { screenTextKey } from './screenPick';
 import { CARD_LOCK_TICKS, cardFacePx, cardPointer, cardRowGapPx, cardTight, cardInput, cardReady, cardText, cardTick, createStartCard } from './startCard';
 
 const TEXT: Readonly<Record<string, string>> = texts;
@@ -39,11 +40,23 @@ describe('시작 카드 (ui-interaction.md 6-2-1절, #285)', () => {
     expect(card.rows[1]).toEqual({ id: 'mukjik', name: 'ズッシー', ability: 'ドスン: 全体重でドスンと踏む' });
   });
 
-  it('카드 글은 줄마다 30자 이하(휴대폰 13px × 30 < 카드 폭, 6-2-6절)', () => {
-    for (const pointer of ['touch', 'mouse'] as const) {
-      const card = cardText(t, pointer);
-      const lines = [card.goal, card.why, card.gauge, card.start, ...card.rows.map((r) => r.ability)];
-      expect(lines.filter((s) => [...s].length > 30), pointer).toEqual([]);
+  it('카드 글은 줄마다 30자 이하(휴대폰 13px × 30 < 카드 폭, 6-2-6절). 화면마다 바뀌는 목표·이유 줄도(#380)', () => {
+    for (const screen of ['magpie_nest', 'park_fountain']) {
+      const ts = (id: string): string => TEXT[screenTextKey(TEXT, screen, id)] ?? id;
+      for (const pointer of ['touch', 'mouse'] as const) {
+        const card = cardText(ts, pointer);
+        const lines = [card.goal, card.why, card.gauge, card.start, ...card.rows.map((r) => r.ability)];
+        expect(lines.filter((s) => [...s].length > 30), `${screen} ${pointer}`).toEqual([]);
+      }
+    }
+  });
+
+  it('목표·이유 줄은 자동 줄바꿈이 걸려서 더 짧게: 목표 16자, 이유 20자 이하(#380)', () => {
+    // 667×375 압축 카드에서 27자 이유 줄이 `出られ／ない`로 낱말 중간에서 접혔다(PR 스크린샷). 화면 1은 11자·18자.
+    for (const screen of ['magpie_nest', 'park_fountain']) {
+      const card = cardText((id) => TEXT[screenTextKey(TEXT, screen, id)] ?? id);
+      expect([...card.goal].length, `${screen} ${card.goal}`).toBeLessThanOrEqual(16);
+      expect([...card.why].length, `${screen} ${card.why}`).toBeLessThanOrEqual(20);
     }
   });
 

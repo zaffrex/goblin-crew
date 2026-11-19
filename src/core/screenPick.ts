@@ -19,7 +19,7 @@ export function pickScreen(want: string | null, ids: readonly string[]): ScreenP
 
 /**
  * 화면마다 다른 공용 글(`ui.*`). 화면 ID 아래 같은 이름 키(`<화면 ID>.card.goal` 등)가 있으면 그 글을 쓰고, 없으면 공용 키 그대로다.
- * 지금 공용 값은 화면 1 글이다(`ui.card.goal` = 店のカギ…). 화면 2 글이 생기기 전에는 화면 2에서도 화면 1 목표가 보인다.
+ * 공용 값은 화면 1 글이다(`ui.card.goal` = 店のカギ…). 화면 1이 아닌 화면은 이 키를 전부 자기 글로 가져야 한다(`tests/content/screen-text.test.ts`, #380).
  * `ui.clear`(클리어 카드)는 넣지 않는다. 카드는 `<id>.clearCard` + `ui.next`로 바뀔 예정이라(screen-transition-ui 결정) 그때 따로 한다.
  */
 export const SCREEN_TEXT: Readonly<Record<string, string>> = {
