@@ -82,6 +82,8 @@
         background: rgb(27 23 32 / 0.92); border: 2px solid #5e5068; border-radius: 6px;
       }
       #card p { margin: 0; }
+      /* 빌드 표기(#460): 흐름 밖(absolute)이라 카드 높이 계산에 영향이 없다. */
+      #card .build { position: absolute; right: 0.5em; bottom: 0.2em; font-size: 9px; opacity: 0.45; }
       #card .goal { font-size: 1.4em; font-weight: 700; color: #f2d65c; }
       #card ul { list-style: none; margin: 0.4em 0; padding: 0; }
       /* 특기 줄·게이지 줄은 자동 줄바꿈 금지(낱말 중간 `高い所 / に届く` 방지, #335). 줄바꿈은 작가가 정한 곳만(6-5절 원칙). */
@@ -135,6 +137,7 @@
       <ul></ul>
       <p class="gauge"></p>
       <p class="start"></p>
+      <span class="build"></span>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

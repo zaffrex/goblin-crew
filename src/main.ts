@@ -101,6 +101,11 @@ let hoverHud: HudId | 'gauge' | null = null;
 /** 처음 한 번 안내(첫 전환 특기 설명, 첫 감소 게이지 뜻, 설계 6-4-3·6-2-5절). */
 const notes = createFirstNotes(scene.shownGauge, scene.ui.active);
 /** 시작 카드(설계 6-2-1절). 떠 있는 동안 장면은 멈추고(진입 연출 포함) 입력은 카드만 받는다. */
+/** 배포 빌드의 커밋 앞 7자리(#460). 로컬 빌드는 `dev`. */
+function buildTag(sha: string | undefined): string {
+  return sha ? sha.slice(0, 7) : 'dev';
+}
+
 const startCard = createStartCard();
 /** 카드 특기 줄의 얼굴 칸. 얼굴 시트가 늦게 오면 다 그릴 때까지 프레임마다 다시 그린다. */
 const cardFaces = buildCard();
@@ -111,6 +116,7 @@ function buildCard(): { id: CharacterId; el: HTMLCanvasElement; ctx: CanvasRende
   need('#card .why').textContent = text.why;
   need('#card .gauge').textContent = text.gauge;
   need('#card .start').textContent = `${text.start} ▶`;
+  need('#card .build').textContent = buildTag(import.meta.env.VITE_BUILD_SHA);
   // 카드는 로딩이 끝난 뒤 renderCard가 띄운다(#387). 재생 도구(`card.ts`)는 `#loading`이 사라질 때까지 기다렸다가 카드를 찾는다.
   const list = need('#card ul');
   return text.rows.map((row) => {
