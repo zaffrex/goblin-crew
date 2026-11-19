@@ -4,6 +4,7 @@
 // 이미지 로드 전·실패면 그리지 않고 false → main.ts가 임시 방·상자를 그린다(형식 기록 9절 폴백).
 
 import { parseSceneArt, type SceneArtMeta } from '../core/sceneArt';
+import { BOSONG_32, fxParticles, type SceneFxDraw } from '../core/sceneFx';
 import { assetUrl } from './assets';
 import { buildOutlined } from './outline';
 
@@ -75,4 +76,12 @@ export function drawSceneFrame(ctx: CanvasRenderingContext2D, art: SceneArt, fra
   const [sx, sy, w, h] = f.src;
   const source = outlined && art.outlined ? art.outlined : art.objects;
   ctx.drawImage(source, sx, sy, w, h, f.at[0], f.at[1], w, h);
+}
+
+/** 효과 자리 하나(형식 기록 11-4절): 입자 사각형을 팔레트 색으로 칠한다. 반투명·블렌드 없음(ADR-0007). */
+export function drawSceneFx(ctx: CanvasRenderingContext2D, d: SceneFxDraw): void {
+  for (const p of fxParticles(d)) {
+    ctx.fillStyle = BOSONG_32[p.color]!;
+    ctx.fillRect(p.x, p.y, p.size, p.size);
+  }
 }

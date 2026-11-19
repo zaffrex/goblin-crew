@@ -8,7 +8,7 @@ import mukjikJson from '../../public/sprites/mukjik-base.json';
 import ppikJson from '../../public/sprites/ppik-base.json';
 import { CHARACTERS, type CharacterId } from './characters';
 import { TICK_MS } from './config';
-import { parseSceneArt, sceneDraws, tiltDrop } from './sceneArt';
+import { parseSceneArt, sceneDraws, tiltDrop, type ScenePictureObject } from './sceneArt';
 import { parseSpriteMeta } from './sprite';
 import type { CharactersData, ScreenData } from './puzzle/types';
 import { boardDrop, createScene, floorTarget, HOP, isBusy, runAction, sceneTap, sceneTick, tiltOf, type SceneData, type SceneState } from './scene';
@@ -16,7 +16,7 @@ import { boardDrop, createScene, floorTarget, HOP, isBusy, runAction, sceneTap, 
 const art = parseSceneArt(artJson);
 const sprites = { jjuk: parseSpriteMeta(jjukJson), mukjik: parseSpriteMeta(mukjikJson), ppik: parseSpriteMeta(ppikJson) };
 const data: SceneData = { screen: screenJson as unknown as ScreenData, characters: charactersJson as CharactersData, art, sprites };
-const seesaw = art.objects.find((o) => o.key === 'seesaw')!;
+const seesaw = art.objects.find((o) => o.key === 'seesaw')! as ScenePictureObject;
 const tilt = seesaw.tilt!;
 const ENDS = ['seesaw_left', 'seesaw_right'] as const;
 const IDS = CHARACTERS.map((c) => c.id);

@@ -24,6 +24,17 @@ const OVERLAY_KEYS = ['sortY', 'draw'];
 const ANIM_KEYS = ['ms', 'frames', 'layer', 'tilt', 'variants'];
 const VARIANT_KEYS = ['when', 'ms', 'frames', 'layer', 'tilt'];
 const LOOP_KEYS = ['ms', 'frames'];
+// 11절(개정 4): 효과 자리와 효과 anim
+const FX_OBJECT_KEYS = ['effect', 'area', 'colors', 'mode', 'states'];
+const FX_STATE_KEYS = ['when', 'mode'];
+const FX_ANIM_KEYS = ['effect', 'mode', 'ms'];
+/**
+ * 엔진 효과 표(src/core/sceneFx.ts `SCENE_FX`)의 모드 이름. 빌드는 TS를 못 읽어서 같은 표를 여기 둔다.
+ * 두 표가 같은지는 src/core/sceneFx.test.ts가 본다. still = 멈춘 모드(default·state), play = 연출 모드(효과 anim).
+ */
+export const FX_MODES = {
+  fountain_water: { still: ['on', 'off'], play: ['stop', 'burst'] },
+};
 
 /** 화면 JSON의 [x, y, w, h] 두 개가 겹치나 */
 const overlaps = (a, b) => a.x < b[0] + b[2] && b[0] < a.x + a.w && a.y < b[1] + b[3] && b[1] < a.y + a.h;
@@ -152,11 +163,59 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
     return ms ? { frames, ms } : undefined;
   }
 
+  /** state `when`이 { flags } 모양이고 플래그가 화면 JSON에 있나. 틀리면 problems에 적고 null */
+  function whenFlags(when, where) {
+    const flags = when?.flags;
+    if (!flags || typeof flags !== 'object' || Object.keys(when).some((k) => k !== 'flags')) {
+      problems.push(`${where}: when은 { flags: {...} } 모양이어야 한다(hotspot variants와 같다)`);
+      return null;
+    }
+    for (const f of Object.keys(flags)) if (!(f in screenFlags)) problems.push(`${where}: 플래그 '${f}'가 화면 JSON flags에 없다`);
+    return flags;
+  }
+
+  // ── 효과 자리(11절, 개정 4): 그림·ID가 없고, 좌표(area)를 적는 유일한 물건. 늘 back, 적은 순서 자리에서 그린다.
+  function fxObject(key, o, w) {
+    unknownKeys(o, FX_OBJECT_KEYS, w, problems);
+    const fx = FX_MODES[o.effect];
+    if (!fx) problems.push(`${w}: effect '${o.effect}'는 엔진 효과 표에 없다(${Object.keys(FX_MODES).join(', ')})`);
+    const { area, colors } = o;
+    if (!Array.isArray(area) || area.length !== 4 || !area.every(Number.isInteger) || area[2] <= 0 || area[3] <= 0)
+      problems.push(`${w}: area는 [x, y, w, h] 정수(w·h > 0)`);
+    else if (area[0] < 0 || area[1] < 0 || area[0] + area[2] > SCREEN_W || area[1] + area[3] > SCREEN_H)
+      problems.push(`${w}: area [${area}]가 ${SCREEN_W}×${SCREEN_H} 밖으로 나간다`);
+    if (!Array.isArray(colors) || colors.length !== 4 || !colors.every((c) => Number.isInteger(c) && c >= 0 && c < 32) || new Set(colors).size !== 4)
+      problems.push(`${w}: colors는 bosong-32 번호(0~31) 서로 다른 4개`);
+    else if (colors.includes(C.ink) || colors.includes(C.hint)) problems.push(`${w}: colors에 0번 ink·31번 hint는 못 쓴다(ADR-0007 결정 3-1)`);
+    const still = (mode, where) => {
+      if (fx && !fx.still.includes(mode)) problems.push(`${where}: mode '${mode}'는 ${o.effect}의 멈춘 모드(${fx.still.join(', ')})가 아니다`);
+    };
+    still(o.mode, w);
+    const states = [];
+    for (const [i, s] of (o.states ?? []).entries()) {
+      const sw = `${w}.states[${i}]`;
+      unknownKeys(s, FX_STATE_KEYS, sw, problems);
+      const flags = whenFlags(s.when, sw);
+      if (!flags) continue;
+      still(s.mode, sw);
+      states.push({ when: { flags }, mode: s.mode });
+    }
+    const out = { key, ids: [], effect: o.effect, area, colors, default: { mode: o.mode } };
+    if (states.length) out.states = states;
+    return out;
+  }
+
   // ── 물건(2·3·4·5·6절)
   const owner = new Map(); // 대상 ID → 물건 키
   const objects = [];
+  const fxSlots = new Map(); // 효과 자리 키 → 효과 이름
   for (const [key, o] of Object.entries(SCENE.objects ?? {})) {
     const w = `objects.${key}`;
+    if (o.effect !== undefined) {
+      objects.push(fxObject(key, o, w));
+      fxSlots.set(key, o.effect);
+      continue;
+    }
     unknownKeys(o, OBJECT_KEYS, w, problems);
     const ids = o.ids ?? [key];
     if (!Array.isArray(ids) || ids.length === 0) {
@@ -246,11 +305,23 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
   const tiltKeys = new Set(objects.filter((o) => o.tilt).map((o) => o.key));
   for (const [name, a] of Object.entries(SCENE.anims ?? {})) {
     const w = `anims['${name}']`;
-    unknownKeys(a, ANIM_KEYS, w, problems);
+    const isFx = a.effect !== undefined;
+    unknownKeys(a, isFx ? FX_ANIM_KEYS : ANIM_KEYS, w, problems);
     const dot = name.indexOf('.');
     const target = dot > 0 ? name.slice(0, dot) : '';
     if (!target || dot === name.length - 1) {
       problems.push(`${w}: 키는 '대상.이름' 모양이어야 한다`);
+      continue;
+    }
+    // 11-3절: 효과 anim. 키의 대상은 화면 JSON의 hotspot·spot ID(물건 ID가 아니어도 된다), 바꾸는 것은 effect가 가리키는 효과 자리.
+    if (isFx) {
+      if (!knownIds.has(target)) problems.push(`${w}: 대상 '${target}'는 화면 JSON의 hotspot·spot ID가 아니다`);
+      const fx = FX_MODES[fxSlots.get(a.effect)];
+      if (!fxSlots.has(a.effect)) problems.push(`${w}: effect '${a.effect}'는 효과 자리 키가 아니다(${[...fxSlots.keys()].join(', ') || '효과 자리 없음'})`);
+      else if (fx && !fx.play.includes(a.mode)) problems.push(`${w}: mode '${a.mode}'는 ${fxSlots.get(a.effect)}의 연출 모드(${fx.play.join(', ')})가 아니다`);
+      if (!Number.isInteger(a.ms) || a.ms <= 0) problems.push(`${w}: 효과 anim ms는 양의 정수 하나(길이)`);
+      else if (a.ms > ANIM_MAX_MS) problems.push(`${w}: ms ${a.ms} > ${ANIM_MAX_MS}(busy 길이 상한, 넘으면 L1로 올린다)`);
+      anims[name] = { object: fxSlots.has(a.effect) ? a.effect : null, frames: [], ms: [a.ms], layer: 'back', mode: a.mode };
       continue;
     }
     if (!owner.has(target)) problems.push(`${w}: 대상 '${target}'을 맡은 물건이 없다(objects 키 또는 ids)`);

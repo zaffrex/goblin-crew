@@ -230,6 +230,13 @@ anims: {
 - 가장 강한 반론: "효과 이름 하나에 코드 한 덩이라 데이터 주도가 아니다." → 맞다. 그래서 v1은 `fountain_water` 하나만 연다. 두 번째 효과 자리가 필요해지면(예: 세탁기 거품) 그때 효과 표를 매개변수(방향·속도·높이) 기반으로 일반화하는 L1을 연다.
 - 다시 볼 조건: 효과 자리가 화면 하나에 3개를 넘거나, 입자 96개로 모자라거나, 효과 자리 앞뒤를 캐릭터 발 y로 섞어야 하는 화면이 나오면.
 
+### 11-8. 구현 메모 (#425)
+- 메타 모양: 효과 자리 `{ key, ids: [], effect, area, colors, default: { mode }, states?: [{ when, mode }] }`. 효과 anim `{ object: 자리 키, frames: [], ms: [길이], layer: 'back', mode }`. 원본의 효과 anim `ms`는 숫자 하나만 받는다(배열 아님).
+- 시계 둘: 입자 비행 위상은 **화면 시계**, 모드 진행은 **효과 자리 시계**(4절 `loopStarts`와 같은 규칙). 그래서 on → stop → off와 burst → on이 같은 틱에 끊김 없이 이어진다(테스트로 확인).
+- `burst`는 꺼진 물에서 시작한다(엔딩 ③ 순서: `fountain.off` 참 → burst). 켜진 물에서 burst를 보내면 잠깐 비었다가 솟는다. 그런 연출이 필요해지면 그때 고친다.
+- 모양 v1: 물줄기 7가닥 포물선, 물방울 하나 800ms 비행. on 꼭대기 = area 높이 ÷ 1.5, burst 꼭대기 = area 위 끝. 미리보기 `docs/design/screens/park_fountain-water-preview-2x.png`. 하늘 배경 위 대비·밀도는 배경이 붙은 뒤 Luna와 다시 본다(11-6절 "입자 모양 다듬기").
+- 엔진 표는 `src/core/sceneFx.ts` `SCENE_FX`, 빌드 검사 표는 `art/scene-build.mjs` `FX_MODES`(빌드가 TS를 못 읽어서 둘). 두 표가 같은지는 `tests/art/scene-fx.test.ts`가 본다.
+
 ## 12. 멈춘 기울기 (`tilt`)와 판 밑 바닥 (`noFloor`) — 개정 5
 
 **배경**: 진마씨 지적 "시소에 올라가는 게 어색해"(#397)로 시소가 탄 사람 무게에 따라 기운다(`magpie_nest.md` 1-5-4절). 기울기는 퍼즐 상태가 아니라 **판 위에 그려지고 있는 사람**으로 정해서 `when`(플래그)으로는 고를 수 없다. 처음 기록의 "수평 고정 널빤지"(반대 의견 Luna Q1)를 이 개정이 바꾼다.

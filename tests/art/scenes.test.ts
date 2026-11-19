@@ -277,4 +277,74 @@ describe('scene build (format v1)', () => {
       expect(buildScene(s, screen).meta!.bg).toBeNull();
     });
   });
+
+  describe('효과 자리(11절, 개정 4)', () => {
+    /** 둥지와 까치 사이에 물줄기 자리를 끼운 정상 장면. 효과 anim은 진짜 대상 ID(basket)로 보낸다. */
+    function fxScene(): SceneSrc {
+      const s = goodScene();
+      const { nest, ...rest } = s.objects!;
+      s.objects = {
+        nest: nest!,
+        water: { effect: 'fountain_water', area: [152, 8, 144, 172], colors: [26, 25, 6, 24], mode: 'on', states: [{ when: { flags: { 'nest.key_taken': true } }, mode: 'off' }] },
+        ...rest,
+      };
+      s.anims!['basket.water_off'] = { effect: 'water', mode: 'stop', ms: 900 } as never;
+      s.anims!['basket.water_burst'] = { effect: 'water', mode: 'burst', ms: 1200 } as never;
+      return s;
+    }
+    const fxProblems = (edit: (s: SceneSrc) => void) => {
+      const s = fxScene();
+      edit(s);
+      return buildScene(s, screen).problems;
+    };
+
+    it('정상: 적은 순서 자리에 그림 없는 물건, 효과 anim은 효과 자리를 가리킨다', () => {
+      const r = buildScene(fxScene(), screen);
+      expect(r.problems).toEqual([]);
+      const meta = r.meta!;
+      expect(meta.objects.map((o) => o.key)).toEqual(['nest', 'water', 'magpie', 'seesaw', 'basket']);
+      expect(meta.objects[1]).toEqual({
+        key: 'water',
+        ids: [],
+        effect: 'fountain_water',
+        area: [152, 8, 144, 172],
+        colors: [26, 25, 6, 24],
+        default: { mode: 'on' },
+        states: [{ when: { flags: { 'nest.key_taken': true } }, mode: 'off' }],
+      });
+      expect(meta.anims['basket.water_off']).toEqual({ object: 'water', frames: [], ms: [900], layer: 'back', mode: 'stop' });
+      // 그림 수는 그대로(효과 자리는 시트에 아무것도 안 넣는다)
+      expect(meta.frames).toHaveLength(buildScene(goodScene(), screen).meta!.frames.length);
+    });
+
+    it('엔진 효과 표에 없는 effect', () => {
+      expect(fxProblems((s) => (s.objects!.water!.effect = 'washer_foam'))).toEqual([expect.stringContaining("effect 'washer_foam'는 엔진 효과 표에 없다")]);
+    });
+    it('area가 화면 밖이거나 정수 4개가 아님', () => {
+      expect(fxProblems((s) => (s.objects!.water!.area = [400, 8, 144, 172]))).toEqual([expect.stringContaining('480×270 밖')]);
+      expect(fxProblems((s) => (s.objects!.water!.area = [152, 8, 144] as never))).toEqual([expect.stringContaining('area는 [x, y, w, h]')]);
+    });
+    it('colors: 서로 다른 4개, ink·hint 금지', () => {
+      expect(fxProblems((s) => (s.objects!.water!.colors = [26, 26, 6, 24]))).toEqual([expect.stringContaining('서로 다른 4개')]);
+      expect(fxProblems((s) => (s.objects!.water!.colors = [26, 25, 6, 31]))).toEqual([expect.stringContaining('0번 ink·31번 hint')]);
+      expect(fxProblems((s) => (s.objects!.water!.colors = [26, 25, 6, 0]))).toEqual([expect.stringContaining('0번 ink·31번 hint')]);
+    });
+    it('멈춘 모드 자리에 연출 모드, state 플래그가 화면 JSON에 없음', () => {
+      expect(fxProblems((s) => (s.objects!.water!.mode = 'burst'))).toEqual([expect.stringContaining("mode 'burst'는 fountain_water의 멈춘 모드")]);
+      expect(fxProblems((s) => (s.objects!.water!.states = [{ when: { flags: { 'fountain.off': true } }, mode: 'off' }]))).toEqual([expect.stringContaining("'fountain.off'")]);
+    });
+    it('효과 자리에 그림 필드, 그림 물건에 효과 필드', () => {
+      expect(fxProblems((s) => (s.objects!.water!.draw = box(152, 8, 4, 4)))).toEqual([expect.stringContaining("모르는 필드 'draw'")]);
+      expect(fxProblems((s) => (s.objects!.water!.ids = ['basket']))).toEqual([expect.stringContaining("모르는 필드 'ids'")]);
+      expect(fxProblems((s) => (s.objects!.magpie!.mode = 'on'))).toEqual([expect.stringContaining("모르는 필드 'mode'")]);
+    });
+    it('효과 anim: 연출 모드, 효과 자리 키, 대상 ID, ms 하나·상한', () => {
+      expect(fxProblems((s) => (s.anims!['basket.water_off'] = { effect: 'water', mode: 'off', ms: 900 } as never))).toEqual([expect.stringContaining("mode 'off'는 fountain_water의 연출 모드")]);
+      expect(fxProblems((s) => (s.anims!['basket.water_off'] = { effect: 'nest', mode: 'stop', ms: 900 } as never))).toEqual([expect.stringContaining("effect 'nest'는 효과 자리 키가 아니다")]);
+      expect(fxProblems((s) => (s.anims!['statue.water_off'] = { effect: 'water', mode: 'stop', ms: 900 } as never))).toEqual([expect.stringContaining("'statue'는 화면 JSON")]);
+      expect(fxProblems((s) => (s.anims!['basket.water_off'] = { effect: 'water', mode: 'stop', ms: [900] } as never))).toEqual([expect.stringContaining('양의 정수 하나')]);
+      expect(fxProblems((s) => (s.anims!['basket.water_off'] = { effect: 'water', mode: 'stop', ms: 1600 } as never))).toEqual([expect.stringContaining('1600 > 1500')]);
+      expect(fxProblems((s) => (s.anims!['basket.water_off'] = { effect: 'water', mode: 'stop', ms: 900, layer: 'front' } as never))).toEqual([expect.stringContaining("모르는 필드 'layer'")]);
+    });
+  });
 });
