@@ -425,7 +425,7 @@ function hintEvent(data: SceneData, s: SceneState, source: StepSource, a: Action
 
 /**
  * 형식 기록 4-2절: `step`은 이벤트 재생 전에 플래그를 바꾸지만, 그림은 그 행동의 이전 플래그로 그리다가
- * (a) 그 물건(`ids` 포함)의 anim이 시작될 때, (b) 없으면 첫 anim이 끝날 때 바꾼다. anim이 하나도 없으면 바로 바꾼다.
+ * (a) 그 물건(`ids` 포함, 효과 자리면 그 자리를 바꾸는 효과 anim)의 anim이 시작될 때, (b) 없으면 첫 anim이 끝날 때 바꾼다. anim이 하나도 없으면 바로 바꾼다.
  * 시트에 그 anim이 있는지는 보지 않는다(그림이 붙는 순서와 상관없이 시점이 같다).
  */
 function deferShown(data: SceneData, s: SceneState, before: Record<string, boolean>, events: readonly PuzzleEvent[]): void {
@@ -439,7 +439,8 @@ function deferShown(data: SceneData, s: SceneState, before: Record<string, boole
   const firstAnim = events.findIndex((e) => e.type === 'anim');
   if (firstAnim < 0) return;
   for (const o of art.objects) {
-    const own = events.findIndex((e) => e.type === 'anim' && o.ids.includes(e.target));
+    // 효과 자리(11-3절)는 ID가 없다. 메타에서 그 자리를 바꾸는 효과 anim(`object` = 자리 키)이 자기 anim이다.
+    const own = events.findIndex((e) => e.type === 'anim' && (o.ids.includes(e.target) || art.anims[`${e.target}.${e.name}`]?.object === o.key));
     s.shown[o.key] = own >= 0 ? { flags: { ...before }, seq: base + own, edge: 'start' } : { flags: { ...before }, seq: base + firstAnim, edge: 'end' };
   }
 }

@@ -6,7 +6,7 @@ import ppikJson from '../../public/sprites/ppik-base.json';
 import { CHAR_SLOTS } from './hud';
 import type { CharactersData, ScreenData } from './puzzle/types';
 import { createScene, isBusy, sceneTap, sceneTick, shownFlags, TIMING, type SceneData, type SceneState } from './scene';
-import { animOf, animTicks, coveredIds, litFrames, loopStarts, objectOf, parseSceneArt, pictureOf, sceneDraws, timedFrame, type LoopStarts, type SceneArtMeta, type SceneView } from './sceneArt';
+import { animOf, animTicks, coveredIds, litFrames, loopStarts, objectOf, parseSceneArt, pictureOf, sceneDraws, timedFrame, type LoopStarts, type SceneArtMeta, type ScenePictureObject, type SceneView } from './sceneArt';
 import { parseSpriteMeta, type SpriteMeta } from './sprite';
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -32,6 +32,8 @@ const screen = screenJson as unknown as ScreenData;
 const characters = charactersJson as CharactersData;
 const view = (over: Partial<SceneView> = {}): SceneView => ({ flagsOf: () => screen.flags ?? {}, playing: null, clockMs: 0, ...over });
 const idx = (m: SceneArtMeta, key: string) => m.objects.findIndex((o) => o.key === key);
+/** 그림 물건(효과 자리가 아닌 것). 커밋된 화면 1 시트는 전부 그림 물건이다. */
+const pobj = (m: SceneArtMeta, key: string) => m.objects[idx(m, key)] as ScenePictureObject;
 
 describe('parseSceneArt', () => {
   it('커밋된 화면 1 시트를 읽는다(배경 PNG 있음, #145 draft 해제)', () => {
@@ -103,9 +105,9 @@ describe('sceneDraws (6절 앞뒤)', () => {
 
   it('까치가 바닥이면 front, 둥지는 loop 시계로 반짝인다', () => {
     const m = meta();
-    const nest = m.objects[idx(m, 'nest')]!.default.loop!;
+    const nest = pobj(m, 'nest').default.loop!;
     const d = sceneDraws(m, view({ flagsOf: (k) => ({ 'magpie.on_ground': k === 'magpie', 'nest.key_taken': false }), clockMs: 1650 }));
-    expect(d.front).toEqual([m.objects[idx(m, 'magpie')]!.states![0]!.loop!.frames[0]]); // 바닥 대기 loop 첫 칸
+    expect(d.front).toEqual([pobj(m, 'magpie').states![0]!.loop!.frames[0]]); // 바닥 대기 loop 첫 칸
     expect(d.back[0]).toBe(nest.frames[1]); // 1600~1720ms는 두 번째 칸(작은 별)
   });
 
@@ -124,7 +126,7 @@ describe('loopStarts (#237 물건별 loop 위상)', () => {
 
   it('anim이 끝난 프레임부터 그 물건 loop를 0으로 센다: fly_down 끝 → 바로 다음은 멈춘 모습 첫 칸', () => {
     const m = meta();
-    const groundLoop = m.objects[idx(m, 'magpie')]!.states![0]!.loop!;
+    const groundLoop = pobj(m, 'magpie').states![0]!.loop!;
     // 화면 시계만 쓰면 2300ms는 바닥 loop 두 번째 칸(flick, 2200~2350ms)이다.
     expect(magpieAt(m, view({ flagsOf: ground, clockMs: 2300 }))).toBe(groundLoop.frames[1]);
 
@@ -161,7 +163,7 @@ describe('loopStarts (#237 물건별 loop 위상)', () => {
 
   it('loopStarts를 안 넘기면 예전처럼 화면 시계 0부터 센다', () => {
     const m = meta();
-    const nest = m.objects[idx(m, 'nest')]!.default.loop!;
+    const nest = pobj(m, 'nest').default.loop!;
     expect(sceneDraws(m, view({ clockMs: 1650 })).back[0]).toBe(nest.frames[1]);
     const starts = loopStarts(m, view({ clockMs: 1000 }), {});
     expect(sceneDraws(m, view({ clockMs: 1650, loopStarts: starts })).back[0]).toBe(nest.frames[0]);
@@ -342,7 +344,7 @@ describe('litFrames (10-1절 호버 외곽선 대상)', () => {
 
   it('바구니는 몸통과 앞판(overlay)이 함께 켜진다', () => {
     const m = meta();
-    const basket = m.objects.find((o) => o.key === 'basket')!;
+    const basket = pobj(m, 'basket');
     expect(litFrames(m, sceneDraws(m, view()), 'basket')).toEqual(new Set([basket.default.frame, basket.overlay!.frame]));
   });
 
@@ -358,5 +360,97 @@ describe('litFrames (10-1절 호버 외곽선 대상)', () => {
     expect(litFrames(m, d, 'no_such_target').size).toBe(0);
     expect(litFrames(m, d, 'jjuk').size).toBe(0);
     expect(litFrames(m, d, null).size).toBe(0);
+  });
+});
+
+// ── 효과 자리(형식 기록 11절, 개정 4). 둥지 다음에 물줄기 자리를 끼우고, 까치가 바닥이면 꺼지게 한 가짜 메타.
+function fxMeta(): SceneArtMeta {
+  const m = meta();
+  m.objects.splice(idx(m, 'nest') + 1, 0, {
+    key: 'water',
+    ids: [],
+    effect: 'fountain_water',
+    area: [152, 8, 144, 172],
+    colors: [26, 25, 6, 24],
+    default: { mode: 'on' },
+    states: [{ when: { flags: { 'magpie.on_ground': true } }, mode: 'off' }],
+  });
+  // 진짜 대상 ID(magpie)로 보내는 효과 anim: 물건 그림이 아니라 효과 자리를 바꾼다(11-3절)
+  m.anims['magpie.fly_down'] = { object: 'water', frames: [], ms: [300], layer: 'back', mode: 'stop' };
+  return parseSceneArt(clone(m));
+}
+
+describe('효과 자리 (형식 기록 11절, 개정 4)', () => {
+  it('parse: 효과 자리·효과 anim 모양을 확인한다', () => {
+    const bad = (edit: (m: SceneArtMeta & { objects: Record<string, unknown>[] }) => void) => {
+      const m = clone(fxMeta()) as SceneArtMeta & { objects: Record<string, unknown>[] };
+      edit(m);
+      return () => parseSceneArt(m);
+    };
+    expect(bad(() => {})).not.toThrow();
+    const w = 1; // water 자리 번호
+    expect(bad((m) => (m.objects[w]!.effect = 'washer_foam'))).toThrow('key·effect');
+    expect(bad((m) => (m.objects[w]!.ids = ['magpie']))).toThrow('ids가 빈 배열');
+    expect(bad((m) => (m.objects[w]!.default = { mode: 'burst' }))).toThrow('default: mode');
+    expect(bad((m) => (m.objects[w]!.colors = [26, 25, 6, 32]))).toThrow('colors');
+    expect(bad((m) => (m.anims['magpie.fly_down']!.mode = 'on'))).toThrow("anims['magpie.fly_down'].mode");
+    expect(bad((m) => (m.anims['magpie.fly_down']!.frames = [5]))).toThrow('효과 anim 모양');
+    expect(bad((m) => (m.anims['nest.x'] = { object: 'nest', frames: [5], ms: [100], layer: 'back', mode: 'stop' }))).toThrow('효과 자리 anim만');
+  });
+
+  it('효과 자리는 ID가 없다: objectOf·coveredIds·외곽선에 안 들어간다', () => {
+    const m = fxMeta();
+    expect(coveredIds(m)).toEqual(coveredIds(meta()));
+    const d = sceneDraws(m, view());
+    expect(d.byObject.water).toBeUndefined();
+    expect(objectOf(m, 'nest')!.key).toBe('nest');
+  });
+
+  it('sceneDraws: 적은 자리(둥지 다음)에 효과를 끼우고, 멈춘 모드는 보이는 플래그로 고른다', () => {
+    const m = fxMeta();
+    const d = sceneDraws(m, view({ clockMs: 1000 }));
+    expect(typeof d.back[0]).toBe('number'); // 둥지
+    expect(d.back[1]).toEqual({ key: 'water', effect: 'fountain_water', area: [152, 8, 144, 172], colors: [26, 25, 6, 24], mode: 'on', clockMs: 1000, slotMs: 1000, durMs: 0 });
+    expect(d.back.filter((f) => typeof f !== 'number')).toHaveLength(1);
+    // off는 그리지 않는다
+    const off = sceneDraws(m, view({ flagsOf: () => ({ ...screen.flags, 'magpie.on_ground': true }) }));
+    expect(off.back.every((f) => typeof f === 'number')).toBe(true);
+  });
+
+  it('효과 anim 재생 중이면 연출 모드, 시계는 anim 시작부터, 길이는 ms', () => {
+    const m = fxMeta();
+    const anim = m.anims['magpie.fly_down']!;
+    const d = sceneDraws(m, view({ clockMs: 5000, playing: { object: 'water', anim, ms: 120 } }));
+    expect(d.back[1]).toMatchObject({ key: 'water', mode: 'stop', clockMs: 5000, slotMs: 120, durMs: 300 });
+    // 까치 물건은 anim을 안 받았으니 멈춘 모습 그대로
+    expect(d.back).toContain(pobj(m, 'magpie').default.frame);
+  });
+
+  it('효과 자리 시계: 모드가 바뀐 때부터 0으로 센다(loopStarts와 같은 규칙)', () => {
+    const m = fxMeta();
+    const anim = m.anims['magpie.fly_down']!;
+    let st = loopStarts(m, view({ clockMs: 0 }), {});
+    st = loopStarts(m, view({ clockMs: 2000, playing: { object: 'water', anim, ms: 0 } }), st);
+    const v = view({ clockMs: 2300, flagsOf: () => ({ ...screen.flags, 'magpie.on_ground': false }) });
+    st = loopStarts(m, v, st);
+    expect(sceneDraws(m, { ...v, loopStarts: st }).back[1]).toMatchObject({ mode: 'on', slotMs: 0 });
+  });
+
+  it('보이는 플래그 4-2 (a): 효과 자리는 자기 효과 anim이 시작될 때 바뀐다(첫 anim 끝이 아니라)', () => {
+    const d: SceneData = { screen, characters, art: fxMeta() };
+    const s = ready(d);
+    sceneTap(d, s, center(CHAR_SLOTS.ppik), 0, false);
+    sceneTap(d, s, MAGPIE, 0, false);
+    expect(trace(s, 'water', 'magpie.on_ground', d)).toEqual(['ppik.common.squeeze_chicken:false', 'fx:false', 'magpie.fly_down:true', 'say:true', 'end:true']);
+  });
+
+  it('효과 anim의 busy 길이는 그 ms(300ms → 18틱)이고 재생 중인 물건은 효과 자리다', () => {
+    const d: SceneData = { screen, characters, art: fxMeta() };
+    const s = ready(d);
+    sceneTap(d, s, center(CHAR_SLOTS.ppik), 0, false);
+    sceneTap(d, s, MAGPIE, 0, false);
+    while (!(s.current?.ev.type === 'anim' && s.current.ev.target === 'magpie')) sceneTick(d, s);
+    expect(s.current.duration).toBe(18);
+    expect(s.current.art).toMatchObject({ object: 'water', anim: { mode: 'stop' } });
   });
 });

@@ -28,7 +28,7 @@ import { onPointerTap } from './engine/input';
 import { startLoop } from './engine/loop';
 import { drawHud } from './engine/hud';
 import { drawActiveMarker, drawCharacter, drawOutline, drawRoom, drawSpark, drawStompDust, drawTarget, drawTargets } from './engine/placeholder';
-import { drawSceneBg, drawSceneFrame, loadSceneArt, sceneArtMeta } from './engine/sceneArt';
+import { drawSceneBg, drawSceneFrame, drawSceneFx, loadSceneArt, sceneArtMeta } from './engine/sceneArt';
 import { drawHead, drawSprite, spriteMetas, spriteState } from './engine/sprites';
 import { drawFxText, fxTextState } from './engine/fxText';
 import { hudIconState, paintHudIcon } from './engine/hudIcons';
@@ -400,7 +400,8 @@ function render(): void {
   }
   ctx.save();
   ctx.translate(0, shakeY);
-  if (!drawSceneBg(ctx, art)) drawRoom(ctx, internal, WALK_AREA);
+  const bgDrawn = drawSceneBg(ctx, art);
+  if (!bgDrawn) drawRoom(ctx, internal, WALK_AREA);
   const boxSpots = uncovered(layout.spots);
   const boxHotspots = uncovered(layout.hotspots);
   drawTargets(ctx, boxSpots, boxHotspots);
@@ -414,7 +415,11 @@ function render(): void {
     draws = sceneDraws(art.meta, { ...view, loopStarts: loopClock });
   }
   const lit = draws ? litFrames(art!.meta, draws, litTarget) : new Set<number>();
-  for (const f of draws?.back ?? []) drawSceneFrame(ctx, art!, f, lit.has(f));
+  // 효과 자리(형식 기록 11절)는 적힌 순서 그 자리에서 입자를 그린다. 배경이 없으면(9절 폴백) 효과도 그리지 않는다.
+  for (const f of draws?.back ?? []) {
+    if (typeof f === 'number') drawSceneFrame(ctx, art!, f, lit.has(f));
+    else if (bgDrawn) drawSceneFx(ctx, f);
+  }
 
   const me = scene.walkers[scene.ui.active];
   if (me.target && !isBusy(scene)) drawTarget(ctx, me.target, scene.tick);
