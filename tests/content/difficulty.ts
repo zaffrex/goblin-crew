@@ -28,7 +28,7 @@ export interface DifficultyReport {
   spotMovesPerCell: number[];
   meanChoices: number;
   /** Over all reached states, non-move, non-invalid actions that leave flags/items unchanged, split by source. */
-  noChange: { designedRule: number; fallback: number; blocked: number; total: number };
+  noChange: { designedRule: number; fallback: number; blocked: number; positionOnly: number; total: number };
 }
 
 export function difficultyReport(screen: ScreenData, characters?: CharactersData, limit = 5000): DifficultyReport {
@@ -38,7 +38,7 @@ export function difficultyReport(screen: ScreenData, characters?: CharactersData
   const queue: PuzzleState[] = [host.initial];
   const parent = new Map<string, string>();
   let clearKey: string | null = null;
-  const noChange = { designedRule: 0, fallback: 0, blocked: 0, total: 0 };
+  const noChange = { designedRule: 0, fallback: 0, blocked: 0, positionOnly: 0, total: 0 };
   const choices = new Map<string, number>();
   const spots = new Map<string, number>();
   for (let i = 0; i < queue.length && queue.length < limit; i++) {
@@ -50,13 +50,14 @@ export function difficultyReport(screen: ScreenData, characters?: CharactersData
       const r = host.step(s, a);
       const nk = foldedKey(r.state);
       if (a.verb === 'move') {
-        if (nk !== sk && r.state.at !== FLOOR) m++;
+        if (nk !== sk && r.state.at[a.char] !== FLOOR) m++;
       } else if (r.source !== 'invalid') {
         if (progressKey(r.state) !== progressKey(s)) c++;
         else {
           noChange.total++;
           if (r.source === 'rule') noChange.designedRule++;
           else if (r.source === 'blocked') noChange.blocked++;
+          else if (r.source === 'release') noChange.positionOnly++;
           else noChange.fallback++;
         }
       }
@@ -90,5 +91,5 @@ export function difficultyReport(screen: ScreenData, characters?: CharactersData
 
 export function formatDifficulty(d: DifficultyReport): string {
   const n = d.noChange;
-  return `[${d.screen}] 탐색 리포트: 퍼즐 상태 ${d.states}, 경로 ${d.pathCells ?? '없음'}칸(걷기 포함), 칸마다 상태가 바뀌는 행동 ${d.choicesPerCell.join('/')} (평균 ${d.meanChoices.toFixed(1)}), 칸마다 특기 자리 이동 ${d.spotMovesPerCell.join('/')}, 상태 안 바뀜 ${n.total}개 = 설계된 반응 ${n.designedRule} / 폴백 ${n.fallback} / 막힘 ${n.blocked}`;
+  return `[${d.screen}] 탐색 리포트: 퍼즐 상태 ${d.states}, 경로 ${d.pathCells ?? '없음'}칸(걷기 포함), 칸마다 상태가 바뀌는 행동 ${d.choicesPerCell.join('/')} (평균 ${d.meanChoices.toFixed(1)}), 칸마다 특기 자리 이동 ${d.spotMovesPerCell.join('/')}, 상태 안 바뀜 ${n.total}개 = 설계된 반응 ${n.designedRule} / 폴백 ${n.fallback} / 막힘 ${n.blocked} / 자리만 바뀜 ${n.positionOnly}`;
 }
