@@ -26,6 +26,8 @@ export function findChrome(): string {
 type Json = Record<string, unknown>;
 type Listener = (params: Json, sessionId?: string) => void;
 
+const NO_PORT = 'Chrome이 디버깅 포트를 열지 않았어요 (샌드박스 문제면 --no-sandbox)';
+
 export class Browser {
   private nextId = 1;
   private readonly pending = new Map<number, { resolve: (v: Json) => void; reject: (e: Error) => void }>();
@@ -62,8 +64,22 @@ export class Browser {
     });
   }
 
-  /** headless Chrome을 새 프로필로 띄운다. 캐시 없는 첫 방문을 재기 위해 매번 새 프로필이다. */
+  /**
+   * headless Chrome을 새 프로필로 띄운다. 캐시 없는 첫 방문을 재기 위해 매번 새 프로필이다.
+   * 디버깅 포트를 못 열었을 때만 한 번 다시 띄운다(#473 리뷰: 연달아 띄우면 가끔 첫 실행이 떨어짐).
+   * 다른 실패(WebSocket 등)는 다시 띄우지 않는다. 진짜 문제가 재시도에 묻히지 않게.
+   */
   static async launch(opts: { noSandbox?: boolean } = {}): Promise<Browser> {
+    try {
+      return await Browser.launchOnce(opts);
+    } catch (e) {
+      if (!(e instanceof Error) || e.message !== NO_PORT) throw e;
+      console.warn(`⚠️ ${NO_PORT} → 한 번 다시 띄워요`);
+      return Browser.launchOnce(opts);
+    }
+  }
+
+  private static async launchOnce(opts: { noSandbox?: boolean }): Promise<Browser> {
     const profileDir = mkdtempSync(join(tmpdir(), 'gc-playtest-'));
     const args = [
       '--headless=new',
@@ -82,7 +98,7 @@ export class Browser {
       const deadline = Date.now() + 15_000;
       while (!existsSync(portFile) || readFileSync(portFile, 'utf8').split('\n').length < 2) {
         if (Date.now() > deadline || proc.exitCode !== null) {
-          throw new Error('Chrome이 디버깅 포트를 열지 않았어요 (샌드박스 문제면 --no-sandbox)');
+          throw new Error(NO_PORT);
         }
         await sleep(50);
       }
