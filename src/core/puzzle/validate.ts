@@ -383,6 +383,10 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
     if (spotIds.has(k)) c.err(p, 'dup-id', `핫스팟과 서는 자리 ID가 같다(같은 이름공간): ${k}`);
   }
   if (spotIds.has(STAY)) c.err(`spots.${STAY}`, 'reserved', `\`${STAY}\`는 예약어라 자리 ID로 못 쓴다`);
+  // 화자·대상 이름은 캐릭터 ID·`self`를 먼저 찾는다(`checkActorRef`, `step` `resolveWho`). 같은 ID면 조용히 캐릭터에게 간다(#438).
+  for (const [k, , p] of [...spotEntries, ...hotspotEntries]) {
+    if (k === 'self' || (CHAR_IDS as readonly string[]).includes(k)) c.err(p, 'reserved', `\`${k}\`는 캐릭터 ID·self라 자리·핫스팟 ID로 못 쓴다`);
+  }
 
   const isHold = (id: string): boolean => spots.get(id)?.hold === true;
   const isFree = (id: string): boolean => spots.get(id)?.free === true;
