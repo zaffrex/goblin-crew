@@ -63,6 +63,15 @@ describe('validateScreen', () => {
     expect(codes(mutate((s) => (s.spots.stay = { x: 1, y: 1 })))).toContain('reserved');
   });
 
+  it('forbids character IDs and `self` as spot or hotspot IDs (#438)', () => {
+    for (const id of ['jjuk', 'ppik', 'mukjik', 'self']) {
+      const r = mutate((s) => (s.hotspots[id] = { box: [10, 100, 24, 24] }));
+      expect(r.errors).toContainEqual(expect.objectContaining({ code: 'reserved', path: `hotspots.${id}` }));
+    }
+    const r = mutate((s) => (s.spots.mukjik = { x: 1, y: 1 }));
+    expect(r.errors).toContainEqual(expect.objectContaining({ code: 'reserved', path: 'spots.mukjik' }));
+  });
+
   it('forbids the same ID in spots and hotspots', () => {
     const r = mutate((s) => (s.hotspots.hook = { box: [10, 100, 24, 24] }));
     expect(r.errors).toContainEqual(expect.objectContaining({ code: 'dup-id', path: 'hotspots.hook' }));
