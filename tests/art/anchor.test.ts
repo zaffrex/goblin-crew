@@ -15,8 +15,8 @@ const DIR = join(import.meta.dirname, '..', '..', 'public', 'sprites');
 function decodeIndexed(buf: Buffer): { width: number; height: number; rgba: Uint8ClampedArray } {
   let width = 0;
   let height = 0;
-  let plte = Buffer.alloc(0);
-  let trns = Buffer.alloc(0);
+  let plte: Buffer = Buffer.alloc(0);
+  let trns: Buffer = Buffer.alloc(0);
   const idat: Buffer[] = [];
   for (let off = 8; off < buf.length; ) {
     const len = buf.readUInt32BE(off);
