@@ -69,7 +69,8 @@ export const isFxObject = (o: SceneObject): o is SceneFxObject => o.effect !== u
  * 열 x의 내려간 px = round(d × (x − pivot) / run). `frames`의 키는 d(0 제외, 0은 멈춘 모습 그대로).
  */
 export interface SceneTilt {
-  step: number;
+  /** 쉬는 판(형식 기록 12절 개정 7, 설계 1-7-1절): 무게가 다르면 무거운 쪽 끝이 이만큼(px) 내려가 쉰다. */
+  rest: number;
   weight: Record<string, number>;
   pivot: number;
   run: number;
@@ -172,7 +173,7 @@ export function parseSceneArt(raw: unknown): SceneArtMeta {
     if (o.tilt !== undefined) {
       const t = o.tilt as Partial<SceneTilt>;
       const pos = (v: unknown): boolean => isInt(v) && v > 0;
-      if (!isObj(t) || !pos(t.step) || !pos(t.run) || typeof t.pivot !== 'number' || !isObj(t.weight) || !Object.values(t.weight).every(pos)) fail(`${w}.tilt`);
+      if (!isObj(t) || !pos(t.rest) || !pos(t.run) || typeof t.pivot !== 'number' || !isObj(t.weight) || !Object.values(t.weight).every(pos)) fail(`${w}.tilt`);
       if (!isObj(t.frames)) return fail(`${w}.tilt.frames`);
       for (const [k, f] of Object.entries(t.frames)) {
         if (!isInt(Number(k)) || Number(k) === 0) fail(`${w}.tilt.frames['${k}']`);

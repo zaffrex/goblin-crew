@@ -20,6 +20,8 @@ const tilt = art.objects.find((o) => o.key === 'seesaw')!.tilt!;
 const ENDS = ['seesaw_left', 'seesaw_right'] as const;
 const top = (d: number, x: number): number => 214 + tiltDrop(tilt, d, x);
 const d = (s: SceneState): number => tiltOf(data, s, 'seesaw');
+/** 쉬는 판 값(설계 1-7-1절 M). */
+const M = 12;
 const footY = (s: SceneState, id: CharacterId): number => s.walkers[id].y + boardDrop(data, s, id);
 const frameOf = (s: SceneState, id: CharacterId): number | null => spriteFrame(sprites[id], charPose(data, s, id));
 const mk = sprites.mukjik.anims;
@@ -92,13 +94,14 @@ describe('판 끝에 뛰어올라 쿵 (1-6-2·1-6-4절)', () => {
     expect(s.riding.mukjik).toBe('seesaw_right');
     // 웅크림(step_up 0) → 무릎 들기 → 내려찍기
     expect([...new Set(frames)]).toEqual(mk.seesaw_stomp!.frames.slice(0, 3));
-    // 꼭대기 발 y 약 190~195(1-6-2절), 공중 마지막 틱 발은 착지 전 판(쭉이 왼쪽, d −3) 윗면 위
-    expect(Math.round(peak)).toBeGreaterThanOrEqual(190);
+    // 꼭대기 발 y(1-6-2절 "약 190~195"는 d 3 시절 값). 쉬는 판에서는 착지 목표가 들린 끝(203)이라 그만큼 높다.
+    // 공중 마지막 틱 발은 착지 전 판(쭉이 왼쪽, 쉬는 판 −12) 윗면 위
+    expect(Math.round(peak)).toBeGreaterThanOrEqual(185);
     expect(Math.round(peak)).toBeLessThanOrEqual(195);
-    expect(Math.round(lastAir)).toBeLessThanOrEqual(top(-3, 284));
+    expect(Math.round(lastAir)).toBeLessThanOrEqual(top(-M, 284));
   });
 
-  it('제자리(이미 그 끝): 퍼즐의 내려서기는 그리지 않고 판 위에서 웅크렸다 H 24로 뛴다. 뜨는 틱에 판에서 빠진다', () => {
+  it('제자리(이미 그 끝): 퍼즐의 내려서기는 그리지 않고 판 위에서 웅크렸다 H 24로 뛴다. 공중 동안도 탄 채라 판이 그대로다(1-7-6절)', () => {
     const s = ready();
     board(s, 'jjuk', 'seesaw_left');
     board(s, 'mukjik', 'seesaw_right');
@@ -111,20 +114,19 @@ describe('판 끝에 뛰어올라 쿵 (1-6-2·1-6-4절)', () => {
     while (!playing(s, 'plank_bounce')) {
       sceneTick(data, s);
       const h = s.hops.mukjik!;
-      if (h.t < 9) {
-        // 웅크림 동안은 판 위(묵직이 + 쭉이 기울기 3)
-        expect(s.riding.mukjik).toBe('seesaw_right');
-        expect(Math.round(footY(s, 'mukjik'))).toBe(top(3, 284));
-      } else if (h.t < 24) {
-        expect(s.riding.mukjik).toBeUndefined();
-        expect(d(s)).toBe(-3);
-        // 공중 동안 발은 판(쭉이만 탄 기울기) 윗면보다 아래로 가지 않는다
-        expect(Math.round(footY(s, 'mukjik'))).toBeLessThanOrEqual(top(-3, 284));
+      // 웅크림·공중 내내 판에 탄 채(쉬는 판 12). 판이 쭉이 쪽으로 넘어가 쭉이가 떨어졌다 다시 솟는 일이 없다.
+      expect(s.riding.mukjik).toBe('seesaw_right');
+      expect(d(s)).toBe(M);
+      expect(Math.round(footY(s, 'jjuk'))).toBe(top(M, 220));
+      if (h.t < 9) expect(Math.round(footY(s, 'mukjik'))).toBe(top(M, 284));
+      else if (h.t < 24) {
+        // 공중 동안 발은 판 윗면(225)보다 아래로 가지 않는다
+        expect(Math.round(footY(s, 'mukjik'))).toBeLessThanOrEqual(top(M, 284));
         peak = Math.min(peak, footY(s, 'mukjik'));
       }
     }
-    expect(Math.round(peak)).toBeGreaterThanOrEqual(185);
-    expect(Math.round(peak)).toBeLessThanOrEqual(195);
+    // 225에서 H 24로 뛰어 225에 착지(1-7-6절)
+    expect(Math.round(peak)).toBe(top(M, 284) - HOP.stomp.hOnBoard);
     expect(s.riding.mukjik).toBe('seesaw_right');
   });
 
@@ -272,7 +274,55 @@ describe('걸어서 올라설 때 반대쪽 들썩 (1-6-6절)', () => {
     const jf = sprites.jjuk.anims;
     expect([...new Set(poses)]).toEqual([jf['common.flatten']!.frames[2], jf.idle!.frames[0]]);
     expect(s.puzzle).toEqual({ ...before, at: { ...before.at, mukjik: 'seesaw_right' } });
-    expect(Math.round(footY(s, 'jjuk'))).toBe(top(3, 220));
+    expect(Math.round(footY(s, 'jjuk'))).toBe(top(M, 220));
+  });
+
+  it('묵직이가 걸어서 내려서며 뜨는 틱에 판이 반대쪽을 떨어뜨리고 그 끝 사람이 들썩한다(1-7-5절)', () => {
+    for (const [other, otherEnd, mukEnd] of [['jjuk', 'seesaw_left', 'seesaw_right'], ['ppik', 'seesaw_right', 'seesaw_left']] as const) {
+      const s = ready();
+      board(s, other, otherEnd);
+      board(s, 'mukjik', mukEnd);
+      const restBefore = d(s);
+      const x = s.walkers[other].x;
+      expect(Math.round(footY(s, other))).toBe(top(restBefore, x));
+      runAction(data, s, { char: 'mukjik', verb: 'move', target: 'floor' }, { x: 380, y: 244 });
+      let liftOff = -1;
+      let jostleStart = -1;
+      let minGap = 0;
+      for (let i = 0; i < 3000 && isBusy(s); i++) {
+        sceneTick(data, s);
+        const h = s.hops.mukjik;
+        if (liftOff < 0 && h && !h.up) {
+          liftOff = s.tick;
+          // 뜨는 틱: 판이 반대쪽으로 넘어가고 들썩이 같이 생긴다(t = 0)
+          expect(d(s)).toBe(-restBefore);
+          expect(s.hops[other]).toMatchObject({ kind: 'jostle', t: 0, h: HOP.jostle.h });
+        }
+        const j = s.hops[other];
+        if (j) {
+          if (jostleStart < 0) jostleStart = s.tick;
+          minGap = Math.max(minGap, top(d(s), x) - Math.round(footY(s, other)));
+        }
+      }
+      expect(jostleStart).toBe(liftOff);
+      expect(minGap).toBe(HOP.jostle.h);
+      expect(Math.round(footY(s, other))).toBe(top(-restBefore, x));
+      expect(s.puzzle.at[other]).toBe(otherEnd);
+    }
+  });
+
+  it('가벼운 사람이 내려설 때, 반대쪽이 비었을 때는 들썩하지 않는다(1-7-5절)', () => {
+    const cases: [CharacterId, CharacterId | null][] = [['jjuk', 'mukjik'], ['ppik', 'jjuk'], ['mukjik', null]];
+    for (const [who, other] of cases) {
+      const s = ready();
+      if (other) board(s, other, 'seesaw_left');
+      board(s, who, 'seesaw_right');
+      runAction(data, s, { char: who, verb: 'move', target: 'floor' }, { x: 380, y: 244 });
+      for (let i = 0; i < 3000 && isBusy(s); i++) {
+        sceneTick(data, s);
+        if (other) expect(s.hops[other], `${who} / ${other}`).toBeUndefined();
+      }
+    }
   });
 
   it('가벼운 사람이 올라설 때, 반대쪽이 비었을 때는 들썩하지 않는다', () => {

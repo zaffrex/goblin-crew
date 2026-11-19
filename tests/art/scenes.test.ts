@@ -195,8 +195,8 @@ describe('scene build (format v1)', () => {
       expect(problemsOf((s) => (s.objects!.magpie!.layer = 'top' as never))).toEqual([expect.stringContaining("layer 'top'")]);
     });
   });
-  describe('기울기·판 밑 바닥(12절, 개정 5)', () => {
-    const tilt = { step: 3, weight: { jjuk: 1, mukjik: 2 }, pivot: 247.5, run: 40, draw: { '-3': box(208, 212, 80, 4), 3: box(208, 208, 80, 4) } };
+  describe('기울기·판 밑 바닥(12절, 개정 5·7)', () => {
+    const tilt = { rest: 3, weight: { jjuk: 1, mukjik: 2 }, pivot: 247.5, run: 40, draw: { '-3': box(208, 212, 80, 4), 3: box(208, 208, 80, 4) } };
     const withTilt = (s: SceneSrc) => {
       s.objects!.seesaw!.tilt = { ...tilt, weight: { ...tilt.weight }, draw: { ...tilt.draw } };
       s.objects!.seesaw!.noFloor = { box: [204, 200, 89, 38], y: 240 };
@@ -208,18 +208,19 @@ describe('scene build (format v1)', () => {
       expect(r.problems).toEqual([]);
       const seesaw = r.meta!.objects.find((o) => o.key === 'seesaw')!;
       expect(Object.keys(seesaw.tilt!.frames).sort()).toEqual(['-3', '3']);
-      expect(seesaw.tilt).toMatchObject({ step: 3, pivot: 247.5, run: 40 });
+      expect(seesaw.tilt).toMatchObject({ rest: 3, pivot: 247.5, run: 40 });
       expect(seesaw.noFloor).toEqual({ box: [204, 200, 89, 38], y: 240 });
     });
-    it('키가 0이거나 step 배수가 아니면 막는다', () => {
+    it('키가 −rest·rest가 아니면, 둘 중 하나가 빠지면 막는다(개정 7)', () => {
       expect(problemsOf((s) => { withTilt(s); s.objects!.seesaw!.tilt!.draw['0'] = box(208, 210, 80, 4); })).toEqual([expect.stringContaining("draw['0']")]);
-      expect(problemsOf((s) => { withTilt(s); s.objects!.seesaw!.tilt!.draw['4'] = box(208, 210, 80, 4); })).toEqual([expect.stringContaining("draw['4']")]);
+      expect(problemsOf((s) => { withTilt(s); s.objects!.seesaw!.tilt!.draw['6'] = box(208, 210, 80, 4); })).toEqual([expect.stringContaining("draw['6']")]);
+      expect(problemsOf((s) => { withTilt(s); delete s.objects!.seesaw!.tilt!.draw['-3']; })).toEqual([expect.stringContaining("'-3' 칸이 없다")]);
     });
     it('기울기 칸이 히트 박스와 안 겹치면 막는다', () => {
       expect(problemsOf((s) => { withTilt(s); s.objects!.seesaw!.tilt!.draw['3'] = box(10, 10, 4, 4); })).toEqual([expect.stringContaining('히트 박스')]);
     });
     it('board 자리가 없는 물건에 기울기를 달면 막는다', () => {
-      expect(problemsOf((s) => { s.objects!.nest!.tilt = { ...tilt, draw: { 3: box(130, 34, 30, 16) } } as never; })).toEqual([expect.stringContaining('board 자리가 없다')]);
+      expect(problemsOf((s) => { s.objects!.nest!.tilt = { ...tilt, draw: { '-3': box(130, 34, 30, 16), 3: box(130, 34, 30, 16) } } as never; })).toEqual([expect.stringContaining('board 자리가 없다')]);
     });
     it('weight가 양의 정수가 아니면, noFloor y가 상자 안이면 막는다', () => {
       expect(problemsOf((s) => { withTilt(s); s.objects!.seesaw!.tilt!.weight = { jjuk: 0 }; })).toEqual([expect.stringContaining('weight')]);

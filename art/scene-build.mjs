@@ -17,7 +17,7 @@ const SHEET_MAX_W = 512; // 시트 한 줄 폭. 넘으면 다음 줄(선반 쌓�
 
 const LAYERS = ['back', 'front'];
 const OBJECT_KEYS = ['ids', 'draw', 'loop', 'layer', 'states', 'overlay', 'tilt', 'noFloor'];
-const TILT_KEYS = ['step', 'weight', 'pivot', 'run', 'draw'];
+const TILT_KEYS = ['rest', 'weight', 'pivot', 'run', 'draw'];
 const NO_FLOOR_KEYS = ['box', 'y'];
 const STATE_KEYS = ['when', 'draw', 'loop', 'layer'];
 const OVERLAY_KEYS = ['sortY', 'draw'];
@@ -268,12 +268,12 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
         problems.push(`${ow}: 그림 위 끝 y ${pics[frame].at[1]} < sortY − 11(${sy - 11}). 앞판은 발 위 10px 이하만 가린다(6절)`);
       out.overlay = { sortY: sy, frame };
     }
-    // 12절(개정 5): 멈춘 기울기. 키 = 기울기 d(0이 아닌 정수, step 배수), 값 = 그 그림. 0은 멈춘 모습 그대로다.
+    // 12절(개정 5·7): 멈춘 기울기. 키 = 기울기 d(−rest 또는 rest), 값 = 그 그림. 0은 멈춘 모습 그대로다.
     if (o.tilt !== undefined) {
       const tw = `${w}.tilt`;
       unknownKeys(o.tilt, TILT_KEYS, tw, problems);
-      const { step, weight, pivot, run } = o.tilt;
-      if (!Number.isInteger(step) || step <= 0) problems.push(`${tw}: step은 양의 정수여야 한다`);
+      const { rest, weight, pivot, run } = o.tilt;
+      if (!Number.isInteger(rest) || rest <= 0) problems.push(`${tw}: rest는 양의 정수여야 한다`);
       if (typeof pivot !== 'number' || !Number.isFinite(pivot)) problems.push(`${tw}: pivot은 수여야 한다`);
       if (!Number.isInteger(run) || run <= 0) problems.push(`${tw}: run은 양의 정수여야 한다`);
       if (!weight || typeof weight !== 'object' || Object.values(weight).some((v) => !Number.isInteger(v) || v <= 0))
@@ -282,11 +282,11 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
       const frames = {};
       for (const [k, d] of Object.entries(o.tilt.draw ?? {})) {
         const n = Number(k);
-        if (!Number.isInteger(n) || n === 0 || (Number.isInteger(step) && n % step !== 0)) problems.push(`${tw}.draw['${k}']: 키는 0이 아닌 step 배수 정수여야 한다`);
+        if (Math.abs(n) !== rest) problems.push(`${tw}.draw['${k}']: 키는 −rest 또는 rest여야 한다`);
         frames[k] = picture(d, `${tw}.draw['${k}']`, baseBoxes);
       }
-      if (Object.keys(frames).length === 0) problems.push(`${tw}: draw가 비었다`);
-      out.tilt = { step, weight, pivot, run, frames };
+      if (Number.isInteger(rest)) for (const need of [-rest, rest]) if (!(String(need) in frames)) problems.push(`${tw}.draw: '${need}' 칸이 없다(쉬는 판 두 장)`);
+      out.tilt = { rest, weight, pivot, run, frames };
     }
     // 12절(개정 5): 바닥 걷기 목표가 box 안이면 y로 옮긴다(판 밑에 서지 않게). y는 box 밖, 걷기 영역 안이어야 한다(엔진이 영역으로 자른다).
     if (o.noFloor !== undefined) {
