@@ -4,7 +4,7 @@
 - 상태: **초안 (draft)**. 이슈 #380, M2 플래닝 초안 "화면 줄" Luna 순서 2번째(#230). 1차(PR #382)는 **0~4절(놀라게 하는 곳, 배치, 상태, 규칙, 반응 표)과 6절**이었다. 2차(PR #388)는 **7~12절(고유 애니, 클리어 컷과 엔딩, 관찰 단서, 말로 하는 플레이, 체크리스트, 구현 메모)**이다. 3차(PR #394)는 **5절 일본어 대사**다(장면 의도에서 바로 일본어로, 말투표 `ja-text.md` 3절). 4차(이 PR)는 **화면 JSON**([`content/screens/park_fountain.json`](../../../content/screens/park_fountain.json))과 `ja.json` 38줄이다. 바뀐 문장은 7절 P7·이름 대응표, 8절 입력 줄, 12절 ④, 14절.
 - 근거: ADR-0003(세계관), ADR-0018(M·S·F·G·R·I), ADR-0065(데이터 모델, `approach`·`variants`·폴백), [MVP 화면 매트릭스](../mvp-screen-matrix.md) 5번(#77 고친 판), [장르 관습·기발함](../genre-conventions.md) 2절, [입력 결정 11/18](../../decisions/2026-11-18-one-click-interaction-bottom-gauge.md)(캐릭터 고르기 → 물건 누르기만), [재미 체크리스트](../fun-checklist.md), [UI 상호작용](../ui-interaction.md) 5-1(걷기)·11절(끝 카드)
 - 형식은 [`magpie_nest.md`](magpie_nest.md)와 같다. 다른 점 둘: (1) 장르 관습 결정 PM 정리 (c)에 따라 **"어디서 놀라게 하는가"를 맨 앞(0절)에** 둔다. (2) 입력이 "고르고 누르기"뿐이라 반응 표에 `look`·`hand` 열이 없다.
-- 좌표의 진실은 회색 배치 JSON([`park_fountain-layout.json`](park_fountain-layout.json))이다. 1절 표는 그 JSON을 설명한다. 검사·스케치는 [`park_fountain-layout.mjs`](park_fountain-layout.mjs)(엔진 숫자로 히트·도달·시작 배치를 검사, 스케치 `park_fountain-layout-2x.png`).
+- 좌표의 진실은 화면 JSON([`content/screens/park_fountain.json`](../../../content/screens/park_fountain.json))의 `spots`·`hotspots`다. 1절 표는 그 JSON을 설명한다. 회색 배치 JSON([`park_fountain-layout.json`](park_fountain-layout.json))에는 화면 JSON에 없는 도달 기대값·물 효과 자리만 남겼다(M2 초안 4절 1번 "진실은 하나", PR #481 리뷰). 그림 빌드 연결 PR(#468)에서 효과 자리를 `art/scenes`로 옮기고 지운다. 검사·스케치는 [`park_fountain-layout.mjs`](park_fountain-layout.mjs)(엔진 숫자로 히트·도달·시작 배치를 검사, 스케치 `park_fountain-layout-2x.png`).
 
 ## 한 줄 요약
 내일 결혼하는 손님의 정장 재킷이 공원 분수대 동상의 돌우산 꼭대기에 걸렸다. プピ가 관리실 창에 プピッ 하면, 졸던 관리인이 고장 난 닭 자명종이 울린 줄 알고 벌떡 일어나 분수를 끈다. ズッシー가 분수대 돌 테두리에 엉덩방아를 찧으면 분수대 전체가 웅 울려 재킷이 동상의 내민 손으로 미끄러진다. ノビー가 장대로 재킷을 집는 순간 손님이 달려온다(클리어). 1장 끝.
@@ -405,6 +405,7 @@ PM 리뷰(#384 반대 의견)가 짚은 "아무거나 3번 누르니 끝"을 셌
 - ~~5절 일본어 대사~~ → 3차 PR에서 씀.
 - ~~화면 JSON + `ja.json`~~ → 4차 PR. BFS: 최단 3, 막다른 상태 0, 필수 능력 셋 다, 노드 25(게이지 제외 5). 경고 둘: M6(3 < 4, 13절 Q1, #384), R1 이름 20(7절 대응표, #422). 아직 `main.ts`에 연결하지 않았다(화면 순서 `order.json`·배경 그림과 같이).
 - ~~Theo에게 12절 ① 확인 → 회색 배치 JSON~~ → ①은 그림 형식 개정 4(효과 자리)로 답이 났고, 회색 배치 v1 [`park_fountain-layout.json`](park_fountain-layout.json)을 올렸다. ④(컷 순서 실행)는 아직 열려 있다.
+- **좌표 한 곳으로 (PR #481 리뷰)**: 회색 배치 JSON의 `spots`·`hotspots`를 지우고 검사·스케치(`park_fountain-layout.mjs`, `park_fountain-bg-sketch.mjs`)가 화면 JSON을 읽게 했다. 그러자 #472에서 화면 JSON에만 넣은 손님 클리어 뒤 상자(288,188)가 처음으로 검사에 걸렸다(분수대 히트와 겹침). 클리어 뒤에는 입력이 없어서(`main.ts` `scene.cleared`) 겹쳐도 문제가 없으니, `exitFlag`일 때만 쓰는 위치는 겹침 검사에서 건너뛰고 그 사실을 `skip` 줄로 찍는다. 두 파일이 이미 갈라지기 시작했다는 증거라서 지금 고쳤다.
 - 종이 플레이(PM·Theo): 10-1절만 보고 따라 해 보고, 지루한 곳과 "싱겁다/같은 맛"을 PR에 남긴다(#384 다시 볼 조건).
 - M2 초안 3절 `park_fountain` 아트 줄을 7절 칸 수로 다시 셈(12절 ⑧).
 - **배경 구도 시안** [`park_fountain-bg-sketch.mjs`](park_fountain-bg-sketch.mjs) (#380): 완성 밀도 전에 배치·색을 맞추는 판. 정한 것 셋, 다 검사 줄로 묶었다.

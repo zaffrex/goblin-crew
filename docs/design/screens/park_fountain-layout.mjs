@@ -1,9 +1,10 @@
 // 엔딩 화면 `park_fountain` 회색 배치 검사 + 스케치 (#380). 외부 이미지 없이 코드로만 그린다.
 // 실행: node docs/design/screens/park_fountain-layout.mjs
-// 입력: 같은 폴더 park_fountain-layout.json (좌표의 진실). 이 파일은 숫자를 따로 갖지 않는다.
+// 입력: 서는 자리·핫스팟 좌표는 화면 JSON content/screens/park_fountain.json(좌표의 진실),
+//       도달 기대값(reachExpect)·물 효과 자리(effects)는 같은 폴더 park_fountain-layout.json. 이 파일은 숫자를 따로 갖지 않는다.
 // 출력: park_fountain-layout-2x.png (960×540, 보송 팔레트 인덱스 PNG)
 // 검사: 하나라도 어기면 종료 코드 1. 엔진 숫자는 아래 ENGINE에 출처와 같이 적었다(바뀌면 같이 고친다).
-// 빌드에 들어가지 않는 설계 자료다. 화면 JSON PR에서 JSON과 같이 지운다.
+// 빌드에 들어가지 않는 설계 자료다. layout.json은 그림 빌드 연결 PR(#468)에서 effects를 art/scenes로 옮기며 지운다.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
@@ -14,7 +15,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const L = JSON.parse(readFileSync(join(HERE, 'park_fountain-layout.json'), 'utf8'));
+const SCREEN = JSON.parse(readFileSync(join(HERE, '../../../content/screens/park_fountain.json'), 'utf8'));
+const L = { ...JSON.parse(readFileSync(join(HERE, 'park_fountain-layout.json'), 'utf8')), spots: SCREEN.spots, hotspots: SCREEN.hotspots };
 const PALETTE = readFileSync(join(HERE, '../art/bosong-32.hex'), 'utf8')
   .split('\n')
   .map((s) => s.trim())
@@ -81,9 +83,14 @@ const WA = ENGINE.WALK_AREA;
 
 // 1. 히트 상자 크기·화면 안·서로 안 겹침
 const boxes = [];
+const afterClear = new Set(); // exitFlag가 참일 때만 쓰는 위치: 클리어 컷 중이라 입력이 없고, 끝나면 클리어 카드가 덮는다
 for (const [id, h] of Object.entries(L.hotspots)) {
   boxes.push([id, box(h.box)]);
-  for (const v of h.variants ?? []) boxes.push([`${id}(${Object.keys(v.when.flags).join(',')})`, box(v.box)]);
+  for (const v of h.variants ?? []) {
+    const name = `${id}(${Object.keys(v.when.flags).join(',')})`;
+    boxes.push([name, box(v.box)]);
+    if (v.when.flags[SCREEN.exitFlag] === true) afterClear.add(name);
+  }
 }
 for (const [id, b] of boxes) {
   ok(b.w >= ENGINE.MIN_HIT && b.h >= ENGINE.MIN_HIT, `${id} 히트 ${b.w}×${b.h} ≥ ${ENGINE.MIN_HIT}×${ENGINE.MIN_HIT}`);
@@ -94,6 +101,10 @@ for (let i = 0; i < boxes.length; i++)
     const [a, ba] = boxes[i];
     const [b, bb] = boxes[j];
     if (a.split('(')[0] === b.split('(')[0]) continue; // 같은 핫스팟의 두 위치
+    if ((afterClear.has(a) || afterClear.has(b)) && overlap(ba, bb)) {
+      console.log(`skip ${a} ↔ ${b} 겹침: 클리어 뒤(${SCREEN.exitFlag})에만 있는 위치라 누를 수 없다`);
+      continue;
+    }
     ok(!overlap(ba, bb), `${a} ↔ ${b} 히트 상자 안 겹침`);
   }
 // 그림 상자는 히트 상자 안
