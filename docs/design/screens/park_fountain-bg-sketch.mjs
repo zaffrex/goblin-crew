@@ -21,9 +21,10 @@ import { Buffer } from 'node:buffer';
 import console from 'node:console';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { C, PALETTE, EMPTY, Image, indexedPng } from '../../../art/lib/pixel.mjs';
 import { hash, bay, fill, ellipse, line, stamp, outlined } from '../../../art/lib/texture.mjs';
+import { OBJECTS } from '../../../art/scenes/park_fountain.objects.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '../../..');
@@ -249,15 +250,10 @@ obj((t) => {
     '..............',
   ], { y: C.yel, Y: C.yelL, k: C.plum, o: C.redL });
 });
-// F 손님 440,176 20×56: 넥타이 맨 회사원, 재킷 없이 셔츠 차림, 손목시계를 본다
-obj((t) => {
-  ellipse(t, 450, 184, 6, 7, (x, y) => (y < 181 ? C.plum : x < 448 ? C.tan : C.woodL)); // 머리(검은 머리)
-  fill(t, 442, 191, 16, 24, (x) => (x > 454 ? C.lint : C.white)); // 셔츠
-  R(t, 449, 192, 2, 12, C.red); // 넥타이
-  R(t, 456, 196, 4, 6, C.white); R(t, 456, 194, 4, 2, C.dusk); // 손목시계 보는 팔
-  fill(t, 443, 215, 14, 15, (x) => (x > 452 ? C.plum : C.dusk)); // 바지
-  R(t, 442, 230, 7, 2, C.plum); R(t, 451, 230, 7, 2, C.plum); // 구두
-});
+// F 손님: 시안의 대충 그림 대신 물건 시트 원본(art/scenes/park_fountain.objects.mjs)의 대기 멈춘 모습을 얹는다.
+// 물건 미리보기(park_fountain-objects-preview.mjs)가 손님 없는 판을 쓰도록 따로 둔다.
+const guestLayer = new Image(W, H);
+OBJECTS.guest.draw(guestLayer);
 
 // ═════════════ 세 사람(배포 시트 0칸, 시작 위치에서 왼쪽을 봄) ═════════════
 function readIndexedPng(file) {
@@ -290,80 +286,86 @@ for (const [id, [sx, sy]] of Object.entries(START)) {
   people.blit(cell, sx - (cw - ax), sy - ay, { flipAx: cw / 2 });
 }
 
-// ═════════════ 합치기 + 검사 ═════════════
-const scene = new Image(W, H);
-scene.blit(bg, 0, 0); scene.blit(fg, 0, 0); scene.blit(people, 0, 0);
+// 다른 미리보기가 불러 쓸 판: 배경(만질 수 없음), 손님을 뺀 물건, 세 사람(시작 위치).
+export { bg, fg, people, START };
 
-const problems = [];
-const check = (ok, msg) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${msg}`); if (!ok) problems.push(msg); };
-const mainColor = (img, x0, y0, w, h) => {
-  const n = new Map();
-  for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) { const c = img.get(x, y); if (c !== EMPTY) n.set(c, (n.get(c) ?? 0) + 1); }
-  return [...n].sort((a, b) => b[1] - a[1])[0][0];
-};
-const dY = (a, b) => Math.abs(Y[a] - Y[b]);
-check(!bg.c.includes(C.ink) && !bg.c.includes(C.hint), '배경에 ink(0)·hint(31) 없음');
-const floorMain = mainColor(bg, 0, 214, W, 44);
-const MAIN = { 'ノビー 셔츠': C.red, 'ノビー 바지': C.dusk, 'ズッシー 멜빵': C.teal, 'ズッシー 셔츠': C.white, 'プピ 우비': C.yel };
-for (const [name, c] of Object.entries(MAIN)) check(dY(c, floorMain) >= 30, `흙길 주색 #${floorMain}(Y${Y[floorMain]}) vs ${name} #${c}(Y${Y[c]}) 차 ${dY(c, floorMain)} ≥ 30`);
-const [fx, fy, fw] = HB.fountain.box;
-const rimMain = mainColor(fg, fx, fy, fw, 18);
-check(dY(rimMain, floorMain) >= 30, `테두리 돌 주색 #${rimMain}(Y${Y[rimMain]}) vs 흙길 차 ${dY(rimMain, floorMain)} ≥ 30`);
-// 물줄기 기둥: 효과 자리 가운데 1/3, 켜짐 높이(물보라 꼭대기 ~ 연못)
-const [wx, , ww] = L.effects.water.area;
-const columnBack = mainColor(bg, wx + ww / 3, 70, ww / 3, 96);
-for (const c of [C.tealL, C.white]) check(dY(c, columnBack) >= 60, `물줄기 뒤 주색 #${columnBack}(Y${Y[columnBack]}) vs 물 #${c}(Y${Y[c]}) 차 ${dY(c, columnBack)} ≥ 60`);
-const jacketMain = C.pink; // 외곽선(ink)이 더 많아서 주색을 직접 둔다
-for (const [name, [x, y, w, h]] of [['꼭대기', [214, 18, 20, 12]], ['손 둘레', [248, 100, 26, 26]]]) {
-  const back = mainColor(bg, x, y, w, h);
-  check(dY(jacketMain, back) >= 60, `재킷 #${jacketMain}(Y${Y[jacketMain]}) vs ${name} 뒤 #${back}(Y${Y[back]}) 차 ${dY(jacketMain, back)} ≥ 60`);
+// 직접 실행할 때만 검사·출력한다(불러 쓸 때는 그림만).
+if (resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) {
+  // ═════════════ 합치기 + 검사 ═════════════
+  const scene = new Image(W, H);
+  scene.blit(bg, 0, 0); scene.blit(fg, 0, 0); scene.blit(guestLayer, 0, 0); scene.blit(people, 0, 0);
+
+  const problems = [];
+  const check = (ok, msg) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${msg}`); if (!ok) problems.push(msg); };
+  const mainColor = (img, x0, y0, w, h) => {
+    const n = new Map();
+    for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) { const c = img.get(x, y); if (c !== EMPTY) n.set(c, (n.get(c) ?? 0) + 1); }
+    return [...n].sort((a, b) => b[1] - a[1])[0][0];
+  };
+  const dY = (a, b) => Math.abs(Y[a] - Y[b]);
+  check(!bg.c.includes(C.ink) && !bg.c.includes(C.hint), '배경에 ink(0)·hint(31) 없음');
+  const floorMain = mainColor(bg, 0, 214, W, 44);
+  const MAIN = { 'ノビー 셔츠': C.red, 'ノビー 바지': C.dusk, 'ズッシー 멜빵': C.teal, 'ズッシー 셔츠': C.white, 'プピ 우비': C.yel };
+  for (const [name, c] of Object.entries(MAIN)) check(dY(c, floorMain) >= 30, `흙길 주색 #${floorMain}(Y${Y[floorMain]}) vs ${name} #${c}(Y${Y[c]}) 차 ${dY(c, floorMain)} ≥ 30`);
+  const [fx, fy, fw] = HB.fountain.box;
+  const rimMain = mainColor(fg, fx, fy, fw, 18);
+  check(dY(rimMain, floorMain) >= 30, `테두리 돌 주색 #${rimMain}(Y${Y[rimMain]}) vs 흙길 차 ${dY(rimMain, floorMain)} ≥ 30`);
+  // 물줄기 기둥: 효과 자리 가운데 1/3, 켜짐 높이(물보라 꼭대기 ~ 연못)
+  const [wx, , ww] = L.effects.water.area;
+  const columnBack = mainColor(bg, wx + ww / 3, 70, ww / 3, 96);
+  for (const c of [C.tealL, C.white]) check(dY(c, columnBack) >= 60, `물줄기 뒤 주색 #${columnBack}(Y${Y[columnBack]}) vs 물 #${c}(Y${Y[c]}) 차 ${dY(c, columnBack)} ≥ 60`);
+  const jacketMain = C.pink; // 외곽선(ink)이 더 많아서 주색을 직접 둔다
+  for (const [name, [x, y, w, h]] of [['꼭대기', [214, 18, 20, 12]], ['손 둘레', [248, 100, 26, 26]]]) {
+    const back = mainColor(bg, x, y, w, h);
+    check(dY(jacketMain, back) >= 60, `재킷 #${jacketMain}(Y${Y[jacketMain]}) vs ${name} 뒤 #${back}(Y${Y[back]}) 차 ${dY(jacketMain, back)} ≥ 60`);
+  }
+
+  // ───────────── 번호 표시판 (notes 그림 전용) ─────────────
+  const DIG = {
+    1: ['010', '110', '010', '010', '111'], 2: ['110', '001', '010', '100', '111'], 3: ['110', '001', '010', '001', '110'],
+    4: ['101', '101', '111', '001', '001'], 5: ['111', '100', '110', '001', '110'], 6: ['011', '100', '110', '101', '010'],
+    7: ['111', '001', '010', '010', '010'], 8: ['010', '101', '010', '101', '010'],
+    A: ['010', '101', '111', '101', '101'], B: ['110', '101', '110', '101', '110'], C: ['011', '100', '100', '100', '011'],
+    D: ['110', '101', '101', '101', '110'], E: ['111', '100', '110', '100', '111'], F: ['111', '100', '110', '100', '100'],
+  };
+  const tag = (im, x, y, ch, back) => {
+    R(im, x - 3, y - 4, 7, 9, back);
+    DIG[ch].forEach((row, j) => [...row].forEach((b, i) => b === '1' && im.set(x - 1 + i, y - 2 + j, C.white)));
+  };
+  const noted = new Image(W, H);
+  noted.blit(scene, 0, 0);
+  for (const [x, y, n] of notes) tag(noted, x, y, String(n), C.hint);
+  for (const [k, x, y] of [['A', 120, 190], ['B', 208, 28], ['C', 30, 120], ['D', 100, 136], ['E', 176, 154], ['F', 434, 172]]) tag(noted, x, y, k, C.purD);
+
+  // 물줄기 켜짐 대충(색 대비 확인용. 모양은 Theo의 fountain_water 효과가 진짜다)
+  const wet = new Image(W, H);
+  wet.blit(scene, 0, 0);
+  for (let i = 0; i < 260; i++) {
+    const t = hash(i, 3, 40), side = hash(i, 4, 40) < 0.5 ? -1 : 1;
+    const h = hash(i, 5, 40);
+    // 가운데 기둥(우산대 앞) + 우산 처마에서 양쪽으로 흘러내리는 물
+    const x = h < 0.35 ? 224 + Math.round((t - 0.5) * 6) : Math.round(224 + side * (34 + t * 40));
+    const y = h < 0.35 ? Math.round(60 + t * 110) : Math.round(64 + t * 108 + (t * t) * 6);
+    const c = hash(i, 6, 40) < 0.15 ? C.white : hash(i, 7, 40) < 0.6 ? C.tealL : C.tealM;
+    wet.set(x, y, c); if (h < 0.35) wet.set(x, y + 1, c);
+  }
+
+  // ───────────── 출력 ─────────────
+  writeFileSync(join(HERE, 'park_fountain-bg-sketch-2x.png'), indexedPng(scene, 2));
+  writeFileSync(join(HERE, 'park_fountain-bg-sketch-notes-2x.png'), indexedPng(noted, 2));
+  writeFileSync(join(HERE, 'park_fountain-bg-sketch-water-2x.png'), indexedPng(wet, 2));
+  {
+    const S = 2, w = W * S, h = H * S;
+    const raw = Buffer.alloc((w + 1) * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) raw[y * (w + 1) + 1 + x] = Y[scene.get(Math.floor(x / S), Math.floor(y / S))];
+    const crcT = new Int32Array(256).map((_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c; });
+    const crc = (b) => { let c = -1; for (const v of b) c = crcT[(c ^ v) & 0xff] ^ (c >>> 8); return (c ^ -1) >>> 0; };
+    const chunk = (t, d) => { const l = Buffer.alloc(4); l.writeUInt32BE(d.length); const td = Buffer.concat([Buffer.from(t), d]); const k = Buffer.alloc(4); k.writeUInt32BE(crc(td)); return Buffer.concat([l, td, k]); };
+    const ih = Buffer.alloc(13); ih.writeUInt32BE(w, 0); ih.writeUInt32BE(h, 4); ih[8] = 8; ih[9] = 0;
+    writeFileSync(join(HERE, 'park_fountain-bg-sketch-gray-2x.png'), Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ih), chunk('IDAT', deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0)),
+    ]));
+  }
+  console.log(`배경 1배 크기(인덱스 PNG): ${indexedPng(bg, 1).length} bytes`);
+  if (problems.length) { console.error(`${problems.length}개 검사 실패`); process.exit(1); }
 }
-
-// ───────────── 번호 표시판 (notes 그림 전용) ─────────────
-const DIG = {
-  1: ['010', '110', '010', '010', '111'], 2: ['110', '001', '010', '100', '111'], 3: ['110', '001', '010', '001', '110'],
-  4: ['101', '101', '111', '001', '001'], 5: ['111', '100', '110', '001', '110'], 6: ['011', '100', '110', '101', '010'],
-  7: ['111', '001', '010', '010', '010'], 8: ['010', '101', '010', '101', '010'],
-  A: ['010', '101', '111', '101', '101'], B: ['110', '101', '110', '101', '110'], C: ['011', '100', '100', '100', '011'],
-  D: ['110', '101', '101', '101', '110'], E: ['111', '100', '110', '100', '111'], F: ['111', '100', '110', '100', '100'],
-};
-const tag = (im, x, y, ch, back) => {
-  R(im, x - 3, y - 4, 7, 9, back);
-  DIG[ch].forEach((row, j) => [...row].forEach((b, i) => b === '1' && im.set(x - 1 + i, y - 2 + j, C.white)));
-};
-const noted = new Image(W, H);
-noted.blit(scene, 0, 0);
-for (const [x, y, n] of notes) tag(noted, x, y, String(n), C.hint);
-for (const [k, x, y] of [['A', 120, 190], ['B', 208, 28], ['C', 30, 120], ['D', 100, 136], ['E', 176, 154], ['F', 434, 172]]) tag(noted, x, y, k, C.purD);
-
-// 물줄기 켜짐 대충(색 대비 확인용. 모양은 Theo의 fountain_water 효과가 진짜다)
-const wet = new Image(W, H);
-wet.blit(scene, 0, 0);
-for (let i = 0; i < 260; i++) {
-  const t = hash(i, 3, 40), side = hash(i, 4, 40) < 0.5 ? -1 : 1;
-  const h = hash(i, 5, 40);
-  // 가운데 기둥(우산대 앞) + 우산 처마에서 양쪽으로 흘러내리는 물
-  const x = h < 0.35 ? 224 + Math.round((t - 0.5) * 6) : Math.round(224 + side * (34 + t * 40));
-  const y = h < 0.35 ? Math.round(60 + t * 110) : Math.round(64 + t * 108 + (t * t) * 6);
-  const c = hash(i, 6, 40) < 0.15 ? C.white : hash(i, 7, 40) < 0.6 ? C.tealL : C.tealM;
-  wet.set(x, y, c); if (h < 0.35) wet.set(x, y + 1, c);
-}
-
-// ───────────── 출력 ─────────────
-writeFileSync(join(HERE, 'park_fountain-bg-sketch-2x.png'), indexedPng(scene, 2));
-writeFileSync(join(HERE, 'park_fountain-bg-sketch-notes-2x.png'), indexedPng(noted, 2));
-writeFileSync(join(HERE, 'park_fountain-bg-sketch-water-2x.png'), indexedPng(wet, 2));
-{
-  const S = 2, w = W * S, h = H * S;
-  const raw = Buffer.alloc((w + 1) * h);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) raw[y * (w + 1) + 1 + x] = Y[scene.get(Math.floor(x / S), Math.floor(y / S))];
-  const crcT = new Int32Array(256).map((_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c; });
-  const crc = (b) => { let c = -1; for (const v of b) c = crcT[(c ^ v) & 0xff] ^ (c >>> 8); return (c ^ -1) >>> 0; };
-  const chunk = (t, d) => { const l = Buffer.alloc(4); l.writeUInt32BE(d.length); const td = Buffer.concat([Buffer.from(t), d]); const k = Buffer.alloc(4); k.writeUInt32BE(crc(td)); return Buffer.concat([l, td, k]); };
-  const ih = Buffer.alloc(13); ih.writeUInt32BE(w, 0); ih.writeUInt32BE(h, 4); ih[8] = 8; ih[9] = 0;
-  writeFileSync(join(HERE, 'park_fountain-bg-sketch-gray-2x.png'), Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ih), chunk('IDAT', deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0)),
-  ]));
-}
-console.log(`배경 1배 크기(인덱스 PNG): ${indexedPng(bg, 1).length} bytes`);
-if (problems.length) { console.error(`${problems.length}개 검사 실패`); process.exit(1); }
