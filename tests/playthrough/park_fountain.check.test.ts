@@ -21,6 +21,8 @@ describe('park_fountain BFS check', () => {
   it('matches the expected size and shortest path', () => {
     expect(r.explore.stateCount).toBe(25);
     expect(r.explore.shortestLength).toBe(3);
+    expect(r.explore.safeShortestLength).toBe(3);
+    expect(r.explore.foldedCount).toBe(5);
   });
   it('requires all three abilities', () => {
     expect(r.requiredAbilities).toEqual({ stretch: true, stomp: true, squeak: true });
