@@ -26,7 +26,7 @@ export interface SceneSrc {
     tilt?: { rest: number; weight: Record<string, number>; pivot: number; run: number; draw: Record<string, Draw> };
     noFloor?: { box: [number, number, number, number]; y: number };
   } & Record<string, unknown>>;
-  anims?: Record<string, { ms: number | number[]; frames: Draw[]; layer?: 'back' | 'front'; tilt?: number[]; variants?: ({ when: { flags: Record<string, boolean> }; ms: number | number[]; frames: Draw[]; layer?: 'back' | 'front'; tilt?: number[] } & Record<string, unknown>)[] } & Record<string, unknown>>;
+  anims?: Record<string, { ms: number | number[]; frames: Draw[]; layer?: 'back' | 'front'; tilt?: number[]; hold?: boolean; variants?: ({ when: { flags: Record<string, boolean> }; ms: number | number[]; frames: Draw[]; layer?: 'back' | 'front'; tilt?: number[] } & Record<string, unknown>)[] } & Record<string, unknown>>;
 }
 export interface Frame { src: [number, number, number, number]; at: [number, number] }
 interface PicMeta { frame: number; layer: 'back' | 'front'; loop?: { frames: number[]; ms: number[] }; mode?: string }
@@ -36,7 +36,7 @@ export interface SceneMeta {
   frames: Frame[];
   objects: { key: string; ids: string[]; effect?: string; area?: number[]; colors?: number[]; default: PicMeta; states?: (PicMeta & { when: { flags: Record<string, boolean> } })[]; overlay?: { sortY: number; frame: number }; tilt?: { rest: number; weight: Record<string, number>; pivot: number; run: number; frames: Record<string, number> }; noFloor?: { box: [number, number, number, number]; y: number } }[];
   bg: string | null;
-  anims: Record<string, { object: string | null; frames: number[]; ms: number[]; layer: 'back' | 'front'; tilt?: number[]; mode?: string; variants?: { when: { flags: Record<string, boolean> }; frames: number[]; ms: number[]; layer: 'back' | 'front'; tilt?: number[] }[] }>;
+  anims: Record<string, { object: string | null; frames: number[]; ms: number[]; layer: 'back' | 'front'; tilt?: number[]; mode?: string; hold?: true; variants?: { when: { flags: Record<string, boolean> }; frames: number[]; ms: number[]; layer: 'back' | 'front'; tilt?: number[] }[] }>;
 }
 export const SCREEN_W: number;
 export const SCREEN_H: number;

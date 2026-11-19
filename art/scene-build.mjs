@@ -21,13 +21,13 @@ const TILT_KEYS = ['rest', 'weight', 'pivot', 'run', 'draw'];
 const NO_FLOOR_KEYS = ['box', 'y'];
 const STATE_KEYS = ['when', 'draw', 'loop', 'layer'];
 const OVERLAY_KEYS = ['sortY', 'draw'];
-const ANIM_KEYS = ['ms', 'frames', 'layer', 'tilt', 'variants'];
+const ANIM_KEYS = ['ms', 'frames', 'layer', 'tilt', 'variants', 'hold'];
 const VARIANT_KEYS = ['when', 'ms', 'frames', 'layer', 'tilt'];
 const LOOP_KEYS = ['ms', 'frames'];
 // 11절(개정 4): 효과 자리와 효과 anim
 const FX_OBJECT_KEYS = ['effect', 'area', 'colors', 'mode', 'states'];
 const FX_STATE_KEYS = ['when', 'mode'];
-const FX_ANIM_KEYS = ['effect', 'mode', 'ms'];
+const FX_ANIM_KEYS = ['effect', 'mode', 'ms', 'hold'];
 /**
  * 엔진 효과 표(src/core/sceneFx.ts `SCENE_FX`)의 모드 이름. 빌드는 TS를 못 읽어서 같은 표를 여기 둔다.
  * 두 표가 같은지는 src/core/sceneFx.test.ts가 본다. still = 멈춘 모드(default·state), play = 연출 모드(효과 anim).
@@ -307,6 +307,8 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
     const w = `anims['${name}']`;
     const isFx = a.effect !== undefined;
     unknownKeys(a, isFx ? FX_ANIM_KEYS : ANIM_KEYS, w, problems);
+    // 13절(개정 8): 끝나도 대기열이 빌 때까지 마지막 칸(효과면 연출 모드)을 붙든다. true만 적는다. 갈래는 anim 것을 물려받는다.
+    const hold = a.hold === undefined ? undefined : a.hold === true ? true : (problems.push(`${w}.hold: true만 쓴다(안 붙들면 필드를 뺀다)`), undefined);
     const dot = name.indexOf('.');
     const target = dot > 0 ? name.slice(0, dot) : '';
     if (!target || dot === name.length - 1) {
@@ -321,7 +323,7 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
       else if (fx && !fx.play.includes(a.mode)) problems.push(`${w}: mode '${a.mode}'는 ${fxSlots.get(a.effect)}의 연출 모드(${fx.play.join(', ')})가 아니다`);
       if (!Number.isInteger(a.ms) || a.ms <= 0) problems.push(`${w}: 효과 anim ms는 양의 정수 하나(길이)`);
       else if (a.ms > ANIM_MAX_MS) problems.push(`${w}: ms ${a.ms} > ${ANIM_MAX_MS}(busy 길이 상한, 넘으면 L1로 올린다)`);
-      anims[name] = { object: fxSlots.has(a.effect) ? a.effect : null, frames: [], ms: [a.ms], layer: 'back', mode: a.mode };
+      anims[name] = { object: fxSlots.has(a.effect) ? a.effect : null, frames: [], ms: [a.ms], layer: 'back', mode: a.mode, ...(hold ? { hold } : {}) };
       continue;
     }
     if (!owner.has(target)) problems.push(`${w}: 대상 '${target}'을 맡은 물건이 없다(objects 키 또는 ids)`);
@@ -346,7 +348,9 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
       }
       return res;
     };
-    const out = { object: owner.get(target) ?? null, ...one(a, w) };
+    const out = { object: owner.get(target) ?? null, ...one(a, w), ...(hold ? { hold } : {}) };
+    // 기울기 물건은 판 위 발이 멈춘 기울기(`tiltOf`)를 따라서, 붙든 anim 칸과 발이 어긋난다.
+    if (hold && tiltKeys.has(owner.get(target))) problems.push(`${w}.hold: 기울기 물건 anim은 붙들 수 없다(판 위 발이 멈춘 기울기를 따른다)`);
     // 4-1절(개정 1): 갈래는 첫 일치, 없으면 기본. 갈래 layer는 기본을 물려받지 않는다(없으면 back).
     if (a.variants !== undefined) {
       const variants = [];

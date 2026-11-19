@@ -5,6 +5,7 @@
 // - 멈춘 모습: 그 물건의 "보이는 플래그"(4-2절)로 `when` 첫 일치, 없으면 `default`. 반복(`loop`)은 화면 시계로 고르되,
 //   그 물건의 anim이 끝나거나 멈춘 모습이 바뀐 때부터 0으로 센다(#237, `loopStarts`).
 // - 일시 연출: 재생 중인 anim 이벤트가 그 물건 ID면 anim 프레임이 멈춘 모습을 대신한다(4절). 갈래는 anim 직전 보이는 플래그(4-1절).
+//   `hold` anim(13절, 개정 8)은 끝난 뒤에도 대기열이 빌 때까지 마지막 칸(효과 자리면 그 연출 모드)을 붙든다(`SceneView.held`).
 // - 시트에 없는 대상은 null → 엔진이 임시 상자를 그린다(9절 폴백).
 // - 효과 자리(11절, 개정 4): 그림 없이 엔진 입자를 `back` 안 그 순서에 끼운다. 대상 ID가 없다(클릭·외곽선 밖).
 
@@ -83,6 +84,11 @@ export interface SceneAnim extends Timed {
   tilt?: number[];
   /** 효과 anim(11-3절)의 연출 모드. 있으면 `frames`는 빈 배열, `ms`는 한 칸(길이)이다. */
   mode?: string;
+  /**
+   * 끝나도 대기열이 빌 때까지 마지막 칸을 붙든다(13절, 개정 8, #450). 효과 anim이면 그 연출 모드를 계속한다.
+   * 메타에는 anim에만 적고, 갈래는 `animOf`가 물려받게 한다.
+   */
+  hold?: true;
 }
 
 export interface SceneArtMeta {
@@ -187,6 +193,7 @@ export function parseSceneArt(raw: unknown): SceneArtMeta {
   }
   if (!isObj(m.anims)) return fail('anims 없음');
   for (const [name, a] of Object.entries(m.anims)) {
+    if (a.hold !== undefined && a.hold !== true) fail(`anims['${name}'].hold: true만 쓴다`);
     const fxName = a.object === null ? undefined : fxKeys.get(a.object);
     if (fxName !== undefined) {
       // 효과 anim(11-3절): 효과 자리를 연출 모드로 바꿔 그린다. 칸·갈래·기울기가 없다.
@@ -203,6 +210,7 @@ export function parseSceneArt(raw: unknown): SceneArtMeta {
     if (a.object !== null && !m.objects.some((o) => o.key === a.object)) fail(`anims['${name}'].object`);
     for (const [j, v] of (a.variants ?? []).entries()) {
       timed(v, `anims['${name}'].variants[${j}]`);
+      if (v.hold !== undefined) fail(`anims['${name}'].variants[${j}].hold: hold는 anim에만 적는다`);
       layer(v.layer, `anims['${name}'].variants[${j}]`);
       animTilt(v, `anims['${name}'].variants[${j}]`);
       when(v.when, `anims['${name}'].variants[${j}]`);
@@ -223,11 +231,15 @@ export function pictureOf<P>(o: { default: P; states?: (P & { when: When })[] },
   return o.states?.find((s) => matches(s.when, flags)) ?? o.default;
 }
 
-/** `[대상, 이름]` anim → 그 물건과 고른 갈래. 시트에 없으면 null. 갈래는 anim 직전 보이는 플래그로 고른다(4-1절). */
+/**
+ * `[대상, 이름]` anim → 그 물건과 고른 갈래. 시트에 없으면 null. 갈래는 anim 직전 보이는 플래그로 고른다(4-1절).
+ * 갈래는 anim의 `hold`를 물려받는다(13절).
+ */
 export function animOf(meta: SceneArtMeta, target: string, name: string, flags: Flags): { object: string; anim: SceneAnim } | null {
   const a = meta.anims[`${target}.${name}`];
   if (!a || a.object === null) return null;
-  return { object: a.object, anim: a.variants?.find((v) => matches(v.when, flags)) ?? a };
+  const v = a.variants?.find((x) => matches(x.when, flags));
+  return { object: a.object, anim: v ? (a.hold ? { ...v, hold: true } : v) : a };
 }
 
 /** anim 하나의 busy 길이(60Hz 틱, ms 합을 올림). 5절: 시트에 있는 anim은 이 길이가 그 이벤트의 busy 길이다. */
@@ -268,6 +280,11 @@ export interface SceneView {
   flagsOf(objectKey: string): Flags;
   /** 재생 중인 물건 anim(이미 고른 갈래)과 시작 뒤 지난 ms. 없으면 null. */
   playing: { object: string; anim: SceneAnim; ms: number } | null;
+  /**
+   * 물건 키 → 끝났지만 붙들고 있는 `hold` anim(13절)과 그 anim 시작 뒤 지난 ms(길이보다 크다). 재생 중인 anim이 먼저다.
+   * 그림 물건은 마지막 칸, 효과 자리는 그 연출 모드를 시계를 계속 돌려 그린다.
+   */
+  held?: Readonly<Record<string, { anim: SceneAnim; ms: number }>>;
   /** 화면 시계(ms). `loop`용. 반복끼리 박자는 맞추지 않는다(4절). */
   clockMs: number;
   /** 물건별 loop 시작 시각(`loopStarts`). 없으면 화면 시계 0부터 센다. */
@@ -286,7 +303,14 @@ export function tiltFrame(o: SceneObject, d: number): number | null {
   return d === 0 ? null : (o.tilt?.frames[String(d)] ?? null);
 }
 
-/** 물건 하나의 loop 시작. `pic`이 null이면 그 물건 anim 재생 중이다. 효과 자리는 멈춘 모드(`SceneFxMode`)다. */
+/** 이 물건이 지금 그리는 anim: 재생 중인 것, 없으면 붙든 `hold` anim(13절). 없으면 null(멈춘 모습). */
+function artNow(view: SceneView, objectKey: string): { anim: SceneAnim; ms: number } | null {
+  const p = view.playing;
+  if (p && p.object === objectKey) return p;
+  return view.held?.[objectKey] ?? null;
+}
+
+/** 물건 하나의 loop 시작. `pic`이 null이면 그 물건 anim 재생 중(또는 붙든 중)이다. 효과 자리는 멈춘 모드(`SceneFxMode`)다. */
 export interface LoopStart {
   pic: ScenePicture | SceneFxMode | null;
   atMs: number;
@@ -302,7 +326,7 @@ export function loopStarts(meta: SceneArtMeta, view: SceneView, prev: LoopStarts
   const out: Record<string, LoopStart> = {};
   for (const o of meta.objects) {
     const flags = view.flagsOf(o.key);
-    const pic = view.playing?.object === o.key ? null : isFxObject(o) ? pictureOf(o, flags) : pictureOf(o, flags);
+    const pic = artNow(view, o.key) ? null : isFxObject(o) ? pictureOf(o, flags) : pictureOf(o, flags);
     const p = prev[o.key];
     out[o.key] = p && p.pic === pic ? p : { pic, atMs: view.clockMs };
   }
@@ -317,10 +341,11 @@ export function loopStarts(meta: SceneArtMeta, view: SceneView, prev: LoopStarts
 export function sceneDraws(meta: SceneArtMeta, view: SceneView): SceneDraws {
   const out: SceneDraws = { back: [], front: [], overlays: [], byObject: {} };
   for (const o of meta.objects) {
-    const p = view.playing;
+    const p = artNow(view, o.key);
     if (isFxObject(o)) {
       // 11절: 효과 자리는 늘 back, 적은 자리에서 그린다. 연출 중이면 anim 시작부터, 아니면 그 모드가 된 때부터 센다.
-      const playing = p && p.object === o.key ? p : null;
+      // 붙든 효과(13절)는 시계가 길이를 넘어 계속 간다(burst는 on 높이로 계속 뿜는다).
+      const playing = p;
       const mode = playing ? (playing.anim.mode ?? 'off') : pictureOf(o, view.flagsOf(o.key)).mode;
       if (mode === 'off') continue;
       const slotMs = playing ? playing.ms : view.clockMs - (view.loopStarts?.[o.key]?.atMs ?? 0);
@@ -329,7 +354,7 @@ export function sceneDraws(meta: SceneArtMeta, view: SceneView): SceneDraws {
       continue;
     }
     let frame: number;
-    if (p && p.object === o.key) {
+    if (p) {
       frame = timedFrame(p.anim, p.ms, false);
       out[p.anim.layer].push(frame);
     } else {
@@ -345,6 +370,19 @@ export function sceneDraws(meta: SceneArtMeta, view: SceneView): SceneDraws {
     }
   }
   return out;
+}
+
+/**
+ * 핫스팟 화자 말풍선이 붙을 상자(13절, #450): 대상을 맡은 물건이 지금 anim(재생 중 또는 붙든 `hold`)을 그리면 그 칸 그림 상자
+ * (`frames[].at` + 크기). 멈춘 모습이거나 시트에 없는 대상이면 null → 엔진은 지금처럼 핫스팟 상자를 쓴다.
+ * 손님이 칸마다 `at`으로 달려오면 말풍선도 같이 온다.
+ */
+export function animFrameBox(meta: SceneArtMeta, view: SceneView, target: string): { left: number; top: number; width: number; height: number } | null {
+  const o = objectOf(meta, target);
+  const a = o ? artNow(view, o.key) : null;
+  if (!a || a.anim.frames.length === 0) return null;
+  const f = meta.frames[timedFrame(a.anim, a.ms, false)];
+  return f ? { left: f.at[0], top: f.at[1], width: f.src[2], height: f.src[3] } : null;
 }
 
 /**

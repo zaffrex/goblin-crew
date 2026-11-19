@@ -243,6 +243,29 @@ describe('scene build (format v1)', () => {
       expect(problemsOf((s) => { s.anims!['magpie.fly_down']!.tilt = [1, 2]; })).toEqual([expect.stringContaining('대상 물건에 tilt가 없다')]);
     });
   });
+  describe('붙드는 anim `hold`(13절, 개정 8, #450)', () => {
+    it('정상: 그림 anim·효과 anim 모두 메타에 hold: true, 없으면 필드도 없다', () => {
+      const s = goodScene();
+      s.anims!['magpie.fly_down']!.hold = true;
+      s.objects = { ...s.objects, water: { effect: 'fountain_water', area: [152, 8, 144, 172], colors: [26, 25, 6, 24], mode: 'on' } };
+      s.anims!['basket.water_burst'] = { effect: 'water', mode: 'burst', ms: 1200, hold: true } as never;
+      const r = buildScene(s, screen);
+      expect(r.problems).toEqual([]);
+      expect(r.meta!.anims['magpie.fly_down']!.hold).toBe(true);
+      expect(r.meta!.anims['basket.water_burst']).toEqual({ object: 'water', frames: [], ms: [1200], layer: 'back', mode: 'burst', hold: true });
+      expect('hold' in r.meta!.anims['seesaw_right.plank_bounce']!).toBe(false);
+    });
+    it('true 말고 다른 값, 갈래에 hold, 기울기 물건 anim에 hold', () => {
+      expect(problemsOf((s) => (s.anims!['magpie.fly_down']!.hold = false))).toEqual([expect.stringContaining('hold: true만 쓴다')]);
+      expect(problemsOf((s) => (s.anims!['magpie.fly_down']!.variants = [{ when: { flags: { 'magpie.on_ground': true } }, ms: 100, frames: [box(100, 150, 16, 16)], hold: true }]))).toEqual([
+        expect.stringContaining("모르는 필드 'hold'"),
+      ]);
+      expect(problemsOf((s) => {
+        s.objects!.seesaw!.tilt = { rest: 3, weight: { jjuk: 1 }, pivot: 247.5, run: 40, draw: { '-3': box(208, 212, 80, 4), 3: box(208, 208, 80, 4) } };
+        s.anims!['seesaw_right.plank_bounce']!.hold = true;
+      })).toEqual([expect.stringContaining('기울기 물건 anim은 붙들 수 없다')]);
+    });
+  });
   describe('anim 갈래(4-1절, 개정 1)·배경 이름', () => {
     const withVariant = (s: SceneSrc) => {
       s.anims!['magpie.ruffle'] = {
