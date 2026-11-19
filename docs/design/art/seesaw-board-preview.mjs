@@ -3,10 +3,11 @@
 // 서 있기 0번 칸을 궤적 위에 놓는다(자세 칸은 후속 그림 PR). 궤적·시간·기울기·발 높이를 보는 용도다.
 // 실행: node docs/design/art/seesaw-board-preview.mjs
 // 출력(같은 폴더):
-//   seesaw-tilt-states-3x.png   멈춘 기울기 6가지(빈 판, 혼자 탄 셋, 둘이 탄 둘). 발이 널빤지 윗면에 붙는지 본다
+//   seesaw-tilt-states-3x.png   멈춘 기울기 6가지(빈 판, 혼자 탄 셋, 둘이 탄 둘) + U6 두 칸(가장 크게, 되튐). 발이 널빤지 윗면에 붙는지, 판이 땅을 뚫지 않는지 본다
 //   seesaw-board-hop-3x.png     APNG: 쭉이 왼쪽 끝 올라서기 → 묵직이 오른쪽 끝 올라서기 → 묵직이 내려서기 (실제 ms)
 //   seesaw-board-hop-frames-2x.png  위 APNG의 낱장 모음(6열, 왼쪽 위부터 순서대로)
-// 검사(어기면 종료 코드 1): 서 있는 사람 발 y = 그 열 널빤지 윗면 y, 올라서기 궤적이 착지 직전에 위에서 내려온다.
+// 검사(어기면 종료 코드 1): 서 있는 사람 발 y = 그 열 널빤지 윗면 y, 판 가장 낮은 픽셀 ≤ 235(땅), 올라서기 착지 직전 틱 발이 판 윗면 이하.
+// 쉬는 판(#437, 설계 1-7절): M 기본 12. SEESAW_M=10 처럼 바꿔 볼 수 있다.
 // 이 미리보기의 facing은 전부 -1(왼쪽을 봄, 오른쪽에서 걸어와 탄 경우)이다.
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -27,17 +28,20 @@ const PIVOT_X = 248; // 받침 가운데(물건 원본 PIVOT_X와 같다)
 const PLANK_TOP = 214; // 수평일 때 널빤지 윗면 = 서는 자리 발 y
 const SPOTS = { left: 220, right: 284 };
 const WEIGHT = { jjuk: 1, ppik: 1, mukjik: 2 };
-const STEP = 3; // 무게 차 1당 오른쪽 끝이 내려가는 px
+// 쉬는 판(#437, 설계 1-5-4절): 무게가 다르면 무거운 쪽 끝이 M까지 내려가 쉰다. 같으면 수평. 무게 차 크기는 안 본다.
+const M = Number(process.env.SEESAW_M ?? 12);
+const BOUNCE_OVER = 3; // U6 가장 크게 튄 칸 = M + 이 값(판 끝 아랫면 235 = 받침 바닥 줄, 땅에 닿는다. 4면 236으로 땅을 1px 뚫는다)
+const BOUNCE_BACK = 4; // U6 되튐 칸 = M − 이 값
 const GROUND_Y = 240; // 올라서기 바닥 점 y(받침 바닥선 236보다 앞)
 const GROUND_DX = 6; // 바닥 점 board = 서는 자리에서 오른쪽(시작 위치 쪽)으로 6px, 두 끝 모두 한 점
 const HOP = { // 올라서기: 웅크림 → 공중 → 착지 웅크림(ms, 캐릭터 시트 규칙대로 50ms 배수, ADR-0007), H = 직선 위로 솟는 높이(px)
   jjuk: { crouch: 100, air: 150, land: 50, H: 10 },
   ppik: { crouch: 50, air: 150, land: 50, H: 12 },
-  mukjik: { crouch: 150, air: 150, land: 50, H: 8 },
+  mukjik: { crouch: 150, air: 150, land: 50, H: 10 }, // #437: 8 → 10. 들린 끝(발 y 203)까지 37px를 위에서 내려와 서려면 H > 9.25
 };
 const DOWN = { air: 100, land: 50, H: 8 }; // 내려서기(셋 같음)
 
-const tiltOf = (on) => STEP * ((on.right ? WEIGHT[on.right] : 0) - (on.left ? WEIGHT[on.left] : 0));
+const tiltOf = (on) => M * Math.sign((on.right ? WEIGHT[on.right] : 0) - (on.left ? WEIGHT[on.left] : 0));
 /** 물건 원본 plank()와 같은 식: 열 x가 내려가는 px */
 const colDy = (x, d) => Math.round((d * (x - PIVOT_X + 0.5)) / 40);
 const footY = (side, d) => PLANK_TOP + colDy(SPOTS[side], d);
@@ -111,10 +115,12 @@ const STATES = [
   ['삑삑이 오른쪽', { right: 'ppik' }],
   ['쭉이 + 묵직이', { left: 'jjuk', right: 'mukjik' }],
   ['쭉이 + 삑삑이', { left: 'jjuk', right: 'ppik' }],
+  ['U6 가장 크게 (쭉이 + 묵직이)', { left: 'jjuk', right: 'mukjik' }, M + BOUNCE_OVER],
+  ['U6 되튐 (쭉이 + 묵직이)', { left: 'jjuk', right: 'mukjik' }, M - BOUNCE_BACK],
 ];
 const tiles = [];
-for (const [name, on] of STATES) {
-  const d = tiltOf(on);
+for (const [name, on, dU6] of STATES) {
+  const d = dU6 ?? tiltOf(on);
   const people = Object.entries(on).map(([side, id]) => ({ id, x: SPOTS[side], y: footY(side, d), facing: -1 }));
   // 발 y = 그 열 널빤지 윗면: 같은 그림을 다시 그려 윗면 첫 칠한 픽셀 행을 찾는다
   for (const p of people) {
@@ -126,10 +132,16 @@ for (const [name, on] of STATES) {
     check(p.y === top + 1, `${name} d=${d}: ${p.id} 발 y ${p.y} = 널빤지 윗면 ${top + 1}`);
   }
   tiles.push(frame(d, people));
+  // 판 끝 아랫면(마구리 287 / 208 열)이 땅(받침 바닥선 236)을 뚫지 않는다
+  const t = new Image(480, 270);
+  seesawTilt(d)(t);
+  let bottom = 0;
+  for (let x = 200; x < 296; x++) for (let y = 200; y < 260; y++) if (t.get(x, y) !== EMPTY) bottom = Math.max(bottom, y);
+  check(bottom <= 235, `${name} d=${d}: 판 가장 낮은 픽셀 y ${bottom} ≤ 235 (땅 236 위)`);
   console.log(`${name}: d=${d} (오른쪽 끝 +${d}px), 발 y ${people.map((p) => `${p.id} ${p.y}`).join(', ') || '-'}`);
 }
 {
-  const G = 4, cols = 3, rows = 2;
+  const G = 4, cols = 4, rows = 2;
   const sheet = new Image(cols * CROP[2] + (cols - 1) * G, rows * CROP[3] + (rows - 1) * G, C.ink);
   tiles.forEach((t, i) => sheet.blit(t, (i % cols) * (CROP[2] + G), Math.floor(i / cols) * (CROP[3] + G)));
   writeFileSync(join(HERE, 'seesaw-tilt-states-3x.png'), indexedPng(sheet, 3));
@@ -141,23 +153,26 @@ const frames = [];
 const push = (img, ms) => frames.push({ img, ms: Math.max(1, Math.round(ms)) });
 /** 바닥 점 → 판 위 궤적. t 0~1. y는 직선 + 위로 H·4t(1−t). */
 const arc = (a, b, H, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t - H * 4 * t * (1 - t) });
-function hop(people, mover, from, to, spec, dBefore, dAfter, label) {
+/** 올라서기는 착지 전 기울기의 판 윗면(`to`)을 향해 날고, 착지 칸에 판과 함께 `landY`(착지 뒤 기울기)로 간다(1-5-4절 #404). */
+function hop(people, mover, from, to, spec, dBefore, dAfter, label, landY = to.y) {
   const others = people.filter((p) => p !== mover);
   const draw = (d, m) => frame(d, [...others, m]);
   if (spec.crouch) push(draw(dBefore, { ...mover, ...from }), spec.crouch); // 웅크림(자세 칸 대신 서 있기)
   const n = Math.round(spec.air / (2 * TICK));
-  let ok = true;
   for (let k = 1; k <= n; k++) {
     const p = arc(from, to, spec.H, k / n);
     const up = to.y < from.y;
-    // 올라설 때: 판 윗면보다 아래(앞)에 있는 동안엔 가로로 판 안쪽에 들어가지 않는다 = 마지막 칸 직전에 이미 윗면 위
-    if (up && k === n - 1 && p.y > to.y) ok = false;
     // 공중 칸에서 기울기: 올라서기는 착지 전까지 이전, 내려서기는 뜨는 순간 다음
     push(draw(up ? dBefore : dAfter, { ...mover, x: p.x, y: p.y }), spec.air / n);
   }
-  if (to.y < from.y) check(ok, `${label}: 착지 직전 칸이 판 윗면 위(위에서 내려와 선다)`);
-  push(draw(dAfter, { ...mover, ...to }), spec.land); // 착지 웅크림
-  Object.assign(mover, to);
+  // 엔진 틱(1000/60ms) 기준 착지 직전 틱의 발 y(반올림)가 판 윗면 이하여야 위에서 내려와 선다(#437, 33ms 낱장 기준은 엔진보다 거칠다)
+  if (to.y < from.y) {
+    const ticks = Math.round(spec.air / TICK), tl = 1 - 1 / ticks;
+    const yLast = Math.round(arc(from, to, spec.H, tl).y);
+    check(yLast <= to.y, `${label}: 착지 직전 틱 발 y ${yLast} ≤ 판 윗면 ${to.y} (H ${spec.H}, 오름 ${from.y - to.y}px)`);
+  }
+  push(draw(dAfter, { ...mover, ...to, y: landY }), spec.land); // 착지 웅크림
+  Object.assign(mover, to, { y: landY });
 }
 {
   const jj = { id: 'jjuk', x: 300, y: GROUND_Y, facing: -1 };
@@ -176,7 +191,7 @@ function hop(people, mover, from, to, spec, dBefore, dAfter, label) {
   const dB = tiltOf({ left: 'jjuk', right: 'mukjik' });
   // 다른 사람 발도 새 기울기를 따른다
   const follow = (d) => { jj.y = footY('left', d); };
-  hop(people, mk, { x: mk.x, y: mk.y }, { x: SPOTS.right, y: footY('right', dB) }, HOP.mukjik, dJ, dB, '묵직이 오른쪽 올라서기');
+  hop(people, mk, { x: mk.x, y: mk.y }, { x: SPOTS.right, y: footY('right', dJ) }, HOP.mukjik, dJ, dB, '묵직이 오른쪽 올라서기', footY('right', dB));
   follow(dB);
   frames[frames.length - 1] = { img: frame(dB, people), ms: HOP.mukjik.land };
   push(frame(dB, people), 700);
