@@ -21,7 +21,8 @@ describe('screen BFS check', () => {
 
   it('counts unique reactions without common.*', () => {
     const screen = load(dir('../../content/screens/magpie_nest.json')) as ScreenData;
-    expect(uniqueReactions(screen)).toBe(9);
+    // 10 = 9 + 묵직이 `seesaw_stomp`(#414). 새 칸 없이 있는 칸을 잇는 시트 줄이지만 화면 고유 연출로 센다(ADR-0018 R1 상한 12).
+    expect(uniqueReactions(screen)).toBe(10);
     const withSpots = { spots: { a: { takenShow: [{ anim: ['x', 'taken_u'] }], releaseShow: { default: [{ anim: ['x', 'release_u'] }] } } } };
     expect(uniqueReactions(withSpots as unknown as ScreenData)).toBe(2);
     expect(uniqueReactions({ ...screen, fallbacks: undefined, onEnter: undefined, rules: [{ show: [{ anim: ['a', 'common.x'] }, { anim: ['a', 'y'] }] }] } as unknown as ScreenData)).toBe(1);

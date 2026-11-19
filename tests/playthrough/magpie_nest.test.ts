@@ -77,7 +77,8 @@ describe('magpie_nest 효과 위치 표시 순서 (#206, #339)', () => {
     expect(r.source).toBe('rule');
     return r.events.map(line);
   };
-  const STOMP = ['anim mukjik common.stomp', 'fx stomp_text mukjik'];
+  // 판 끝에 뛰어올라 쿵(#414, magpie_nest.md 1-6절): 시트 `seesaw_stomp`(공중 칸 `air`), 바로 뒤 시그니처 그대로.
+  const STOMP = ['anim mukjik seesaw_stomp', 'fx stomp_text mukjik'];
 
   // 정답 발사(#339): 고리에 놓인 다음 말풍선. 화자는 발사된 사람(쭉이·삑삑이 둘 다).
   for (const who of ['jjuk', 'ppik'] as const) {
@@ -121,15 +122,16 @@ describe('magpie_nest 효과 위치 표시 순서 (#206, #339)', () => {
     ]);
   });
 
-  // 15번은 거울 규칙 두 개(오른쪽 끝·왼쪽 끝을 빈 반대편으로 밟음). 같은 실패라 게이지 박자도 같아야 한다.
-  for (const [id, target, other] of [
-    ['seesaw_self_smack_right', 'seesaw_right', 'seesaw_left'],
-    ['seesaw_self_smack_left', 'seesaw_left', 'seesaw_right'],
+  // 15번은 거울 규칙 두 개(오른쪽 끝·왼쪽 끝, 반대편이 빔). 같은 실패라 게이지 박자도 같아야 한다.
+  // #414부터 U6는 밟은 끝 이벤트다(묵직이가 그 끝에 올라타 함께 내려간 뒤 튕겨 나감, 1-6-5절).
+  for (const [id, target] of [
+    ['seesaw_self_smack_right', 'seesaw_right'],
+    ['seesaw_self_smack_left', 'seesaw_left'],
   ] as const) {
     it(`15번 ${id}(자리 이동 없음): 납작 바로 뒤 게이지, 별은 그 뒤`, () => {
       expect(stomp({}, target)).toEqual([
         ...STOMP,
-        `anim ${other} plank_bounce`,
+        `anim ${target} plank_bounce`,
         'anim mukjik common.flatten',
         'gauge -1',
         'fx stars mukjik',

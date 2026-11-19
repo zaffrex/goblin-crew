@@ -418,6 +418,15 @@ export const SHEET = {
     { name: 'common.flatten', frames: 4, ms: [100, 600, 150, 450] },
     // 웅크림·공중(#397 1-5-3절). 착지는 엔진이 0번 칸을 50ms 다시 쓴다. 맨 뒤에 붙여서 앞 칸 번호(#357 납작 12)는 그대로다.
     { name: 'step_up', frames: 2, ms: [150, 150] },
+    // 시소 끝에 뛰어올라 쿵(#414, magpie_nest.md 1-6-2·1-6-3절). 새 칸 없이 웅크림 → 무릎 들기 → 내려찍기 → 쿵 → 여운을 잇는다.
+    // air [1, 2] = 공중(엔진이 궤적 위에 놓는다), 3번(쿵)이 착지 칸: 이 칸이 시작되는 틱에 `ドスン`(cue)과 U6가 같이 시작한다.
+    {
+      name: 'seesaw_stomp',
+      reuse: [['step_up', 0], ['common.stomp', 0], ['common.stomp', 1], ['common.stomp', 2], ['common.stomp', 3]],
+      ms: [150, 150, 100, 400, 300],
+      cue: [3],
+      air: [1, 2],
+    },
   ],
   pose,
   drawFrame,

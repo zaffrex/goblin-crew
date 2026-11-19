@@ -613,7 +613,7 @@
         {
           "anim": [
             "mukjik",
-            "common.stomp"
+            "seesaw_stomp"
           ]
         },
         {
@@ -674,7 +674,7 @@
         {
           "anim": [
             "mukjik",
-            "common.stomp"
+            "seesaw_stomp"
           ]
         },
         {
@@ -735,7 +735,7 @@
         {
           "anim": [
             "mukjik",
-            "common.stomp"
+            "seesaw_stomp"
           ]
         },
         {
@@ -746,7 +746,7 @@
         },
         {
           "anim": [
-            "seesaw_left",
+            "seesaw_right",
             "plank_bounce"
           ]
         },
@@ -818,7 +818,7 @@
         {
           "anim": [
             "mukjik",
-            "common.stomp"
+            "seesaw_stomp"
           ]
         },
         {
@@ -876,7 +876,7 @@
         {
           "anim": [
             "mukjik",
-            "common.stomp"
+            "seesaw_stomp"
           ]
         },
         {
@@ -887,7 +887,7 @@
         },
         {
           "anim": [
-            "seesaw_right",
+            "seesaw_left",
             "plank_bounce"
           ]
         },

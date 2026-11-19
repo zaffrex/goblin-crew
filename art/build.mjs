@@ -65,28 +65,50 @@ function buildSheet(def) {
   const frames = [];
   const anims = {};
   for (const a of def.anims) {
-    const start = frames.length;
-    for (let k = 0; k < a.frames; k++) {
-      const p = def.pose(a.name, k);
-      const f = def.drawFrame(p);
-      f.anim = a.name;
-      f.k = k;
-      f.pose = p;
-      frames.push(f);
+    // `reuse`(#414, 시트 파이프라인 기록 5-3절): 새 칸을 그리지 않고 앞에서 그린 자세의 칸을 [자세 이름, 칸 순서]로 가리켜 잇는다.
+    // 전체 칸 번호로 적으면 시트에 칸을 넣을 때 밀리므로 이름으로 가리킨다. 산출 메타는 지금처럼 `frames: number[]`다.
+    let idx;
+    if (a.reuse !== undefined) {
+      if (a.frames !== undefined || a.by === 'distance' || !Array.isArray(a.reuse) || a.reuse.length === 0) fail(`${def.name} ${a.name}: reuse는 frames 없이 [자세, 칸] 배열, ms 자세에만`);
+      idx = a.reuse.map(([name, k]) => {
+        const src = anims[name]?.frames[k];
+        if (src === undefined) fail(`${def.name} ${a.name}: reuse [${name}, ${k}]는 앞에 있는 자세의 칸이어야 한다`);
+        return src;
+      });
+    } else {
+      const start = frames.length;
+      for (let k = 0; k < a.frames; k++) {
+        const p = def.pose(a.name, k);
+        const f = def.drawFrame(p);
+        f.anim = a.name;
+        f.k = k;
+        f.pose = p;
+        frames.push(f);
+      }
+      idx = Array.from({ length: a.frames }, (_, i) => start + i);
     }
-    const idx = Array.from({ length: a.frames }, (_, i) => start + i);
+    const n = idx.length;
+    if (a.by !== 'distance' && (!Array.isArray(a.ms) || a.ms.length !== n)) fail(`${def.name} ${a.name}: ms는 칸 수(${n})와 길이가 같아야 한다`);
     anims[a.name] = a.by === 'distance' ? { frames: idx, by: 'distance' } : { frames: idx, ms: a.ms };
+    // 공중 칸(#414, 5-4절): [첫, 끝] 칸 순서. 엔진이 이 칸들 동안 몸을 궤적 위에 놓고, 끝 다음 칸(착지 칸)이 시작될 때 내려앉는다.
+    if (a.air !== undefined) {
+      const [a0, a1] = Array.isArray(a.air) ? a.air : [];
+      if (a.by === 'distance' || a.air.length !== 2 || !Number.isInteger(a0) || !Number.isInteger(a1) || a0 < 0 || a1 < a0 || a1 >= n - 1) {
+        fail(`${def.name} ${a.name}: air는 [첫, 끝] 칸 순서이고 끝 다음에 착지 칸이 있어야 한다(0~${n - 2})`);
+      }
+      anims[a.name].air = [a0, a1];
+    }
     // 칸 신호(시트 파이프라인 기록 5-2절, #199): show에서 이 연출 바로 뒤의 fx가 뜨는 칸. 칸 순서만 적고 fx 이름은 모른다.
     // 오름차순 배열이면 신호가 여럿이다(`ability-feedback.md` 4절, #284): k번째 신호 = 이어진 fx 중 k번째.
     if (a.cue !== undefined) {
       const cues = Array.isArray(a.cue) ? a.cue : [a.cue];
-      const ok = cues.length > 0 && cues.every((c, i) => Number.isInteger(c) && c >= 0 && c < a.frames && (i === 0 || c > cues[i - 1]));
-      if (a.by === 'distance' || !ok) fail(`${def.name} ${a.name}: cue는 ms 자세의 칸 순서(0~${a.frames - 1}) 하나 또는 오름차순 배열이어야 한다`);
+      const ok = cues.length > 0 && cues.every((c, i) => Number.isInteger(c) && c >= 0 && c < n && (i === 0 || c > cues[i - 1]));
+      if (a.by === 'distance' || !ok) fail(`${def.name} ${a.name}: cue는 ms 자세의 칸 순서(0~${n - 1}) 하나 또는 오름차순 배열이어야 한다`);
       anims[a.name].cue = a.cue;
     }
     // 매달린 자세(hold)는 손 기준점을 메타에 적는다(형식 기록 7절). 프레임마다 같아야 고리에서 손이 안 미끄러진다.
     const hands = idx.map((i) => frames[i].hand).filter(Boolean);
-    if (a.name === 'hold' && hands.length !== a.frames) fail(`${def.name} hold: 프레임마다 손 기준점(hand)이 있어야 한다`);
+    if (a.name === 'hold' && hands.length !== n) fail(`${def.name} hold: 프레임마다 손 기준점(hand)이 있어야 한다`);
     if (hands.length) {
       if (hands.some((h) => h[0] !== hands[0][0] || h[1] !== hands[0][1])) fail(`${def.name} ${a.name}: 프레임마다 손 기준점이 다르다 ${JSON.stringify(hands)}`);
       anims[a.name].hand = hands[0];

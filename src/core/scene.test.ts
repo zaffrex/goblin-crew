@@ -830,14 +830,14 @@ describe('한 번 재생 연출의 마지막 장 유지와 매달림 (#189, 형�
     const s = stompWithJjuk();
     s.held.jjuk = { name: 'common.zap', ms: 500 }; // 앞에서 남은 연출이 있다고 치자
     while (!animOn(s, 'seesaw_right')) sceneTick(data, s);
-    expect(charPose(data, s, 'mukjik').event?.name).toBe('common.stomp');
+    expect(charPose(data, s, 'mukjik').event?.name).toBe('seesaw_stomp');
     while (!animOn(s, 'jjuk')) sceneTick(data, s);
     expect(s.held.jjuk).toBeUndefined();
     expect(Object.keys(s.held)).toEqual(['mukjik']);
     // 쭉이 발사 장은 끝나면 붙들지만 바로 뒤 place(표시 자리)가 놓는다. 묵직이 쿵은 말풍선까지 붙든다.
     while (now(s) !== 'say') sceneTick(data, s);
     expect(Object.keys(s.held)).toEqual(['mukjik']);
-    expect(s.held.mukjik?.name).toBe('common.stomp');
+    expect(s.held.mukjik?.name).toBe('seesaw_stomp'); // 시트 없음: 뛰어오르지 않고 그 자리 연출로 끝까지 돈다(#414)
   });
 
   it('둥지 뻗기: 매달린 채 reach_hang_up 마지막 장 + 대상 점(reachPoint)을 말풍선 동안 유지, 바닥에 떨어지면 놓는다', () => {
@@ -1256,7 +1256,7 @@ describe('대상 앞까지 걷기 (설계 5-1절, #219)', () => {
     expect(s.walkers.jjuk.facing).toBe(-1);
   });
 
-  it('바닥에서 시소 끝에 쿵(UI로는 못 냄, 6-4-4절): 묵직이가 오른쪽 끝 옆(307)까지 걸어가서 쿵 → 쭉이가 고리로', () => {
+  it('바닥에서 시소 끝에 쿵(UI로는 못 냄, 6-4-4절): 묵직이가 오른쪽 끝 바닥 점(290, 240)까지 걸어가서 쿵 → 쭉이가 고리로(#414 1-6-2절 ①)', () => {
     const s = ready();
     pick(s, 'jjuk');
     sceneTap(data, s, SEESAW_LEFT, 0, false);
@@ -1265,7 +1265,7 @@ describe('대상 앞까지 걷기 (설계 5-1절, #219)', () => {
     runAction(data, s, { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, null);
     expect(s.queue[0]).toMatchObject({ type: 'walk', char: 'mukjik', face: -1 });
     idle(s);
-    expect(s.walkers.mukjik.x).toBe(307);
+    expect([s.walkers.mukjik.x, s.walkers.mukjik.y]).toEqual([290, 240]);
     expect(s.walkers.mukjik.facing).toBe(-1);
     expect(s.puzzle.at.jjuk).toBe('hook');
   });

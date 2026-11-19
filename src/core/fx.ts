@@ -28,7 +28,7 @@ export const SIGNATURE_TICKS = 36;
  */
 export const SIGNATURES: Readonly<Record<CharacterId, { anims: readonly string[]; fx: string }>> = {
   jjuk: { anims: ['common.reach_wobble', 'reach_hang_up', 'common.stretch'], fx: 'stretch_text' },
-  mukjik: { anims: ['common.stomp'], fx: 'stomp_text' },
+  mukjik: { anims: ['common.stomp', 'seesaw_stomp'], fx: 'stomp_text' },
   ppik: { anims: ['common.squeeze_chicken'], fx: 'squeak_text' },
 };
 

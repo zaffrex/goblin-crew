@@ -11,7 +11,7 @@ import { TICK_MS } from './config';
 import { parseSceneArt, sceneDraws, tiltDrop } from './sceneArt';
 import { parseSpriteMeta } from './sprite';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { boardDrop, createScene, floorTarget, isBusy, runAction, sceneTap, sceneTick, tiltOf, type SceneData, type SceneState } from './scene';
+import { boardDrop, createScene, floorTarget, HOP, isBusy, runAction, sceneTap, sceneTick, tiltOf, type SceneData, type SceneState } from './scene';
 
 const art = parseSceneArt(artJson);
 const sprites = { jjuk: parseSpriteMeta(jjukJson), mukjik: parseSpriteMeta(mukjikJson), ppik: parseSpriteMeta(ppikJson) };
@@ -114,8 +114,12 @@ describe('보이는 탑승으로 기울기 정하기 (1-5-4절)', () => {
         sceneTick(data, s);
         const h = s.hops[who];
         const dd = d(s);
-        // 반대 끝 사람 발은 매 틱 지금 그리는 판 위에 있다(보간 없음).
-        if (other) expect(Math.round(footY(s, other)), label).toBe(top(dd, s.walkers[other].x));
+        // 반대 끝 사람 발은 매 틱 지금 그리는 판 위에 있다(보간 없음). 묵직이가 올라선 틱부터는 들썩(#414 1-6-6절)이라 판에서 최대 H 4 뜬다.
+        if (other && s.hops[other]?.kind === 'jostle') {
+          const gap = top(dd, s.walkers[other].x) - Math.round(footY(s, other));
+          expect(gap, label).toBeGreaterThanOrEqual(0);
+          expect(gap, label).toBeLessThanOrEqual(HOP.jostle.h);
+        } else if (other) expect(Math.round(footY(s, other)), label).toBe(top(dd, s.walkers[other].x));
         if (h && h.t >= h.crouch && h.t < h.crouch + h.air) {
           expect(dd, label).toBe(before); // 공중에서는 아직 착지 전 기울기
           lastAir = footY(s, who);
@@ -171,7 +175,7 @@ describe('보이는 탑승으로 기울기 정하기 (1-5-4절)', () => {
     expect(seen).toEqual([-3, 3]);
   });
 
-  it('정답 11번: U6 동안은 쭉이가 탄 기울기, 발사(`launch_to_hook`)가 시작되는 틱에 수평', () => {
+  it('정답 11번: U6 동안은 쭉이 + 판 끝에 뛰어오른 묵직이 기울기, 발사가 시작되는 틱에 묵직이 혼자, ⑦ 뒤 수평(#414)', () => {
     const s = ready();
     board(s, 'jjuk', 'seesaw_left');
     runAction(data, s, { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, null);
@@ -182,16 +186,17 @@ describe('보이는 탑승으로 기울기 정하기 (1-5-4절)', () => {
       const ev = s.current?.ev;
       if (ev?.type === 'anim' && ev.name === 'plank_bounce') {
         sawBounce = true;
-        expect(d(s)).toBe(-3); // 멈춘 기울기(그림 고르기용)는 그대로. 판은 U6 칸이 그린다
+        expect(d(s)).toBe(3); // 멈춘 기울기(그림 고르기용): 왼쪽 쭉이 1 + 오른쪽 묵직이 2. 판은 U6 칸이 그린다
       }
-      if (ev?.type === 'anim' && ev.name === 'launch_to_hook') {
+      if (ev?.type === 'anim' && ev.name === 'launch_to_hook' && s.current!.t === 0) {
         sawLaunch = true;
-        expect(d(s)).toBe(0);
+        expect(d(s)).toBe(6); // 쭉이가 빠지고 묵직이 혼자(1-6-4절 표 "판 위(d 6)")
         expect(boardDrop(data, s, 'jjuk')).toBe(0);
       }
     }
     expect([sawBounce, sawLaunch]).toEqual([true, true]);
     expect(s.puzzle.at.jjuk).toBe('hook');
+    expect(s.riding.mukjik).toBeUndefined();
     expect(d(s)).toBe(0);
   });
 
@@ -232,22 +237,19 @@ describe('보이는 탑승으로 기울기 정하기 (1-5-4절)', () => {
     expect(bounceFeet(s, 'jjuk')).toEqual([[0, 210], [1, 208], [2, 216]]);
   });
 
-  it('15번: 판 위 묵직이가 찧으면 먼저 바닥으로 내려서서 U6 동안 판 위 발이 없다(1-5-2절 "판 옆 바닥에서 찧는다")', () => {
+  it('15번: 묵직이가 밟은 끝에 올라탄 채 U6 칸을 따라 내려갔다 올라온다(1-6-5절, 판 위·바닥 둘 다)', () => {
     for (const end of ENDS) {
-      const s = ready();
-      board(s, 'mukjik', end);
-      runAction(data, s, { char: 'mukjik', verb: 'stomp', target: end }, null);
-      let n = 0;
-      for (let i = 0; i < 3000 && isBusy(s); i++) {
-        sceneTick(data, s);
-        if (s.current?.ev.type !== 'anim' || s.current.ev.name !== 'plank_bounce') continue;
-        n++;
+      for (const onBoard of [true, false]) {
+        const s = ready();
+        if (onBoard) board(s, 'mukjik', end);
+        runAction(data, s, { char: 'mukjik', verb: 'stomp', target: end }, null);
+        const feet = bounceFeet(s, 'mukjik');
+        // 밟은 끝 이벤트: 오른쪽 끝(x 284)은 218 → 220 → 212, 왼쪽 끝(x 220)은 217 → 219 → 213(1-5-4절 표)
+        expect(feet.map(([k]) => k)).toEqual([0, 1, 2]);
+        expect(feet.map(([, y]) => y)).toEqual(end === 'seesaw_right' ? [218, 220, 212] : [217, 219, 213]);
         expect(s.riding.mukjik).toBeUndefined();
-        expect(boardDrop(data, s, 'mukjik')).toBe(0);
-        // 바닥 점(y 240)에 내려서서 판 옆으로 걸어간 그 y에서 찧는다(#416).
-        expect(s.walkers.mukjik.y).toBe(data.screen.spots[end]!.board![1]);
+        expect(d(s)).toBe(0);
       }
-      expect(n).toBeGreaterThan(0);
     }
   });
 
@@ -265,7 +267,8 @@ describe('보이는 탑승으로 기울기 정하기 (1-5-4절)', () => {
       sceneTick(noTilt, s);
       if (s.current?.ev.type === 'anim' && s.current.ev.name === 'plank_bounce') {
         n++;
-        expect(Math.round(s.walkers.jjuk.y + boardDrop(noTilt, s, 'jjuk'))).toBe(top(-3, s.walkers.jjuk.x));
+        // 멈춘 기울기: 왼쪽 쭉이 1 + 판 끝에 뛰어오른 오른쪽 묵직이 2(#414)
+        expect(Math.round(s.walkers.jjuk.y + boardDrop(noTilt, s, 'jjuk'))).toBe(top(3, s.walkers.jjuk.x));
       }
     }
     expect(n).toBeGreaterThan(0);

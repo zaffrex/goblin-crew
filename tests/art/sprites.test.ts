@@ -105,11 +105,12 @@ describe('sprite sheets', () => {
         const [cw, ch] = meta.cell;
         expect(cw % 16).toBe(0);
         expect(ch % 16).toBe(0);
-        const frames = Object.values(meta.anims).flatMap((a) => a.frames);
-        expect(new Set(frames).size).toBe(frames.length);
+        // 칸은 한 번만 그린다. 앞 칸을 다시 쓰는 자세(`reuse`, #414)만 같은 칸 번호를 가리킬 수 있다.
+        const frames = [...new Set(Object.values(meta.anims).flatMap((a) => a.frames))];
         expect(png.width).toBe(cw * frames.length);
         expect(png.height).toBe(ch);
         expect(Math.max(...frames)).toBe(frames.length - 1);
+        expect(Math.min(...frames)).toBe(0);
       });
 
       it('기준점·히트 영역·머리 박스가 칸 안에 있다', () => {
