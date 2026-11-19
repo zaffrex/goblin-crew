@@ -367,3 +367,44 @@ export function headSource(meta: SpriteMeta): { x: number; y: number; width: num
 export function frameSourceX(meta: SpriteMeta, frame: number): number {
   return frame * meta.cell[0];
 }
+
+/**
+ * 낮은 자세 문턱(#464). 칸의 불투명 위끝이 시트 기본 `hit` 위끝보다 이만큼 **넘게** 낮을 때만 말풍선·별·▼가 따라 내려간다.
+ * 걷기·숨쉬기·쿵처럼 서 있는 자세는 위끝이 최대 5px 출렁여서(세 시트 실측) 앵커가 흔들리지 않게 묶어 둔다.
+ * 납작(27px 이상)·엉덩방아(10px 이상)·바구니에 숨기(13px 이상)는 넘는다. 값은 #464 완료 조건("머리 위 8px 안")과 같다.
+ */
+export const LOW_POSE_PX = 8;
+
+/**
+ * 칸마다 불투명 픽셀 위끝(칸 안 y, #464). 시트는 가로 한 줄(파이프라인 기록 5절)이다. 빈 칸은 null.
+ * `rgba`는 시트 전체 RGBA 바이트(`ImageData.data`), `width`는 시트 폭 px. 시트를 읽을 때 한 번만 부른다.
+ */
+export function cellTops(rgba: ArrayLike<number>, width: number, cell: readonly [number, number], count: number): (number | null)[] {
+  const [cw, ch] = cell;
+  const tops: (number | null)[] = [];
+  for (let i = 0; i < count; i++) {
+    let top: number | null = null;
+    for (let y = 0; y < ch && top === null; y++) {
+      const row = y * width + i * cw;
+      for (let x = 0; x < cw; x++) {
+        if (rgba[(row + x) * 4 + 3]! > 0) {
+          top = y;
+          break;
+        }
+      }
+    }
+    tops.push(top);
+  }
+  return tops;
+}
+
+/**
+ * 말풍선·별·▼의 높이(칸 안 y, #464). 기본은 시트 `hit` 위끝(지금까지와 같다).
+ * 지금 칸의 불투명 위끝이 그보다 `LOW_POSE_PX` 넘게 낮으면(납작·엉덩방아) 그 위끝을 쓰고 `low`로 표시한다.
+ * `low`면 호출자는 서 있기 히트 박스 위끝과 비교하지 않는다(그러면 다시 서 있는 높이로 올라간다).
+ */
+export function headTop(meta: SpriteMeta, cellTop: number | null): { y: number; low: boolean } {
+  const base = meta.hit[1];
+  if (cellTop !== null && cellTop - base > LOW_POSE_PX) return { y: cellTop, low: true };
+  return { y: base, low: false };
+}
