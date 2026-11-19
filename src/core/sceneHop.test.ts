@@ -202,7 +202,8 @@ describe('판 끝에서 다른 대상 한 번 누르기 = 내려서기 → 대�
     return { at: pos(s, id), facing: s.walkers[id].facing };
   }
 
-  for (const id of ['jjuk', 'mukjik', 'ppik'] as const) {
+  // 삑삑이 꽥은 원거리라 판에서 내려오지 않는다(#419, `sceneTilt.test.ts` "판 끝 삑삑이 꽥").
+  for (const id of ['jjuk', 'mukjik'] as const) {
     for (const end of ['seesaw_left', 'seesaw_right'] as const) {
       it(`${id} @ ${end}`, () => {
         for (const target of TARGETS) {
