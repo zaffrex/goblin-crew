@@ -257,7 +257,7 @@
 | 10 | `seesaw_end_taken` | 묵직이 `stomp` → `seesaw_left` 또는 `seesaw_right` | 그 끝에 다른 사람이 서 있음 | 없음 | 묵직이가 그 끝 바닥 점에서 멈춰 올려다본다(뛰지 않음, 1-6-2절) | L11 |
 | 11 | `seesaw_launch_jjuk` ★ | 묵직이 `stomp` → `seesaw_right` | `jjuk.at = seesaw_left`, 고리 빔 | `jjuk.at = hook`, 묵직이 `yard`(널빤지 옆으로 내려섬) | 묵직이가 오른쪽 끝에 높이 뛰어올라 쿵(1-6절) + 같은 틱에 U6 널빤지 튕김 + U2 쭉이 발사·고리 잡기 → U4 매달려 버티기, 묵직이 내려섬 | L12 |
 | 12 | `seesaw_launch_ppik` | 묵직이 `stomp` → `seesaw_right` | `ppik.at = seesaw_left`, 고리 빔 | `ppik.at = hook`, 묵직이 `yard` | U6 + 공용 발사 포즈 이동 → U7 삑삑이 매달려 삑삑삑 | L13 |
-| 13 | `seesaw_launch_bump` 💥 | 묵직이 `stomp` → `seesaw_right` | `seesaw_left`에 누가 있고 고리에도 누가 있음 | 게이지 −1, 두 사람 모두 `yard` | U6 + 날아간 사람이 매달린 사람과 부딪혀 둘이 바구니에 포개진다(공용 "납작") | 매달려 있던 사람 L14 |
+| 13 | `seesaw_launch_bump` 💥 | 묵직이 `stomp` → `seesaw_right` | `seesaw_left`에 누가 있고 고리에도 누가 있음 | 게이지 −1, 두 사람 모두 `yard` | U6 + 날아간 사람이 매달린 사람과 부딪혀 둘이 바구니에 포개진다(공용 "납작". 둘 다 납작 칸에서 멈춘 채 말풍선 → 끝나면 일어남 = `common.flatten_stay`, 바구니 안 좌우 6px씩 벌림, #357) | 매달려 있던 사람 L14 |
 | 14 | `seesaw_launch_wrong_way` 💥 | 묵직이 `stomp` → `seesaw_left` | `seesaw_right`에 누가 있음 | 게이지 −1, 그 사람 `yard`(빨랫줄 아래), 묵직이 `yard` | U6 + 오른쪽 위로 날아가 빨랫줄에 걸림 → U11 내복이 얼굴에 감김 → 공용 "엉덩방아" | 날아간 사람 L15 / 두 번째 L15b |
 | 15 | `seesaw_self_smack` 💥 | 묵직이 `stomp` → `seesaw_left` 또는 `seesaw_right` | 반대쪽 끝이 빔 | 게이지 −1, 묵직이 `yard` | 판 끝에 뛰어올라 쿵 + U6(밟은 끝) → 빈 반대쪽만 휙 들리고 되튐에 판이 묵직이를 튕겨 내 잔디에 납작(공용 "납작" + 별, 1-6-5절). ~~튀어 오른 반대쪽 널빤지가 이마를 친다~~(#414 전) | L16 / 두 번째 L16b |
 | 16 | `seesaw_walk_taken` | 아무나 걷기 → `seesaw_left` 또는 `seesaw_right` | 그 끝에 다른 사람이 서 있음 | 없음 | 끝 앞에서 멈춘다 | L17 |

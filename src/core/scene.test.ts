@@ -11,7 +11,7 @@ import { worldTargets } from './interact';
 import { seenSayKey } from './sayText';
 import { parseSpriteMeta, spriteBox, spriteFrame } from './sprite';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { activeFx, activeMarkerVisible, sayChars, sayDuration, approachPoint, bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, gaugeBeforeSay, gaugeDrop, isBusy, runAction, sceneLayout, sceneTap, sceneTick, tapContext, TIMING, type SceneData, type SceneState } from './scene';
+import { activeFx, activeMarkerVisible, sayChars, sayDuration, approachPoint, bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, gaugeBeforeSay, gaugeDrop, isBusy, runAction, sceneLayout, sceneTap, sceneTick, tapContext, RELEASE_SPREAD, TIMING, type SceneData, type SceneState } from './scene';
 import type { Point } from './viewport';
 
 const data: SceneData = { screen: screenJson as unknown as ScreenData, characters: charactersJson as CharactersData };
@@ -531,8 +531,9 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
     launch(s, 'jjuk');
     launch(s, 'ppik');
     expect(s.puzzle.at).toEqual({ jjuk: 'floor', mukjik: 'floor', ppik: 'floor' });
-    expect(at(s, 'jjuk')).toEqual(BASKET);
-    expect(at(s, 'ppik')).toEqual(BASKET);
+    // 같은 착지 점이라 좌우로 벌린다(#357 2번): 먼저 떨어진 삑삑이가 왼쪽, 나중에 떨어진 쭉이가 오른쪽.
+    expect(at(s, 'ppik')).toEqual({ x: BASKET.x - RELEASE_SPREAD, y: BASKET.y });
+    expect(at(s, 'jjuk')).toEqual({ x: BASKET.x + RELEASE_SPREAD, y: BASKET.y });
     // 규칙의 move 순서대로 떨어진다: 시소의 삑삑이 먼저, 고리의 쭉이가 위.
     expect(pair(s, 'jjuk', 'ppik')).toEqual(['ppik', 'jjuk']);
   });
@@ -584,8 +585,9 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
     s.shownGauge = 1;
     launch(s, 'ppik');
     expect(s.puzzle.gauge).toBe(5);
-    expect(at(s, 'jjuk')).toEqual(BASKET);
-    expect(at(s, 'ppik')).toEqual(BASKET);
+    // 기절 리셋은 이미 바닥 자리에 있던 사람을 그 점에 그대로 둔다(faintPoint): 벌린 자리 그대로다.
+    expect(at(s, 'ppik')).toEqual({ x: BASKET.x - RELEASE_SPREAD, y: BASKET.y });
+    expect(at(s, 'jjuk')).toEqual({ x: BASKET.x + RELEASE_SPREAD, y: BASKET.y });
   });
 
   it('#176: 고리 아닌 곳(시소 끝)에서 기절하면 바구니가 아니라 행동하러 걸어간 점에 선다', () => {
@@ -661,7 +663,8 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
     letGo(s, 'jjuk');
     launch(s, 'ppik');
     letGo(s, 'ppik');
-    expect(at(s, 'ppik')).toEqual(BASKET);
+    expect(at(s, 'jjuk')).toEqual({ x: BASKET.x - RELEASE_SPREAD, y: BASKET.y });
+    expect(at(s, 'ppik')).toEqual({ x: BASKET.x + RELEASE_SPREAD, y: BASKET.y });
     expect(pair(s, 'jjuk', 'ppik')).toEqual(['jjuk', 'ppik']);
     pick(s, 'mukjik'); // 지금 캐릭터 몸은 판정에서 빠지므로 제3자로 바꾼다
     // 바구니 안도 바닥(`floor`)이라 전환은 얼굴 상자다(ui-interaction.md 2-1절, #427). 두 얼굴이 겹치는 줄(y 186–194)을 누른다.

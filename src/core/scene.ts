@@ -655,14 +655,29 @@ function destination(data: SceneData, s: SceneState, char: CharacterId, to: stri
 }
 
 /**
+ * 같은 착지 점(`releasePoint`)에 두 번째 사람이 떨어질 때 벌리는 px(#357 2번). 먼저 있던 사람은 왼쪽으로, 새로 온 사람은
+ * 오른쪽으로 이만큼 옮긴다(둘 사이 12px). 화면 1 바구니(x 144~176) 안에 두 사람 발이 다 들어가는 값이다.
+ */
+export const RELEASE_SPREAD = 6;
+
+/**
  * 순간 배치될 때 설 점. `hold` 자리(또는 `via`로 거친 자리)에서 그 `releaseTo`로 떨어지면 `releasePoint`(바구니 안 착지 점),
- * 아니면 `destination`. 두 사람이 같은 점에 떨어져도 된다(포개짐, 형식 기록 6절 2번).
+ * 아니면 `destination`. 두 사람이 같은 점에 떨어지면 포개지되(형식 기록 6절 2번) 좌우로 조금 벌린다(#357 2번):
+ * 그 점에 멈춰 선 사람이 이미 있으면 그 사람을 `RELEASE_SPREAD`만큼 왼쪽으로, 새로 온 사람을 오른쪽으로 놓는다.
+ * 그림 전용이다(퍼즐 자리는 둘 다 같은 바닥 자리).
  */
 function landing(data: SceneData, s: SceneState, char: CharacterId, from: string, to: string): Point {
   const h = data.screen.spots[from];
   if (h?.hold === true && h.releasePoint && h.releaseTo === to) {
     delete s.floorTo[char];
-    return { x: h.releasePoint[0], y: h.releasePoint[1] };
+    const [x, y] = h.releasePoint;
+    const there = CHARACTERS.find((c) => {
+      const w = s.walkers[c.id];
+      return c.id !== char && w.target === null && w.x === x && w.y === y;
+    });
+    if (!there) return { x, y };
+    s.walkers[there.id].x = x - RELEASE_SPREAD;
+    return { x: x + RELEASE_SPREAD, y };
   }
   return destination(data, s, char, to);
 }
