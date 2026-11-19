@@ -13,7 +13,8 @@ import { join } from 'node:path';
 import { stateKey } from '../../src/core/puzzle/bfs';
 import { screenHost } from '../../src/core/puzzle/check';
 import { step } from '../../src/core/puzzle/step';
-import type { CharactersData, PuzzleState, ScreenData } from '../../src/core/puzzle/types';
+import { characterDef } from '../../src/core/characters';
+import { FLOOR, type Action, type CharactersData, type PuzzleState, type ScreenData, type StepResult } from '../../src/core/puzzle/types';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const load = (...p: string[]): unknown => JSON.parse(readFileSync(join(ROOT, ...p), 'utf8'));
@@ -34,25 +35,27 @@ function sheetAnims(char: string): Set<string> {
   return new Set(Object.keys(meta.anims ?? {}));
 }
 
-/** 화면에서 캐릭터가 받을 수 있는 `캐릭터:자세` 전부. */
-function screenPoses(screen: ScreenData): string[] {
-  const host = screenHost(screen, characters);
-  const chars = new Set(Object.keys(screen.start.at));
-  const holdSpots = new Set(Object.entries(screen.spots).filter(([, s]) => s.hold).map(([id]) => id));
-  const out = new Set<string>();
-  for (const c of chars) out.add(`${c}:idle`).add(`${c}:walk`);
-  for (const item of screen.onEnter ?? []) {
-    if ('anim' in item && chars.has(item.anim[0])) out.add(`${item.anim[0]}:${item.anim[1]}`);
-  }
+/**
+ * 도달 가능한 클리어 전 상태 × 모든 행동을 진짜 `step`으로 한 번씩 돌린다(#67 BFS와 같은 호스트).
+ * `invalid`(엔진이 거르는 행동)는 넘긴다. 자세 장부와 반응 검사(#469)가 같이 쓴다.
+ */
+function eachStep(
+  screen: ScreenData,
+  chars: CharactersData,
+  visit: (s: PuzzleState, a: Action, r: StepResult) => void,
+): PuzzleState[] {
+  const host = screenHost(screen, chars);
   const seen = new Set<string>([stateKey(host.initial)]);
+  const states: PuzzleState[] = [];
   const queue: PuzzleState[] = [host.initial];
   while (queue.length) {
     const s = queue.shift()!;
-    for (const [c, at] of Object.entries(s.at)) if (holdSpots.has(at)) out.add(`${c}:hold`);
+    states.push(s);
     if (host.isClear(s)) continue;
     for (const a of host.actions(s)) {
-      const r = step(screen, s, a, characters);
-      for (const e of r.events) if (e.type === 'anim' && chars.has(e.target)) out.add(`${e.target}:${e.name}`);
+      const r = step(screen, s, a, chars);
+      if (r.source === 'invalid') continue;
+      visit(s, a, r);
       const k = stateKey(r.state);
       if (!seen.has(k)) {
         seen.add(k);
@@ -60,7 +63,58 @@ function screenPoses(screen: ScreenData): string[] {
       }
     }
   }
+  return states;
+}
+
+/** 화면에서 캐릭터가 받을 수 있는 `캐릭터:자세` 전부. */
+function screenPoses(screen: ScreenData): string[] {
+  const chars = new Set(Object.keys(screen.start.at));
+  const holdSpots = new Set(Object.entries(screen.spots).filter(([, s]) => s.hold).map(([id]) => id));
+  const out = new Set<string>();
+  for (const c of chars) out.add(`${c}:idle`).add(`${c}:walk`);
+  for (const item of screen.onEnter ?? []) {
+    if ('anim' in item && chars.has(item.anim[0])) out.add(`${item.anim[0]}:${item.anim[1]}`);
+  }
+  const states = eachStep(screen, characters, (_s, _a, r) => {
+    for (const e of r.events) if (e.type === 'anim' && chars.has(e.target)) out.add(`${e.target}:${e.name}`);
+  });
+  for (const s of states) for (const [c, at] of Object.entries(s.at)) if (holdSpots.has(at)) out.add(`${c}:hold`);
   return [...out].sort();
+}
+
+/**
+ * 플레이어가 이 상태에서 누를 수 있는 행동인가. `src/core/interact.ts` `resolveTap`과 같은 규칙이다.
+ * 입력은 "얼굴 고르기 → 물건 누르기"뿐이라 동사는 `move`와 그 캐릭터 특기 하나다. `look`·`hand`·`item`은 UI에 없다(아이템 칸은 M2).
+ * - 핫스팟 → 특기
+ * - 상자 있는 자리 → 다른 자리면 `move`, 내가 선 자리나 `hold` 자리면 특기
+ * - 바닥(상자 없는 자리) → 바닥·`free`가 아닐 때만 `move floor`(내려오기). 바닥에 특기는 못 쓴다
+ * UI 판정이 바뀌면 여기도 바꾼다.
+ */
+function isTappable(screen: ScreenData, s: PuzzleState, a: Action): boolean {
+  const ability = characterDef(a.char).ability;
+  if (screen.hotspots[a.target]) return a.verb === ability;
+  const spot = screen.spots[a.target];
+  if (spot?.box) return a.verb === (s.at[a.char] !== a.target && !spot.hold ? 'move' : ability);
+  const here = screen.spots[s.at[a.char]];
+  return a.verb === 'move' && a.target === FLOOR && s.at[a.char] !== FLOOR && !here?.free;
+}
+
+/**
+ * 눌렀는데 보이는 반응이 없는 행동(#469, 회고 #1 A2). 걷기만 하고 끝나면 반응이 아니다(#266 첫 클릭 무반응).
+ * 반응 = 걷기 말고 다른 이벤트 하나 이상(자세·말풍선·효과·게이지·손 놓기·배치·기절·클리어),
+ * 또는 `move`로 실제로 자리가 바뀜(걸어가 서는 것 자체가 결과다).
+ * 돌려주는 줄: `캐릭터.동사@대상 (source) ← 상태`. 같은 행동은 처음 만난 상태 하나만 적는다.
+ */
+function silentActions(screen: ScreenData, chars: CharactersData): string[] {
+  const out = new Map<string, string>();
+  eachStep(screen, chars, (s, a, r) => {
+    if (!isTappable(screen, s, a)) return;
+    if (r.events.some((e) => e.type !== 'walk')) return;
+    if (a.verb === 'move' && r.state.at[a.char] !== s.at[a.char]) return;
+    const key = `${a.char}.${a.verb}@${a.target} (${r.source})`;
+    if (!out.has(key)) out.set(key, `${key} ← ${JSON.stringify({ at: s.at, flags: Object.keys(s.flags).filter((f) => s.flags[f]) })}`);
+  });
+  return [...out.values()].sort();
 }
 
 const screens = readdirSync(join(ROOT, 'content', 'screens'))
@@ -82,5 +136,46 @@ describe('화면 자세 장부 (#142, 판정 2 시작 조건)', () => {
   it('MISSING에 없는 화면 이름이 없다', () => {
     const ids = new Set(screens.map((s) => s.id));
     for (const id of Object.keys(MISSING)) expect(ids.has(id), id).toBe(true);
+  });
+});
+
+describe('반응 없는 행동 (#469, 회고 #1 A2)', () => {
+  // 막다른 상태는 BFS(#454)가, 히트 상자·겹침은 replay가 잡는다. 여기서는 "눌렀는데 아무 일 없음"만 본다.
+  it.each(screens.map((s) => [s.id, s] as const))('%s: 누를 수 있는 행동마다 보이는 반응이 있다', (id, screen) => {
+    const silent = silentActions(screen, characters);
+    console.info(`[${id}] 반응 없는 행동 ${silent.length}개`);
+    // 실패하면: 그 대상에 규칙·핫스팟 폴백을 주거나, characters.json 특기 폴백 말풍선이 빠졌는지 본다.
+    expect(silent, `${id}: 반응 없는 행동`).toEqual([]);
+  });
+
+  const nest = screens.find((s) => s.id === 'magpie_nest')!;
+
+  it('핫스팟 폴백과 특기 폴백 말풍선을 둘 다 지우면 잡는다', () => {
+    // 화면 1은 모든 핫스팟에 쭉이 특기 폴백이 있어 캐릭터 공통 폴백까지 내려가지 않는다. 그래서 둘 다 지운다.
+    const screen = structuredClone(nest);
+    for (const fb of Object.values(screen.fallbacks ?? {})) delete fb.stretch;
+    const chars = structuredClone(characters);
+    delete chars.fallbacks!.jjuk!.stretch;
+    const silent = silentActions(screen, chars);
+    expect(silent.length).toBeGreaterThan(0);
+    expect(silent.every((l) => l.startsWith('jjuk.stretch@') && l.includes('(characterFallback)'))).toBe(true);
+  });
+
+  it('규칙 연출을 지우고 플래그만 바꾸면 잡는다', () => {
+    const screen = structuredClone(nest);
+    const rule = screen.rules.find((r) => r.show?.length && r.do && !r.do.move && !r.do.gauge && !r.do.give && !r.do.take);
+    expect(rule, '플래그만 바꾸는 규칙이 화면 1에 있어야 한다').toBeDefined();
+    rule!.show = [];
+    const silent = silentActions(screen, characters);
+    expect(silent.some((l) => l.includes('(rule)'))).toBe(true);
+  });
+
+  it('자리가 차서 막혔는데 연출이 없으면 잡는다', () => {
+    // 걸어가 서는 `move`는 반응으로 치므로(통과 테스트), 막힌 `move`만 목록에 나와야 한다.
+    const screen = structuredClone(nest);
+    for (const spot of Object.values(screen.spots)) delete spot.takenShow;
+    const silent = silentActions(screen, characters);
+    expect(silent.length).toBeGreaterThan(0);
+    expect(silent.every((l) => l.includes('.move@') && l.includes('(blocked)'))).toBe(true);
   });
 });
