@@ -10,7 +10,7 @@ import { TICK_MS, WALK_AREA, WALK_SPEED } from './config';
 import { hitTest, type HitBox } from './hit';
 import { inHudZone } from './hud';
 import { hotspotBox, hudTargets, tap, type Intent, type TapContext, type UiState } from './interact';
-import { animOf, animTicks, type SceneAnim, type SceneArtMeta } from './sceneArt';
+import { animOf, animTicks, tiltDrop, type SceneAnim, type SceneArtMeta, type SceneObject } from './sceneArt';
 import { FX_TICKS, fxTicks } from './fx';
 import { sayText, seenSayKey } from './sayText';
 import { cueMs, spriteFacing, spriteFrame, spriteHit, type Pose, type SpriteMeta } from './sprite';
@@ -85,6 +85,12 @@ export interface Hop {
   air: number;
   land: number;
   h: number;
+  /** 올라서기면 true, 내려서기면 false. */
+  up: boolean;
+  /** 깡충의 판 쪽 자리 ID(올라서기 = 도착, 내려서기 = 출발). 기울기 물건을 찾는 데 쓴다(형식 기록 12절). */
+  spot: string;
+  /** 내려서기: 뜰 때 판 위 발이 내려가 있던 px(그 순간의 기울기). 공중 동안 0으로 줄인다. 올라서기는 0. */
+  fromDrop: number;
 }
 
 /** `walk` 이벤트 하나를 이루는 구간(#397). 보통은 걷기 하나이고, 시소 끝에 오르내리면 걷기와 깡충 둘이다. */
@@ -186,6 +192,13 @@ export interface SceneState {
   seenSay: Record<string, true>;
   /** 시소 끝에 오르내리는 중인 깡충(#397). 그림·판정은 걷기(walker) 좌표를 그대로 쓰고, 자세만 `step_up`으로 바뀐다. */
   hops: Partial<Record<CharacterId, Hop>>;
+  /**
+   * "보이는 탑승"(`magpie_nest.md` 1-5-4절, 형식 기록 12절): 판(`board` 자리) 위에 **그려지고 있는** 사람 → 올라탄 자리 ID.
+   * 퍼즐 `at`은 걷기 전에 바뀌어서 쓰지 않는다(`isHanging`과 같은 이유). 켜기: 올라서기 착지 칸 시작, `board` 자리로 순간 배치·기절 리셋·처음 배치.
+   * 끄기: 내려서기가 뜰 때, 그 사람의 캐릭터 anim이 시작될 때 `at`이 이미 `board` 자리가 아니면(발사 `launch_to_hook`), 다른 자리로 순간 배치.
+   * 그림 전용이다(기울기 칸, 판 위 발 높이). 판정·히트 박스는 안 쓴다.
+   */
+  riding: Partial<Record<CharacterId, string>>;
   cleared: boolean;
 }
 
@@ -231,6 +244,25 @@ function spotPoint(data: SceneData, spotId: string): Point {
 }
 
 const isFree = (data: SceneData, spotId: string): boolean => data.screen.spots[spotId]?.free === true;
+/** 올라탈 판 끝(`board` 바닥 점이 있는 서는 자리)인가. */
+const hasBoard = (data: SceneData, spotId: string): boolean => data.screen.spots[spotId]?.board !== undefined;
+
+/** 순간 배치·리셋으로 `spot`에 놓였다: 판 끝이면 탄 것으로, 아니면 내린 것으로 센다(1-5-4절 "리셋·로드는 바로 센다"). */
+function setRiding(data: SceneData, s: SceneState, char: CharacterId, spot: string): void {
+  if (hasBoard(data, spot)) s.riding[char] = spot;
+  else delete s.riding[char];
+}
+
+/** 바닥 걷기 목표가 물건의 `noFloor` 상자 안이면 그 y로 옮긴다(형식 기록 12절, 설계 1-5-2절 "바닥 클릭 구멍 막기"). */
+export function floorTarget(data: SceneData, p: Point): Point {
+  for (const o of data.art?.objects ?? []) {
+    const nf = o.noFloor;
+    if (!nf) continue;
+    const [x, y, w, h] = nf.box;
+    if (p.x >= x && p.x < x + w && p.y >= y && p.y < y + h) return { x: p.x, y: nf.y };
+  }
+  return p;
+}
 
 /** 처음 배치. 바닥 자리에 선 캐릭터는 자리 좌표를 중심으로 40px씩 벌려 세운다. */
 export function createScene(data: SceneData): SceneState {
@@ -242,6 +274,8 @@ export function createScene(data: SceneData): SceneState {
     const at = isFree(data, spotId) ? clampToArea({ x: p.x + (i - 1) * 40, y: p.y }, WALK_AREA) : p;
     walkers[c.id] = createWalker(c.id, at);
   });
+  const riding: Partial<Record<CharacterId, string>> = {};
+  for (const c of CHARACTERS) if (hasBoard(data, puzzle.at[c.id]!)) riding[c.id] = puzzle.at[c.id]!;
   const s: SceneState = {
     tick: 0,
     puzzle,
@@ -262,6 +296,7 @@ export function createScene(data: SceneData): SceneState {
     reach: {},
     seenSay: {},
     hops: {},
+    riding,
     cleared: false,
   };
   // onEnter는 상태를 바꾸지 않는 연출이다(ADR-0065 5절). say 화자는 캐릭터 ID만 온다.
@@ -480,7 +515,7 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
     s.queue.push(face === null ? { type: 'walk', char: action.char, from: spot, to: spot } : { type: 'walk', char: action.char, from: spot, to: spot, face });
   }
   deferShown(data, s, before, events);
-  if (to) s.floorTo[action.char] = to;
+  if (to) s.floorTo[action.char] = floorTarget(data, to);
   // 장대 대상 점: `reachPoint`, 없으면 대상 상자 아래 끝 가운데(#284: 고리 뻗기 실패는 집게가 고리 "바로 아래"에서 멈춘다).
   const rp = data.screen.hotspots[action.target]?.reachPoint;
   const tb = rp ? null : targetBox(data.screen, prev, action.target);
@@ -570,6 +605,8 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
     case 'walk': {
       const p = destination(data, s, ev.char, ev.to);
       s.spotOf[ev.char] = ev.to;
+      // 판 끝 ↔ 끝은 판 위로 걷는다(깡충 없음). 계속 탄 채라 자리만 바꾼다(어느 쪽 무게인지는 지금 x로 센다).
+      if (s.riding[ev.char] !== undefined && hasBoard(data, ev.to)) s.riding[ev.char] = ev.to;
       const playing: Playing = { ev, t: 0, duration: null, seq, legs: walkLegs(data, ev.from, ev.to, p), end: p };
       nextLeg(data, s, playing);
       return playing;
@@ -577,17 +614,21 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
     case 'release':
       teleport(s.walkers[ev.char], landing(data, s, ev.char, ev.from, ev.to));
       s.spotOf[ev.char] = ev.to;
+      setRiding(data, s, ev.char, ev.to);
       s.landed[ev.char] = seq;
       return { ev, t: 0, duration: TIMING.release, seq };
     case 'place':
       teleport(s.walkers[ev.char], landing(data, s, ev.char, ev.via ?? ev.from, ev.to));
       s.spotOf[ev.char] = ev.to;
+      setRiding(data, s, ev.char, ev.to);
       s.landed[ev.char] = seq;
       return { ev, t: 0, duration: TIMING.place, seq };
     case 'faint':
       for (const c of CHARACTERS) {
         teleport(s.walkers[c.id], faintPoint(data, s, c.id, ev.to[c.id]));
+        delete s.hops[c.id];
         s.spotOf[c.id] = ev.to[c.id];
+        setRiding(data, s, c.id, ev.to[c.id]);
         s.landed[c.id] = seq;
       }
       s.faintCutUntil = s.tick + TIMING.faintCut;
@@ -601,6 +642,8 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
     case 'say':
       return { ev, t: 0, duration: sayDuration(data, ev.speaker, ev.text), seq };
     case 'anim': {
+      // 캐릭터 anim이 시작될 때 퍼즐 자리가 이미 판 끝이 아니면 판에서 빠진다(발사 `launch_to_hook`, 1-5-4절). 이름은 보지 않는다.
+      if (isCharacter(ev.target) && !hasBoard(data, s.puzzle.at[ev.target] ?? '')) delete s.riding[ev.target];
       // 물건 anim은 갈래를 anim 직전 보이는 플래그로 고르고(4-1절), 그 길이가 busy 길이다(5절). 없으면 임시 길이.
       const obj = data.art?.objects.find((o) => o.ids.includes(ev.target));
       const art = data.art && obj ? animOf(data.art, ev.target, ev.name, shownFlags(s, obj.key)) : null;
@@ -632,13 +675,13 @@ function walkLegs(data: SceneData, from: string, to: string, p: Point): WalkLeg[
 const msTicks = (ms: number): number => Math.max(1, Math.round(ms / TICK_MS));
 
 /** 깡충 시간(틱). 웅크림·공중은 시트 `step_up` `ms`가 있으면 그 값(ADR-0007: 지속 시간은 시트 데이터), 없으면 `HOP` 표. */
-function hopTiming(data: SceneData, id: CharacterId, up: boolean): Pick<Hop, 'crouch' | 'air' | 'land' | 'h'> {
+function hopTiming(data: SceneData, id: CharacterId, up: boolean): Pick<Hop, 'crouch' | 'air' | 'land' | 'h' | 'up'> {
   const land = msTicks(HOP.landMs);
-  if (!up) return { crouch: 0, air: msTicks(HOP.down.airMs), land, h: HOP.down.h };
+  if (!up) return { crouch: 0, air: msTicks(HOP.down.airMs), land, h: HOP.down.h, up };
   const def = HOP.up[id];
   const a = data.sprites?.[id]?.anims.step_up;
   const ms = a && 'ms' in a && a.ms.length >= 2 ? a.ms : [def.crouchMs, def.airMs];
-  return { crouch: msTicks(ms[0]!), air: msTicks(ms[1]!), land, h: def.h };
+  return { crouch: msTicks(ms[0]!), air: msTicks(ms[1]!), land, h: def.h, up };
 }
 
 /** 깡충 t틱의 발 위치. 웅크림 동안 `from`, 공중은 x 직선 + y 포물선, 착지 동안 `to`. 소수 좌표다(그릴 때 반올림). */
@@ -661,6 +704,8 @@ function tickHops(s: SceneState): void {
     if (!h) continue;
     h.t += 1;
     const w = s.walkers[c.id];
+    // 착지 칸이 시작되는 틱에 판에 탄다 → 같은 틱에 기울기·이미 서 있던 사람 발이 새 값으로 간다(1-5-4절).
+    if (h.up && h.t >= h.crouch + h.air) s.riding[c.id] = h.spot;
     if (h.t >= h.crouch + h.air + h.land) {
       teleport(w, h.to);
       delete s.hops[c.id];
@@ -684,7 +729,11 @@ function nextLeg(data: SceneData, s: SceneState, p: Playing): void {
       w.target = leg.to.x === w.x && leg.to.y === w.y ? null : { ...leg.to };
       w.walkTicks = 0;
     } else {
-      s.hops[id] = { from: { x: w.x, y: w.y }, to: { ...leg.to }, t: 0, ...hopTiming(data, id, leg.up) };
+      // 올라서기는 도착 자리, 내려서기는 떠나는 자리가 판 끝이다. 내려서기는 뜨는 틱에 판에서 빠진다(1-5-4절).
+      const spot = leg.up ? p.ev.to : p.ev.from;
+      const fromDrop = leg.up ? 0 : boardDrop(data, s, id);
+      if (!leg.up) delete s.riding[id];
+      s.hops[id] = { from: { x: w.x, y: w.y }, to: { ...leg.to }, t: 0, ...hopTiming(data, id, leg.up), spot, fromDrop };
     }
   }
 }
@@ -721,6 +770,49 @@ export function charEvent(s: SceneState, id: CharacterId): { name: string; ms: n
 export function isHanging(data: SceneData, s: SceneState, id: CharacterId): boolean {
   const w = s.walkers[id];
   return Object.values(data.screen.spots).some((spot) => spot.hold === true && spot.x === w.x && spot.y === w.y);
+}
+
+/** 기울기 물건(형식 기록 12절) 중 이 자리를 맡은 것. 없으면 null. */
+function tiltObject(data: SceneData, spot: string): (SceneObject & { tilt: NonNullable<SceneObject['tilt']> }) | null {
+  const o = data.art?.objects.find((x) => x.tilt && x.ids.includes(spot));
+  return o?.tilt ? (o as SceneObject & { tilt: NonNullable<SceneObject['tilt']> }) : null;
+}
+
+/**
+ * 물건의 지금 기울기 d(`magpie_nest.md` 1-5-4절, 형식 기록 12절). 그 물건 자리에 "보이게 탄"(`riding`) 사람만 센다.
+ * 어느 쪽 무게인지는 자리 이름이 아니라 지금 발 x가 축(`pivot`) 어느 쪽인가로 정한다(판 위 끝 ↔ 끝 걷기는 축을 넘는 틱에 바뀐다).
+ * 그림 전용이다. 퍼즐 코어·규칙은 무게를 모른다.
+ */
+export function tiltOf(data: SceneData, s: SceneState, objectKey: string): number {
+  const o = data.art?.objects.find((x) => x.key === objectKey);
+  const t = o?.tilt;
+  if (!o || !t) return 0;
+  let sum = 0;
+  for (const c of CHARACTERS) {
+    const spot = s.riding[c.id];
+    if (spot === undefined || !o.ids.includes(spot)) continue;
+    const x = s.walkers[c.id].x;
+    sum += (x > t.pivot ? 1 : x < t.pivot ? -1 : 0) * (t.weight[c.id] ?? 1);
+  }
+  return t.step * sum;
+}
+
+/**
+ * 판 위 발이 내려간 px(그리기 전용, 1-5-4절). 엔진은 캐릭터를 (x, y + 이 값)에 그린다. 히트 박스·발 y 순서는 그대로다(6px 이하).
+ * - 탄 사람: 지금 기울기로 지금 x 열의 판 높이.
+ * - 올라서기 공중: **착지 전** 기울기의 도착 열 높이를 향해 0 → 그 값으로(#406). 착지 칸부터는 탄 사람이다.
+ * - 내려서기 공중: 뜰 때 높이 → 0. 바닥 점은 판 앞 바닥이라 0이다.
+ */
+export function boardDrop(data: SceneData, s: SceneState, id: CharacterId): number {
+  const h = s.hops[id];
+  if (h && !h.up) return h.t < h.air ? h.fromDrop * (1 - h.t / h.air) : 0;
+  const spot = s.riding[id] ?? (h?.up ? h.spot : undefined);
+  const o = spot === undefined ? null : tiltObject(data, spot);
+  if (!o) return 0;
+  const d = tiltOf(data, s, o.key);
+  if (s.riding[id] !== undefined) return tiltDrop(o.tilt, d, s.walkers[id].x);
+  if (!h || h.t < h.crouch) return 0;
+  return ((h.t - h.crouch) / h.air) * tiltDrop(o.tilt, d, h.to.x);
 }
 
 /** 장면 상태 → 시트 자세(engine/sprites.ts `drawSprite`). 연출은 이벤트로만 안다(ADR-0065 5절). */
@@ -841,6 +933,8 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
       const w = s.walkers[cur.ev.char];
       delete s.hops[cur.ev.char];
       cur.legs = [];
+      // 깡충까지 건너뛰니 기울기도 바로 새 값이다(1-5-2절). 판 끝으로 가면 탄 것, 아니면 내린 것.
+      setRiding(data, s, cur.ev.char, cur.ev.to);
       if (cur.end) teleport(w, cur.end);
       else if (w.target) teleport(w, w.target);
       return { kind: 'skipWalk' };
@@ -858,7 +952,7 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
   const intent = r.intent;
   // 컷이 남은 동안(faint 뒤 0.5초) 새 행동을 시작하면 컷을 바로 내린다. 말풍선과 겹치지 않게.
   if (intent.kind === 'walk' || intent.kind === 'act') s.faintCutUntil = 0;
-  if (intent.kind === 'walk') walkTo(s.walkers[s.ui.active], intent.to, WALK_AREA);
+  if (intent.kind === 'walk') walkTo(s.walkers[s.ui.active], floorTarget(data, intent.to), WALK_AREA);
   else if (intent.kind === 'act') runAction(data, s, intent.action, intent.to);
   return { kind: 'intent', intent };
 }

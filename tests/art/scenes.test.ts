@@ -195,6 +195,37 @@ describe('scene build (format v1)', () => {
       expect(problemsOf((s) => (s.objects!.magpie!.layer = 'top' as never))).toEqual([expect.stringContaining("layer 'top'")]);
     });
   });
+  describe('기울기·판 밑 바닥(12절, 개정 5)', () => {
+    const tilt = { step: 3, weight: { jjuk: 1, mukjik: 2 }, pivot: 247.5, run: 40, draw: { '-3': box(208, 212, 80, 4), 3: box(208, 208, 80, 4) } };
+    const withTilt = (s: SceneSrc) => {
+      s.objects!.seesaw!.tilt = { ...tilt, weight: { ...tilt.weight }, draw: { ...tilt.draw } };
+      s.objects!.seesaw!.noFloor = { box: [204, 200, 89, 38], y: 240 };
+    };
+    it('정상: 기울기 칸이 프레임이 되고 메타에 d → 칸 번호로 적힌다', () => {
+      const s = goodScene();
+      withTilt(s);
+      const r = buildScene(s, screen);
+      expect(r.problems).toEqual([]);
+      const seesaw = r.meta!.objects.find((o) => o.key === 'seesaw')!;
+      expect(Object.keys(seesaw.tilt!.frames).sort()).toEqual(['-3', '3']);
+      expect(seesaw.tilt).toMatchObject({ step: 3, pivot: 247.5, run: 40 });
+      expect(seesaw.noFloor).toEqual({ box: [204, 200, 89, 38], y: 240 });
+    });
+    it('키가 0이거나 step 배수가 아니면 막는다', () => {
+      expect(problemsOf((s) => { withTilt(s); s.objects!.seesaw!.tilt!.draw['0'] = box(208, 210, 80, 4); })).toEqual([expect.stringContaining("draw['0']")]);
+      expect(problemsOf((s) => { withTilt(s); s.objects!.seesaw!.tilt!.draw['4'] = box(208, 210, 80, 4); })).toEqual([expect.stringContaining("draw['4']")]);
+    });
+    it('기울기 칸이 히트 박스와 안 겹치면 막는다', () => {
+      expect(problemsOf((s) => { withTilt(s); s.objects!.seesaw!.tilt!.draw['3'] = box(10, 10, 4, 4); })).toEqual([expect.stringContaining('히트 박스')]);
+    });
+    it('board 자리가 없는 물건에 기울기를 달면 막는다', () => {
+      expect(problemsOf((s) => { s.objects!.nest!.tilt = { ...tilt, draw: { 3: box(130, 34, 30, 16) } } as never; })).toEqual([expect.stringContaining('board 자리가 없다')]);
+    });
+    it('weight가 양의 정수가 아니면, noFloor y가 상자 안이면 막는다', () => {
+      expect(problemsOf((s) => { withTilt(s); s.objects!.seesaw!.tilt!.weight = { jjuk: 0 }; })).toEqual([expect.stringContaining('weight')]);
+      expect(problemsOf((s) => { withTilt(s); s.objects!.seesaw!.noFloor!.y = 220; })).toEqual([expect.stringContaining('noFloor')]);
+    });
+  });
   describe('anim 갈래(4-1절, 개정 1)·배경 이름', () => {
     const withVariant = (s: SceneSrc) => {
       s.anims!['magpie.ruffle'] = {
