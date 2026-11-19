@@ -11,6 +11,7 @@ import { CHARACTERS, type CharacterId } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
 import { dustPush, FX_COLORS, FX_STYLE, FX_TEXT_SPOT, SHAKE_FX, shakeOffset } from './core/fx';
+import { drawnByShape, frameNudges, fxNudges, WATER_FX, waterParticles, type Nudge } from './core/fxShape';
 import type { HitBox } from './core/hit';
 import { cardFacePx, cardInput, cardPointer, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
 import { createFirstNotes, currentNote, noteGauge, noteSwitch, noteTap } from './core/firstNotes';
@@ -28,7 +29,7 @@ import { onPointerTap } from './engine/input';
 import { startLoop } from './engine/loop';
 import { drawHud } from './engine/hud';
 import { drawActiveMarker, drawCharacter, drawOutline, drawRoom, drawSpark, drawStompDust, drawTarget, drawTargets } from './engine/placeholder';
-import { drawSceneBg, drawSceneFrame, drawSceneFx, loadSceneArt, sceneArtMeta } from './engine/sceneArt';
+import { drawParticles, drawSceneBg, drawSceneFrame, drawSceneFx, loadSceneArt, sceneArtMeta } from './engine/sceneArt';
 import { drawHead, drawSprite, spriteMetas, spriteState, type SpriteTop } from './engine/sprites';
 import { drawFxText, fxTextState } from './engine/fxText';
 import { hudIconState, paintHudIcon } from './engine/hudIcons';
@@ -249,6 +250,21 @@ function anchorOf(target: string, layout: ReturnType<typeof sceneLayout>): Point
   return { x: box.left + box.width / 2, y: headY(box, spriteTops[target as CharacterId]) };
 }
 
+/** 대상 상자 아래 끝 가운데(내부 좌표). 물결(`ripple`)처럼 물에 닿은 자리에 띄우는 fx 기준점. */
+function footOf(target: string, layout: ReturnType<typeof sceneLayout>): Point | null {
+  const box: HitBox | undefined = layout.chars[target as CharacterId] ?? layout.hotspots[target] ?? layout.spots[target];
+  return box ? { x: box.left + box.width / 2, y: box.top + box.height } : null;
+}
+
+/** 임시 상자를 옮기는 fx(`nod`)만큼 옮긴 사본. 클릭 판정 상자(layout)는 그대로다. */
+function nudgeBoxes(boxes: Record<string, HitBox>, nudges: Readonly<Record<string, Nudge>>): Record<string, HitBox> {
+  if (Object.keys(nudges).length === 0) return boxes;
+  return Object.fromEntries(Object.entries(boxes).map(([id, b]) => {
+    const n = nudges[id];
+    return [id, n ? { ...b, left: b.left + n.dx, top: b.top + n.dy } : b];
+  }));
+}
+
 /**
  * 말풍선 화자 상자(#329): 가운데 x, 머리 위끝, 발끝. 내부 좌표. 위로 넘치면 발 아래로 뒤집는다.
  * `frameBox`(그 물건이 지금 그리는 anim 칸 상자, 그림 형식 13절 #450)가 있으면 핫스팟 상자 대신 그걸 쓴다.
@@ -431,7 +447,9 @@ function render(): void {
   if (!bgDrawn) drawRoom(ctx, internal, WALK_AREA);
   const boxSpots = uncovered(layout.spots);
   const boxHotspots = uncovered(layout.hotspots);
-  drawTargets(ctx, boxSpots, boxHotspots);
+  // 글자 아닌 fx 중 물건을 옮기는 것(`nod`, #485): 임시 상자는 여기서, 시트 칸은 아래 `nudged`로 옮긴다.
+  const nudges = fxNudges(fxNow);
+  drawTargets(ctx, boxSpots, nudgeBoxes(boxHotspots, nudges));
 
   // 물건 그림(형식 기록 4·6절): 보이는 플래그로 멈춘 모습, 재생 중 물건 anim은 그 프레임.
   const playing = scene.current?.art ? { ...scene.current.art, ms: scene.current.t * TICK_MS } : null;
@@ -444,9 +462,10 @@ function render(): void {
     draws = sceneDraws(art.meta, { ...view, loopStarts: loopClock });
   }
   const lit = draws ? litFrames(art!.meta, draws, litTarget) : new Set<number>();
+  const nudged = draws ? frameNudges(art!.meta, draws, nudges) : new Map<number, Nudge>();
   // 효과 자리(형식 기록 11절)는 적힌 순서 그 자리에서 입자를 그린다. 배경이 없으면(9절 폴백) 효과도 그리지 않는다.
   for (const f of draws?.back ?? []) {
-    if (typeof f === 'number') drawSceneFrame(ctx, art!, f, lit.has(f));
+    if (typeof f === 'number') drawSceneFrame(ctx, art!, f, lit.has(f), nudged.get(f));
     else if (bgDrawn) drawSceneFx(ctx, f);
   }
 
@@ -468,7 +487,7 @@ function render(): void {
   const charArt: FrameArt['chars'][number][] = [];
   for (const it of items) {
     if (it.char === undefined) {
-      drawSceneFrame(ctx, art!, it.frame!, lit.has(it.frame!));
+      drawSceneFrame(ctx, art!, it.frame!, lit.has(it.frame!), nudged.get(it.frame!));
       continue;
     }
     const id = it.char;
@@ -487,9 +506,16 @@ function render(): void {
       spriteTops[id] = top;
     }
   }
-  for (const f of draws?.front ?? []) drawSceneFrame(ctx, art!, f, lit.has(f));
+  for (const f of draws?.front ?? []) drawSceneFrame(ctx, art!, f, lit.has(f), nudged.get(f));
   const fxArt: NonNullable<FrameArt['fx']>[number][] = [];
   for (const f of fxNow) {
+    // 물 입자 fx(`splash`·`ripple`, #485)는 물 4색 입자로. 옮기는 fx(`nod`)는 위에서 그림을 옮겼다. 둘 다 임시 별을 안 그린다.
+    const water = WATER_FX[f.effect];
+    if (water) {
+      const at = water.anchor === 'foot' ? footOf(f.target, layout) : anchorOf(f.target, layout);
+      if (at) drawParticles(ctx, waterParticles(f.effect, at, f.t));
+    }
+    if (drawnByShape(f.effect)) continue;
     const style = FX_STYLE[f.effect];
     // 소리 글자는 자리 예외(둥지)가 있으면 그 자리, 아니면 대상 그림 위 끝 가운데.
     const at = (style && FX_TEXT_SPOT[f.target]) || anchorOf(f.target, layout);

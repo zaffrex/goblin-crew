@@ -4,7 +4,8 @@
 // 이미지 로드 전·실패면 그리지 않고 false → main.ts가 임시 방·상자를 그린다(형식 기록 9절 폴백).
 
 import { parseSceneArt, type SceneArtMeta } from '../core/sceneArt';
-import { BOSONG_32, fxParticles, type SceneFxDraw } from '../core/sceneFx';
+import type { Nudge } from '../core/fxShape';
+import { BOSONG_32, fxParticles, type FxParticle, type SceneFxDraw } from '../core/sceneFx';
 import { assetUrl } from './assets';
 import { buildOutlined } from './outline';
 
@@ -69,19 +70,24 @@ export function drawSceneBg(ctx: CanvasRenderingContext2D, art: SceneArt | null)
 }
 
 /** 시트 프레임 하나를 제자리(`at`)에 그린다. `outlined`면 호버 외곽선 시트에서 자른다. 시트가 아직이면 아무것도 안 한다. */
-export function drawSceneFrame(ctx: CanvasRenderingContext2D, art: SceneArt, frame: number, outlined = false): void {
+export function drawSceneFrame(ctx: CanvasRenderingContext2D, art: SceneArt, frame: number, outlined = false, nudge: Nudge | undefined = undefined): void {
   if (!art.objectsReady) return;
   const f = art.meta.frames[frame];
   if (!f) return;
   const [sx, sy, w, h] = f.src;
   const source = outlined && art.outlined ? art.outlined : art.objects;
-  ctx.drawImage(source, sx, sy, w, h, f.at[0], f.at[1], w, h);
+  ctx.drawImage(source, sx, sy, w, h, f.at[0] + (nudge?.dx ?? 0), f.at[1] + (nudge?.dy ?? 0), w, h);
+}
+
+/** 물 입자 fx(core/fxShape.ts `waterParticles`) 사각형을 팔레트 색으로 칠한다. */
+export function drawParticles(ctx: CanvasRenderingContext2D, particles: readonly FxParticle[]): void {
+  for (const p of particles) {
+    ctx.fillStyle = BOSONG_32[p.color]!;
+    ctx.fillRect(p.x, p.y, p.size, p.size);
+  }
 }
 
 /** 효과 자리 하나(형식 기록 11-4절): 입자 사각형을 팔레트 색으로 칠한다. 반투명·블렌드 없음(ADR-0007). */
 export function drawSceneFx(ctx: CanvasRenderingContext2D, d: SceneFxDraw): void {
-  for (const p of fxParticles(d)) {
-    ctx.fillStyle = BOSONG_32[p.color]!;
-    ctx.fillRect(p.x, p.y, p.size, p.size);
-  }
+  drawParticles(ctx, fxParticles(d));
 }
