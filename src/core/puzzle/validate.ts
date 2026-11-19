@@ -247,7 +247,7 @@ export function validateCharacters(raw: unknown, ctx: ValidateContext): Validati
           if (field === 'hints') checkTextRef(c, ctx, v, kp);
           else if (c.obj(v, kp, ['show'])) {
             // 공통 실패 리액션: 행동한 캐릭터가 화자라 `self`·캐릭터만. 자리 정보가 없으니 `@자리`는 못 쓴다.
-            showList(c, ctx, v.show, `${kp}.show`, { spots: new Set(), targets: new Set(), self: true });
+            showList(c, ctx, v.show, `${kp}.show`, { spots: new Set(), targets: new Set(), hotspots: new Set(), self: true });
           }
         }
       }
@@ -272,11 +272,16 @@ interface ShowScope {
   spots: ReadonlySet<string>;
   /** `anim`·`fx` 대상으로 쓸 수 있는 핫스팟·서는 자리 ID. */
   targets: ReadonlySet<string>;
+  /** `say` 화자로 쓸 수 있는 핫스팟 ID(관리인·손님처럼 사람이 아닌 화자, #380). 서는 자리 ID는 화자가 아니다. */
+  hotspots: ReadonlySet<string>;
   /** `self`를 쓸 수 있나(행동한 캐릭터가 있는 연출). `onEnter`는 없다. */
   self: boolean;
 }
 
-/** 화자·대상: 캐릭터 ID, `self`, `@자리`. `anim`·`fx`는 핫스팟·서는 자리도 된다. */
+/**
+ * 화자·대상: 캐릭터 ID, `self`, `@자리`. `anim`·`fx`는 핫스팟·서는 자리도 된다.
+ * `say` 화자는 핫스팟까지만 된다(ADR-0065 5절 2026-11-19 개정, #380). 말풍선은 핫스팟 상자에 붙는다(`main.ts` `speakerBox`).
+ */
 function checkActorRef(c: Checker, v: unknown, path: string, scope: ShowScope, allowTargets: boolean): void {
   if (typeof v !== 'string') {
     c.err(path, 'schema', '문자열이어야 한다');
@@ -292,6 +297,7 @@ function checkActorRef(c: Checker, v: unknown, path: string, scope: ShowScope, a
   }
   if ((CHAR_IDS as readonly string[]).includes(v)) return;
   if (allowTargets && scope.targets.has(v)) return;
+  if (!allowTargets && scope.hotspots.has(v)) return;
   c.err(path, 'ref-actor', `없는 ${allowTargets ? '대상' : '화자'}: ${v}`);
 }
 
@@ -380,7 +386,8 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
 
   const isHold = (id: string): boolean => spots.get(id)?.hold === true;
   const isFree = (id: string): boolean => spots.get(id)?.free === true;
-  const scope = (self: boolean): ShowScope => ({ spots: spotIds, targets: targetIds, self });
+  const hotspotIds = new Set(hotspotEntries.map(([k]) => k));
+  const scope = (self: boolean): ShowScope => ({ spots: spotIds, targets: targetIds, hotspots: hotspotIds, self });
 
   const spotRef = (v: unknown, path: string): v is string => {
     if (typeof v !== 'string' || !spotIds.has(v)) {
