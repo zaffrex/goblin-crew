@@ -1,6 +1,6 @@
 {
   "id": "park_fountain",
-  "note": "엔딩 화면(설계 docs/design/screens/park_fountain.md, #380). 좌표는 회색 배치 v1(park_fountain-layout.json). 시작 좌표(엔진 배치, floor ±40): jjuk 336,244 / mukjik 376,244 / ppik 416,244. 아직 main.ts에 연결하지 않았다(화면 순서·그림은 별도 PR).",
+  "note": "엔딩 화면(설계 docs/design/screens/park_fountain.md, #380). 서는 자리·핫스팟 좌표는 이 파일이 진실이다(회색 배치 v1에서 옮김, 검사 docs/design/screens/park_fountain-layout.mjs). 시작 좌표(엔진 배치, floor ±40): jjuk 336,244 / mukjik 376,244 / ppik 416,244. 아직 main.ts에 연결하지 않았다(화면 순서·그림은 별도 PR).",
   "start": {
     "at": { "jjuk": "floor", "mukjik": "floor", "ppik": "floor" },
     "items": []

@@ -13,7 +13,7 @@
 //   - 분수대 테두리 돌 주색과 흙길 주색의 명도 차 ≥ 30 (park_fountain.md 1-1 "돌 색은 흙길과 뚜렷이 다르게", 단서 ②)
 //   - 물줄기 기둥 뒤 배경 주색과 물 밝음(26)·물보라(6)의 명도 차 ≥ 60
 //   - 재킷 두 자리 뒤 배경 주색과 재킷 주색의 명도 차 ≥ 60
-// 좌표는 park_fountain.md 1절·park_fountain-layout.json과 같다(그림이 좌표를 따른다). 빌드에 들어가지 않는 설계 자료다.
+// 좌표는 park_fountain.md 1절·화면 JSON content/screens/park_fountain.json과 같다(그림이 좌표를 따른다). 빌드에 들어가지 않는 설계 자료다.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { inflateSync, deflateSync } from 'node:zlib';
@@ -28,7 +28,8 @@ import { OBJECTS } from '../../../art/scenes/park_fountain.objects.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '../../..');
-const L = JSON.parse(readFileSync(join(HERE, 'park_fountain-layout.json'), 'utf8'));
+const SCREEN = JSON.parse(readFileSync(join(ROOT, 'content/screens/park_fountain.json'), 'utf8'));
+const L = { ...JSON.parse(readFileSync(join(HERE, 'park_fountain-layout.json'), 'utf8')), spots: SCREEN.spots, hotspots: SCREEN.hotspots };
 const W = 480, H = 270;
 const PATH_TOP = 198; // 흙길 시작(걷기 영역 위 끝 200보다 2px 위)
 const Y = PALETTE.map(([r, g, b]) => Math.round(0.299 * r + 0.587 * g + 0.114 * b));
