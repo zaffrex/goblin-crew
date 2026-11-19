@@ -17,6 +17,7 @@ export const FX_COLORS = {
   pinkL: '#ffc6d6',
   yelL: '#fff1a8',
   tealM: '#5a93a8',
+  aqua: '#d8f0ee',
 } as const;
 export type FxColor = keyof typeof FX_COLORS;
 
@@ -51,6 +52,7 @@ export const FX_STYLE: Readonly<Record<string, { color: FxColor; height: number 
   poof_text: { color: 'tan', height: 8 },
   quack_text: { color: 'white', height: 8 },
   kokee_text: { color: 'pinkL', height: 10 },
+  shaa_text: { color: 'aqua', height: 8 },
 };
 
 /**
