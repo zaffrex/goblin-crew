@@ -1,0 +1,37 @@
+// 시작 화면 고르기(#466). 배포본 기본은 화면 1이고, `?screen=<id>`로 다른 화면을 연다(재생·프레임 도구, 화면 2 확인용).
+// 화면 1 → 화면 2 넘어가기(클리어 카드 뒤 다음 화면)는 여기서 하지 않는다. M2 플래닝에서 따로 정한다.
+
+/** 파라미터가 없거나 모르는 ID일 때 여는 화면. 배포본 동작 그대로다. */
+export const DEFAULT_SCREEN = 'magpie_nest';
+
+export interface ScreenPick {
+  id: string;
+  /** `?screen=`에 모르는 ID가 왔으면 그 값(기본 화면으로 열고 콘솔에 알린다). */
+  unknown?: string;
+}
+
+/** `?screen=` 값(없으면 null)과 번들에 든 화면 ID 목록으로 시작 화면을 고른다. URL 읽기는 main.ts가 한다(코어는 DOM을 모른다). */
+export function pickScreen(want: string | null, ids: readonly string[]): ScreenPick {
+  if (!want || want === DEFAULT_SCREEN) return { id: DEFAULT_SCREEN };
+  if (ids.includes(want)) return { id: want };
+  return { id: DEFAULT_SCREEN, unknown: want };
+}
+
+/**
+ * 화면마다 다른 공용 글(`ui.*`). 화면 ID 아래 같은 이름 키(`<화면 ID>.card.goal` 등)가 있으면 그 글을 쓰고, 없으면 공용 키 그대로다.
+ * 지금 공용 값은 화면 1 글이다(`ui.card.goal` = 店のカギ…). 화면 2 글이 생기기 전에는 화면 2에서도 화면 1 목표가 보인다.
+ * `ui.clear`(클리어 카드)는 넣지 않는다. 카드는 `<id>.clearCard` + `ui.next`로 바뀔 예정이라(screen-transition-ui 결정) 그때 따로 한다.
+ */
+export const SCREEN_TEXT: Readonly<Record<string, string>> = {
+  'ui.intro': 'intro',
+  'ui.card.goal': 'card.goal',
+  'ui.card.why': 'card.why',
+};
+
+/** 글 ID를 이 화면에서 실제로 읽을 키로 바꾼다. */
+export function screenTextKey(texts: Readonly<Record<string, string>>, screenId: string, id: string): string {
+  const own = SCREEN_TEXT[id];
+  if (!own) return id;
+  const key = `${screenId}.${own}`;
+  return key in texts ? key : id;
+}

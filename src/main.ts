@@ -1,10 +1,9 @@
 // 부트스트랩: 엔진(브라우저)과 코어(순수 로직)를 연결한다.
-// 화면 1(magpie_nest)을 탭으로 처음부터 끝까지 푼다(#68). 캐릭터는 시트가 있으면 시트 그림(#140), 없으면 임시 실루엣이다.
+// 화면 1(magpie_nest, `?screen=<id>`로 다른 화면 #466)을 탭으로 처음부터 끝까지 푼다(#68). 캐릭터는 시트가 있으면 시트 그림(#140), 없으면 임시 실루엣이다.
 // 배경·물건은 화면 시트가 있으면 시트 그림(#157), 없으면 임시 방·상자다(형식 기록 9절).
 // 진행 로직은 core/scene.ts에 있다. 여기서는 입력을 넘기고, 결과를 그리고, DOM 말풍선·라벨을 띄운다.
 
 import charactersJson from '../content/characters.json';
-import screenJson from '../content/screens/magpie_nest.json';
 import texts from '../content/text/ja.json';
 import { sayText } from './core/sayText';
 import { bubbleFontPx, bubbleMaxWidth, bubbleTailInset, placeBubble, type BubbleAnchor, type BubbleOptions } from './core/bubble';
@@ -18,6 +17,7 @@ import { createFirstNotes, currentNote, noteGauge, noteSwitch, noteTap } from '.
 import { abilityText, cutFontPx, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
+import { pickScreen, screenTextKey } from './core/screenPick';
 import { activeFx, activeMarkerVisible, boardDrop, charPose, createScene, currentBubble, drawOrder, gaugeDrop, heldArtView, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, tiltOf, type SceneData } from './core/scene';
 import { animFrameBox, coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
@@ -49,9 +49,15 @@ const cardEl = need('#card');
 const loadingEl = need('#loading');
 const restartEl = need<HTMLButtonElement>('#restart');
 
-const screenData = screenJson as unknown as ScreenData;
+/** 번들에 든 화면 데이터(파일 이름 = 화면 ID). 13KB 안팎이라 다 넣고 `?screen=`으로 고른다(#466). */
+const SCREENS = new Map(
+  Object.entries(import.meta.glob<ScreenData>('../content/screens/*.json', { eager: true, import: 'default' })).map(([path, s]) => [path.replace(/^.*\/|\.json$/g, ''), s]),
+);
+const picked = pickScreen(new URLSearchParams(location.search).get('screen'), [...SCREENS.keys()]);
+if (picked.unknown) console.warn(`?screen=${picked.unknown}: 없는 화면이라 ${picked.id}로 엽니다`);
+const screenData = SCREENS.get(picked.id)!;
 const TEXT: Readonly<Record<string, string>> = texts;
-const t = (id: string): string => TEXT[id] ?? id;
+const t = (id: string): string => TEXT[screenTextKey(TEXT, screenData.id, id)] ?? id;
 /** 클리어 컷 글(L32, 설계 8절). 화면 문법에 필드가 없어 `<화면 ID>.clear` 텍스트가 있으면 쓴다. */
 const clearLine = `${screenData.id}.clear` in TEXT ? `${screenData.id}.clear` : undefined;
 const data: SceneData = {

@@ -18,6 +18,12 @@ npm run build && npx vite preview --port 4173 &   # 로컬 빌드로 먼저 볼 
 node --import ./scripts/playtest/register.mjs scripts/playtest/replay.ts --url http://localhost:4173/ --out /tmp/pt --no-sandbox
 ```
 
+화면 정답 풀기(#466): 아무 화면이나 `?screen=<id>`로 열고 화면 JSON의 `solution`을 실제 클릭(`--touch`면 탭)으로 끝까지 누른 뒤 `cleared`를 본다. 클리어 못 하거나 콘솔 에러가 있으면 종료 코드 1.
+
+```bash
+node --import ./scripts/playtest/register.mjs scripts/playtest/solve.ts --screen park_fountain --url http://localhost:4173/ --out /tmp/solve --no-sandbox
+```
+
 `register.mjs`는 `src/`의 확장자 없는 import(`./hit`)를 `.ts`로 풀어 주는 resolve 훅이다(의존성 없음, Node 22.15+). 스크린샷의 한글이 네모로 나오면 CJK 글꼴을 깐다(`sudo apt-get install fonts-noto-cjk`). 보고서에는 말풍선 DOM 글자를 따로 적으므로 글꼴이 없어도 판정은 된다.
 
 `--no-sandbox`는 신뢰하는 URL(우리 배포본, 로컬 빌드)에만 쓴다. `--url`로 아무 주소나 열 수 있으니 외부 사이트에는 쓰지 않는다.
