@@ -83,6 +83,9 @@
       }
       #card p { margin: 0; }
       #card .goal { font-size: 1.4em; font-weight: 700; color: #f2d65c; }
+      /* 목표·이유 줄(화면마다 바뀜, #479): CJK 글자 사이 자동 줄바꿈 금지. `。` `、` 뒤와 U+200B 자리에서만 접는다(6-5절 원칙).
+         nowrap이 아닌 이유: 카드 폭을 밀어 90% 상한을 넘기면 가로 스크롤이 된다. 끊을 자리 없이 넘칠 때만 아무 데서나 접는다(overflow-wrap). */
+      #card .goal, #card .why { word-break: keep-all; overflow-wrap: anywhere; }
       #card ul { list-style: none; margin: 0.4em 0; padding: 0; }
       /* 특기 줄·게이지 줄은 자동 줄바꿈 금지(낱말 중간 `高い所 / に届く` 방지, #335). 줄바꿈은 작가가 정한 곳만(6-5절 원칙). */
       #card li { display: flex; align-items: center; gap: 0.6em; white-space: nowrap; }
