@@ -90,13 +90,21 @@ describe('splash·ripple: 물 4색 입자 (#485)', () => {
     expect(waterParticles(fx, at, -1)).toEqual([]);
   });
 
-  it('splash: 처음엔 위로 솟고(기준점보다 위) 좌우로 퍼진다, 끝날 즈음 다 떨어진다', () => {
+  it('splash: 처음엔 위로 솟고(기준점보다 위) 좌우로 퍼진다, 끝나기 전에 다 떨어진다', () => {
     const early = waterParticles('splash', at, 8);
     expect(early.length).toBe(SPLASH_DROPS);
     expect(early.every((p) => p.y < at.y)).toBe(true);
     expect(Math.min(...early.map((p) => p.x))).toBeLessThan(at.x - 3);
     expect(Math.max(...early.map((p) => p.x))).toBeGreaterThan(at.x + 3);
-    expect(waterParticles('splash', at, FX_TICKS - 1).length).toBeLessThan(SPLASH_DROPS / 2);
+    // 공중에서 한꺼번에 사라지지 않게: 끝나기 몇 틱 전이면 이미 0개 (#486 리뷰)
+    expect(waterParticles('splash', at, FX_TICKS - 4)).toEqual([]);
+  });
+
+  it('splash: 머리 위 16px·좌우 24px 안에서만 튄다(머리에서 물을 뿜는 것처럼 보이지 않게, #486 리뷰)', () => {
+    const all = Array.from({ length: FX_TICKS }, (_, t) => waterParticles('splash', at, t)).flat();
+    expect(Math.min(...all.map((p) => p.y))).toBeGreaterThanOrEqual(at.y - 16);
+    expect(Math.max(...all.map((p) => Math.abs(p.x - at.x)))).toBeLessThanOrEqual(24);
+    expect(all.some((p) => p.color === WATER_COLORS[3])).toBe(false);
   });
 
   it('ripple: 고리가 기준점 둘레에서 퍼지고 납작하다(가로 > 세로)', () => {

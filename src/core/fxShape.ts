@@ -55,32 +55,33 @@ export function fxNudges(fx: readonly { effect: string; target: string; t: numbe
   return out;
 }
 
-/** 물 4색(bosong-32 번호): 밝음·중간·물보라 흰색·그림자. `park_fountain` 물줄기 `colors`와 같다. */
+/** 물 4색(bosong-32 번호): 밝음·중간·물보라 흰색·그림자. `park_fountain` 물줄기 `colors`와 같다. 입자는 앞의 셋만 쓴다(그림자 점은 얼굴 위 얼룩으로 읽힘, #486 리뷰). */
 export const WATER_COLORS = [26, 25, 6, 24] as const;
-const [BRIGHT, MID, SPRAY, SHADE] = WATER_COLORS;
+const [BRIGHT, MID, SPRAY] = WATER_COLORS;
 
-/** 물보라 방울 수와 중력(px/틱²). 0.5초(30틱) 안에 솟았다가 기준점 아래로 떨어져 사라진다. */
+/** 물보라 방울 수와 중력(px/틱²). 꼭대기는 기준점 위 약 15px, 25틱 안에 다 떨어져 사라진다(30틱 fx가 끝나기 전, 공중에서 툭 끊기지 않게). */
 export const SPLASH_DROPS = 24;
 const SPLASH_G = 0.22;
 /** 기준점보다 이만큼 더 떨어지면 사라진다(px). */
-const SPLASH_FLOOR = 6;
+const SPLASH_FLOOR = 2;
 
 /**
  * `splash`: 기준점(대상 머리 위끝 가운데)에서 부채꼴로 튀어 올라 떨어지는 물방울. 쭉이가 뿜는 물에 손을 넣었을 때(#5 다치는 실패).
- * 오르는 방울은 밝은 물 2px, 꼭대기 근처는 흰 물보라, 내려오는 방울은 중간 물 1~2px, 다 떨어질 즈음 그림자 색.
+ * 머리 위 약 15px까지만 솟는다. 더 높으면 쭉이 머리에서 물이 뿜는 것처럼 읽힌다(#486 리뷰).
+ * 오르는 방울은 밝은 물 2px, 꼭대기 근처는 흰 물보라, 내려오는 방울은 중간 물 1~2px.
  */
 function splash(at: { x: number; y: number }, t: number): FxParticle[] {
   const out: FxParticle[] = [];
   for (let i = 0; i < SPLASH_DROPS; i++) {
     const spread = (i / (SPLASH_DROPS - 1)) * 2 - 1 + (fxHash(i, 11) - 0.5) * 0.2; // −1 왼쪽 ~ 1 오른쪽
-    const vx = spread * 1.3;
-    const vy = -(2.4 + fxHash(i, 12) * 1.6) * (1 - 0.35 * Math.abs(spread));
+    const vx = spread * 0.9;
+    const vy = -(1.8 + fxHash(i, 12) * 0.8) * (1 - 0.35 * Math.abs(spread));
     const y = at.y + vy * t + 0.5 * SPLASH_G * t * t;
     if (y > at.y + SPLASH_FLOOR) continue;
     const peakT = -vy / SPLASH_G;
     const rising = t < peakT;
     const nearPeak = Math.abs(t - peakT) < 2.5;
-    const color = nearPeak || fxHash(i, 13) < 0.12 ? SPRAY : rising ? BRIGHT : y > at.y ? SHADE : MID;
+    const color = nearPeak || fxHash(i, 13) < 0.12 ? SPRAY : rising ? BRIGHT : MID;
     out.push({ x: Math.round(at.x + vx * t), y: Math.round(y), size: rising || fxHash(i, 14) < 0.5 ? 2 : 1, color });
   }
   return out;
