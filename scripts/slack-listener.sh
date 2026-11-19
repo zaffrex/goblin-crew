@@ -112,8 +112,9 @@ flush() {
     fi
     ctx="Slack에서 너를 불렀다. 먼저 아래 위치의 메시지와 스레드를 읽고(scripts/slack.sh --as <너의 역할> thread <channel> <thread_ts>), 그 스레드에 바로 답한다:${PENDING[$role]}"
     if [ "${DRY_RUN:-}" = 1 ]; then echo "DISPATCH $role :: $ctx"
-    else gh workflow run agent.yml -R "$REPO" -f role="$role" -f mode=event -f context="$ctx" >/dev/null 2>&1 \
-      && log "woke $role" || log "dispatch failed for $role"; fi
+    elif ! gh workflow run agent.yml -R "$REPO" -f role="$role" -f mode=event -f context="$ctx" >/dev/null 2>&1; then
+      log "dispatch failed for $role (kept pending, retry next tick)"; continue   # do not lose the queue on failure
+    else log "woke $role"; fi
     ROLE_WAKES[$role]="${ROLE_WAKES[$role]} $(date +%s)"
     unset 'PENDING[$role]'   # only drop what was dispatched; capped roles keep their queue
   done
