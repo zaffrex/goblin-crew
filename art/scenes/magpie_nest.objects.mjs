@@ -343,6 +343,32 @@ function seesawBody(im) {
 }
 const seesaw = pic(seesawBody);
 
+// 널빤지 기울기(U6 튕김과 멈춘 기울기가 같이 쓴다). 회전 대신 열마다 세로로 밀어(층 밀기) 나뭇결·못이 깨지지 않게 한다.
+const PIVOT_X = 248; // 받침(세제 통 242~254) 가운데 = 못 두 개 사이
+const TILT_RUN = 40; // 축에서 이만큼 떨어진 열(오른쪽 끝 x 287)이 d px 내려간다
+/** d = 오른쪽 끝(x 287)이 내려가는 px. 음수면 왼쪽 끝이 내려간다. 열 x는 round(d × (x − 247.5) / 40) 내려간다(엔진 발 높이와 같은 식). */
+const plank = (d, fx) => pic((im) => {
+  const t = new Image(W, H);
+  seesawBody(t);
+  for (let x = 200; x < 296; x++) {
+    const dy = Math.round((d * (x - PIVOT_X + 0.5)) / TILT_RUN);
+    for (let y = 208; y < 224; y++) { const c = t.get(x, y); if (c !== -1) im.set(x, y + dy, c); }
+  }
+}, fx);
+/** 멈춘 기울기 그림(#397 설계 1-5절). d = 오른쪽 끝이 내려간 px(음수 = 왼쪽 끝). 미리보기·기울기 칸이 같은 함수를 쓴다. */
+export const seesawTilt = (d) => plank(d);
+/**
+ * 멈춘 기울기(형식 기록 12절, 개정 5). 엔진이 "보이는 탑승"으로 d = step × (오른쪽 무게 − 왼쪽 무게)를 정하고 그 칸을 그린다(설계 1-5-4절).
+ * 판 위 사람 발도 같은 식(pivot·run)으로 내린다. 0은 수평 그림(`draw`)이다.
+ */
+const seesawTiltMeta = {
+  step: 3,
+  weight: { jjuk: 1, ppik: 1, mukjik: 2 },
+  pivot: PIVOT_X - 0.5,
+  run: TILT_RUN,
+  draw: { '-6': seesawTilt(-6), '-3': seesawTilt(-3), 3: seesawTilt(3), 6: seesawTilt(6) },
+};
+
 // ═════════════ 빨래 바구니 (basket, 그림 144,220 32×16, 히트 144,212 32×24) ═════════════
 // 위에서 살짝 내려다본 등나무 바구니. 뒤판(물건 기본 그림) = 꼬인 테두리 뒤쪽 + 어두운 안쪽 + 그 안의 빨래.
 // 앞판(overlay, sortY 236) = 테두리 앞쪽 + 엮은 앞벽 226~236(높이 10px, 설계 1-4절 3번. 외곽선 포함 225~236). 바구니 안 캐릭터는 앞판 뒤에 선다.
@@ -415,7 +441,8 @@ export const OBJECTS = {
   },
   hook: { draw: hook },
   long_johns: { draw: longJohns },
-  seesaw: { ids: ['seesaw_left', 'seesaw_right'], draw: seesaw },
+  // 판 밑 바닥(널빤지와 받침 사이, 판 바로 뒤 잔디)에 서는 목표는 판 앞 y 240으로 옮긴다(설계 1-5-2절, 형식 기록 12절).
+  seesaw: { ids: ['seesaw_left', 'seesaw_right'], draw: seesaw, tilt: seesawTiltMeta, noFloor: { box: [204, 200, 89, 38], y: 240 } },
   basket: { draw: basketBack, overlay: { sortY: 236, draw: basketFront } },
 };
 
@@ -494,23 +521,11 @@ const ruffle = {
 // 정답(발사)과 실패(잘못 발사, 제 이마 치기)가 같은 프레임이다(설계 U6). 제 이마 치기(15번)는 데이터가 반대쪽 끝 이벤트를 보내서
 // 묵직이가 밟은 끝이 튀어 오른다. 널빤지는 회전 대신 열마다 세로로 밀어(층 밀기) 나뭇결·못이 깨지지 않게 한다.
 // 수평 고정 그림(멈춘 모습)으로 돌아가므로 마지막 칸은 반대로 살짝 되튄 모습이다(첫 칸·끝 칸 규칙 4-2절 (a)는 상태를 바꾸는 anim만).
-const PIVOT_X = 248; // 받침(세제 통 242~254) 가운데 = 못 두 개 사이
-/** d = 오른쪽 끝(x 287)이 내려가는 px. 음수면 왼쪽 끝이 내려간다. */
-const plank = (d, fx) => pic((im) => {
-  const t = new Image(W, H);
-  seesawBody(t);
-  for (let x = 200; x < 296; x++) {
-    const dy = Math.round((d * (x - PIVOT_X + 0.5)) / 40);
-    for (let y = 208; y < 224; y++) { const c = t.get(x, y); if (c !== -1) im.set(x, y + dy, c); }
-  }
-}, fx);
 /** 튀어 오르는 끝 위의 속도선(효과). side = -1 왼쪽 끝 / 1 오른쪽 끝, lift = 그 끝이 올라간 px. */
 const whoosh = (side, lift) => (im) => {
   const x0 = side < 0 ? 209 : 279;
   for (const [dx, len] of [[0, 3], [4, 4], [8, 2]]) line(im, x0 + dx, 211 - lift, x0 + dx, 211 - lift - len, C.lint);
 };
-/** 멈춘 기울기 그림(#397 설계 1-5절). d = 오른쪽 끝이 내려간 px(음수 = 왼쪽 끝). 미리보기·기울기 칸이 같은 함수를 쓴다. */
-export const seesawTilt = (d) => plank(d);
 const BOUNCE = 7; // 끝이 움직이는 최대 px. 더 크면 위에 선 사람 발이 널빤지에 묻힌다(발 y 214, 캐릭터가 앞에 그려짐)
 const plankBounce = (side) => ({ // side = 내려가는 끝
   ms: [60, 120, 80],

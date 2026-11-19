@@ -18,7 +18,7 @@ import { createFirstNotes, currentNote, noteGauge, noteSwitch, noteTap } from '.
 import { abilityText, cutFontPx, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
-import { activeFx, activeMarkerVisible, charPose, createScene, currentBubble, drawOrder, gaugeDrop, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, type SceneData } from './core/scene';
+import { activeFx, activeMarkerVisible, boardDrop, charPose, createScene, currentBubble, drawOrder, gaugeDrop, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, tiltOf, type SceneData } from './core/scene';
 import { coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
 import { isTapKey } from './core/keys';
@@ -409,7 +409,7 @@ function render(): void {
   const playing = scene.current?.art ? { ...scene.current.art, ms: scene.current.t * TICK_MS } : null;
   let draws: SceneDraws | null = null;
   if (art) {
-    const view = { flagsOf: (k: string) => shownFlags(scene, k), playing, clockMs: scene.tick * TICK_MS };
+    const view = { flagsOf: (k: string) => shownFlags(scene, k), playing, clockMs: scene.tick * TICK_MS, tiltOf: (k: string) => tiltOf(data, scene, k) };
     loopClock = loopStarts(art.meta, view, loopClock);
     draws = sceneDraws(art.meta, { ...view, loopStarts: loopClock });
   }
@@ -438,7 +438,9 @@ function render(): void {
       continue;
     }
     const id = it.char;
-    const w = scene.walkers[id];
+    // 판 위 발은 기울기만큼 내려 그린다(형식 기록 12절). 히트 박스·발 y 순서는 걷기 좌표 그대로다.
+    const drop = boardDrop(data, scene, id);
+    const w = drop === 0 ? scene.walkers[id] : { ...scene.walkers[id], y: scene.walkers[id].y + drop };
     // 시트에 그 연출이 있으면 시트가 재생하고(끝나면 마지막 장 유지, #189), 없으면 drawSprite가 null → 실루엣을 흔든다.
     const pose = charPose(data, scene, id);
     const top = drawSprite(ctx, w, pose, id === litTarget);

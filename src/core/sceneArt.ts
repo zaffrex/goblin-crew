@@ -31,6 +31,22 @@ export interface SceneObject {
   default: ScenePicture;
   states?: (ScenePicture & { when: When })[];
   overlay?: { sortY: number; frame: number };
+  /** 멈춘 기울기(형식 기록 12절, 개정 5). 시소처럼 사람이 올라타면 기우는 물건. */
+  tilt?: SceneTilt;
+  /** 바닥 걷기 목표가 `box` [x, y, w, h] 안이면 y를 `y`로 옮긴다(판 밑에 서지 않게, 12절). */
+  noFloor?: { box: [number, number, number, number]; y: number };
+}
+
+/**
+ * 기울기 d = `step` × (축 오른쪽에 탄 무게 합 − 왼쪽 합). 단위는 축에서 `run`px 오른쪽 열이 내려간 px(음수 = 왼쪽이 내려감).
+ * 열 x의 내려간 px = round(d × (x − pivot) / run). `frames`의 키는 d(0 제외, 0은 멈춘 모습 그대로).
+ */
+export interface SceneTilt {
+  step: number;
+  weight: Record<string, number>;
+  pivot: number;
+  run: number;
+  frames: Record<string, number>;
 }
 
 export interface SceneAnim extends Timed {
@@ -97,6 +113,20 @@ export function parseSceneArt(raw: unknown): SceneArtMeta {
     if (o.overlay !== undefined) {
       if (!isInt(o.overlay.sortY)) fail(`${w}.overlay.sortY`);
       frame(o.overlay.frame, `${w}.overlay`);
+    }
+    if (o.tilt !== undefined) {
+      const t = o.tilt as Partial<SceneTilt>;
+      const pos = (v: unknown): boolean => isInt(v) && v > 0;
+      if (!isObj(t) || !pos(t.step) || !pos(t.run) || typeof t.pivot !== 'number' || !isObj(t.weight) || !Object.values(t.weight).every(pos)) fail(`${w}.tilt`);
+      if (!isObj(t.frames)) return fail(`${w}.tilt.frames`);
+      for (const [k, f] of Object.entries(t.frames)) {
+        if (!isInt(Number(k)) || Number(k) === 0) fail(`${w}.tilt.frames['${k}']`);
+        frame(f, `${w}.tilt.frames['${k}']`);
+      }
+    }
+    if (o.noFloor !== undefined) {
+      const b = o.noFloor.box as unknown;
+      if (!Array.isArray(b) || b.length !== 4 || !b.every(isInt) || !isInt(o.noFloor.y)) fail(`${w}.noFloor`);
     }
   }
   if (!isObj(m.anims)) return fail('anims 없음');
@@ -168,6 +198,18 @@ export interface SceneView {
   clockMs: number;
   /** 물건별 loop 시작 시각(`loopStarts`). 없으면 화면 시계 0부터 센다. */
   loopStarts?: LoopStarts;
+  /** 물건 키 → 지금 보이는 기울기 d(12절). 없거나 0이면 멈춘 모습 그대로. */
+  tiltOf?(objectKey: string): number;
+}
+
+/** 기울기 d일 때 열 x가 내려간 px(12절). 그림 원본의 널빤지 함수와 같은 식이다. */
+export function tiltDrop(t: SceneTilt, d: number, x: number): number {
+  return d === 0 ? 0 : Math.round((d * (x - t.pivot)) / t.run);
+}
+
+/** 멈춘 기울기 칸. d가 0이거나 그 칸이 없으면 null(멈춘 모습 그대로). */
+export function tiltFrame(o: SceneObject, d: number): number | null {
+  return d === 0 ? null : (o.tilt?.frames[String(d)] ?? null);
 }
 
 /** 물건 하나의 loop 시작. `pic`이 null이면 그 물건 anim 재생 중이다. */
@@ -195,6 +237,7 @@ export function loopStarts(meta: SceneArtMeta, view: SceneView, prev: LoopStarts
 /**
  * 물건마다 그릴 프레임을 고른다. 적은 순서 = 같은 층 안에서 뒤 → 앞.
  * anim 재생 중인 물건은 멈춘 모습·`loop` 대신 anim 프레임을 그린다(4절). `overlay`(앞판)는 anim 중에도 그린다.
+ * 기울기 칸(12절)이 있으면 멈춘 모습 대신 그 칸을 같은 층에 그린다. anim이 기울기보다 앞선다(U6 튕김).
  */
 export function sceneDraws(meta: SceneArtMeta, view: SceneView): SceneDraws {
   const out: SceneDraws = { back: [], front: [], overlays: [], byObject: {} };
@@ -206,7 +249,8 @@ export function sceneDraws(meta: SceneArtMeta, view: SceneView): SceneDraws {
       out[p.anim.layer].push(frame);
     } else {
       const pic = pictureOf(o, view.flagsOf(o.key));
-      frame = pic.loop ? timedFrame(pic.loop, view.clockMs - (view.loopStarts?.[o.key]?.atMs ?? 0), true) : pic.frame;
+      const tilted = o.tilt && view.tiltOf ? tiltFrame(o, view.tiltOf(o.key)) : null;
+      frame = tilted ?? (pic.loop ? timedFrame(pic.loop, view.clockMs - (view.loopStarts?.[o.key]?.atMs ?? 0), true) : pic.frame);
       out[pic.layer].push(frame);
     }
     out.byObject[o.key] = [frame];

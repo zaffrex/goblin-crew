@@ -342,7 +342,8 @@ describe('litFrames (10-1절 호버 외곽선 대상)', () => {
 
   it('바구니는 몸통과 앞판(overlay)이 함께 켜진다', () => {
     const m = meta();
-    expect(litFrames(m, sceneDraws(m, view()), 'basket')).toEqual(new Set([13, 14]));
+    const basket = m.objects.find((o) => o.key === 'basket')!;
+    expect(litFrames(m, sceneDraws(m, view()), 'basket')).toEqual(new Set([basket.default.frame, basket.overlay!.frame]));
   });
 
   it('loop 물건은 지금 그리는 프레임만 켜진다(둥지 깜빡임 칸)', () => {

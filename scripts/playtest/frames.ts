@@ -51,6 +51,11 @@ const CASES: { id: string; action: Action; why: string }[] = [
   { id: 'ppik-squeak-magpie', action: { char: 'ppik', verb: 'squeak', target: 'magpie' }, why: '까치에 삑: 까치가 내려옴' },
   { id: 'jjuk-move-seesaw_left', action: { char: 'jjuk', verb: 'move', target: 'seesaw_left' }, why: '시소 왼쪽 끝 올라서기: 바닥 점까지 걷고 깡충(#397 1-5-2절)' },
   { id: 'mukjik-move-seesaw_right', action: { char: 'mukjik', verb: 'move', target: 'seesaw_right' }, why: '시소 오른쪽 끝 올라서기: 가장 낮게·오래 웅크림(#397 1-5-3절)' },
+  // 세 사람 × 양쪽 끝(#397 완료 조건 3, #397 Luna 제안): 착지 칸에 판이 그 끝으로 기운다(3px, 묵직이 6px, 1-5-4절).
+  { id: 'jjuk-move-seesaw_right', action: { char: 'jjuk', verb: 'move', target: 'seesaw_right' }, why: '시소 오른쪽 끝 올라서기: 판이 오른쪽으로 3px' },
+  { id: 'mukjik-move-seesaw_left', action: { char: 'mukjik', verb: 'move', target: 'seesaw_left' }, why: '시소 왼쪽 끝 올라서기: 판이 왼쪽으로 6px' },
+  { id: 'ppik-move-seesaw_left', action: { char: 'ppik', verb: 'move', target: 'seesaw_left' }, why: '시소 왼쪽 끝 올라서기: 가볍게 통(웅크림 50ms)' },
+  { id: 'ppik-move-seesaw_right', action: { char: 'ppik', verb: 'move', target: 'seesaw_right' }, why: '시소 오른쪽 끝 올라서기: 가볍게 통' },
 ];
 
 /** replay.ts와 같은 관찰 전용 말풍선 기록기. */
