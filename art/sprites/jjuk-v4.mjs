@@ -957,6 +957,8 @@ export const SHEET = {
     // cue: 시그니처 `ビヨーン`(stretch_text)이 늘기 시작하는 0번 칸에 뜬다(ability-feedback.md 2·4절, #284).
     { name: 'reach_hang_up', frames: 3, ms: [350, 250, 400], cue: [0] },
     { name: 'common.flatten', frames: 4, ms: [100, 600, 150, 450] },
+    // 납작에서 멈춤(#357 1번): 새 칸 없이 꽝 → 납작 두 칸만. 엔진이 마지막 장(납작)을 다음 말풍선이 끝날 때까지 붙든다(형식 기록 5절).
+    { name: 'common.flatten_stay', reuse: [['common.flatten', 0], ['common.flatten', 1]], ms: [100, 600] },
     { name: 'common.bump_bottom', frames: 4, ms: [100, 400, 300, 500] },
     { name: 'common.stretch', frames: 3, ms: [150, 300, 350], cue: [0] },
     // short 10: 집게(8px) 끝이 대상 아래 2px에서 멈춘다(#284). 고리는 대상 점이 없어 상자 아래 끝이 대상이다 = 설계 9번 "고리 바로 아래에서 팅"

@@ -701,13 +701,13 @@
         {
           "anim": [
             "@seesaw_left",
-            "common.flatten"
+            "common.flatten_stay"
           ]
         },
         {
           "anim": [
             "@hook",
-            "common.flatten"
+            "common.flatten_stay"
           ]
         },
         {

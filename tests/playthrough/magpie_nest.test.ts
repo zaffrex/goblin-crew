@@ -103,8 +103,8 @@ describe('magpie_nest 효과 위치 표시 순서 (#206, #339)', () => {
         `place ${flyer} seesaw_left>floor via hook`,
         `place ${hung} hook>floor`,
         'gauge -1',
-        `anim ${flyer} common.flatten`,
-        `anim ${hung} common.flatten`,
+        `anim ${flyer} common.flatten_stay`,
+        `anim ${hung} common.flatten_stay`,
         `say ${hung}`,
       ]);
     });

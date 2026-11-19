@@ -647,6 +647,8 @@ export const SHEET = {
     { name: 'hold', frames: 2, ms: [300, 450] },
     { name: 'launch_to_hook', frames: 4, ms: [150, 100, 100, 150] },
     { name: 'common.flatten', frames: 4, ms: [100, 600, 150, 450] },
+    // 납작에서 멈춤(#357 1번): 새 칸 없이 꽝 → 납작 두 칸만. 엔진이 마지막 장(납작)을 다음 말풍선이 끝날 때까지 붙든다(형식 기록 5절).
+    { name: 'common.flatten_stay', reuse: [['common.flatten', 0], ['common.flatten', 1]], ms: [100, 600] },
     { name: 'common.bump_bottom', frames: 4, ms: [100, 400, 300, 500] },
     { name: 'common.shiver', frames: 4, ms: [400, 100, 100, 500] },
     { name: 'common.wag_finger', frames: 4, ms: [250, 200, 200, 400] },

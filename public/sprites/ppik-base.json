@@ -107,6 +107,16 @@
         450
       ]
     },
+    "common.flatten_stay": {
+      "frames": [
+        17,
+        18
+      ],
+      "ms": [
+        100,
+        600
+      ]
+    },
     "common.bump_bottom": {
       "frames": [
         21,
