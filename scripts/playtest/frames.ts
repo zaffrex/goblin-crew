@@ -3,15 +3,19 @@
 // 이 도구는 처음 상태(셋 다 바닥)에서 세 사람 특기를 대상마다 **실제 클릭·탭**으로 쓰고, 마지막 탭부터 일정 간격으로
 // 화면을 찍어 사례별 한 장짜리 모음(contact sheet)을 만든다. 통과/실패는 사람이 모음을 보고 정한다(자동 판정 없음).
 //
-// 사용: node --import ./scripts/playtest/register.mjs scripts/playtest/frames.ts [--url <URL>] [--out <폴더>] [--every 120] [--tail 1500] [--mobile] [--no-sandbox] [--only <사례 ID 일부>]
+// 사례 목록은 화면별 파일 `cases/<화면 ID>.ts`에 있다(#466 2부). `--screen`으로 고르고 `?screen=<id>`로 연다.
+//
+// 사용: node --import ./scripts/playtest/register.mjs scripts/playtest/frames.ts [--screen magpie_nest] [--url <URL>] [--out <폴더>] [--every 120] [--tail 1500] [--mobile] [--no-sandbox] [--only <사례 ID 일부>]
 // 결과: <out>/<사례>/f00.png…, <out>/<사례>.png(모음), <out>/report.md(사례별 말풍선 글·게이지·프레임 수).
+// <out> 기본값은 `playtest-out/frames/<화면 ID>`.
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
-import type { Action, ScreenData } from '../../src/core/puzzle/types.ts';
+import type { ScreenData } from '../../src/core/puzzle/types.ts';
 import { CARD_TAP, closeStartCard } from './card.ts';
+import { CASES_BY_SCREEN, type FrameCase } from './cases/index.ts';
 import { Browser, sleep, type Page } from './cdp.ts';
 import { internalToPage, type Rect } from './coords.ts';
 import { planAction, type Input, type Layout } from './plan.ts';
@@ -19,7 +23,9 @@ import { planAction, type Input, type Layout } from './plan.ts';
 const { values: args } = parseArgs({
   options: {
     url: { type: 'string', default: 'https://zaffrex.github.io/goblin-crew/' },
-    out: { type: 'string', default: 'playtest-out/frames' },
+    out: { type: 'string', default: '' },
+    /** 찍을 화면 ID(`content/screens/<id>.json`, `cases/<id>.ts`). 배포본에 없는 화면은 로컬 빌드 URL로 연다. */
+    screen: { type: 'string', default: 'magpie_nest' },
     every: { type: 'string', default: '120' },
     tail: { type: 'string', default: '1500' },
     mobile: { type: 'boolean', default: false },
@@ -35,82 +41,13 @@ const TAIL = Number(args.tail);
 /** 한 사례 최대 프레임 수. 연출이 안 끝나는 버그에서 멈추지 않게. */
 const MAX_FRAMES = 100;
 
-const screen = JSON.parse(readFileSync('content/screens/magpie_nest.json', 'utf8')) as ScreenData;
+const SCREEN_ID = args.screen!;
+const CASES: readonly FrameCase[] = CASES_BY_SCREEN[SCREEN_ID] ?? [];
+if (!/^[a-z0-9_]+$/.test(SCREEN_ID) || CASES.length === 0) {
+  throw new Error(`--screen ${SCREEN_ID}: 사례 파일이 없음 (있는 화면: ${Object.keys(CASES_BY_SCREEN).join(', ')})`);
+}
+const screen = JSON.parse(readFileSync(`content/screens/${SCREEN_ID}.json`, 'utf8')) as ScreenData;
 
-/**
- * 처음 상태에서 쓰는 특기 사례. 사장님 2차 플레이에서 실제로 누른 조합(#284 PM 재현 표) + 대상별 하나씩.
- * 정답 경로(고리 → 둥지)는 replay.ts A1이 본다.
- */
-const CASES: { id: string; action: Action; why: string; /** 찍기 전에 끝까지 돌려 두는 행동(예: 판에 태우기). */ pre?: Action[] }[] = [
-  { id: 'jjuk-stretch-nest', action: { char: 'jjuk', verb: 'stretch', target: 'nest' }, why: '바닥에서 둥지: 장대가 늘어나다 모자라야 한다(#284 완료 조건 2)' },
-  { id: 'jjuk-stretch-hook', action: { char: 'jjuk', verb: 'stretch', target: 'hook' }, why: '바닥에서 고리: 집게가 고리 아래에서 멈춤' },
-  { id: 'jjuk-stretch-magpie', action: { char: 'jjuk', verb: 'stretch', target: 'magpie' }, why: '바닥에서 까치' },
-  { id: 'mukjik-stomp-seesaw_left', action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' }, why: '반대쪽 빈 시소 쿵: 흔들림 + "반대쪽" 암시 대사(#284 완료 조건 3)' },
-  { id: 'mukjik-stomp-hook', action: { char: 'mukjik', verb: 'stomp', target: 'hook' }, why: '고리에 쿵' },
-  { id: 'ppik-squeak-nest', action: { char: 'ppik', verb: 'squeak', target: 'nest' }, why: '둥지에 삑: 소리 글자' },
-  { id: 'ppik-squeak-magpie', action: { char: 'ppik', verb: 'squeak', target: 'magpie' }, why: '까치에 삑: 까치가 내려옴' },
-  { id: 'jjuk-move-seesaw_left', action: { char: 'jjuk', verb: 'move', target: 'seesaw_left' }, why: '시소 왼쪽 끝 올라서기: 바닥 점까지 걷고 깡충(#397 1-5-2절)' },
-  { id: 'mukjik-move-seesaw_right', action: { char: 'mukjik', verb: 'move', target: 'seesaw_right' }, why: '시소 오른쪽 끝 올라서기: 가장 낮게·오래 웅크림(#397 1-5-3절)' },
-  // 세 사람 × 양쪽 끝(#397 완료 조건 3, #397 Luna 제안): 착지 칸에 판이 그 끝으로 기운다(3px, 묵직이 6px, 1-5-4절).
-  { id: 'jjuk-move-seesaw_right', action: { char: 'jjuk', verb: 'move', target: 'seesaw_right' }, why: '시소 오른쪽 끝 올라서기: 판이 오른쪽으로 3px' },
-  { id: 'mukjik-move-seesaw_left', action: { char: 'mukjik', verb: 'move', target: 'seesaw_left' }, why: '시소 왼쪽 끝 올라서기: 판이 왼쪽으로 6px' },
-  { id: 'ppik-move-seesaw_left', action: { char: 'ppik', verb: 'move', target: 'seesaw_left' }, why: '시소 왼쪽 끝 올라서기: 가볍게 통(웅크림 50ms)' },
-  { id: 'ppik-move-seesaw_right', action: { char: 'ppik', verb: 'move', target: 'seesaw_right' }, why: '시소 오른쪽 끝 올라서기: 가볍게 통' },
-  {
-    id: 'seesaw-bounce-launch',
-    pre: [{ char: 'jjuk', verb: 'move', target: 'seesaw_left' }],
-    action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' },
-    why: '정답 11번: U6 동안 쭉이 발이 판 칸을 따라 밀려 올라간 뒤 발사(#397, 1-5-4절 2026-11-19 개정)',
-  },
-  {
-    id: 'seesaw-bounce-wrong-way',
-    pre: [{ char: 'jjuk', verb: 'move', target: 'seesaw_right' }],
-    action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' },
-    why: '14번: 오른쪽에 탄 쭉이 발이 왼쪽 끝 이벤트 U6 칸을 따른다',
-  },
-  // #414 묵직이 쿵 = 판 끝에 뛰어올라 쿵(magpie_nest.md 1-6절). `--only seesaw-stomp`로 이것만 찍는다.
-  {
-    id: 'seesaw-stomp-jostle',
-    pre: [{ char: 'jjuk', verb: 'move', target: 'seesaw_left' }],
-    action: { char: 'mukjik', verb: 'move', target: 'seesaw_right' },
-    why: '1-6-6절: 묵직이가 걸어서 올라서는 착지 칸에 왼쪽 쭉이가 들썩(H 4, 150ms)',
-  },
-  {
-    id: 'seesaw-stomp-in-place',
-    pre: [{ char: 'jjuk', verb: 'move', target: 'seesaw_left' }, { char: 'mukjik', verb: 'move', target: 'seesaw_right' }],
-    action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' },
-    why: '정답 11번(UI 경로): 판 위에서 제자리 높이 뛰기(H 24) → 쿵 칸에 U6 → 쭉이 발사 → ⑦ 내려서기',
-  },
-  {
-    id: 'seesaw-stomp-from-floor',
-    pre: [{ char: 'ppik', verb: 'move', target: 'seesaw_left' }],
-    action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' },
-    why: '12번: 바닥 점(290, 240)에서 높이 뛰기(H 32) → 쿵 칸에 U6 → 삑삑이 발사',
-  },
-  {
-    id: 'seesaw-stomp-wrong-way',
-    pre: [{ char: 'jjuk', verb: 'move', target: 'seesaw_right' }],
-    action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' },
-    why: '14번: 왼쪽 끝에 뛰어올라 쿵 → 오른쪽 쭉이가 빨랫줄로',
-  },
-  {
-    id: 'seesaw-stomp-self-smack-right',
-    action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' },
-    why: '15번(1-6-5절): 빈 판에 쿵 → 빈 왼쪽만 휙 → U6 끝에 판이 묵직이를 (302, 244)로 튕겨 냄 → 납작',
-  },
-  {
-    id: 'seesaw-stomp-self-smack-left',
-    action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' },
-    why: '15번 거울: 왼쪽 끝 → (238, 244)로 튕겨 냄',
-  },
-  // #419: 꽥은 원거리라 판 끝에서 내려오지 않고 돌아서기만 한다(대상 `approach`의 `squeak: stay`).
-  {
-    id: 'ppik-squeak-from-seesaw',
-    pre: [{ char: 'ppik', verb: 'move', target: 'seesaw_left' }],
-    action: { char: 'ppik', verb: 'squeak', target: 'long_johns' },
-    why: '#419: 왼쪽 끝 삑삑이가 내복 쪽으로 돌아서서 꽥. 판에서 안 내려오고 기울기 그대로',
-  },
-];
 
 /** replay.ts와 같은 관찰 전용 말풍선 기록기. */
 const PROBE = `(() => {
@@ -156,7 +93,7 @@ interface CaseResult {
   error: string | null;
 }
 
-async function runCase(browser: Browser, c: (typeof CASES)[number], outDir: string): Promise<CaseResult> {
+async function runCase(browser: Browser, c: FrameCase, outDir: string): Promise<CaseResult> {
   const r: CaseResult = { id: c.id, why: c.why, frames: [], said: [], gauge: null, error: null };
   const dir = join(outDir, c.id);
   mkdirSync(dir, { recursive: true });
@@ -166,6 +103,7 @@ async function runCase(browser: Browser, c: (typeof CASES)[number], outDir: stri
     await page.setViewport({ width: VIEWPORT.width, height: VIEWPORT.height, dpr: VIEWPORT.dpr, mobile: VIEWPORT.input === 'touch' });
     const u = new URL(args.url!);
     u.searchParams.set('playtest', '1');
+    u.searchParams.set('screen', SCREEN_ID);
     await page.goto(u.href);
     for (let i = 0; !(await page.evaluate<boolean>(`typeof window.__gcLayout === 'function'`)); i++) {
       if (i > 100) throw new Error('5초 안에 window.__gcLayout 훅이 생기지 않음');
@@ -176,35 +114,46 @@ async function runCase(browser: Browser, c: (typeof CASES)[number], outDir: stri
       if (VIEWPORT.input === 'touch') await page.tap(p);
       else await page.click(p);
     };
-    await closeStartCard(page, () => send(CARD_TAP)); // 시작 카드(#285): 닫아야 장면이 돈다
-    await waitBusy(page, false); // 처음 연출(onEnter)
-    for (const a of c.pre ?? []) {
-      for (const t of planAction(screen, await layoutOf(page), a, VIEWPORT.input).taps) {
+    // 행동이 없는 사례(진입·대기)는 시작 카드를 닫는 탭부터 찍는다.
+    let from = 0;
+    if (!c.action) {
+      from = await page.evaluate<number>('window.__ptSaid.length');
+      await closeStartCard(page, () => send(CARD_TAP));
+    } else {
+      await closeStartCard(page, () => send(CARD_TAP)); // 시작 카드(#285): 닫아야 장면이 돈다
+      await waitBusy(page, false); // 처음 연출(onEnter)
+      for (const a of c.pre ?? []) {
+        for (const t of planAction(screen, await layoutOf(page), a, VIEWPORT.input).taps) {
+          await send(t.at);
+          await sleep(80);
+          await waitBusy(page, false);
+        }
+      }
+      const plan = planAction(screen, await layoutOf(page), c.action, VIEWPORT.input);
+      // 마지막 탭 전까지는 그냥 누르고 연출이 끝나길 기다린다(전환·무장).
+      for (const t of plan.taps.slice(0, -1)) {
         await send(t.at);
         await sleep(80);
         await waitBusy(page, false);
       }
+      from = await page.evaluate<number>('window.__ptSaid.length');
+      await send(plan.taps[plan.taps.length - 1]!.at);
     }
-    const plan = planAction(screen, await layoutOf(page), c.action, VIEWPORT.input);
-    // 마지막 탭 전까지는 그냥 누르고 연출이 끝나길 기다린다(전환·무장).
-    for (const t of plan.taps.slice(0, -1)) {
-      await send(t.at);
-      await sleep(80);
-      await waitBusy(page, false);
-    }
-    const from = await page.evaluate<number>('window.__ptSaid.length');
-    await send(plan.taps[plan.taps.length - 1]!.at);
+    const every = c.every ?? EVERY;
+    const minMs = c.minMs ?? 0;
+    const maxFrames = Math.max(MAX_FRAMES, Math.ceil((minMs + TAIL) / every) + 1);
+    const pad = Math.max(2, String(maxFrames - 1).length);
     const t0 = Date.now();
     let idleAt: number | null = null;
-    for (let n = 0; n < MAX_FRAMES; n++) {
+    for (let n = 0; n < maxFrames; n++) {
       const ms = Date.now() - t0;
       const busy = (await layoutOf(page)).busy;
       if (!busy && idleAt === null && ms > 200) idleAt = ms;
-      if (idleAt !== null && ms - idleAt > TAIL) break;
-      const file = `f${String(n).padStart(2, '0')}.png`;
+      if (idleAt !== null && ms - idleAt > TAIL && ms >= minMs) break;
+      const file = `f${String(n).padStart(pad, '0')}.png`;
       await page.screenshot(join(dir, file));
       r.frames.push({ file, ms, busy });
-      const next = t0 + (n + 1) * EVERY;
+      const next = t0 + (n + 1) * every;
       await sleep(Math.max(0, next - Date.now()));
     }
     r.said = (await page.evaluate<string[]>('window.__ptSaid')).slice(from);
@@ -240,10 +189,10 @@ figure{margin:0}img{display:block;image-rendering:pixelated}figcaption{padding:1
 }
 
 async function main(): Promise<number> {
-  const outDir = args.out!;
+  const outDir = args.out || join('playtest-out', 'frames', SCREEN_ID);
   mkdirSync(outDir, { recursive: true });
   const browser = await Browser.launch({ noSandbox: args['no-sandbox'] });
-  const L = [`# 특기 연출 프레임 (${new Date().toISOString()})`, '', `- URL: ${args.url} (${VIEWPORT.name} ${VIEWPORT.width}×${VIEWPORT.height})`, `- 마지막 탭부터 ${EVERY}ms마다, 연출이 끝난 뒤 ${TAIL}ms까지`, '- 판정은 사람이 모음 그림을 보고 한다: **말풍선을 안 읽어도 특기를 썼다는 게 보이는가**', '', '| 사례 | 보는 것 | 프레임 | 말풍선 | 게이지 | 모음 |', '|---|---|---|---|---|---|'];
+  const L = [`# 특기 연출 프레임 \`${SCREEN_ID}\` (${new Date().toISOString()})`, '', `- URL: ${args.url} \`?screen=${SCREEN_ID}\` (${VIEWPORT.name} ${VIEWPORT.width}×${VIEWPORT.height})`, `- 마지막 탭(행동이 없는 사례는 시작 카드 닫기)부터 ${EVERY}ms마다(사례별 간격이 있으면 그 값), 연출이 끝난 뒤 ${TAIL}ms까지`, '- 판정은 사람이 모음 그림을 보고 한다: **말풍선을 안 읽어도 특기를 썼다는 게 보이는가**', '- 단서 대조(#468)의 판정자는 이 표의 "보는 것" 칸을 읽기 전에 모음 PNG만 보고 한 줄을 적는다', '', '| 사례 | 보는 것 | 프레임 | 말풍선 | 게이지 | 모음 |', '|---|---|---|---|---|---|'];
   let failed = false;
   try {
     for (const c of CASES.filter((x) => x.id.includes(args.only))) {
