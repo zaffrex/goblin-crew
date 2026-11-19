@@ -356,3 +356,50 @@ describe('판 밑 바닥 클릭 구멍 (1-5-2절)', () => {
     expect(s.walkers.jjuk).toMatchObject({ x: 260, y: 240 });
   });
 });
+
+describe('판 끝 삑삑이 꽥: 판에서 안 내려오고 대상 쪽으로 돌아서기만 (#419, 1-5-2절)', () => {
+  const screen = data.screen;
+  // 꽥 반응이 있는 대상 전부: 핫스팟 4개 + 고리 + 양쪽 판 끝.
+  const TARGETS = ['magpie', 'nest', 'basket', 'long_johns', 'hook', 'seesaw_left', 'seesaw_right'] as const;
+  /** 행동 전(처음 상태) 대상 상자 가운데 x. 까치는 처음에 둥지 위다. */
+  const midOf = (t: string): number => {
+    const b = (screen.hotspots[t]?.box ?? screen.spots[t]?.box)!;
+    return b[0] + b[2] / 2;
+  };
+
+  for (const end of ENDS) {
+    for (const other of [null, 'mukjik'] as const) {
+      it(`ppik @ ${end}${other ? ` (반대 끝 ${other})` : ''}`, () => {
+        for (const target of TARGETS) {
+          const s = ready();
+          if (other) board(s, other, end === 'seesaw_left' ? 'seesaw_right' : 'seesaw_left');
+          board(s, 'ppik', end);
+          const at = { x: s.walkers.ppik.x, y: s.walkers.ppik.y };
+          const d0 = d(s);
+          const foot0 = footY(s, 'ppik');
+          runAction(data, s, { char: 'ppik', verb: 'squeak', target }, null);
+          // 내려서는 걷기가 없다.
+          expect(s.queue.some((e) => e.type === 'walk'), `${end} → ${target}`).toBe(false);
+          const mid = midOf(target);
+          if (Math.abs(mid - at.x) > 2) expect(s.walkers.ppik.facing, `${end} → ${target} 방향`).toBe(mid > at.x ? 1 : -1);
+          for (let i = 0; i < 3000 && isBusy(s); i++) {
+            sceneTick(data, s);
+            // 매 틱 판 위 같은 자리, 같은 기울기, 같은 발 높이.
+            expect({ x: s.walkers.ppik.x, y: s.walkers.ppik.y, d: d(s), foot: footY(s, 'ppik') }, `${end} → ${target} 틱 ${i}`).toEqual({ ...at, d: d0, foot: foot0 });
+          }
+          expect(isBusy(s)).toBe(false);
+          expect(s.puzzle.at.ppik).toBe(end);
+        }
+      });
+    }
+  }
+
+  it('바닥 삑삑이 꽥은 지금처럼 걷지 않고 돌아서기만 한다(바뀌지 않음)', () => {
+    const s = ready();
+    const at = { x: s.walkers.ppik.x, y: s.walkers.ppik.y };
+    runAction(data, s, { char: 'ppik', verb: 'squeak', target: 'basket' }, null);
+    settle(s);
+    expect({ x: s.walkers.ppik.x, y: s.walkers.ppik.y }).toEqual(at);
+    expect(s.puzzle.at.ppik).toBe('floor');
+  });
+});

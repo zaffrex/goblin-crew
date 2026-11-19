@@ -496,7 +496,8 @@ function targetBox(screen: ScreenData, puzzle: PuzzleState, id: string): HitBox 
 
 /**
  * 설계 5-1절 "대상 앞까지 걷기"의 설 곳(발밑 x)과 도착 뒤 볼 방향. `puzzle`은 행동 **전** 상태다.
- * 바닥이 아니거나 `move`이거나 상자 없는 대상(캐릭터)이면 null.
+ * `move`이거나 상자 없는 대상(캐릭터)이면 null. 바닥이 아니어도 판 끝(`board` 자리)에서 걷지 않는 행동이면 돌아서기만 준다(#419).
+ * 그 밖의 자리(`hold` 고리 등)는 null.
  * 원거리 동사(`squeak`·`look`)와 대상 `approach`가 `stay`인 동사는 걷지 않는다(x = 지금 x) — 대상 쪽으로 돌아서기만 한다.
  * `face`가 null이면 대상 가운데가 설 곳과 ±2px 안이라 방향을 바꾸지 않는다.
  * - `stretch`: 높은 대상이면 `reachPoint` x, 없으면 상자 가운데 x. 바닥 대상이면 아래 줄과 같다(땅의 까치에 겹쳐 서지 않게, PR #221 Luna).
@@ -506,13 +507,17 @@ function targetBox(screen: ScreenData, puzzle: PuzzleState, id: string): HitBox 
  */
 export function approachPoint(data: SceneData, puzzle: PuzzleState, action: Action, from: Point): { x: number; face: Facing | null } | null {
   const walks = APPROACH_VERBS.has(action.verb);
-  if ((!walks && !TURN_VERBS.has(action.verb)) || !isFree(data, puzzle.at[action.char] ?? '')) return null;
+  if (!walks && !TURN_VERBS.has(action.verb)) return null;
+  const at = puzzle.at[action.char] ?? '';
+  const stays = !walks || approachFor(data.screen, puzzle, action.target, action.verb) === 'stay';
+  // 판 끝(`board` 자리)에서 걷지 않는 행동은 그 자리에서 돌아서기만 한다(#419, 1-5-2절 "판 위에서 `squeak`·`look`").
+  if (!isFree(data, at) && !(stays && data.screen.spots[at]?.board)) return null;
   const box = targetBox(data.screen, puzzle, action.target);
   if (!box) return null;
   const mid = box.left + box.width / 2;
   let x: number;
   const rp = data.screen.hotspots[action.target]?.reachPoint;
-  if (!walks || approachFor(data.screen, puzzle, action.target, action.verb) === 'stay') x = from.x;
+  if (stays) x = from.x;
   else if (action.verb === 'stretch' && rp) x = rp[0];
   else if (box.top + box.height <= WALK_AREA.top) x = mid;
   else {

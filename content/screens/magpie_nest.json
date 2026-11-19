@@ -21,6 +21,10 @@
         38,
         24
       ],
+      "approach": {
+        "default": "floor",
+        "squeak": "stay"
+      },
       "takenShow": [
         {
           "say": [
@@ -45,6 +49,10 @@
         38,
         24
       ],
+      "approach": {
+        "default": "floor",
+        "squeak": "stay"
+      },
       "takenShow": [
         {
           "say": [
@@ -65,6 +73,10 @@
         24,
         24
       ],
+      "approach": {
+        "default": "floor",
+        "squeak": "stay"
+      },
       "hold": true,
       "releaseTo": "floor",
       "releasePoint": [
@@ -113,6 +125,10 @@
         24,
         24
       ],
+      "approach": {
+        "default": "floor",
+        "squeak": "stay"
+      },
       "hintAbility": "squeak",
       "variants": [
         {
@@ -138,6 +154,10 @@
         36,
         24
       ],
+      "approach": {
+        "default": "floor",
+        "squeak": "stay"
+      },
       "hintAbility": "stretch",
       "reachPoint": [
         150,
@@ -152,6 +172,10 @@
         32,
         24
       ],
+      "approach": {
+        "default": "floor",
+        "squeak": "stay"
+      },
       "note": "장난감. 고리 바로 아래, 떨어지는 사람이 들어감"
     },
     "long_johns": {
@@ -161,6 +185,10 @@
         32,
         40
       ],
+      "approach": {
+        "default": "floor",
+        "squeak": "stay"
+      },
       "note": "장난감"
     }
   },

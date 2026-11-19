@@ -103,6 +103,13 @@ const CASES: { id: string; action: Action; why: string; /** 찍기 전에 끝까
     action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' },
     why: '15번 거울: 왼쪽 끝 → (238, 244)로 튕겨 냄',
   },
+  // #419: 꽥은 원거리라 판 끝에서 내려오지 않고 돌아서기만 한다(대상 `approach`의 `squeak: stay`).
+  {
+    id: 'ppik-squeak-from-seesaw',
+    pre: [{ char: 'ppik', verb: 'move', target: 'seesaw_left' }],
+    action: { char: 'ppik', verb: 'squeak', target: 'long_johns' },
+    why: '#419: 왼쪽 끝 삑삑이가 내복 쪽으로 돌아서서 꽥. 판에서 안 내려오고 기울기 그대로',
+  },
 ];
 
 /** replay.ts와 같은 관찰 전용 말풍선 기록기. */
