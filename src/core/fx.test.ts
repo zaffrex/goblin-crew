@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import screenJson from '../../content/screens/magpie_nest.json';
+import parkJson from '../../content/screens/park_fountain.json';
 import { CHARACTERS } from './characters';
 import { DUST_TICKS, dustPush, FX_STYLE, FX_TICKS, fxTicks, missingSignatures, SHAKE_TICKS, shakeOffset, SIGNATURE_TICKS, SIGNATURES } from './fx';
 import type { RuleShowItem, ShowItem } from './puzzle/types';
@@ -35,6 +36,13 @@ describe('특기 시그니처 (ability-feedback.md 2·5절, #284)', () => {
   it('화면 1의 모든 show에서 특기 연출 바로 다음은 그 캐릭터의 시그니처 fx다', () => {
     const shows = allShows(screenJson);
     expect(shows.length).toBeGreaterThan(30);
+    const bad = shows.flatMap(([path, show]) => missingSignatures(show).map((i) => `${path}[${i}]`));
+    expect(bad).toEqual([]);
+  });
+
+  it('화면 2(park_fountain)의 모든 show에서도 특기 연출 바로 다음은 시그니처 fx다 (#466)', () => {
+    const shows = allShows(parkJson);
+    expect(shows.length).toBeGreaterThan(20);
     const bad = shows.flatMap(([path, show]) => missingSignatures(show).map((i) => `${path}[${i}]`));
     expect(bad).toEqual([]);
   });
@@ -106,5 +114,32 @@ describe('쿵 흔들림·먼지 (ability-feedback.md 2-1절)', () => {
     expect(dustPush(-1)).toBeNull();
     const pushes = Array.from({ length: DUST_TICKS }, (_, t) => dustPush(t)!);
     expect(pushes.every((p, i) => i === 0 || p >= pushes[i - 1]!)).toBe(true);
+  });
+});
+
+/** show 안 fx 이름을 전부 모은다(경로와 같이). */
+function fxNames(o: unknown): [string, string][] {
+  return allShows(o).flatMap(([path, show]) =>
+    show.flatMap((x, i) => ('fx' in x && Array.isArray(x.fx) && typeof x.fx[0] === 'string' ? [[`${path}[${i}]`, x.fx[0]] as [string, string]] : [])),
+  );
+}
+
+describe('소리 글자 fx 이름 (#451 리뷰 → #466)', () => {
+  // 화면 JSON에 `poof_txt`처럼 오타가 들어가면 화면에서는 기본색 임시 별로 조용히 바뀐다. `_text`로 끝나는 fx는 소리 글자라 표에 있어야 한다.
+  // 물건 그림 fx(`shake`·`splash` 등, P1 #286)는 `_text`로 끝나지 않아 보지 않는다.
+  it.each([
+    ['magpie_nest', screenJson],
+    ['park_fountain', parkJson],
+  ])('%s: `_text` fx는 전부 FX_STYLE에 있다', (_id, json) => {
+    const names = fxNames(json);
+    expect(names.length).toBeGreaterThan(5);
+    const bad = names.filter(([, n]) => n.endsWith('_text') && !FX_STYLE[n]).map(([p, n]) => `${p}: ${n}`);
+    expect(bad).toEqual([]);
+  });
+
+  it('검사가 오타를 실제로 잡는다', () => {
+    const typo = { rules: [{ show: [{ anim: ['ppik', 'common.squeak'] }, { fx: ['poof_txt', 'ppik'] }] }] };
+    expect(fxNames(typo).filter(([, n]) => n.endsWith('_text') || n.endsWith('_txt'))).toEqual([['/rules/0/show[1]', 'poof_txt']]);
+    expect(FX_STYLE.poof_txt).toBeUndefined();
   });
 });
