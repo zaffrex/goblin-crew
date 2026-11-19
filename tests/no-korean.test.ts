@@ -4,20 +4,26 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
-// #256: 게임 안 글은 전부 일본어(사장님 B안, docs/decisions/2026-11-17-japanese-only.md).
+// #256: 게임 안 글은 전부 일본어(진마씨 B안, docs/decisions/2026-11-17-japanese-only.md).
 // 플레이어가 보는 글에 한국어가 다시 들어오지 않게 막는다.
 // - index.html: 주석 밖에 한글이 없어야 한다.
 // - content/text/ja.json: 값에 한글이 없어야 한다.
-// - src/ (테스트 제외) 문자열: 한글은 개발자 전용 메시지(throw하는 Error, console.*)에만 허용한다. 주석은 보지 않는다.
-//   같은 파일 안의 "몸통이 throw new …Error 하나뿐인 함수"(예: const fail = (why) => { throw new Error(why) }) 호출 인자도 개발자 메시지로 본다.
-//   데이터 검사기(아래 DEV_ONLY)는 결과 문자열 전체가 개발자용(콘솔·CI)이라 통째로 뺀다. 새 파일은 기본으로 검사된다.
+// - src/ (테스트 제외) 문자열: 한글은 개발자 전용 메시지에만 허용한다. 주석은 보지 않는다. 개발자 메시지는 아래 노드 안의 글이다.
+//   1. `new …Error(...)` 인자, `console.*(...)` 인자
+//   2. 같은 파일 안의 "몸통이 throw new …Error 하나뿐인 함수"(예: const fail = (why) => { throw new Error(why) }) 호출 인자
+//   3. 객체 리터럴의 `error` 속성 값(`{ ok: false, error: '…' }`, flow.ts 결과 모양. #274)
+//   4. `.err(...)`·`.warn(...)` 메서드 호출 인자(validate.ts `Checker`가 모으는 검사 결과. #274)
+//   파일 통째로 빼는 것(DEV_ONLY)은 결과 문자열 전체가 개발자용인 모듈만 둔다. 새 파일은 기본으로 검사된다.
 
-/** 결과가 콘솔·CI로만 가는 데이터 검사 모듈. 여기 글이 화면에 나오게 바뀌면 목록에서 빼야 한다. */
-const DEV_ONLY = new Set([
-  "src/core/flow.ts",
-  "src/core/puzzle/check.ts",
-  "src/core/puzzle/validate.ts",
-]);
+/**
+ * 결과가 콘솔·CI로만 가는 모듈. 파일 통째로 뺀다. 여기 글이 화면에 나오게 바뀌면 목록에서 빼야 한다.
+ * check.ts(BFS 리포트)는 글을 배열에 모아 돌려주는 곳이 10군데가 넘고 모양이 제각각이라 노드 단위로 넘기지 않는다.
+ * 런타임(main.ts)에서 부르지 않고 tests·CI만 쓴다. flow.ts·validate.ts는 #274에서 노드 단위 검사로 옮겼다.
+ */
+const DEV_ONLY = new Set(["src/core/puzzle/check.ts"]);
+
+/** 메서드 호출 인자가 개발자 메시지인 이름(4번). `console.warn`은 1번이 먼저 잡는다. */
+const DEV_METHODS = new Set(["err", "warn"]);
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const HANGUL = /[ᄀ-ᇿ㄰-㆏가-힣]/;
@@ -78,10 +84,25 @@ function throwHelpers(sf: ts.SourceFile): Set<string> {
   return names;
 }
 
-/** 이 노드가 개발자 전용 메시지 안에 있나: `new Error(...)` 등의 인자, `console.*(...)` 인자, 같은 파일 throw 도우미 인자. */
+/** `{ error: … }`의 값인가(3번). 키 이름만 본다. 같은 객체의 다른 키(`text: '…'`)는 그대로 검사한다. */
+function isErrorProperty(n: ts.Node, child: ts.Node): boolean {
+  return (
+    ts.isPropertyAssignment(n) &&
+    n.initializer === child &&
+    (ts.isIdentifier(n.name) || ts.isStringLiteral(n.name)) &&
+    n.name.text === "error"
+  );
+}
+
+/** 이 노드가 개발자 전용 메시지 안에 있나(맨 위 주석 1~4번). */
 function isDevMessage(node: ts.Node, helpers: Set<string>): boolean {
-  for (let n: ts.Node | undefined = node.parent; n; n = n.parent) {
+  for (
+    let child = node, n: ts.Node | undefined = node.parent;
+    n;
+    child = n, n = n.parent
+  ) {
     if (isNewError(n)) return true;
+    if (isErrorProperty(n, child)) return true;
     if (ts.isCallExpression(n)) {
       const callee = n.expression;
       if (
@@ -91,6 +112,13 @@ function isDevMessage(node: ts.Node, helpers: Set<string>): boolean {
       )
         return true;
       if (ts.isIdentifier(callee) && helpers.has(callee.text)) return true;
+      // 4번: 인자만 넘긴다. 받는 쪽(`a.b.err`의 `a.b`)에 든 글은 인자가 아니라 계속 검사한다.
+      if (
+        ts.isPropertyAccessExpression(callee) &&
+        DEV_METHODS.has(callee.name.text) &&
+        n.arguments.some((a) => a === child)
+      )
+        return true;
     }
     if (ts.isFunctionLike(n) || ts.isSourceFile(n)) break;
   }
@@ -177,5 +205,38 @@ describe("플레이어가 보는 글에 한국어 없음 (#256)", () => {
         "const fail = (why: string): never => { throw new Error(`오류: ${why}`); };\nfail('객체가 아님');\nfunction say(s: string) { el.textContent = s; }\nsay('안녕');",
       ),
     ).toEqual(['"안녕"']);
+    // #274: `error` 속성 값은 넘기고, 같은 객체의 다른 속성·키 이름이 비슷한 속성은 잡는다.
+    expect(
+      probe(
+        "return { ok: false, error: `order[${i}]: 중복 id ${id}` };\nreturn { ok: true, text: '안녕', errorText: '실패' };",
+      ),
+    ).toEqual(['"안녕"', '"실패"']);
+    // 키가 error라도 값 안의 함수가 화면에 쓰는 글은 잡는다(속성 값 자체만 넘긴다).
+    expect(
+      probe(
+        "const r = { error: (() => { el.textContent = '안녕'; return 'x'; })() };",
+      ),
+    ).toEqual(['"안녕"']);
+    // #274: `.err`·`.warn` 인자는 넘긴다. 다른 메서드(`.say`)와 받는 쪽 식 안의 글은 잡는다.
+    expect(
+      probe(
+        "c.err(path, 'schema', '객체여야 한다');\nthis.warn(p, 'x', `모르는 필드: ${k}`);\nhud.say('안녕');\npick('대사').err('x');",
+      ),
+    ).toEqual(['"안녕"', '"대사"']);
+  });
+
+  it("#274: flow.ts·validate.ts는 통째로 빼지 않고, 화면용 한글을 넣으면 잡힌다", () => {
+    expect(DEV_ONLY.has("src/core/flow.ts")).toBe(false);
+    expect(DEV_ONLY.has("src/core/puzzle/validate.ts")).toBe(false);
+    const file = join(ROOT, "src/core/flow.ts");
+    const text = readFileSync(file, "utf8");
+    expect(playerKorean(file, text)).toEqual([]);
+    // 끝 카드 글처럼 화면에 나갈 글을 한 줄 넣으면 실패해야 한다(설계 ui-interaction.md 11절).
+    const hits = playerKorean(
+      file,
+      `${text}\nexport const END_CARD = '1장 끝';\n`,
+    );
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatch(/^src\/core\/flow\.ts:\d+ "1장 끝"$/);
   });
 });
