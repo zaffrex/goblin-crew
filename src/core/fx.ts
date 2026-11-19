@@ -8,10 +8,13 @@ import { isDoHere, type RuleShowItem } from './puzzle/types';
 export const FX_COLORS = {
   ink: '#1b1720',
   dusk: '#5e5068',
+  lav: '#8a7d8f',
   lint: '#b9adb5',
   white: '#fff8ee',
   redL: '#f0766b',
   woodL: '#c48a52',
+  tan: '#e8bd7e',
+  pinkL: '#ffc6d6',
   yelL: '#fff1a8',
   tealM: '#5a93a8',
 } as const;
@@ -44,6 +47,10 @@ export const FX_STYLE: Readonly<Record<string, { color: FxColor; height: number 
   squeak_bounce: { color: 'yelL', height: 8 },
   stretch_text: { color: 'redL', height: 8 },
   stomp_text: { color: 'tealM', height: 10 },
+  gon_text: { color: 'lav', height: 10 },
+  poof_text: { color: 'tan', height: 8 },
+  quack_text: { color: 'white', height: 8 },
+  kokee_text: { color: 'pinkL', height: 10 },
 };
 
 /**
