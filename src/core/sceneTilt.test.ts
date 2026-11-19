@@ -244,7 +244,8 @@ describe('보이는 탑승으로 기울기 정하기 (1-5-4절)', () => {
         n++;
         expect(s.riding.mukjik).toBeUndefined();
         expect(boardDrop(data, s, 'mukjik')).toBe(0);
-        expect(s.walkers.mukjik.y).toBe(244);
+        // 바닥 점(y 240)에 내려서서 판 옆으로 걸어간 그 y에서 찧는다(#416).
+        expect(s.walkers.mukjik.y).toBe(data.screen.spots[end]!.board![1]);
       }
       expect(n).toBeGreaterThan(0);
     }
