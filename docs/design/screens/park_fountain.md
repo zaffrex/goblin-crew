@@ -91,7 +91,7 @@
 | 캐릭터 3명 자리 | `floor` | `floor` | 시작 위치로 |
 | ふわふわゲージ | 0~5 | 5 | 5로 다시 참 |
 
-- **클리어(`exitFlag`)**: `jacket.taken`. 아이템 없음(`start.items: []`, 집기 규칙에 `give` 없음).
+- **클리어(`exitFlag`)**: `jacket.taken`. 8번★은 `fountain.off`도 거짓으로 되돌린다(8절 ③ 분수가 다시 뿜음, 12절 ④). 클리어 뒤라 퍼즐 경로에는 영향이 없다. 아이템 없음(`start.items: []`, 집기 규칙에 `give` 없음).
 - 상태 공간: 2 × 2 × 2 × 게이지 6 = 48 이하. `magpie_nest`보다 작다.
 
 ## 3. 규칙 목록 (위에서부터 처음 맞는 하나만 적용)
@@ -107,7 +107,7 @@
 | 5 | `jacket_reach_wet` 💥 | `jacket` · stretch | `fountain.off` 거짓 | 게이지 −1 | 장대가 물줄기에 닿아 튕기고 물벼락 → 공용 "젖음" | `wet` / 두 번째 `wet_again` |
 | 6 | `jacket_reach_high` | `jacket` · stretch | `fountain.off` 참, `jacket.on_hand` 거짓 | 없음 | 최대 길이에서 부들부들 → 툭 접힘(`magpie_nest` 땅에서 뻗기와 같은 재사용) | `high` / 두 번째 `high_again` |
 | 7 | `jacket_ground_stomp` | `jacket` · stomp | `jacket.on_hand` 거짓 | 없음 | 재킷 밑 흙길에서 쿵 → "ぼふっ" 흙먼지, 비둘기가 날았다 내려앉음. 재킷은 그대로(단서 ②) | `soft` / 두 번째 `soft_again` |
-| 8 | `jacket_take` ★ | `jacket` · stretch | `fountain.off` 참, `jacket.on_hand` 참 | `jacket.taken = 참` → 클리어 | 테두리 앞에서 장대를 뻗어 손 위 재킷을 집어 당긴다 → 클리어 컷(8절) | `take` |
+| 8 | `jacket_take` ★ | `jacket` · stretch | `fountain.off` 참, `jacket.on_hand` 참 | `jacket.taken = 참`, `fountain.off = 거짓` → 클리어 | 테두리 앞에서 장대를 뻗어 손 위 재킷을 집어 당긴다 → 클리어 컷(8절) | `take` |
 | 9 | `fountain_tap` | `fountain` · stretch | `jacket.on_hand` 거짓 | 없음 | 장대로 테두리를 "カーン" → 재킷 소매가 움찔, 1px 미끄러졌다 멈춘다(단서 ①) | `tap` |
 | 10 | `fountain_tap_hand` | `fountain` · stretch | `jacket.on_hand` 참 | 없음 | 같은 "カーン", 동상 손이 흔들려도 재킷은 꽉 | `tap_hand` |
 
@@ -371,7 +371,7 @@ PM 리뷰(#384 반대 의견)가 짚은 "아무거나 3번 누르니 끝"을 셌
 - **① 물줄기 입자의 그리는 자리 (Theo)**: `back` 레이어에서 재킷 바로 다음, 테두리 앞면보다 뒤다. 1-4의 2번 묶음(테두리 앞면·창·자명종·손님)이 물줄기보다 앞이다. 지금 `sceneArt.ts`는 `back`/`front` 두 층과 발 y 정렬 overlay라서, 입자를 `back` 그림 사이에 끼우는 방법(예: 물줄기를 `back` 그림 목록의 한 항목으로 두고 그 자리에서 입자를 그림)이 필요하다. 어렵다면 대안: 물줄기를 미리 그린 4칸 루프 그림으로 바꾼다(아트 +4칸, R1 안). 회색 배치 PR 전에 Theo 답을 받는다(13절 Q5와 같이).
 - **② `jacket` 위치**: `variants`(ADR-0065)로 `jacket.on_hand`에 따라 상자만 옮긴다. `magpie`와 같아서 새 기능이 아니다. P5 3칸이 손 위 정지 그림이다.
 - **③ ズッシー × 분수대 서는 곳**: 1-3 메모대로 모서리 옆(오른쪽에서 오면 x 339)에 서야 P4(모서리에 앉기)가 맞는다. **회색 배치 v1: 지금 걷기 규칙만으로 339가 나와서 `fountain_corner` 자리는 두지 않는다**(왼쪽에서 오면 109, 왼쪽 모서리 옆). 지금 걷기 규칙(ui-interaction 5-1)으로 바닥 대상의 어디에 서는지 회색 배치에서 Theo와 확인한다(13절 Q3). `approach`는 서는 자리 ID라 점 좌표를 줄 수 없다. 필요하면 `fountain_corner` 자리(`free: true`, 정원 제한 없음)를 하나 더 두고 `approach: { "stomp": "fountain_corner" }`로 한다. 자리 하나가 늘어도 유지 상태가 아니라 S2는 그대로다.
-- **④ 클리어 컷 (4차에서 정함)**: 새 "컷 순서 실행" 없이 **8번 규칙 `show` 하나에 ①~④를 다 쓴다.** `step`이 `clear` 이벤트를 `show`가 다 나온 뒤에 붙이고(`step.ts` 7단계), 물건별 보이는 플래그는 그 물건 anim이 시작될 때 바뀐다(그림 형식 4-2 (a)). 마지막 プピ 한마디(`clear`)는 `show`에 넣지 않는다. 엔진이 `<화면 ID>.clear` 텍스트를 클리어 컷 글로 띄운다(`main.ts` `clearLine`). 그래서 이 키를 `show`에도 넣으면 두 번 나온다. **물건 anim `hold` (PR #446 Theo 리뷰 (A), Luna 동의)**: 물건 anim은 끝나면 플래그 그림으로 돌아가서(캐릭터만 #189 `holdLast`), 이대로면 손님이 입구로 순간이동하고 관리인이 잠든 그림으로 말하고 분수가 다시 꺼진다. 그래서 그림 메타 anim에 `"hold": true`를 두면 **대기열이 빌 때까지 마지막 칸을 붙잡고**, 핫스팟 화자 말풍선은 그 물건이 지금 그리는 칸 상자에 붙인다(엔진, Theo 이슈). 이 화면에서 `hold`를 다는 anim: `guest.run_in`·`guest.cheer`·`guest.soaked`, `keeper.wake`·`keeper.clean_time`, `fountain.water_burst`(효과 자리: 끝난 뒤 "뿜는 중"으로 남음), `jacket.cover`. 1번 규칙처럼 대기열이 비면 플래그 그림(졸기)으로 돌아가니까 같은 anim을 일반 규칙에서 써도 된다. 손님 달려오기(`guest.run_in`)는 엔진 이동 없이 칸마다 `at`으로 자리를 바꾼다. 8-1 카드 2장은 위 길이 조건의 마지막 대안으로 남긴다.
+- **④ 클리어 컷 (4차에서 정함)**: 새 "컷 순서 실행" 없이 **8번 규칙 `show` 하나에 ①~④를 다 쓴다.** `step`이 `clear` 이벤트를 `show`가 다 나온 뒤에 붙이고(`step.ts` 7단계), 물건별 보이는 플래그는 그 물건 anim이 시작될 때 바뀐다(그림 형식 4-2 (a)). 마지막 プピ 한마디(`clear`)는 `show`에 넣지 않는다. 엔진이 `<화면 ID>.clear` 텍스트를 클리어 컷 글로 띄운다(`main.ts` `clearLine`). 그래서 이 키를 `show`에도 넣으면 두 번 나온다. **물건 anim `hold` (PR #446 Theo 리뷰 (A), Luna 동의)**: 물건 anim은 끝나면 플래그 그림으로 돌아가서(캐릭터만 #189 `holdLast`), 이대로면 손님이 입구로 순간이동하고 관리인이 잠든 그림으로 말하고 분수가 다시 꺼진다. 그래서 그림 메타 anim에 `"hold": true`를 두면 **대기열이 빌 때까지 마지막 칸을 붙잡고**, 핫스팟 화자 말풍선은 그 물건이 지금 그리는 칸 상자에 붙인다(엔진, Theo 이슈). 이 화면에서 `hold`를 다는 anim: `guest.run_in`·`guest.cheer`·`guest.soaked`, `keeper.wake`·`keeper.clean_time`, `jacket.cover`. **`fountain.water_burst`에는 달지 않는다**(PR #452 Luna 리뷰): 8번 규칙 `do`에서 `fountain.off`를 거짓으로 되돌려서(그림 형식 11-3절), burst가 시작될 때 보이는 플래그가 바뀌고 끝나면 멈춘 모드 `on`으로 계속 뿜는다. ③ "한 번 크게 솟았다가 다시 뿜는다" 그대로이고, 모드가 바뀌는 때가 컷 안에 있다. `hold`를 달면 그때가 클리어 카드가 뜨는 틱으로 밀린다. **카드 뒤 정지 그림**: 클리어 카드는 대기열이 비는 틱에 뜨고(`main.ts` `scene.cleared && !isBusy`), 그 틱에 `hold`가 다 풀린다. 그래서 카드 뒤에 남는 모습은 멈춘 모습(`when`)이 맡는다. 분수는 위 `do`로 `on`이고, 관리인은 졸기(P2 끝과 같음)다. 손님은 `when: jacket.taken` 멈춘 모습(P8 3칸, 흠뻑 젖음)을 ノビー 옆에 두고, 핫스팟 `variants`로 상자도 같이 옮긴다(말풍선 피하기 상자도 이 상자를 쓴다). `guest.cheer`·`guest.soaked` 칸의 `at`은 `run_in` 마지막 칸과 같은 자리다. 셋 캐릭터는 젖은 자세에서 서기로 돌아가고, 배포본에서 어색하면 그때 다시 본다. 1번 규칙처럼 대기열이 비면 플래그 그림(졸기)으로 돌아가니까 같은 anim을 일반 규칙에서 써도 된다. 손님 달려오기(`guest.run_in`)는 엔진 이동 없이 칸마다 `at`으로 자리를 바꾼다. 8-1 카드 2장은 위 길이 조건의 마지막 대안으로 남긴다.
 - **⑤ 끝 카드 문구**: `ui.end`를 `…남은 빨래, 서른여덟 벌.`로. 일본어 값은 5-3절(`第1章 おわり` / `…洗濯物、あと38着。`). `ja.json`에는 아직 `ui.end` 키가 없어서 끝 카드를 붙이는 연결 PR이 이 값으로 넣는다. ui-interaction 11-5와 매트릭스 90행의 "서른일곱"은 3차 PR에서 고쳤다.
 - **⑥ #67 BFS 기대값 (Ben)**: 최단 3, 정답 경로 2개(squeak·stomp 순서), 능력 하나를 끄면 못 푼다(셋 다), 막다른 상태 0, 유지 상태 0, 도달 상태 ≤ 48(게이지 포함). M6 경고(3 < 4)는 화면 JSON PR 본문에 #384를 링크한다.
 - **⑦** 규칙 대사의 "첫 번째 / 두 번째부터"는 규칙별 발동 횟수로, UI 상태다. 세이브·BFS에 넣지 않는다(`magpie_nest` 12절과 같음). 9절 대기 동작(꾸벅, 소매 움찔, 발 동동)도 상태가 아니다.
