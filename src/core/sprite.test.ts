@@ -3,7 +3,7 @@ import { WALK_SPEED } from './config';
 import jjukJson from '../../public/sprites/jjuk-base.json';
 import mukjikJson from '../../public/sprites/mukjik-base.json';
 import ppikJson from '../../public/sprites/ppik-base.json';
-import { cueMs, frameSourceX, headSource, parseSpriteMeta, POLE_JOINT, POLE_WIDTH, spriteBox, spriteFacing, spriteFrame, spriteHit, spritePole, type Pose, type SpriteMeta } from './sprite';
+import { cellTops, cueMs, frameSourceX, headSource, headTop, LOW_POSE_PX, parseSpriteMeta, POLE_JOINT, POLE_WIDTH, spriteBox, spriteFacing, spriteFrame, spriteHit, spritePole, type Pose, type SpriteMeta } from './sprite';
 
 const JJUK = parseSpriteMeta(jjukJson);
 const still: Pose = { walkedPx: null, holding: false, event: null, clockMs: 0 };
@@ -338,5 +338,42 @@ describe('spriteHit (자세별 클릭 상자, #203)', () => {
     const reach = JJUK.anims.reach_hang_up!;
     const box = spriteHit(JJUK, { ...hanging, event: { name: 'reach_hang_up', ms: 0 } }, 160, 160, -1)!;
     expect([box.width, box.height]).toEqual([reach.hit![2], reach.hit![3]]);
+  });
+});
+
+describe('cellTops (#464)', () => {
+  /** 2칸(4×4) 시트. 칸 0은 y 1부터, 칸 1은 비었다가 y 3에 한 점. */
+  const sheet = (): Uint8ClampedArray => {
+    const w = 8;
+    const px = new Uint8ClampedArray(w * 4 * 4);
+    const put = (x: number, y: number, a: number): void => {
+      px[(y * w + x) * 4 + 3] = a;
+    };
+    put(2, 1, 255);
+    put(0, 2, 255);
+    put(7, 3, 1);
+    return px;
+  };
+  it('칸마다 알파 > 0인 첫 줄을 칸 안 y로 돌려준다', () => {
+    expect(cellTops(sheet(), 8, [4, 4], 2)).toEqual([1, 3]);
+  });
+  it('빈 칸은 null', () => {
+    expect(cellTops(new Uint8ClampedArray(8 * 4 * 4), 8, [4, 4], 2)).toEqual([null, null]);
+  });
+});
+
+describe('headTop (#464)', () => {
+  const meta: SpriteMeta = { ...JJUK, hit: [12, 3, 28, 61] };
+  it('위끝이 기본 hit 위끝에서 문턱 안이면 기본 hit 위끝(서 있기·걷기 출렁임에 안 흔들린다)', () => {
+    expect(headTop(meta, 3)).toEqual({ y: 3, low: false });
+    expect(headTop(meta, 3 + LOW_POSE_PX)).toEqual({ y: 3, low: false });
+  });
+  it('문턱보다 낮으면 그 칸의 위끝(납작)', () => {
+    expect(headTop(meta, 3 + LOW_POSE_PX + 1)).toEqual({ y: 3 + LOW_POSE_PX + 1, low: true });
+    expect(headTop(meta, 41)).toEqual({ y: 41, low: true });
+  });
+  it('기본보다 높은 칸(팔을 든 자세)이나 위끝을 모르면 기본 hit 위끝', () => {
+    expect(headTop(meta, 0)).toEqual({ y: 3, low: false });
+    expect(headTop(meta, null)).toEqual({ y: 3, low: false });
   });
 });

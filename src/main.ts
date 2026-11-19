@@ -29,7 +29,7 @@ import { startLoop } from './engine/loop';
 import { drawHud } from './engine/hud';
 import { drawActiveMarker, drawCharacter, drawOutline, drawRoom, drawSpark, drawStompDust, drawTarget, drawTargets } from './engine/placeholder';
 import { drawSceneBg, drawSceneFrame, drawSceneFx, loadSceneArt, sceneArtMeta } from './engine/sceneArt';
-import { drawHead, drawSprite, spriteMetas, spriteState } from './engine/sprites';
+import { drawHead, drawSprite, spriteMetas, spriteState, type SpriteTop } from './engine/sprites';
 import { drawFxText, fxTextState } from './engine/fxText';
 import { hudIconState, paintHudIcon } from './engine/hudIcons';
 
@@ -218,15 +218,23 @@ canvas.addEventListener('pointermove', (e) => {
 /** 물건별 loop 시작 시각(#237). anim이 끝나거나 멈춘 모습이 바뀌면 그 물건만 0부터 다시 센다. */
 let loopClock: LoopStarts = {};
 
-/** 이번 프레임에 시트 그림으로 그린 캐릭터의 그림 꼭대기. 실루엣으로 그렸으면 없다(히트 박스 위끝을 쓴다). */
-const spriteTops: Partial<Record<CharacterId, number>> = {};
+/** 이번 프레임에 시트 그림으로 그린 캐릭터의 앵커 높이. 실루엣으로 그렸으면 없다(히트 박스 위끝을 쓴다). */
+const spriteTops: Partial<Record<CharacterId, SpriteTop>> = {};
+
+/**
+ * 상자 위끝과 그림 앵커 중 머리 위 높이(내부 y). 보통은 둘 중 위쪽(매달린 자세는 자세 `hit` 상자가 더 위).
+ * 낮은 자세(납작·엉덩방아, #464)면 상자는 서 있는 높이 그대로라 그림 앵커만 쓴다.
+ */
+function headY(box: HitBox, sprite: SpriteTop | undefined): number {
+  if (!sprite) return box.top;
+  return sprite.low ? sprite.top : Math.min(box.top, sprite.top);
+}
 
 /** 연출 대상(캐릭터 ID 또는 핫스팟 ID)의 머리 위 점. 내부 좌표. */
 function anchorOf(target: string, layout: ReturnType<typeof sceneLayout>): Point | null {
   const box: HitBox | undefined = layout.chars[target as CharacterId] ?? layout.hotspots[target] ?? layout.spots[target];
   if (!box) return null;
-  const top = Math.min(box.top, spriteTops[target as CharacterId] ?? box.top);
-  return { x: box.left + box.width / 2, y: top };
+  return { x: box.left + box.width / 2, y: headY(box, spriteTops[target as CharacterId]) };
 }
 
 /**
@@ -494,7 +502,7 @@ function render(): void {
   }
   if (activeMarkerVisible(scene)) {
     const box = layout.chars[scene.ui.active];
-    drawActiveMarker(ctx, Math.min(box.top, spriteTops[scene.ui.active] ?? box.top), me.x, scene.tick);
+    drawActiveMarker(ctx, headY(box, spriteTops[scene.ui.active]), me.x, scene.tick);
   }
   if (scene.ui.selected) {
     const target = scene.ui.selected.split('|')[2] ?? '';
