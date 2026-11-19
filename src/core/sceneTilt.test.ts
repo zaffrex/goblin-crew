@@ -7,6 +7,7 @@ import jjukJson from '../../public/sprites/jjuk-base.json';
 import mukjikJson from '../../public/sprites/mukjik-base.json';
 import ppikJson from '../../public/sprites/ppik-base.json';
 import { CHARACTERS, type CharacterId } from './characters';
+import { TICK_MS } from './config';
 import { parseSceneArt, sceneDraws, tiltDrop } from './sceneArt';
 import { parseSpriteMeta } from './sprite';
 import type { CharactersData, ScreenData } from './puzzle/types';
@@ -181,7 +182,7 @@ describe('보이는 탑승으로 기울기 정하기 (1-5-4절)', () => {
       const ev = s.current?.ev;
       if (ev?.type === 'anim' && ev.name === 'plank_bounce') {
         sawBounce = true;
-        expect(d(s)).toBe(-3);
+        expect(d(s)).toBe(-3); // 멈춘 기울기(그림 고르기용)는 그대로. 판은 U6 칸이 그린다
       }
       if (ev?.type === 'anim' && ev.name === 'launch_to_hook') {
         sawLaunch = true;
@@ -192,6 +193,87 @@ describe('보이는 탑승으로 기울기 정하기 (1-5-4절)', () => {
     expect([sawBounce, sawLaunch]).toEqual([true, true]);
     expect(s.puzzle.at.jjuk).toBe('hook');
     expect(d(s)).toBe(0);
+  });
+
+  /** U6 동안 매 틱 [U6 칸 번호, 판 위 사람의 그려지는 발 y]. 칸이 바뀌는 틱에 발도 바뀐다. */
+  function bounceFeet(s: SceneState, id: CharacterId): [number, number][] {
+    const seen: [number, number][] = [];
+    for (let i = 0; i < 3000 && isBusy(s); i++) {
+      sceneTick(data, s);
+      const p = s.current;
+      if (p?.ev.type !== 'anim' || p.ev.name !== 'plank_bounce') continue;
+      const drawn = sceneDraws(art, { flagsOf: () => ({}), playing: { ...p.art!, ms: p.t * TICK_MS }, clockMs: 0 }).byObject.seesaw![0]!;
+      const k = p.art!.anim.frames.indexOf(drawn);
+      const y = Math.round(footY(s, id));
+      // 그리는 판 칸의 d로 잰 판 윗면과 발이 같다(뚫지도 뜨지도 않는다)
+      expect(y).toBe(top(p.art!.anim.tilt![k]!, s.walkers[id].x));
+      if (seen.length === 0 || seen[seen.length - 1]![0] !== k) seen.push([k, y]);
+    }
+    return seen;
+  }
+
+  it('U6 칸별 기울기 메타(12-5절): 오른쪽 끝 4 → 7 → −2, 왼쪽 끝 반대', () => {
+    expect(art.anims['seesaw_right.plank_bounce']!.tilt).toEqual([4, 7, -2]);
+    expect(art.anims['seesaw_left.plank_bounce']!.tilt).toEqual([-4, -7, 2]);
+  });
+
+  it('정답 11번: U6 동안 왼쪽 쭉이 발이 칸마다 판을 따른다(211 → 209 → 215, 1-5-4절 표)', () => {
+    const s = ready();
+    board(s, 'jjuk', 'seesaw_left');
+    runAction(data, s, { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, null);
+    expect(bounceFeet(s, 'jjuk')).toEqual([[0, 211], [1, 209], [2, 215]]);
+    expect(s.puzzle.at.jjuk).toBe('hook');
+  });
+
+  it('14번: U6 동안 오른쪽에 탄 사람 발이 왼쪽 끝 이벤트 칸을 따른다(210 → 208 → 216)', () => {
+    const s = ready();
+    board(s, 'jjuk', 'seesaw_right');
+    runAction(data, s, { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' }, null);
+    expect(bounceFeet(s, 'jjuk')).toEqual([[0, 210], [1, 208], [2, 216]]);
+  });
+
+  it('15번: 판 위 묵직이가 찧으면 먼저 바닥으로 내려서서 U6 동안 판 위 발이 없다(1-5-2절 "판 옆 바닥에서 찧는다")', () => {
+    for (const end of ENDS) {
+      const s = ready();
+      board(s, 'mukjik', end);
+      runAction(data, s, { char: 'mukjik', verb: 'stomp', target: end }, null);
+      let n = 0;
+      for (let i = 0; i < 3000 && isBusy(s); i++) {
+        sceneTick(data, s);
+        if (s.current?.ev.type !== 'anim' || s.current.ev.name !== 'plank_bounce') continue;
+        n++;
+        expect(s.riding.mukjik).toBeUndefined();
+        expect(boardDrop(data, s, 'mukjik')).toBe(0);
+        expect(s.walkers.mukjik.y).toBe(244);
+      }
+      expect(n).toBeGreaterThan(0);
+    }
+  });
+
+  it('칸별 기울기가 없는 물건 anim이면 지금처럼 멈춘 값에 둔다', () => {
+    const plain = JSON.parse(JSON.stringify(artJson)) as { anims: Record<string, { tilt?: number[] }> };
+    delete plain.anims['seesaw_right.plank_bounce']!.tilt;
+    const noTilt: SceneData = { ...data, art: parseSceneArt(plain) };
+    const s = createScene(noTilt);
+    while (isBusy(s)) sceneTick(noTilt, s);
+    runAction(noTilt, s, { char: 'jjuk', verb: 'move', target: 'seesaw_left' }, null);
+    for (let i = 0; i < 3000 && isBusy(s); i++) sceneTick(noTilt, s);
+    runAction(noTilt, s, { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, null);
+    let n = 0;
+    for (let i = 0; i < 3000 && isBusy(s); i++) {
+      sceneTick(noTilt, s);
+      if (s.current?.ev.type === 'anim' && s.current.ev.name === 'plank_bounce') {
+        n++;
+        expect(Math.round(s.walkers.jjuk.y + boardDrop(noTilt, s, 'jjuk'))).toBe(top(-3, s.walkers.jjuk.x));
+      }
+    }
+    expect(n).toBeGreaterThan(0);
+  });
+
+  it('그림 메타의 anim 칸별 기울기가 칸 수와 다르면 파서가 막는다', () => {
+    const bad = JSON.parse(JSON.stringify(artJson)) as { anims: Record<string, { tilt?: number[] }> };
+    bad.anims['seesaw_left.plank_bounce']!.tilt = [-4, -7];
+    expect(() => parseSceneArt(bad)).toThrow(/plank_bounce.*tilt/);
   });
 
   it('탭 건너뛰기로 깡충을 넘기면 기울기도 바로 새 값', () => {

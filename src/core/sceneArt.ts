@@ -51,6 +51,8 @@ export interface SceneTilt {
 
 export interface SceneAnim extends Timed {
   layer: Layer;
+  /** 칸별 기울기 d(형식 기록 12-5절, 개정 6). 기울기 물건 anim만. 판 위 발이 지금 칸의 판 높이를 따른다. */
+  tilt?: number[];
 }
 
 export interface SceneArtMeta {
@@ -88,6 +90,10 @@ export function parseSceneArt(raw: unknown): SceneArtMeta {
     if (!t || !Array.isArray(t.frames) || !Array.isArray(t.ms) || t.frames.length === 0 || t.frames.length !== t.ms.length) fail(`${where}: frames·ms`);
     t!.frames!.forEach((f, i) => frame(f, `${where}.frames[${i}]`));
     if (!t!.ms!.every((v) => isInt(v) && v > 0)) fail(`${where}: ms는 양의 정수`);
+  };
+  const animTilt = (a: Partial<SceneAnim>, where: string): void => {
+    if (a.tilt === undefined) return;
+    if (!Array.isArray(a.tilt) || a.tilt.length !== a.frames?.length || !a.tilt.every(isInt)) fail(`${where}.tilt`);
   };
   const layer = (v: unknown, where: string): void => {
     if (v !== 'back' && v !== 'front') fail(`${where}: layer`);
@@ -133,10 +139,12 @@ export function parseSceneArt(raw: unknown): SceneArtMeta {
   for (const [name, a] of Object.entries(m.anims)) {
     timed(a, `anims['${name}']`);
     layer(a.layer, `anims['${name}']`);
+    animTilt(a, `anims['${name}']`);
     if (a.object !== null && !m.objects.some((o) => o.key === a.object)) fail(`anims['${name}'].object`);
     for (const [j, v] of (a.variants ?? []).entries()) {
       timed(v, `anims['${name}'].variants[${j}]`);
       layer(v.layer, `anims['${name}'].variants[${j}]`);
+      animTilt(v, `anims['${name}'].variants[${j}]`);
       when(v.when, `anims['${name}'].variants[${j}]`);
     }
   }
@@ -169,15 +177,20 @@ export function animTicks(anim: Timed): number {
   return Math.ceil(ms / TICK_MS - 1e-9);
 }
 
-/** ms 시간표의 지금 프레임. 반복이면 감고, 아니면 마지막 프레임에 머문다. */
-export function timedFrame(t: Timed, ms: number, loop: boolean): number {
+/** ms 시간표의 지금 칸 번호(0부터). 반복이면 감고, 아니면 마지막 칸에 머문다. */
+export function timedIndex(t: Timed, ms: number, loop: boolean): number {
   const total = t.ms.reduce((a, b) => a + b, 0);
   let rest = loop ? ((ms % total) + total) % total : Math.max(0, ms);
   for (let i = 0; i < t.frames.length; i++) {
     rest -= t.ms[i]!;
-    if (rest < 0) return t.frames[i]!;
+    if (rest < 0) return i;
   }
-  return t.frames[t.frames.length - 1]!;
+  return t.frames.length - 1;
+}
+
+/** ms 시간표의 지금 프레임. 반복이면 감고, 아니면 마지막 프레임에 머문다. */
+export function timedFrame(t: Timed, ms: number, loop: boolean): number {
+  return t.frames[timedIndex(t, ms, loop)]!;
 }
 
 /** 이번 프레임에 그릴 물건 그림. 엔진은 back → (캐릭터 + overlays를 발 y로 섞기) → front 순서로 그린다(6절). */

@@ -225,6 +225,22 @@ describe('scene build (format v1)', () => {
       expect(problemsOf((s) => { withTilt(s); s.objects!.seesaw!.tilt!.weight = { jjuk: 0 }; })).toEqual([expect.stringContaining('weight')]);
       expect(problemsOf((s) => { withTilt(s); s.objects!.seesaw!.noFloor!.y = 220; })).toEqual([expect.stringContaining('noFloor')]);
     });
+    it('anim 칸별 기울기(12-5절, 개정 6): 메타에 그대로 적힌다', () => {
+      const s = goodScene();
+      withTilt(s);
+      s.anims!['seesaw_right.plank_bounce']!.tilt = [4, 7, -2];
+      const r = buildScene(s, screen);
+      expect(r.problems).toEqual([]);
+      expect(r.meta!.anims['seesaw_right.plank_bounce']!.tilt).toEqual([4, 7, -2]);
+      expect(r.meta!.anims['magpie.fly_down']!.tilt).toBeUndefined();
+    });
+    it('anim 칸별 기울기: 칸 수가 다르거나 정수가 아니면, 기울기 없는 물건이면 막는다', () => {
+      const bounce = (s: SceneSrc) => s.anims!['seesaw_right.plank_bounce']!;
+      expect(problemsOf((s) => { withTilt(s); bounce(s).tilt = [4, 7]; })).toEqual([expect.stringContaining('tilt: frames와 같은 길이(3)')]);
+      expect(problemsOf((s) => { withTilt(s); bounce(s).tilt = [4, 7.5, -2]; })).toEqual([expect.stringContaining('.tilt')]);
+      expect(problemsOf((s) => { bounce(s).tilt = [4, 7, -2]; })).toEqual([expect.stringContaining('대상 물건에 tilt가 없다')]);
+      expect(problemsOf((s) => { s.anims!['magpie.fly_down']!.tilt = [1, 2]; })).toEqual([expect.stringContaining('대상 물건에 tilt가 없다')]);
+    });
   });
   describe('anim 갈래(4-1절, 개정 1)·배경 이름', () => {
     const withVariant = (s: SceneSrc) => {

@@ -41,7 +41,7 @@ const screen = JSON.parse(readFileSync('content/screens/magpie_nest.json', 'utf8
  * 처음 상태에서 쓰는 특기 사례. 사장님 2차 플레이에서 실제로 누른 조합(#284 PM 재현 표) + 대상별 하나씩.
  * 정답 경로(고리 → 둥지)는 replay.ts A1이 본다.
  */
-const CASES: { id: string; action: Action; why: string }[] = [
+const CASES: { id: string; action: Action; why: string; /** 찍기 전에 끝까지 돌려 두는 행동(예: 판에 태우기). */ pre?: Action[] }[] = [
   { id: 'jjuk-stretch-nest', action: { char: 'jjuk', verb: 'stretch', target: 'nest' }, why: '바닥에서 둥지: 장대가 늘어나다 모자라야 한다(#284 완료 조건 2)' },
   { id: 'jjuk-stretch-hook', action: { char: 'jjuk', verb: 'stretch', target: 'hook' }, why: '바닥에서 고리: 집게가 고리 아래에서 멈춤' },
   { id: 'jjuk-stretch-magpie', action: { char: 'jjuk', verb: 'stretch', target: 'magpie' }, why: '바닥에서 까치' },
@@ -56,6 +56,18 @@ const CASES: { id: string; action: Action; why: string }[] = [
   { id: 'mukjik-move-seesaw_left', action: { char: 'mukjik', verb: 'move', target: 'seesaw_left' }, why: '시소 왼쪽 끝 올라서기: 판이 왼쪽으로 6px' },
   { id: 'ppik-move-seesaw_left', action: { char: 'ppik', verb: 'move', target: 'seesaw_left' }, why: '시소 왼쪽 끝 올라서기: 가볍게 통(웅크림 50ms)' },
   { id: 'ppik-move-seesaw_right', action: { char: 'ppik', verb: 'move', target: 'seesaw_right' }, why: '시소 오른쪽 끝 올라서기: 가볍게 통' },
+  {
+    id: 'seesaw-bounce-launch',
+    pre: [{ char: 'jjuk', verb: 'move', target: 'seesaw_left' }],
+    action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' },
+    why: '정답 11번: U6 동안 쭉이 발이 판 칸을 따라 밀려 올라간 뒤 발사(#397, 1-5-4절 2026-11-19 개정)',
+  },
+  {
+    id: 'seesaw-bounce-wrong-way',
+    pre: [{ char: 'jjuk', verb: 'move', target: 'seesaw_right' }],
+    action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' },
+    why: '14번: 오른쪽에 탄 쭉이 발이 왼쪽 끝 이벤트 U6 칸을 따른다',
+  },
 ];
 
 /** replay.ts와 같은 관찰 전용 말풍선 기록기. */
@@ -124,6 +136,13 @@ async function runCase(browser: Browser, c: (typeof CASES)[number], outDir: stri
     };
     await closeStartCard(page, () => send(CARD_TAP)); // 시작 카드(#285): 닫아야 장면이 돈다
     await waitBusy(page, false); // 처음 연출(onEnter)
+    for (const a of c.pre ?? []) {
+      for (const t of planAction(screen, await layoutOf(page), a, VIEWPORT.input).taps) {
+        await send(t.at);
+        await sleep(80);
+        await waitBusy(page, false);
+      }
+    }
     const plan = planAction(screen, await layoutOf(page), c.action, VIEWPORT.input);
     // 마지막 탭 전까지는 그냥 누르고 연출이 끝나길 기다린다(전환·무장).
     for (const t of plan.taps.slice(0, -1)) {

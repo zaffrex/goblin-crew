@@ -920,7 +920,12 @@
         120,
         80
       ],
-      "layer": "back"
+      "layer": "back",
+      "tilt": [
+        4,
+        7,
+        -2
+      ]
     },
     "seesaw_left.plank_bounce": {
       "object": "seesaw",
@@ -934,7 +939,12 @@
         120,
         80
       ],
-      "layer": "back"
+      "layer": "back",
+      "tilt": [
+        -4,
+        -7,
+        2
+      ]
     },
     "long_johns.flutter": {
       "object": "long_johns",

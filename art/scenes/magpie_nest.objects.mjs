@@ -534,6 +534,8 @@ const plankBounce = (side) => ({ // side = 내려가는 끝
     plank(side * BOUNCE, whoosh(-side, BOUNCE)),
     plank(-side * 2),
   ],
+  // 칸별 널빤지 d(형식 기록 12-5절). 판 위 발이 이 칸의 판 높이를 따른다(설계 1-5-4절 2026-11-19 개정).
+  tilt: [side * 4, side * BOUNCE, -side * 2],
 });
 
 // U11 내복 펄럭(14번 빨랫줄에 날아와 걸림, `long_johns` × 쭉이 집게·묵직이 쿵). 빨래집게·허리단은 줄에 붙은 채

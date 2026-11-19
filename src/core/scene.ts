@@ -10,7 +10,7 @@ import { TICK_MS, WALK_AREA, WALK_SPEED } from './config';
 import { hitTest, type HitBox } from './hit';
 import { inHudZone } from './hud';
 import { hotspotBox, hudTargets, tap, type Intent, type TapContext, type UiState } from './interact';
-import { animOf, animTicks, tiltDrop, type SceneAnim, type SceneArtMeta, type SceneObject } from './sceneArt';
+import { animOf, animTicks, tiltDrop, timedIndex, type SceneAnim, type SceneArtMeta, type SceneObject } from './sceneArt';
 import { FX_TICKS, fxTicks } from './fx';
 import { sayText, seenSayKey } from './sayText';
 import { cueMs, spriteFacing, spriteFrame, spriteHit, type Pose, type SpriteMeta } from './sprite';
@@ -798,8 +798,18 @@ export function tiltOf(data: SceneData, s: SceneState, objectKey: string): numbe
 }
 
 /**
+ * 판 위 발이 따를 널빤지 d. 그 물건 anim이 칸별 기울기(`tilt`, 형식 기록 12-5절)를 갖고 재생 중이면 지금 칸의 d,
+ * 아니면 멈춘 기울기(`tiltOf`). 칸 고르기는 그리는 쪽(`sceneDraws`)과 같은 시계(`current.t`)라 판과 발이 같은 틱에 바뀐다.
+ */
+function boardTilt(data: SceneData, s: SceneState, objectKey: string): number {
+  const p = s.current?.art;
+  if (p && p.object === objectKey && p.anim.tilt) return p.anim.tilt[timedIndex(p.anim, s.current!.t * TICK_MS, false)]!;
+  return tiltOf(data, s, objectKey);
+}
+
+/**
  * 판 위 발이 내려간 px(그리기 전용, 1-5-4절). 엔진은 캐릭터를 (x, y + 이 값)에 그린다. 히트 박스·발 y 순서는 그대로다(6px 이하).
- * - 탄 사람: 지금 기울기로 지금 x 열의 판 높이.
+ * - 탄 사람: 지금 기울기로 지금 x 열의 판 높이. U6처럼 칸별 기울기가 있는 물건 anim 동안은 그 칸의 판 높이(2026-11-19 개정).
  * - 올라서기 공중: **착지 전** 기울기의 도착 열 높이를 향해 0 → 그 값으로(#406). 착지 칸부터는 탄 사람이다.
  * - 내려서기 공중: 뜰 때 높이 → 0. 바닥 점은 판 앞 바닥이라 0이다.
  */
@@ -809,8 +819,8 @@ export function boardDrop(data: SceneData, s: SceneState, id: CharacterId): numb
   const spot = s.riding[id] ?? (h?.up ? h.spot : undefined);
   const o = spot === undefined ? null : tiltObject(data, spot);
   if (!o) return 0;
+  if (s.riding[id] !== undefined) return tiltDrop(o.tilt, boardTilt(data, s, o.key), s.walkers[id].x);
   const d = tiltOf(data, s, o.key);
-  if (s.riding[id] !== undefined) return tiltDrop(o.tilt, d, s.walkers[id].x);
   if (!h || h.t < h.crouch) return 0;
   return ((h.t - h.crouch) / h.air) * tiltDrop(o.tilt, d, h.to.x);
 }
