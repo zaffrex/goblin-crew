@@ -91,13 +91,16 @@
       #card .gauge { white-space: nowrap; }
       #card canvas { flex: none; width: 48px; height: 48px; image-rendering: pixelated; }
       #card .name { flex: none; min-width: 4.5em; font-weight: 700; }
-      #card .start { margin-top: 0.5em; text-align: right; opacity: 0.4; }
+      /* 빌드 표기(#460): 시작 줄 왼쪽 빈자리에 같은 줄로 넣는다(줄이 늘지 않고, 시작 글자와 안 겹친다). */
+      #card .foot { margin-top: 0.5em; display: flex; justify-content: space-between; align-items: baseline; gap: 1em; white-space: nowrap; }
+      #card .build { font-size: 9px; opacity: 0.45; }
+      #card .start { opacity: 0.4; }
       #card[data-ready] .start { opacity: 1; }
       /* 압축 카드(CSS 배율 1.2 미만, #335): 667×375 @2에서 `タップではじめる`가 스크롤 없이 보이게. 얼굴 크기는 main.ts. */
       #card[data-tight] { line-height: 1.25; padding: 0.5em 0.8em; }
       #card[data-tight] ul { margin: 0.3em 0; }
       #card[data-tight] li { gap: 0.4em; }
-      #card[data-tight] .start { margin-top: 0.3em; }
+      #card[data-tight] .foot { margin-top: 0.3em; }
       /* 처음부터 버튼(#387, #286 P1-7, 아이콘 #390). 자리·크기는 main.ts가 `core/restart.ts` RESTART_BOX × 배율로 정한다.
          모양은 HUD 이름표와 같은 어두운 바탕. 아이콘(HUD 시트 `restart` 칸)은 가운데 `<span class="icon">`이고, 크기·시트 자리는 main.ts가 넣는다.
          첫 누름 뒤(data-armed)에는 노랑으로 바뀌고 아이콘이 1px 내려앉으며(눌린 버튼), 확인 글이 대상 라벨 자리에 뜬다. */
@@ -134,7 +137,7 @@
       <p class="why"></p>
       <ul></ul>
       <p class="gauge"></p>
-      <p class="start"></p>
+      <p class="foot"><span class="build"></span><span class="start"></span></p>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
