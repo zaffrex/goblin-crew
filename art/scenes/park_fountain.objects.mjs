@@ -570,9 +570,51 @@ function spring(t, x0, y0, x1, y1) {
 /** 시계 방향 90° 돌린 줄 묶음(옆으로 누운 칸, `tumble`). */
 const rotateCW = (rows) => [...rows[0]].map((_, i) => rows.map((r) => r[i]).reverse().join(''));
 
-/** pose: 'rest' 창턱 / 'boing' 머리가 왼쪽 위로 튐 / 'sway' 오른쪽으로 출렁(놀란 얼굴) / 'tumble' 떨어지는 중 / 'fallen' 땅에 거꾸로 처박힘 */
+// #542 끈: 자명종 오른발에 빨간 끈이 묶여 있고, 다른 끝은 조는 관리인이 책상에 포갠 손(졸기·꾸벅 둘 다 x 59..64, y 142..145)에 쥐고 있다.
+// 떨어질 때(`tumble`·`fallen`) 처음 보이고, 대사가 끝나면 관리인이 자면서 끈을 당겨 거꾸로 매달린 채 벽을 타고 올라와 창턱에 퐁(`reel_up`).
+// 손을 뻗어 주워 올리는 안(PM 1안)은 팔이 약 90px 늘어나야 해서 쭉이의 특기(늘어나기)와 겹친다. 끈이면 몸은 졸기 그대로다.
+// 끈은 효과 픽셀(외곽선 없음, redD 한 줄). 시계 그림 색(red·redL)과 다른 색이라 미리보기 검사에서 몸통만 따로 셀 수 있다.
+export const CORD_COLOR = C.redD;
+const CORD_HAND = [64, 145];
+/** 손 → pts… → 끝 점을 꺾은선 끈으로 */
+function cord(im, ...pts) {
+  let [x0, y0] = CORD_HAND;
+  for (const [x1, y1] of pts) { line(im, x0, y0, x1, y1, CORD_COLOR); [x0, y0] = [x1, y1]; }
+}
+/** 잡아당김 선(효과): 포갠 손 오른쪽 위 흰 점 둘. 눈은 감은 채, 손만 끈을 당긴다 */
+const tug = (im) => { for (const [x, y] of [[67, 141], [68, 140], [67, 144], [68, 145]]) im.set(x, y, C.white); };
+/** 거꾸로 선 자명종(다리가 위). 왼쪽 위 (x, y), 오른발 끝 = (x + 8, y). */
+const CLOCK_FLIP = [...CLOCK_REST.slice(2)].reverse();
+
+/** pose: 'rest' 창턱 / 'boing' 머리가 왼쪽 위로 튐 / 'sway' 오른쪽으로 출렁(놀란 얼굴) / 'tumble' 떨어지는 중 / 'fallen' 땅에 거꾸로 처박힘
+ *  / 'reel1'·'reel2' 끈에 거꾸로 매달려 올라옴 / 'reel3' 창턱 위로 퐁 뒤집혀 섬(#542) */
 function clockPic(pose) {
   if (pose === 'rest') return pic((t) => stamp(t, CX, CY, CLOCK_REST, CLOCK_LEGEND));
+  if (pose === 'reel1' || pose === 'reel2') {
+    // 1: 흙에서 22px 들림(몸 상자 왼쪽 끝 70보다 왼쪽) / 2: 창 아래 벽, ズッシー 머리 위(몸 상자 위 끝 183 위)
+    const [X, Y] = pose === 'reel1' ? [54, 214] : [62, 172];
+    return pic(
+      (t) => stamp(t, X, Y, CLOCK_FLIP, CLOCK_LEGEND),
+      (im) => {
+        cord(im, [X + 8, Y - 1]);
+        tug(im);
+        // 올라가는 속도선(아래로 남음)
+        for (const [dx, dy] of [[2, 12], [2, 13], [9, 12], [9, 14]]) im.set(X + dx, Y + dy, C.white);
+      },
+    );
+  }
+  if (pose === 'reel3') {
+    // 창턱 위 10px에서 똑바로 뒤집혀 섬 → 다음 틱에 멈춘 모습(창턱)으로 툭 내려앉는다. 양옆 흰 점 넷은 착지 직전 선(끈과 안 겹치게 몸 바깥)
+    const [X, Y] = [CX, CY - 10];
+    return pic(
+      (t) => stamp(t, X, Y, CLOCK_REST, CLOCK_LEGEND),
+      (im) => {
+        cord(im, [72, 149], [X + 8, Y + 12]);
+        tug(im);
+        for (const [x, y] of [[82, Y + 12], [82, Y + 13], [97, Y + 12], [97, Y + 13]]) im.set(x, y, C.white);
+      },
+    );
+  }
   // #527: 처음 자리(92,188 판잣집 벽 아래)는 ズッシー가 서는 곳(x 92, 몸 70..109 × 183..244) 바로 뒤라 몸에 다 가려졌다.
   // 그래서 창턱에서 벽을 타고 떨어져 **쿵 한 발 왼쪽 앞 흙**으로 튕겨 나온 자리로 옮긴다. ズッシー가 왼쪽을 보고 서니
   // 시선이 닿는 곳이고(`…すまん` 이 자명종에게 하는 말로 읽힌다), 창 바로 아래라 "창턱에서 떨어졌다"가 이어진다.
@@ -582,15 +624,23 @@ function clockPic(pose) {
     const TX = 56, TY = 178;
     return pic(
       (t) => stamp(t, TX, TY, rotateCW(CLOCK_REST), CLOCK_LEGEND),
-      (im) => { for (const [x, y] of [[66, 172], [67, 170], [62, 173], [63, 171], [58, 174]]) im.set(x, y, C.white); },
+      (im) => {
+        // 끈(#542): 포갠 손 → 책상 앞판 → 창턱 끝 → 옆으로 누운 오른발(왼쪽 x 56, y 185)
+        cord(im, [72, 149], [74, 152], [62, 176], [55, 185]);
+        for (const [x, y] of [[66, 172], [67, 170], [62, 173], [63, 171], [58, 174]]) im.set(x, y, C.white);
+      },
     );
   }
   if (pose === 'fallen') {
     // 쿵 한 발 왼쪽 앞 흙(외곽선 포함 x 50..68, y 235..248)에 거꾸로: 다리·발이 위로, 볏은 흙에 묻혀 안 보인다. 흙 튄 자국 5점은 효과
     const FX = 54, FY = 236;
     return pic(
-      (t) => stamp(t, FX, FY, [...CLOCK_REST.slice(2)].reverse(), CLOCK_LEGEND),
-      (im) => { for (const [dx, dy] of [[-2, 9], [-3, 7], [13, 8], [14, 6], [-4, 10]]) im.set(FX + dx, FY + dy, C.wood); },
+      (t) => stamp(t, FX, FY, CLOCK_FLIP, CLOCK_LEGEND),
+      (im) => {
+        // 늘어진 끈(#542): 포갠 손 → 창턱 끝 → 벽을 따라 처져 → 위로 선 오른발 끝(62,235)
+        cord(im, [72, 149], [74, 152], [72, 172], [67, 196], [63, 216], [62, 235]);
+        for (const [dx, dy] of [[-2, 9], [-3, 7], [13, 8], [14, 6], [-4, 10]]) im.set(FX + dx, FY + dy, C.wood);
+      },
     );
   }
   const boing = pose === 'boing';
@@ -607,13 +657,16 @@ function clockPic(pose) {
     for (const [x, y] of pts) im.set(x, y, C.white);
   });
 }
-const clock = Object.fromEntries(['rest', 'boing', 'sway', 'tumble', 'fallen'].map((k) => [k, clockPic(k)]));
+const clock = Object.fromEntries(['rest', 'boing', 'sway', 'tumble', 'fallen', 'reel1', 'reel2', 'reel3'].map((k) => [k, clockPic(k)]));
 
 OBJECTS.alarm_clock = { draw: clock.rest };
 // P7 0·1칸, `alarm_clock` × ノビー(단서 ①): ビヨーン → 출렁 → 다시 튐. 마지막 칸을 붙든 채 `clock_broken` 대사
 ANIMS['alarm_clock.spring'] = { ms: [220, 200, 260], frames: [clock.boing, clock.sway, clock.boing], hold: true };
 // P7 2칸, `alarm_clock` × ズッシー(단서 ②): 옆으로 누워 떨어지는 중(#527) → 쿵 한 발 앞 흙에 거꾸로. 붙든 채 `clock_fall` 대사, 대기열이 비면 창턱(장난감, 13절 Q4)
 ANIMS['alarm_clock.fall'] = { ms: [160, 540], frames: [clock.tumble, clock.fallen], hold: true };
+// #542: 대사가 닫히면 바닥에서 창턱으로 툭 순간이동하던 길. 조는 관리인이 끈을 당겨 거꾸로 매달린 채 올라와(들림 → 벽 중간) 창턱 위로 퐁.
+// 끝나면 멈춘 모습(창턱)으로 내려앉는다. 새 칸 3, 540ms. 관리인 칸은 늘리지 않는다(손은 졸기 그림의 포갠 손 그대로).
+ANIMS['alarm_clock.reel_up'] = { ms: [200, 160, 180], frames: [clock.reel1, clock.reel2, clock.reel3] };
 // 8절 ③ (새 칸 0): 늦게 우는 자명종. 0·1칸을 빠르게 번갈아 덜덜. 끝나면 창턱 그림으로 돌아가 관리인이 탁 친다
 ANIMS['alarm_clock.ring_late'] = { ms: [120, 120, 120, 120, 120, 120], frames: [clock.boing, clock.sway, clock.boing, clock.sway, clock.boing, clock.sway] };
 
