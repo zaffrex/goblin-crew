@@ -74,13 +74,13 @@ describe('높은 대상 앞 내려서기 (#575)', () => {
           }
   });
 
-  it('오리: 위쪽 바닥(발 y 205)에서 누르면 x는 그대로 상자 가운데 187, 몸 위 끝이 그림 아래 끝(외곽선 포함 177)에 닿게 내려선다', () => {
+  it('오리: 위쪽 바닥(발 y 205)에서 누르면 x는 그대로 상자 가운데 187, 몸 위 끝이 그림 아래 끝(외곽선 포함 177)보다 CLEAR_GAP 4px 아래가 되게 내려선다', () => {
     const s = createScene(park);
     const art = restingBox(park.art!, 'duck', s.puzzle.flags)!;
     expect(art.top + art.height).toBe(177);
     const at = (char: CharacterId, verb: Verb, y: number) => approachPoint(park, s.puzzle, { char, verb, target: 'duck' }, { x: 400, y });
-    expect(at('jjuk', 'stretch', 205)).toEqual({ x: 187, y: 177 + 64, face: null });
-    expect(at('mukjik', 'stomp', 205)).toEqual({ x: 187, y: 177 + 61, face: null });
+    expect(at('jjuk', 'stretch', 205)).toEqual({ x: 187, y: 177 + 64 + 4, face: null });
+    expect(at('mukjik', 'stomp', 205)).toEqual({ x: 187, y: 177 + 61 + 4, face: null });
     // 이미 충분히 아래면 위로 올라가지 않는다(시작 자리 244, 캡처 사례 `toy-duck-*`는 그대로).
     expect(at('jjuk', 'stretch', 244)?.y).toBe(244);
     expect(at('mukjik', 'stomp', 244)?.y).toBe(244);
@@ -95,13 +95,31 @@ describe('높은 대상 앞 내려서기 (#575)', () => {
     }
   });
 
-  it('장면: 묵직이가 위쪽 바닥(400, 205)에서 오리를 쿵 → (187, 238)까지 걸어가서 행동한다', () => {
+  it('장면: 묵직이가 위쪽 바닥(400, 205)에서 오리를 쿵 → (187, 242)까지 걸어가서 행동한다', () => {
     const s = createScene(park);
     settle(park, s);
     Object.assign(s.walkers.mukjik, { x: 400, y: 205 });
     runAction(park, s, { char: 'mukjik', verb: 'stomp', target: 'duck' }, null);
     expect(s.queue[0]).toMatchObject({ type: 'walk', char: 'mukjik' });
     settle(park, s);
-    expect([s.walkers.mukjik.x, s.walkers.mukjik.y]).toEqual([187, 238]);
+    expect([s.walkers.mukjik.x, s.walkers.mukjik.y]).toEqual([187, 242]);
+  });
+
+  it('내려선 자리에서는 얼굴 그림(몸 상자보다 1px 위로 나온 묵직이 포함)도 대상 그림 아래 끝에서 3px 넘게 떨어진다 (PR #577 Luna 리뷰)', () => {
+    for (const d of [nest, park]) {
+      const s = createScene(d);
+      for (const target of highTargets(d)) {
+        const art = restingBox(d.art!, target, s.puzzle.flags);
+        if (!art) continue;
+        for (const char of CHARS)
+          for (const verb of VERBS)
+            for (const fromY of FEET) {
+              const ap = approachPoint(d, s.puzzle, { char, verb, target }, { x: 400, y: fromY });
+              if (!ap || ap.y === fromY || ap.y === WALK_AREA.bottom) continue;
+              const faceTop = ap.y + characterDef(char).face.dy;
+              expect(faceTop - (art.top + art.height), `${d.screen.id} ${target} ${char} ${verb} 발 y ${fromY} → ${ap.y}`).toBeGreaterThanOrEqual(3);
+            }
+      }
+    }
   });
 });

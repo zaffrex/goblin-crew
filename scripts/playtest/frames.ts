@@ -84,6 +84,24 @@ async function waitBusy(page: Page, busy: boolean, timeoutMs = 60_000): Promise<
   }
 }
 
+/**
+ * 캐릭터 몸 상자가 멈출 때까지 기다린다(PR #580 Luna 리뷰). 바닥 걷기는 queue에 안 들어가서 `busy`가 아니다
+ * (`scene.ts` `isBusy`는 queue만 본다). 그래서 `waitBusy`만으로는 걷는 도중에 다음 탭이 나가 서는 자리가 달라진다.
+ * 연속 4번(약 240ms) 같은 값이면 멈춘 것으로 본다. queue를 타는 행동 뒤에는 바로 끝난다.
+ */
+async function waitStill(page: Page, timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let last = '';
+  let same = 0;
+  while (same < 4) {
+    if (Date.now() > deadline) throw new Error(`${timeoutMs}ms 안에 캐릭터가 멈추지 않음`);
+    const now = JSON.stringify((await layoutOf(page)).chars);
+    same = now === last ? same + 1 : 0;
+    last = now;
+    await sleep(60);
+  }
+}
+
 interface CaseResult {
   id: string;
   why: string;
@@ -129,6 +147,7 @@ async function runCase(browser: Browser, c: FrameCase, outDir: string): Promise<
           await sleep(80);
           await waitBusy(page, false);
         }
+        await waitStill(page); // 바닥 걷기(pre floor)는 busy가 아니라 따로 기다린다
       }
       const plan = planAction(screen, await layoutOf(page), c.action, VIEWPORT.input, opts);
       // 마지막 탭 전까지는 그냥 누르고 연출이 끝나길 기다린다(전환·무장).
