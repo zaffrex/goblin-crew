@@ -112,7 +112,7 @@ export class Browser {
     } catch (e) {
       // launch 실패 시에도 프로세스와 프로필 폴더를 남기지 않는다.
       await stopChrome(proc);
-      removeProfile(profileDir);
+      await removeProfile(profileDir);
       throw e;
     }
   }
@@ -149,7 +149,7 @@ export class Browser {
     this.ws.close();
     // Chrome은 SIGTERM 뒤에도 잠시 프로필에 쓴다. 종료를 기다린 뒤 지운다.
     await stopChrome(this.proc);
-    removeProfile(this.profileDir);
+    await removeProfile(this.profileDir);
   }
 }
 
@@ -165,11 +165,22 @@ async function stopChrome(proc: ChildProcess, timeoutMs = 3000): Promise<void> {
   }
 }
 
-function removeProfile(dir: string): void {
-  try {
-    rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
-  } catch (e) {
-    console.warn(`프로필 폴더를 지우지 못했어요: ${dir} (${(e as Error).message})`);
+/**
+ * 메인 프로세스가 끝난 뒤에도 헬퍼 프로세스가 잠깐 프로필에 파일을 쓴다. 지우는 도중 새 파일이 생기면 ENOTEMPTY가 난다.
+ * rmSync의 maxRetries는 같은 순간에 몰려 끝나므로, 쓰기가 잦아들 때까지 간격을 두고 다시 시도한다.
+ */
+async function removeProfile(dir: string): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+      return;
+    } catch (e) {
+      if (attempt >= 5) {
+        console.warn(`프로필 폴더를 지우지 못했어요: ${dir} (${(e as Error).message})`);
+        return;
+      }
+      await sleep(300);
+    }
   }
 }
 
