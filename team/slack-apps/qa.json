@@ -1,0 +1,42 @@
+{
+  "display_information": {
+    "name": "Mia",
+    "description": "goblin-crew QA · 처음 하는 사람처럼 배포본 플레이 (2주 시범)",
+    "background_color": "#d93f0b"
+  },
+  "features": {
+    "app_home": {
+      "home_tab_enabled": false,
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
+    "bot_user": {
+      "display_name": "Mia",
+      "always_online": true
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "chat:write",
+        "chat:write.public",
+        "channels:history",
+        "channels:read",
+        "channels:join",
+        "reactions:read",
+        "reactions:write",
+        "users:read",
+        "files:read",
+        "files:write",
+        "im:history",
+        "im:read",
+        "im:write"
+      ]
+    }
+  },
+  "settings": {
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}
