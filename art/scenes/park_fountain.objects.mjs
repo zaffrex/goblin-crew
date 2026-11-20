@@ -36,6 +36,7 @@ const GUEST_LEGEND = {
   e: C.ink, b: C.plum, m: C.woodD, M: C.redD, t: C.white, // 눈·눈썹·입선·입 안·이
   w: C.white, c: C.cotton, l: C.lint, // 셔츠
   p: C.pink, P: C.pinkL, r: C.red, // 넥타이(재킷과 같은 분홍)·재킷 그늘
+  v: C.lav, // 젖은 재킷 그늘(분홍이 물을 먹어 탁해진 쪽, #529)
   u: C.dusk, U: C.plum, // 바지
   o: C.plum, O: C.lav, // 구두
   a: C.lint, A: C.dusk, // 손목시계 알·줄
@@ -207,7 +208,10 @@ const LEGS = {
 /**
  * 분홍 재킷을 입힌 몸. 만세(cheer)는 두 팔이 머리 위로, 젖음(wet)은 팔이 늘어지고 색이 한 단 진하다.
  * 흙길(woodL Y149) 앞에 서므로 재킷 주색 pink(Y173)로는 명도 차가 24라 모자란다(결정 3-4 ≥ 30).
- * 그래서 입은 재킷은 빛 받는 앞판을 pinkL(Y217)로, 젖은 재킷은 red(Y104)로 칠한다. 동상 위 재킷과 같은 분홍 계열이다.
+ * 그래서 입은 재킷은 빛 받는 앞판을 pinkL(Y217)로 칠한다. 동상 위 재킷과 같은 분홍 계열이다.
+ * 젖은 재킷은 통째로 진하게 칠하지 않는다. red(Y104)로 칠했더니 블라인드에서 "빨간 재킷(다른 옷)"으로 읽혔다(#529, ノビー 셔츠와 같은 색).
+ * 대신 물이 위에서 쏟아진 자국으로 보인다: 어깨·가슴은 젖어 한 단 어두운 pink, 아래로 갈수록 젖은 줄이 흘러내리고
+ * 밑단 앞판은 마른 pinkL 그대로, 뒤쪽 그늘만 lav(탁해진 분홍). 젖은 자리와 마른 자리의 들쭉날쭉한 경계가 "젖었다"를 말한다.
  */
 const JACKET = {
   cheer: [
@@ -231,21 +235,21 @@ const JACKET = {
   ],
   wet: [
     '......SSSS..........',
-    '...rrrwrrwrrrr......',
-    '..rrrrrwrrrrrrr.....',
-    '.rrrprrwrrrrrrrr....',
-    '.rrprrrrrrrrrrrr....',
-    '.rrprr.rrrrrrrrr....',
-    '.rrprr.rrprrrrrr....',
-    '.rrprr.rrrrrrrrr....',
-    '.rrprr.rrrrrrrrr....',
-    '.rrrrr.rrprrrrrr....',
-    '.rrrrr.rrrrrrrrr....',
-    '.rrrrr.rrrrrrrrr....',
-    '.SSrr..rrprrrrr.....',
-    '.SS....rrrrrrrr.....',
-    '.......rrrrrrr......',
-    '.......rrrrrrr......',
+    '...pppwppwpppp......',
+    '..pppppwppppppp.....',
+    '.ppppppwpppppppv....',
+    '.ppppppppppppppv....',
+    '.ppPpp.ppPpppppv....',
+    '.PpPpp.PpPppPppv....',
+    '.PpPPp.PpPPpPppv....',
+    '.PPPPp.PpPPpPppv....',
+    '.PPPPp.PpPPpPPpv....',
+    '.PPPPP.PPPPpPPpp....',
+    '.PPPPP.PPPPpPPPp....',
+    '.SSPP..PPPPPPPP.....',
+    '.SS....PPPPPPPP.....',
+    '.......PPPPPPP......',
+    '.......PPPPPPP......',
     '...UUUUUUUUUUUU.....',
   ],
 };
@@ -276,8 +280,8 @@ function guestBody(im, ox, oy, pose) {
 function guestDrips(im, ox, oy) {
   for (const [dx, dy] of [[1, 31], [1, 34], [2, 37], [14, 29], [14, 33], [-1, 13], [16, 46]]) im.set(ox + dx, oy + dy, C.tealL);
   for (const [dx, dy] of [[1, 32], [14, 30], [-1, 14]]) im.set(ox + dx, oy + dy, C.white);
-  // 젖은 천 반들거림(재킷 어깨·앞판). 진한 red 위 흰 점이라 "젖어서 진해졌다"로 읽힌다
-  for (const [dx, dy] of [[4, 18], [5, 19], [11, 18], [9, 23], [3, 25]]) im.set(ox + dx, oy + dy, C.white);
+  // 젖은 천 반들거림. 젖어서 어두워진 어깨·가슴(pink) 위에만 흰 점을 둔다(마른 pinkL 위에서는 안 보인다)
+  for (const [dx, dy] of [[4, 18], [5, 19], [11, 18], [10, 20], [2, 20]]) im.set(ox + dx, oy + dy, C.white);
 }
 /** 효과: 동동 칸의 바닥 먼지 두 점(발을 굴렀다) */
 const tapDust = (ox, oy) => (im) => { for (const [dx, dy] of [[-2, 53], [-3, 55], [5, 55]]) im.set(ox + dx, oy + dy, C.lint); };
