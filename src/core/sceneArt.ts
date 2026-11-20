@@ -384,6 +384,17 @@ export function sceneDraws(meta: SceneArtMeta, view: SceneView): SceneDraws {
 }
 
 /**
+ * 대상을 맡은 물건의 멈춘 모습 그림 상자(`frames[].at` + 크기). 시트에 없거나 안 그리는 모습(`frame: null`)이면 null.
+ * 높은 대상 앞에 설 때 몸이 그림을 가리는지 본다(#575).
+ */
+export function restingBox(meta: SceneArtMeta, target: string, flags: Flags): { left: number; top: number; width: number; height: number } | null {
+  const o = objectOf(meta, target);
+  const frame = o ? pictureOf(o, flags).frame : null;
+  const f = frame === null ? undefined : meta.frames[frame];
+  return f ? { left: f.at[0], top: f.at[1], width: f.src[2], height: f.src[3] } : null;
+}
+
+/**
  * 핫스팟 화자 말풍선이 붙을 상자(13절, #450): 대상을 맡은 물건이 지금 anim(재생 중 또는 붙든 `hold`)을 그리면 그 칸 그림 상자
  * (`frames[].at` + 크기). 멈춘 모습이거나 시트에 없는 대상이면 null → 엔진은 지금처럼 핫스팟 상자를 쓴다.
  * 손님이 칸마다 `at`으로 달려오면 말풍선도 같이 온다.

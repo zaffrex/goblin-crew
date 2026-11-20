@@ -34,8 +34,8 @@ function idle(data: SceneData, s: SceneState, said: string[]): void {
   expect(isBusy(s)).toBe(false);
 }
 
-function act(data: SceneData, s: SceneState, a: Action, input: Input, label: string): string[] {
-  const plan = planAction(data.screen, sceneLayout(data, s), a, input);
+function act(data: SceneData, s: SceneState, a: Action, input: Input, label: string, floor?: [number, number]): string[] {
+  const plan = planAction(data.screen, sceneLayout(data, s), a, input, floor ? { floorPoint: { x: floor[0], y: floor[1] } } : {});
   expect(plan.warnings, label).toEqual([]);
   const said: string[] = [];
   for (const t of plan.taps) {
@@ -66,8 +66,8 @@ describe('frames.ts 사례 (#466 2부)', () => {
           const s = createScene(data);
           idle(data, s, []);
           if (!c.action) continue;
-          for (const a of c.pre ?? []) act(data, s, a, input, `${c.id} pre ${a.char} ${a.verb} ${a.target}`);
-          const said = act(data, s, c.action, input, c.id);
+          for (const a of c.pre ?? []) act(data, s, a, input, `${c.id} pre ${a.char} ${a.verb} ${a.target}`, c.floor);
+          const said = act(data, s, c.action, input, c.id, c.floor);
           // scene.ts 말풍선 글은 대사 키 그대로다(글 파일은 엔진 쪽에서 바꾼다).
           if (c.says) expect(said, c.id).toContain(c.says);
         }

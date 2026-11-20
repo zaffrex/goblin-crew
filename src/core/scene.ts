@@ -10,7 +10,7 @@ import { TICK_MS, WALK_AREA, WALK_SPEED } from './config';
 import { hitTest, type HitBox } from './hit';
 import { inHudZone } from './hud';
 import { hotspotBox, hudTargets, tap, type Intent, type TapContext, type UiState } from './interact';
-import { animOf, animTicks, tiltDrop, timedIndex, type SceneAnim, type SceneArtMeta, type SceneObject } from './sceneArt';
+import { animOf, animTicks, restingBox, tiltDrop, timedIndex, type SceneAnim, type SceneArtMeta, type SceneObject } from './sceneArt';
 import { FX_TICKS, fxTicks } from './fx';
 import { sayText, seenSayKey } from './sayText';
 import { cueMs, spriteFacing, spriteFrame, spriteHit, type Pose, type SpriteAnim, type SpriteMeta } from './sprite';
@@ -502,6 +502,18 @@ const TURN_VERBS: ReadonlySet<Verb> = new Set<Verb>(['squeak', 'look']);
 const APPROACH_SLOP = 2;
 /** 바닥 대상 옆에 설 때 몸 상자와 대상 상자 사이 가로 틈(5-1절). */
 const APPROACH_GAP = 2;
+/**
+ * 높은 대상 앞에 섰을 때 몸 상자가 대상 그림을 이 비율보다 많이 가리면 앞(아래)으로 내려선다(#575).
+ * 화면 1 `long_johns`는 위쪽 바닥(발 y 200)에서 약 3할을 가려서 그대로 둔다. 화면 2 오리(14×9)는 몸에 다 덮인다.
+ */
+const HIDE_MAX = 0.5;
+
+/** 그림 상자 넓이 중 몸 상자에 덮인 비율(0~1). */
+function hiddenShare(art: HitBox, body: HitBox): number {
+  const w = Math.min(art.left + art.width, body.left + body.width) - Math.max(art.left, body.left);
+  const h = Math.min(art.top + art.height, body.top + body.height) - Math.max(art.top, body.top);
+  return w <= 0 || h <= 0 ? 0 : (w * h) / (art.width * art.height);
+}
 
 /** 행동 대상의 상자: 핫스팟(지금 `variants` 반영) 또는 상자 있는 서는 자리. 캐릭터·상자 없는 대상은 null. */
 function targetBox(screen: ScreenData, puzzle: PuzzleState, id: string): HitBox | null {
@@ -520,9 +532,10 @@ function targetBox(screen: ScreenData, puzzle: PuzzleState, id: string): HitBox 
  * - `stretch`: 높은 대상이면 `reachPoint` x, 없으면 상자 가운데 x. 바닥 대상이면 아래 줄과 같다(땅의 까치에 겹쳐 서지 않게, PR #221 Luna).
  * - `stomp`·`hand`·`item`: 높은 대상(상자 아래쪽이 `WALK_AREA.top` 위)은 상자 가운데 x, 바닥 대상은 가까운 쪽 가장자리 옆
  *   (대상을 바라본 몸 상자 `characterHitBox`가 대상 상자와 가로로 2px 떨어지는 가장 가까운 x).
+ * - 높은 대상의 발 y는 지금 y다. 그 자리에서 몸이 대상 그림을 반 넘게 가리면 앞(아래)으로 내려선다(#575, `clearOf`). 바닥 대상은 지금 y.
  * 설 곳은 걷기 영역 안으로 자른다. `step`·BFS와 무관한 연출 계산이다(퍼즐 상태를 바꾸지 않는다).
  */
-export function approachPoint(data: SceneData, puzzle: PuzzleState, action: Action, from: Point): { x: number; face: Facing | null } | null {
+export function approachPoint(data: SceneData, puzzle: PuzzleState, action: Action, from: Point): { x: number; y: number; face: Facing | null } | null {
   const walks = APPROACH_VERBS.has(action.verb);
   if (!walks && !TURN_VERBS.has(action.verb)) return null;
   const at = puzzle.at[action.char] ?? '';
@@ -534,9 +547,10 @@ export function approachPoint(data: SceneData, puzzle: PuzzleState, action: Acti
   const mid = box.left + box.width / 2;
   let x: number;
   const rp = data.screen.hotspots[action.target]?.reachPoint;
+  const high = box.top + box.height <= WALK_AREA.top;
   if (stays) x = from.x;
   else if (action.verb === 'stretch' && rp) x = rp[0];
-  else if (box.top + box.height <= WALK_AREA.top) x = mid;
+  else if (high) x = mid;
   else {
     const { dx, width } = characterDef(action.char).hit;
     // 오른쪽에서 오면 왼쪽을 본다: 몸 왼쪽 = x - (dx + width). 왼쪽에서 오면 오른쪽을 본다: 몸 오른쪽 = x + dx + width.
@@ -544,7 +558,22 @@ export function approachPoint(data: SceneData, puzzle: PuzzleState, action: Acti
   }
   x = clampToArea({ x, y: from.y }, WALK_AREA).x;
   const face: Facing | null = Math.abs(mid - x) <= APPROACH_SLOP ? null : mid > x ? 1 : -1;
-  return { x, face };
+  const y = stays || !high ? from.y : clearOf(data, puzzle, action, box, x, from.y, face);
+  return { x, y, face };
+}
+
+/**
+ * 높은 대상 앞 발 y(#575). 대상 지금 그림(시트 없으면 핫스팟 상자)을 몸 상자가 `HIDE_MAX`보다 많이 가리면
+ * 몸 위 끝이 그림 아래 끝에 닿는 y까지 앞(아래)으로 내려선다. 걷기 영역 아래 끝에서 멈춘다. 위로는 가지 않는다.
+ * 방향이 정해지지 않았으면(가운데에 섬) 두 방향 중 더 가리는 쪽으로 본다.
+ */
+function clearOf(data: SceneData, puzzle: PuzzleState, action: Action, box: HitBox, x: number, y: number, face: Facing | null): number {
+  const art = (data.art && restingBox(data.art, action.target, puzzle.flags)) ?? box;
+  const def = characterDef(action.char);
+  const faces: Facing[] = face === null ? [1, -1] : [face];
+  const hidden = Math.max(...faces.map((f) => hiddenShare(art, characterHitBox(def, x, y, f))));
+  if (hidden <= HIDE_MAX) return y;
+  return Math.max(y, Math.min(WALK_AREA.bottom, art.top + art.height - def.hit.dy));
 }
 
 /**
@@ -625,7 +654,7 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
     const [bx, by] = leaving.board ?? [w.x, spotPoint(data, leaving.walk.to).y];
     const down = approachPoint(data, { ...prev, at: { ...prev.at, [action.char]: leaving.walk.to } }, action, { x: bx, y: by });
     if (down) {
-      s.floorTo[action.char] = { x: down.x, y: by };
+      s.floorTo[action.char] = { x: down.x, y: down.y };
       downFace = down.face;
     }
   }
@@ -638,10 +667,11 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
   }
   const ap = !fromFloor || sb ? null : approachPoint(data, prev, action, w);
   if (sb && fromFloor && sb.face !== null && w.x === sb.p.x && w.y === sb.p.y) w.facing = sb.face;
-  if (ap && Math.abs(ap.x - w.x) > APPROACH_SLOP) {
+  if (ap && (Math.abs(ap.x - w.x) > APPROACH_SLOP || ap.y !== w.y)) {
     // `floor`→`floor` 걷기. `walk` 이벤트와 똑같이 busy이고 탭으로 건너뛴다(5절 예외 둘). 설 점은 `floorPoint`가 쓴다.
+    // 높은 대상 그림을 몸이 가리면 앞으로 내려선다(#575, `clearOf`).
     const spot = prev.at[action.char]!;
-    s.floorTo[action.char] = { x: ap.x, y: w.y };
+    s.floorTo[action.char] = { x: ap.x, y: ap.y };
     s.queue.push(ap.face === null ? { type: 'walk', char: action.char, from: spot, to: spot } : { type: 'walk', char: action.char, from: spot, to: spot, face: ap.face });
   } else if (ap?.face != null) {
     w.facing = ap.face;

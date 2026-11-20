@@ -49,6 +49,14 @@ const CASES: FrameCase[] = [
   // 장난감 오리(4절, 7절 P9). 단서가 아니라서 블라인드 대조 대상은 아니다. 그림이 물 위에 떠 있는지, 셋이 서로 다른 반응으로 읽히는지 본다(#529).
   { id: 'toy-duck-peck', action: { char: 'jjuk', verb: 'stretch', target: 'duck' }, says: 'park_fountain.duck_peck', why: '4절 오리 × ノビー: 집게를 콕 → いてっ → 왼쪽으로 헤엄쳐 갔다가 제자리' },
   { id: 'toy-duck-flap', action: { char: 'mukjik', verb: 'stomp', target: 'duck' }, says: 'park_fountain.duck_splash', why: '4절 오리 × ズッシー: 쿵에 놀라 퍼덕 → 물벼락 → 젖은 ズッシー' },
+  {
+    id: 'toy-duck-flap-high',
+    pre: [{ char: 'mukjik', verb: 'move', target: 'floor' }],
+    floor: [400, 205],
+    action: { char: 'mukjik', verb: 'stomp', target: 'duck' },
+    says: 'park_fountain.duck_splash',
+    why: '#575: 위쪽 바닥(발 y 205)에서 쿵 → x 187에서 발 y 238까지 앞으로 내려선 뒤 퍼덕. 오리가 ズッシー 몸 뒤에 가리지 않는다',
+  },
   { id: 'toy-duck-turn', action: { char: 'ppik', verb: 'squeak', target: 'duck' }, says: 'park_fountain.duck_reply', why: '4절 오리 × プピ: 홱 돌아봄 → クワッ 대답' },
 ];
 

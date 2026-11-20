@@ -9,6 +9,8 @@ export interface FrameCase {
   action?: Action;
   /** 찍기 전에 끝까지 돌려 두는 행동(예: 판에 태우기, 물 끄기). 실제 클릭으로 누른다. */
   pre?: Action[];
+  /** `pre`·`action` 중 `floor` 대상(바닥 걷기)이 누를 내부 좌표 [x, y]. 위쪽 바닥에 세워 두고 찍을 때 쓴다(#575). */
+  floor?: [number, number];
   /** 이 사례에서 떠야 하는 대사 키. `cases.test.ts`가 Chrome 없이 `scene.ts`로 확인한다. */
   says?: string;
   /** 연출이 일찍 끝나도 이만큼(ms)은 찍는다. 대기 동작(약 12~15초 주기)용. */
