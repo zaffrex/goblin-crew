@@ -103,9 +103,19 @@ export function isOnFloor(ctx: TapContext, char: CharacterId): boolean {
 }
 
 /**
+ * 몸 대신 얼굴 상자로 전환을 받는 자리에 있나(설계 2-1절 #427). 바닥(`free`)과, 바닥 앞에 놓인 고정 점(상자·`hold`·`board`가 없는
+ * 자리, 화면 2 `fountain_seat` #517)이다. 판 끝·고리에 있는 사람은 몸 전체가 대상이다.
+ */
+export function usesFaceBox(ctx: TapContext, char: CharacterId): boolean {
+  if (isOnFloor(ctx, char)) return true;
+  const spot = ctx.screen.spots[ctx.puzzle.at[char]];
+  return spot !== undefined && !spot.hold && !spot.board && !spot.box;
+}
+
+/**
  * 월드 히트 대상. 엔진 그리기·재생 도구 훅(`?playtest=1`)도 이 배열을 그대로 쓴다.
  * 지금 캐릭터 몸은 뺀다. 단 `hold` 자리에 있으면 넣는다(설계 2절).
- * 바닥에 선 다른 캐릭터는 몸 대신 얼굴 상자다(설계 2-1절, #427). 몸통·다리를 누르면 그 사람이 없는 것처럼
+ * 바닥(또는 바닥 앞 고정 점, `usesFaceBox`)에 선 다른 캐릭터는 몸 대신 얼굴 상자다(설계 2-1절, #427). 몸통·다리를 누르면 그 사람이 없는 것처럼
  * 뒤의 대상이나 바닥으로 판정한다. 겹친 순서(z)는 그대로 몸 기준이다.
  */
 export function worldTargets(ctx: TapContext, ui: UiState): WorldTarget[] {
@@ -113,7 +123,7 @@ export function worldTargets(ctx: TapContext, ui: UiState): WorldTarget[] {
   for (const c of CHARACTERS) {
     if (c.id === ui.active && !isHolding(ctx, c.id)) continue;
     const body = ctx.bodies[c.id];
-    const box = c.id !== ui.active && isOnFloor(ctx, c.id) ? ctx.faces[c.id] : body;
+    const box = c.id !== ui.active && usesFaceBox(ctx, c.id) ? ctx.faces[c.id] : body;
     const rank = ctx.order?.indexOf(c.id) ?? -1;
     const z = CHAR_Z_BASE + (rank >= 0 ? rank : body.top + body.height);
     out.push({ id: `char:${c.id}`, kind: 'char', ref: c.id, box, z });
