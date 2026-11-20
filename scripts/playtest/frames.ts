@@ -122,14 +122,15 @@ async function runCase(browser: Browser, c: FrameCase, outDir: string): Promise<
     } else {
       await closeStartCard(page, () => send(CARD_TAP)); // 시작 카드(#285): 닫아야 장면이 돈다
       await waitBusy(page, false); // 처음 연출(onEnter)
+      const opts = c.floor ? { floorPoint: { x: c.floor[0], y: c.floor[1] } } : {};
       for (const a of c.pre ?? []) {
-        for (const t of planAction(screen, await layoutOf(page), a, VIEWPORT.input).taps) {
+        for (const t of planAction(screen, await layoutOf(page), a, VIEWPORT.input, opts).taps) {
           await send(t.at);
           await sleep(80);
           await waitBusy(page, false);
         }
       }
-      const plan = planAction(screen, await layoutOf(page), c.action, VIEWPORT.input);
+      const plan = planAction(screen, await layoutOf(page), c.action, VIEWPORT.input, opts);
       // 마지막 탭 전까지는 그냥 누르고 연출이 끝나길 기다린다(전환·무장).
       for (const t of plan.taps.slice(0, -1)) {
         await send(t.at);
