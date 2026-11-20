@@ -18,7 +18,7 @@ if [ "$ROLE" = qa ]; then
 깨운 이유: ${CONTEXT:-QA 플레이 요청}
 
 \`.claude/agents/qa.md\`와 \`CLAUDE.md\`의 소통 원칙·IP 가드레일만 읽는다. 저장소에는 설계 문서와 화면 데이터가 없다. 찾지 않는다.
-- 플레이: \`node scripts/qa/browse.ts --url <배포 URL>[?screen=<id>] --viewport desktop|mobile --actions qa-work/<파일> --shot qa-work/<png>\`. 쓰기는 `qa-work/` 폴더에만 된다. 한 번 실행에 actions 파일 전체를 처음부터 다시 재생한 뒤 스크린샷 한 장을 찍는다. 파일 형식: 한 줄에 \`click <x> <y>\`(스크린샷 픽셀 좌표) 또는 \`wait <ms>\`. 스크린샷은 Read로 열어 본다. 클릭이 쌓일수록 파일 줄을 이어 붙인다.
+- 플레이: \`node scripts/qa/browse.ts --url <배포 URL>[?screen=<id>] --viewport desktop|mobile --actions qa-work/<파일> --shot qa-work/<png>\`. 쓰기는 \`qa-work/\` 폴더에만 된다. 한 번 실행에 actions 파일 전체를 처음부터 다시 재생한 뒤 스크린샷 한 장을 찍는다. 파일 형식: 한 줄에 \`click <x> <y>\`(스크린샷 픽셀 좌표) 또는 \`wait <ms>\`. 스크린샷은 Read로 열어 본다. 클릭이 쌓일수록 파일 줄을 이어 붙인다.
 - 보고: \`gh issue comment <번호> --body-file <파일>\`. 첫 줄은 \`${SIG}\`. 버그는 \`gh issue create\`(라벨 \`type:bug\`). Slack은 \`scripts/slack.sh --as qa post dev -\`로 보고 링크 한 줄만 올린다(#goblin-dev, #goblin-general만 쓸 수 있다).
 - 소스, 네트워크, 콘솔, 다른 저장소 파일을 보지 않는다. 비밀값을 출력하지 않는다. 저장소는 public, Slack은 비공개이므로 GitHub 글에 Slack URL·ID를 쓰지 않는다.
 EOF
