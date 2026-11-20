@@ -433,19 +433,8 @@ function bed(bg) {
   for (let i = 0; i < 6; i++) { const x = Math.floor(r() * W), y = 262 + Math.floor(r() * 6); bg.set(x, y, C.pinkL); bg.set(x, y + 1, C.grn); } // 분홍 들꽃
 }
 
-// ═════════════ 볼거리: 비둘기·풍선 ═════════════
-/**
- * 비둘기 셋: 재킷 아래 흙길. 단서 ②(`pigeons_up` 효과)에서 날아오르는 무리와 같은 색(lint·lav·청록 목)이다.
- * 효과는 이 셋 위에 겹쳐 뜨고 배경 비둘기는 남는다(한두 마리는 꿈쩍 안 하는 비둘기 — 설계 9절 "놀라지 않는 비둘기"는 아직 없음, PR 리스크).
- */
-const PIGEON = ['.dd......', 'dlkd.....', '.dtl.....', '.dtlllld.', '.dlLllldd', '..dllll..', '...p..p..'];
-function pigeons(bg) {
-  for (const [x, y, flip] of [[196, 206, 0], [240, 212, 1], [258, 204, 0]]) {
-    const rows = flip ? PIGEON.map((row) => [...row].reverse().join('')) : PIGEON;
-    stamp(bg, x, y, rows, { l: C.lint, L: C.cotton, k: C.plum, d: C.lav, t: C.tealM, p: C.redL });
-    for (let i = 2; i < 7; i++) bg.set(x + i, y + 7, C.wood); // 발밑 그림자
-  }
-}
+// ═════════════ 볼거리: 풍선 ═════════════
+// 비둘기 셋은 물건 시트로 옮겼다(#526, `park_fountain.objects.mjs` `pigeons`). 단서 ②에서 날아올랐다 내려앉아야 해서 배경에 박아 둘 수 없다.
 /** 풍선 장수가 놓친 풍선 하나가 오른쪽 나무에 걸렸다(공원 분위기 볼거리). 줄은 가지에 감긴다. */
 function balloon(bg) {
   line(bg, 418, 86, 419, 100, C.lav);
@@ -468,7 +457,6 @@ export const SCENE = {
     entrance(img);
     path(img);
     bed(img);
-    pigeons(img);
     balloon(img);
   },
   objects: OBJECTS,

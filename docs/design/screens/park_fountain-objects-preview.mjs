@@ -13,6 +13,8 @@
 //     순서: 커튼 확 | 커튼 닫힘 | 자명종 창턱 | ビヨーン | 출렁 | 흙길에 거꾸로
 //   park_fountain-objects-jacket-4x.png  재킷 P5를 4배로, 동상·돌우산(배경 시안)과 함께
 //     순서: 꼭대기(멈춤) | 움찔 | 미끄러짐 | 떨어짐(위) | 떨어짐(아래) | 손에 턱(= on_hand 멈춘 모습)
+//   park_fountain-objects-pigeons-4x.png  비둘기 셋(#526)을 4배로, **완성 배경** 위에(테두리·연못 앞 대비를 보려고)
+//     테두리 앞면(물건)도 엔진 순서대로 깐다. 순서: 쉬기 | pigeons_up 8칸(놀람 → 퍼덕 → 꼭대기 → 내려옴 → 놀람) | pigeons_turn 돌아보기
 // 검사(어기면 종료 코드 1): buildScene 문제 0건(배경 시안의 ink는 빼고 센다), 손님 주색과 뒤 배경(입구 기둥·흙길)의 명도 차 ≥ 30,
 //   넥타이 = 재킷 같은 분홍, 금색(yel 계열) 없음, 재회 자리 칸이 ノビー 칸(기준점 ±24)과 겹치지 않음,
 //   달려오기 칸이 입구 → 재회 자리로 x가 줄고 발 y가 늘어남(뒷걸음·튐 없음).
@@ -38,6 +40,7 @@ import { stamp } from '../../../art/lib/texture.mjs';
 import { buildScene } from '../../../art/scene-build.mjs';
 import { OBJECTS, ANIMS, GUEST_AT, GUEST_REUNION_AT, KEEPER_WINDOW, CLOCK_AT, JACKET_TOP_AT } from '../../../art/scenes/park_fountain.objects.mjs';
 import { bg, fg } from './park_fountain-bg-sketch.mjs';
+import { SCENE as PARK } from '../../../art/scenes/park_fountain.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..', '..');
@@ -129,7 +132,7 @@ const base = () => { const im = new Image(W, H); im.blit(bg, 0, 0); im.blit(fg, 
 
 // ── 1c. 커튼 P3 2칸 + 자명종 P7 (창턱 | 튐 | 출렁 | 거꾸로) 5배
 const curtainFrames = A['keeper.curtain'].frames;
-const clockFrames = [KC.default.frame, A['alarm_clock.spring'].frames[0], A['alarm_clock.spring'].frames[1], A['alarm_clock.fall'].frames[0]];
+const clockFrames = [KC.default.frame, A['alarm_clock.spring'].frames[0], A['alarm_clock.spring'].frames[1], A['alarm_clock.fall'].frames.at(-1)]; // 거꾸로 = fall 마지막(붙드는) 칸. 앞 칸은 굴러떨어지는 중(#539)
 {
   const S = 5, cw = 84, ch = 98, x0 = 30, y0 = 108;
   const shots = [...curtainFrames.map((f) => [f, null]), ...clockFrames.map((f) => [K.default.frame, f])];
@@ -347,6 +350,43 @@ for (const [name, k, at] of [['입구 대기', 'watch', GUEST_AT], ['재회 만�
   }
   const missing = ['jacket.twitch', 'jacket.slide'].filter((k) => !A[k]);
   check(missing.length === 0, `화면 JSON의 재킷 P5 anim이 시트에 있다${missing.length ? `: 없음 ${missing.join(', ')}` : ''}`);
+}
+
+// ── 비둘기 (#526): 바닥 자리 `floor`가 맡는 물건. 화면 JSON은 fx가 아니라 anim으로 부른다.
+{
+  const P = meta.objects.find((o) => o.key === 'pigeons');
+  check(Boolean(P) && P.ids.length === 1 && P.ids[0] === 'floor', '비둘기 물건은 바닥 자리 floor 하나만 맡는다(핫스팟이 아니라 클릭 대상 아님)');
+  const up = A['floor.pigeons_up'], turn = A['floor.pigeons_turn'];
+  check(Boolean(up && turn), '시트에 floor.pigeons_up·floor.pigeons_turn이 있다');
+  const raw = JSON.stringify(screen);
+  const asFx = /"fx":\["pigeons_(up|turn)"/.test(raw);
+  const asAnim = raw.includes('"anim":["floor","pigeons_up"]') && raw.includes('"anim":["floor","pigeons_turn"]');
+  check(!asFx && asAnim, '화면 JSON이 비둘기를 fx(임시 별)가 아니라 floor anim으로 부른다');
+  if (P && up && turn) {
+    const real = new Image(W, H);
+    PARK.bg(real);
+    const rest = P.default.frame;
+    const rim = meta.objects.find((o) => o.key === 'fountain').default.frame;
+    const top = (f) => meta.frames[f].at[1];
+    check(up.frames[0] === up.frames.at(-1), 'pigeons_up 첫 칸 = 마지막 칸(놀람 칸으로 내려앉고 쉬는 그림으로 이어짐)');
+    const rise = top(rest) - Math.min(...up.frames.map(top));
+    check(rise >= 30, `pigeons_up 꼭대기가 쉬는 자리보다 ${rise}px 위(≥ 30, 흰 테두리를 지나 연못 앞까지)`);
+    // 배경에 비둘기가 남지 않았는지: 쉬는 그림 자리의 배경에 비둘기 목 청록(tealM)이 없다
+    const [rx, ry] = meta.frames[rest].at, [, , rw, rh] = meta.frames[rest].src;
+    let teal = 0;
+    for (let y = ry; y < ry + rh; y++) for (let x = rx; x < rx + rw; x++) if (real.get(x, y) === C.tealM) teal++;
+    check(teal === 0, `배경에 비둘기가 남지 않았다(쉬는 자리 배경의 청록 목 ${teal}픽셀 = 0)`);
+    const S = 4, x0 = 176, y0 = 150, cw = 104, ch = 74;
+    const shots = [rest, ...up.frames, turn.frames[0]];
+    const out = new Image(cw * shots.length + shots.length - 1, ch);
+    shots.forEach((f, n) => {
+      // 엔진 순서대로: 배경 → 테두리 앞면(물건) → 비둘기
+      const im = new Image(W, H); im.blit(real, 0, 0); put(im, rim); put(im, f);
+      for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) out.set(n * (cw + 1) + x, y, im.get(x0 + x, y0 + y));
+      if (n > 0) for (let y = 0; y < ch; y++) out.set(n * (cw + 1) - 1, y, C.ink);
+    });
+    writeFileSync(join(HERE, 'park_fountain-objects-pigeons-4x.png'), indexedPng(out, S));
+  }
 }
 
 if (problems.length) { console.error(`${problems.length}개 검사 실패`); process.exit(1); }

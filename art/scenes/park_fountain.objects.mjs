@@ -800,10 +800,72 @@ OBJECTS.water = {
 ANIMS['fountain.water_off'] = { effect: 'water', mode: 'stop', ms: 900 };
 ANIMS['fountain.water_burst'] = { effect: 'water', mode: 'burst', ms: 1200 };
 
+// ═════════════ 비둘기 셋 (pigeons, 바닥 자리 `floor`가 맡는다 / 그림 196..266, 204..219) ═════════════
+// #526: 예전엔 배경에 박혀 있어서 단서 ②(`pigeons_up`)가 임시 별로 떴고, 날아오를 칸을 그려도 땅에 셋이 그대로 남았다.
+// 그래서 물건으로 옮겼다. 핫스팟이 아니라 클릭 대상이 아니다(픽셀 헌팅 미끼가 되지 않게). anim 대상 ID가 있어야 해서
+// 바닥 자리 `floor`가 맡는다(형식 기록: 물건 ids는 hotspot·spot ID). 바닥은 상자가 없어서 히트 박스 검사·호버가 없다.
+// 외곽선 없음: 배경 소품(볼거리)이고, 만질 수 있는 것처럼 보이면 안 된다(ADR-0007 결정 3-1의 반대쪽).
+// 색: lint 몸·cotton 날개 빛·lav 윤곽·청록 목·plum 눈·redL 발. 1배 8×7이라 날 때는 날개(위/아래 4px)로 "퍼덕"을 읽힌다.
+const PIGEON_LEGEND = { l: C.lint, L: C.cotton, k: C.plum, d: C.lav, t: C.tealM, p: C.redL };
+// 나는 칸은 윤곽을 dusk로 한 단 진하게: 테두리 흰 돌·연못 물빛 앞을 지나갈 때 lav 윤곽은 몸(lint)과 함께 묻혔다(로컬 2배 캡처).
+const PIGEON_FLY_LEGEND = { ...PIGEON_LEGEND, d: C.dusk };
+// 왼쪽을 보는 모양. 오른쪽을 보는 새는 행을 뒤집는다(폭이 다른 칸은 머리 자리가 같게 x를 맞춘다).
+const PIGEON_REST = ['.dd......', 'dlkd.....', '.dtl.....', '.dtlllld.', '.dlLllldd', '..dllll..', '...p..p..'];
+// 놀람(땅에서 2px 펄쩍): 날개 반쯤 들고 다리 벌림. 날기 전·내려앉은 직후 칸.
+const PIGEON_STARTLE = ['.dd..d...', 'dlkddLd..', '.dtldLd..', '.dtlllld.', '.dlLllldd', '..dllll..', '..p....p.'];
+// 날개 위 / 날개 아래(폭 11). 몸은 쉬는 모양과 같은 줄에 두어 칸이 바뀌어도 새가 튀지 않는다.
+const PIGEON_UP = ['.....d.d...', '....dLdLd..', '.dd..dLd...', 'dlkd.dLd...', '.dtllllllld', '..dllllldd.', '....pp.....'];
+const PIGEON_DOWN = ['.dd........', 'dlkd.......', '.dtllllllld', '..dlLLLlldd', '...dLLLd...', '....dLd....', '.....d.....'];
+const PIGEON_SHAPES = { rest: PIGEON_REST, startle: PIGEON_STARTLE, up: PIGEON_UP, down: PIGEON_DOWN };
+/** 셋의 쉬는 자리 [x, y, 오른쪽을 보나, 날 때 옆으로 가는 방향]. 쿵 자리(x 224)에서 멀어지는 쪽으로 난다. 셋째는 거의 제자리에서 퍼덕(무리 가운데). */
+export const PIGEONS_AT = [[196, 206, false, -1], [240, 212, true, 1], [258, 204, false, 0]];
+
+/** 한 마리. `shape`는 왼쪽 보기 기준 행, `right`면 뒤집어 머리 자리(오른쪽 끝)를 쉬는 모양과 맞춘다. 땅에 있으면 발밑 그림자. */
+function pigeon(im, x, y, right, shape, grounded) {
+  const rows = right ? shape.map((r) => [...r].reverse().join('')) : shape;
+  const x0 = right ? x + PIGEON_REST[0].length - shape[0].length : x;
+  stamp(im, x0, y, rows, grounded ? PIGEON_LEGEND : PIGEON_FLY_LEGEND);
+  if (grounded) for (let i = 2; i < 7; i++) im.set(x + i, y + 7 + (grounded === 'hop' ? 2 : 0), C.wood);
+}
+/** 셋을 한 칸에. `pose(i)` → [모양 이름, 위로 뜬 px, 옆으로 간 칸 수, 오른쪽 보기 뒤집기]. */
+const flock = (pose) => (im) => {
+  PIGEONS_AT.forEach(([x, y, right, side], i) => {
+    const [shape, up, steps, turn] = pose(i);
+    const face = turn ? !right : right;
+    // 땅에 있는 칸만 그림자. 2px 뜬 놀람 칸은 그림자가 발에서 떨어져 "떴다"가 읽힌다.
+    const grounded = up === 0 ? true : up <= 2 ? 'hop' : false;
+    pigeon(im, x + side * steps, y - up, face, PIGEON_SHAPES[shape], grounded);
+  });
+};
+const pigeonsPic = {
+  rest: flock(() => ['rest', 0, 0]),
+  // 단서 ② 날아오름(설계 2절 7번 "비둘기가 날았다 내려앉음"): 놀람 → 퍼덕퍼덕 40px까지 → 다시 내려와 놀람 칸으로 착지.
+  // 꼭대기는 셋째 새(y 204) 기준 164: 흰 테두리(180~198)를 지나 그 위 연못 뒤 어두운 덤불 앞에서 회색 몸이 갈린다.
+  // 26px 판은 꼭대기가 흰 돌 위라 1배에서 새가 돌에 묻혔다(로컬 캡처).
+  hop: flock(() => ['startle', 2, 0]),
+  up1: flock(() => ['up', 10, 1]),
+  down1: flock(() => ['down', 21, 2]),
+  up2: flock(() => ['up', 32, 3]),
+  down2: flock(() => ['down', 40, 4]),
+  up3: flock(() => ['up', 30, 3]),
+  down3: flock(() => ['down', 15, 2]),
+  // 돌아보기(재킷 프피, 설계 3절 jacket 행 "물줄기가 꺼졌으면 비둘기만 돌아본다"): 셋 다 반대로 고개를 돌린다.
+  turn: flock(() => ['rest', 0, 0, true]),
+};
+OBJECTS.pigeons = { ids: ['floor'], draw: pigeonsPic.rest };
+// 7번 `jacket_ground_stomp`(단서 ②): ぼふっ 뒤 셋이 퍼덕 날았다가 제자리에 내려앉는다. 흙길 쿵은 "새가 잠깐 놀랄" 만큼만 울린다.
+// 끝나면 쉬는 그림(같은 자리)이라 따로 붙들지 않는다.
+ANIMS['floor.pigeons_up'] = {
+  ms: [100, 80, 90, 90, 120, 100, 100, 100],
+  frames: [pigeonsPic.hop, pigeonsPic.up1, pigeonsPic.down1, pigeonsPic.up2, pigeonsPic.down2, pigeonsPic.up3, pigeonsPic.down3, pigeonsPic.hop],
+};
+// 재킷 × プピ 폴백: 소리 쪽을 두리번(돌아봄 → 원래 → 다시 돌아봄). 날지는 않는다(프피는 쿵보다 약하다).
+ANIMS['floor.pigeons_turn'] = { ms: [300, 150, 350], frames: [pigeonsPic.turn, pigeonsPic.rest, pigeonsPic.turn] };
+
 // ═════════════ 그리는 순서 (설계 1-4절, 뒤 → 앞) ═════════════
-// back 목록은 OBJECTS 키 순서다(형식 6절). 재킷 → 물줄기(재킷 앞을 지나감) → 테두리 앞면 → 창(관리인·커튼) → 자명종 → 손님.
+// back 목록은 OBJECTS 키 순서다(형식 6절). 재킷 → 물줄기(재킷 앞을 지나감) → 테두리 앞면 → 비둘기(흙길이라 테두리 앞, 날아오르면 흰 돌 앞) → 창(관리인·커튼) → 자명종 → 손님.
 // 손님이 맨 앞이어야 재회 자리(290,188)에서 테두리(y 180~198)가 손님 머리를 덮지 않는다. 파일에서 그린 순서와 달라서 여기서 다시 줄 세운다.
-for (const k of ['jacket', 'water', 'fountain', 'keeper', 'alarm_clock', 'guest']) {
+for (const k of ['jacket', 'water', 'fountain', 'pigeons', 'keeper', 'alarm_clock', 'guest']) {
   const v = OBJECTS[k];
   delete OBJECTS[k];
   OBJECTS[k] = v;
