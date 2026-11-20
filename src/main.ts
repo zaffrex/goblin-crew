@@ -11,7 +11,7 @@ import { CHARACTERS, type CharacterId } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
 import { actorEdgeAt, dustPush, FX_COLORS, FX_STYLE, fxTextSpot, SHAKE_FX, shakeOffset } from './core/fx';
-import { drawnByShape, frameNudges, fxNudges, WATER_FX, waterParticles, type Nudge } from './core/fxShape';
+import { drawnByShape, frameNudges, fxNudges, particleFx, shapeParticles, type Nudge } from './core/fxShape';
 import type { HitBox } from './core/hit';
 import { cardFacePx, cardInput, cardPointer, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
 import { createFirstNotes, currentNote, noteGauge, noteSwitch, noteTap } from './core/firstNotes';
@@ -522,10 +522,11 @@ function render(): void {
   const fxArt: NonNullable<FrameArt['fx']>[number][] = [];
   for (const f of fxNow) {
     // 물 입자 fx(`splash`·`ripple`, #485)는 물 4색 입자로. 옮기는 fx(`nod`)는 위에서 그림을 옮겼다. 둘 다 임시 별을 안 그린다.
-    const water = WATER_FX[f.effect];
-    if (water) {
-      const at = water.anchor === 'foot' ? footOf(f.target, layout) : anchorOf(f.target, layout);
-      if (at) drawParticles(ctx, waterParticles(f.effect, at, f.t));
+    // 글자 곁 입자(`poof_text` 흙먼지, #526)는 입자를 먼저 그리고 글자를 그 위에 그린다.
+    const shape = particleFx(f.effect);
+    if (shape) {
+      const at = shape.anchor === 'foot' ? footOf(f.target, layout) : anchorOf(f.target, layout);
+      if (at) drawParticles(ctx, shapeParticles(f.effect, at, f.t));
     }
     if (drawnByShape(f.effect)) continue;
     const style = FX_STYLE[f.effect];

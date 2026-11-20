@@ -136,6 +136,78 @@ export function waterParticles(effect: string, at: { x: number; y: number }, t: 
   return f.particles(at, t);
 }
 
+/**
+ * 흙 3색(bosong-32 번호): 흙먼지 13 `e8bd7e`, 흙덩이 그늘 11 `8e5c3b`, 흙덩이 10 `5a3a2e`. `park_fountain` 흙길 바탕은 12 `c48a52`라
+ * 바탕보다 밝은 먼지와 어두운 덩이만 쓴다. 바탕색 점은 안 보인다(#526 캡처에서 바탕 픽셀을 셌다).
+ */
+export const SOIL_COLORS = [13, 11, 10] as const;
+const [DUST, CLOD_SHADE, CLOD] = SOIL_COLORS;
+/** 흙먼지 덩이 수, 튀는 흙덩이 수. 먼지 덩이 하나는 입자 둘(밝은 몸 + 아래 그늘)이라 합이 64개, `FX_MAX_PARTICLES` 안이다. */
+export const SOIL_DUST = 28;
+export const SOIL_CLODS = 8;
+/**
+ * 기준점(발 아래 끝 가운데)에서 가장 높이 오르는 높이(px), 좌우로 가장 멀리 퍼지는 거리(px), 먼지가 처음 나오는 거리(px).
+ * 낮고 넓게: 쿵 먼지(회색 2덩이, 2-1절)와 모양이 갈린다. 묵직이 발은 기준점 ±16px라 먼지는 발 옆 끝에서 나온다.
+ */
+export const SOIL_HIGH = 9;
+export const SOIL_WIDE = 42;
+export const SOIL_FROM = 12;
+
+/**
+ * `poof_text`의 흙먼지(#526, `ability-feedback.md` 3-1절): 발 양옆에서 흙먼지가 땅을 따라 **옆으로** 낮게 번지고, 흙덩이 몇 개가 작게 튀었다 떨어진다.
+ * - 먼지 덩이: 2px 밝은 흙(13) 몸 + 바로 아래 2px 그늘(11). 바탕 흙에도 밝은 점(13)이 섞여 있어서 몸만 두면 1배에서 묻혔다(#526 첫 캡처).
+ *   그늘을 받쳐 덩이로 읽히게 한다. 처음에 빨리, 나중에 느리게 번지며 살짝 떴다 가라앉고, 하나씩 꺼진다.
+ * - 흙덩이: 진갈색(10), 포물선 한 번.
+ * 발 밑(±`SOIL_FROM`px 안)에서는 그리지 않는다. 묵직이 발을 덮지 않는다.
+ */
+function soilPuff(at: { x: number; y: number }, t: number): FxParticle[] {
+  const out: FxParticle[] = [];
+  const ease = 1 - (1 - t / FX_TICKS) ** 2;
+  for (let i = 0; i < SOIL_DUST; i++) {
+    const life = Math.round(FX_TICKS * (0.65 + 0.35 * fxHash(i, 21)));
+    if (t >= life) continue;
+    const side = i % 2 === 0 ? -1 : 1;
+    const reach = SOIL_FROM + 4 + (SOIL_WIDE - SOIL_FROM - 4) * fxHash(i, 22);
+    const dx = SOIL_FROM + (reach - SOIL_FROM) * ease;
+    const rise = Math.round((1 + (SOIL_HIGH - 3) * fxHash(i, 23)) * Math.sin(Math.PI * Math.min(1, t / life * 0.8 + 0.1)));
+    const x = Math.round(at.x + side * dx) - (side < 0 ? 1 : 0);
+    const y = at.y - 4 - rise;
+    out.push({ x, y, size: 2, color: CLOD_SHADE }, { x, y: y + 2, size: 2, color: CLOD });
+    if (fxHash(i, 24) < 0.5) out.push({ x, y: y - 1, size: 1, color: DUST });
+  }
+  for (let i = 0; i < SOIL_CLODS; i++) {
+    const side = i % 2 === 0 ? -1 : 1;
+    const flight = 14 + Math.round(8 * fxHash(i, 31));
+    if (t >= flight) continue;
+    const v = t / flight;
+    const dx = SOIL_FROM + (6 + 14 * fxHash(i, 32)) * v;
+    const lift = Math.round(SOIL_HIGH * (0.7 + 0.3 * fxHash(i, 33)) * 4 * v * (1 - v));
+    const size = fxHash(i, 34) < 0.5 ? 2 : 1;
+    out.push({ x: Math.round(at.x + side * dx) - (side < 0 ? size - 1 : 0), y: at.y - size - lift, size, color: CLOD });
+  }
+  return out;
+}
+
+/**
+ * 글자와 함께 입자를 그리는 fx. 물 입자 fx와 달리 글자 시트 글자도 그대로 그린다(`drawnByShape`에 안 넣는다).
+ * `ドスン` 묶음(2-1절)처럼 결과 글자 하나가 모양을 같이 나른다. 신호 하나 = fx 한 줄(5-2절)이라 둘을 따로 띄우면 시차가 생긴다.
+ */
+export const TEXT_PARTICLE_FX: Readonly<Record<string, { anchor: 'head' | 'foot'; particles: (at: { x: number; y: number }, t: number) => FxParticle[] }>> = {
+  poof_text: { anchor: 'foot', particles: soilPuff },
+};
+
+/** 입자를 그리는 fx(물 입자 + 글자 곁 입자)의 표 한 줄. 없으면 undefined. */
+export function particleFx(effect: string): { anchor: 'head' | 'foot'; particles: (at: { x: number; y: number }, t: number) => FxParticle[] } | undefined {
+  return WATER_FX[effect] ?? TEXT_PARTICLE_FX[effect];
+}
+
+/** 입자를 그리는 fx의 이번 프레임 입자. 그런 fx가 아니거나 끝났으면 빈 목록. */
+export function shapeParticles(effect: string, at: { x: number; y: number }, t: number): FxParticle[] {
+  const f = particleFx(effect);
+  if (!f || t < 0 || t >= FX_TICKS) return [];
+  return f.particles(at, t);
+}
+
 /** 엔진이 임시 별을 그리지 않는 fx(여기서 그린다). */
 export function drawnByShape(effect: string): boolean {
   return effect in NUDGE_FX || effect in WATER_FX;
