@@ -79,7 +79,7 @@ export function drawSceneFrame(ctx: CanvasRenderingContext2D, art: SceneArt, fra
   ctx.drawImage(source, sx, sy, w, h, f.at[0] + (nudge?.dx ?? 0), f.at[1] + (nudge?.dy ?? 0), w, h);
 }
 
-/** 물 입자 fx(core/fxShape.ts `waterParticles`) 사각형을 팔레트 색으로 칠한다. */
+/** 입자 fx(core/fxShape.ts `shapeParticles`: 물 입자, 글자 곁 흙먼지) 사각형을 팔레트 색으로 칠한다. */
 export function drawParticles(ctx: CanvasRenderingContext2D, particles: readonly FxParticle[]): void {
   for (const p of particles) {
     ctx.fillStyle = BOSONG_32[p.color]!;
