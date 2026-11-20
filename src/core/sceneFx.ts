@@ -59,9 +59,17 @@ export function fxHash(i: number, salt: number): number {
   return ((h ^ (h >>> 15)) >>> 0) / 0x100000000;
 }
 
-/** 물줄기 가닥의 옆 퍼짐(−1 왼쪽 끝 ~ 1 오른쪽 끝). 가운데(0)는 가장 높이 솟는다. */
-const STREAMS = [-1, -0.66, -0.33, 0, 0.33, 0.66, 1] as const;
-const CENTER = 3;
+/**
+ * 물줄기 가닥(#510). 가운데 기둥 1 + 양옆 호 2. 입자 96개를 가닥 셋에만 나눠서 가닥 하나가 점선 호로 이어져 보이게 한다.
+ * (처음 7가닥 × 약 14개는 같은 호 위의 점 사이가 15~20px라 1배에서 "나무 앞 반짝이"로 읽혔다.)
+ * - `spread`: 옆 퍼짐(−1 왼쪽 끝 ~ 1 오른쪽 끝). `lift`: on 높이에 곱하는 값(가운데가 가장 높다).
+ * - `n`: 가닥의 물방울 수(합 = FX_MAX_PARTICLES). `phase`: 가닥끼리 물방울 높이가 나란히 서지 않게 미는 값.
+ */
+const STREAMS = [
+  { spread: 0, lift: 1, n: 28, phase: 0 },
+  { spread: -0.75, lift: 0.8, n: 34, phase: 0.31 },
+  { spread: 0.75, lift: 0.8, n: 34, phase: 0.62 },
+] as const;
 /** 물방울 하나의 비행 시간(ms). 짧을수록 물이 빨라 보인다. stop은 이 시간 뒤 다 떨어져서 off와 같아진다. */
 export const WATER_FLIGHT_MS = 800;
 /** on 높이 = area 높이 ÷ 1.5. burst 꼭대기(×1.5)가 area 위 끝에 닿는다(#380 회색 배치 "위쪽 여유는 burst 몫"). */
@@ -69,6 +77,9 @@ const BURST_SCALE = 1.5;
 
 /**
  * `fountain_water`(11-4절). area 아래 가운데에서 위로 뿜어 양옆으로 떨어지는 포물선 물방울 96개.
+ * - 가닥 안의 물방울은 비행 위상을 **고르게** 나눠 둔다(#510). 무작위 위상이면 뭉치고 비는 자리가 생겨 호가 끊긴다.
+ *   해시는 물방울마다 높이를 조금(3%) 흔드는 데만 쓴다. 그래도 결정적이다(화면 시계와 번호만 본다).
+ * - 흰색(물보라)은 호 꼭대기에만 쓴다. 예전의 "군데군데 무작위 흰 점"은 반짝이로 읽혀서 뺐다(#510).
  * - on: 전부. off: 없음.
  * - stop: stop이 시작된 뒤(효과 자리 시계 0 이후)에 뿜을 물방울은 안 나온다 → 이미 뜬 물은 계속 떨어지고 물기둥이 아래부터 낮아진다.
  *   비행 시간(800ms)이 지나면 비어서 `off`와 같다(anim 900ms 끝 → off로 끊김 없이).
@@ -85,30 +96,30 @@ function fountainWater(d: SceneFxDraw): FxParticle[] {
   const T = WATER_FLIGHT_MS;
   const peakWindow = Math.max(0, d.durMs - T);
   const out: FxParticle[] = [];
-  for (let i = 0; i < FX_MAX_PARTICLES; i++) {
-    const age = (((d.clockMs + fxHash(i, 1) * T) % T) + T) % T;
-    const born = d.slotMs - age; // 효과 자리 시계로 이 물방울을 뿜은 때
-    let k = 1;
-    if (d.mode === 'stop' && born > 0) continue;
-    if (d.mode === 'burst') {
-      if (born < 0) continue;
-      if (born < peakWindow) k = 1 + (BURST_SCALE - 1) * Math.sin((Math.PI * born) / peakWindow);
+  let i = 0; // 물방울 번호(해시 입력). 가닥을 지나도 이어서 센다.
+  for (const s of STREAMS) {
+    for (let j = 0; j < s.n; j++, i++) {
+      const phase = (((d.clockMs / T + j / s.n + s.phase) % 1) + 1) % 1;
+      const age = phase * T;
+      const born = d.slotMs - age; // 효과 자리 시계로 이 물방울을 뿜은 때
+      let k = 1;
+      if (d.mode === 'stop' && born > 0) continue;
+      if (d.mode === 'burst') {
+        if (born < 0) continue;
+        if (born < peakWindow) k = 1 + (BURST_SCALE - 1) * Math.sin((Math.PI * born) / peakWindow);
+      }
+      const u = age / T;
+      const lift = s.lift * (0.97 + 0.03 * fxHash(i, 5));
+      const size = 2;
+      const rawX = Math.round(cx + s.spread * (aw / 2 - 2) * u);
+      const rawY = Math.round(base - onH * k * lift * 4 * u * (1 - u));
+      const x = Math.min(Math.max(rawX, ax), ax + aw - size);
+      const y = Math.min(Math.max(rawY, ay), base - size);
+      let color = u < 0.5 ? bright : mid;
+      if (Math.abs(u - 0.5) < 0.07) color = spray; // 호 꼭대기 물보라
+      else if (u > 0.85) color = shade; // 떨어지기 직전(테두리 안 물에 닿는 쪽)
+      out.push({ x, y, size, color });
     }
-    const u = age / T;
-    // 물줄기 7가닥(가운데 1 + 양옆 3씩). 가닥마다 같은 포물선을 타서 점선 같은 물 호가 읽힌다. 가닥 안에서 조금씩 흩는다.
-    const stream = Math.floor(fxHash(i, 2) * STREAMS.length);
-    const spread = STREAMS[stream]! + (fxHash(i, 3) - 0.5) * 0.08;
-    const lift = (stream === CENTER ? 1 : 0.85) * (0.94 + 0.06 * fxHash(i, 5));
-    const rising = u < 0.5;
-    const size: 1 | 2 = rising || fxHash(i, 6) < 0.5 ? 2 : 1;
-    const rawX = Math.round(cx + spread * (aw / 2 - 2) * u);
-    const rawY = Math.round(base - onH * k * lift * 4 * u * (1 - u));
-    const x = Math.min(Math.max(rawX, ax), ax + aw - size);
-    const y = Math.min(Math.max(rawY, ay), base - size);
-    let color = rising ? bright : mid;
-    if (Math.abs(u - 0.5) < 0.07 || fxHash(i, 4) < 0.1) color = spray; // 꼭대기 물보라 + 군데군데 반짝
-    else if (u > 0.85) color = shade; // 떨어지기 직전(테두리 안 물에 닿는 쪽)
-    out.push({ x, y, size, color });
   }
   return out;
 }

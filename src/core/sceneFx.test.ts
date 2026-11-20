@@ -49,6 +49,33 @@ describe('fountain_water (11-4절)', () => {
     expect(onTop).toBeLessThan(AREA[1] + AREA[3] - onH * 0.7); // 꽤 높이 솟는다
   });
 
+  it('on: 상한 96개를 다 쓴다(가닥 셋의 물방울 수 합)', () => {
+    for (const clockMs of [0, 333, 12345]) expect(fxParticles(water({ clockMs })).length).toBe(FX_MAX_PARTICLES);
+  });
+
+  it('호가 이어진다: 어느 물방울이든 8방향 12px 안에 이웃이 있다(#510, 무작위 위상일 때는 46px까지 떨어졌다)', () => {
+    let worst = 0;
+    for (let clockMs = 0; clockMs < 1600; clockMs += 16) {
+      const ps = fxParticles(water({ clockMs }));
+      for (const p of ps) {
+        let nn = Infinity;
+        for (const q of ps) if (q !== p) nn = Math.min(nn, Math.max(Math.abs(p.x - q.x), Math.abs(p.y - q.y)));
+        worst = Math.max(worst, nn);
+      }
+    }
+    expect(worst).toBeLessThanOrEqual(12);
+  });
+
+  it('흰색(물보라)은 호 꼭대기에만 쓴다: 무작위 흰 점이 없다(#510)', () => {
+    const base = AREA[1] + AREA[3];
+    const onH = AREA[3] / 1.5;
+    for (let clockMs = 0; clockMs < 1600; clockMs += 16) {
+      for (const p of fxParticles(water({ clockMs })).filter((q) => q.color === COLORS[2])) {
+        expect(p.y).toBeLessThan(base - onH * 0.7);
+      }
+    }
+  });
+
   it('off: 아무것도 안 그린다', () => {
     expect(fxParticles(water({ mode: 'off', clockMs: 500 }))).toEqual([]);
   });
