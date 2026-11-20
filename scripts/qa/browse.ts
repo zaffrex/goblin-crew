@@ -29,13 +29,15 @@ const browser = await Browser.launch({ noSandbox: args['no-sandbox'] });
 try {
   const page = await browser.newPage();
   await page.init();
-  await page.setViewport(mobile ? { width: 390, height: 844, dpr: 2, mobile: true } : { width: 1280, height: 720, dpr: 1, mobile: false });
+  const vp = mobile ? { width: 390, height: 844, dpr: 2, mobile: true } : { width: 1280, height: 720, dpr: 1, mobile: false };
+  await page.setViewport(vp);
   await page.goto(url.toString());
   await sleep(1500);
   for (const s of steps) {
     const [cmd, a, b] = s.split(/\s+/);
     if (cmd === 'click') {
-      const p = { x: Number(a), y: Number(b) };
+      // 스크린샷은 기기 픽셀(모바일 780x1688)이고 입력 이벤트는 CSS 픽셀(390x844)이다. 스크린샷 좌표를 dpr로 나눠 넘긴다.
+      const p = { x: Number(a) / vp.dpr, y: Number(b) / vp.dpr };
       if (mobile) await page.tap(p); else await page.click(p);
       await sleep(400);
     } else if (cmd === 'wait') await sleep(Math.min(Number(a), 5000));
