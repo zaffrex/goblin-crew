@@ -3,7 +3,7 @@ import sheetJson from '../../public/scenes/magpie_nest-objects.json';
 import screenJson from '../../content/screens/magpie_nest.json';
 import parkJson from '../../content/screens/park_fountain.json';
 import { FX_STYLE, FX_TICKS } from './fx';
-import { drawnByShape, frameNudges, fxNudges, HOP_PX, HOP_TICKS, NUDGE_FX, nudgeOf, SPLASH_DROPS, WATER_COLORS, WATER_FX, waterParticles } from './fxShape';
+import { drawnByShape, frameNudges, fxNudges, HOP_PX, HOP_TICKS, NUDGE_FX, nudgeOf, SPLASH_DROPS, SPLASH_TOP, WATER_COLORS, WATER_FX, waterParticles } from './fxShape';
 import { parseSceneArt, type SceneDraws } from './sceneArt';
 import { FX_MAX_PARTICLES } from './sceneFx';
 
@@ -90,21 +90,32 @@ describe('splash·ripple: 물 4색 입자 (#485)', () => {
     expect(waterParticles(fx, at, -1)).toEqual([]);
   });
 
-  it('splash: 처음엔 위로 솟고(기준점보다 위) 좌우로 퍼진다, 끝나기 전에 다 떨어진다', () => {
-    const early = waterParticles('splash', at, 8);
-    expect(early.length).toBe(SPLASH_DROPS);
-    expect(early.every((p) => p.y < at.y)).toBe(true);
-    expect(Math.min(...early.map((p) => p.x))).toBeLessThan(at.x - 3);
-    expect(Math.max(...early.map((p) => p.x))).toBeGreaterThan(at.x + 3);
+  it('splash: 물벼락, 머리 위 30px 넘는 곳에서 쏟아져 내려와 좌우로 벌어지고, 끝나기 전에 다 떨어진다 (#525)', () => {
+    const first = waterParticles('splash', at, 0);
+    expect(first.length).toBeGreaterThan(0);
+    expect(first.every((p) => p.y <= at.y - SPLASH_TOP)).toBe(true);
+    const meanY = (t: number) => { const ps = waterParticles('splash', at, t); return ps.reduce((n, p) => n + p.y, 0) / ps.length; };
+    expect(meanY(14)).toBeGreaterThan(meanY(4) + 10);
+    const late = waterParticles('splash', at, 14);
+    expect(Math.min(...late.map((p) => p.x))).toBeLessThan(at.x - 6);
+    expect(Math.max(...late.map((p) => p.x))).toBeGreaterThan(at.x + 6);
+    // 머리 높이에 닿은 방울이 있다(물벼락을 "맞았다")
+    expect(Array.from({ length: FX_TICKS }, (_, t) => waterParticles('splash', at, t)).flat().some((p) => p.y >= at.y)).toBe(true);
     // 공중에서 한꺼번에 사라지지 않게: 끝나기 몇 틱 전이면 이미 0개 (#486 리뷰)
     expect(waterParticles('splash', at, FX_TICKS - 4)).toEqual([]);
   });
 
-  it('splash: 머리 위 16px·좌우 24px 안에서만 튄다(머리에서 물을 뿜는 것처럼 보이지 않게, #486 리뷰)', () => {
+  it('splash: 방울 수가 늘 32개 이하이고, 어느 방울도 솟지 않는다(머리에서 물을 뿜는 것처럼 보이지 않게, #486 리뷰)', () => {
+    for (let t = 0; t < FX_TICKS; t++) expect(waterParticles('splash', at, t).length).toBeLessThanOrEqual(SPLASH_DROPS);
     const all = Array.from({ length: FX_TICKS }, (_, t) => waterParticles('splash', at, t)).flat();
-    expect(Math.min(...all.map((p) => p.y))).toBeGreaterThanOrEqual(at.y - 16);
+    // 가장 높은 방울도 시작 높이(위 30~44px) 안, 가장 낮은 방울은 어깨(아래 12px) 위, 좌우 24px 안
+    expect(Math.min(...all.map((p) => p.y))).toBeGreaterThanOrEqual(at.y - SPLASH_TOP - 14);
+    expect(Math.max(...all.map((p) => p.y))).toBeLessThanOrEqual(at.y + 12);
     expect(Math.max(...all.map((p) => Math.abs(p.x - at.x)))).toBeLessThanOrEqual(24);
     expect(all.some((p) => p.color === WATER_COLORS[3])).toBe(false);
+    // 틱이 갈수록 가장 낮은 방울은 내려가기만 한다(처음 몇 틱, 새 방울은 위에서 생긴다)
+    const lowest = Array.from({ length: 10 }, (_, t) => Math.max(...waterParticles('splash', at, t).map((p) => p.y)));
+    for (let t = 1; t < lowest.length; t++) expect(lowest[t]).toBeGreaterThanOrEqual(lowest[t - 1]!);
   });
 
   it('ripple: 고리가 기준점 둘레에서 퍼지고 납작하다(가로 > 세로)', () => {

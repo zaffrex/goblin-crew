@@ -138,7 +138,7 @@
       "when": { "flags": { "fountain.off": false } },
       "do": { "gauge": -1 },
       "show": [
-        { "anim": ["jjuk", "common.stretch"] },
+        { "anim": ["jjuk", "common.reach_wobble"] },
         { "fx": ["stretch_text", "jjuk"] },
         { "fx": ["splash", "jjuk"] },
         { "anim": ["jjuk", "common.wet"] },

@@ -59,30 +59,39 @@ export function fxNudges(fx: readonly { effect: string; target: string; t: numbe
 export const WATER_COLORS = [26, 25, 6, 24] as const;
 const [BRIGHT, MID, SPRAY] = WATER_COLORS;
 
-/** 물보라 방울 수와 중력(px/틱²). 꼭대기는 기준점 위 약 15px, 25틱 안에 다 떨어져 사라진다(30틱 fx가 끝나기 전, 공중에서 툭 끊기지 않게). */
-export const SPLASH_DROPS = 24;
-const SPLASH_G = 0.22;
-/** 기준점보다 이만큼 더 떨어지면 사라진다(px). */
-const SPLASH_FLOOR = 2;
+/**
+ * 물벼락 방울 수, 중력(px/틱²), 처음 아래 속도(px/틱). 방울은 기준점 위 `SPLASH_TOP`~+`SPLASH_TOP_SPREAD`px에서
+ * 틱 0~`SPLASH_STAGGER - 1`에 차례로 떨어지기 시작해, 기준점 아래 `SPLASH_FLOOR`px(어깨)에서 사라진다.
+ * 가장 늦은 방울도 30틱 fx가 끝나기 4틱 전에는 다 떨어진다(공중에서 툭 끊기지 않게, #486 리뷰).
+ */
+export const SPLASH_DROPS = 32;
+const SPLASH_G = 0.26;
+const SPLASH_V0 = 0.6;
+export const SPLASH_TOP = 30;
+const SPLASH_TOP_SPREAD = 14;
+const SPLASH_STAGGER = 7;
+/** 기준점보다 이만큼 더 내려오면(어깨) 사라진다(px). */
+const SPLASH_FLOOR = 12;
 
 /**
- * `splash`: 기준점(대상 머리 위끝 가운데)에서 부채꼴로 튀어 올라 떨어지는 물방울. 쭉이가 뿜는 물에 손을 넣었을 때(#5 다치는 실패).
- * 머리 위 약 15px까지만 솟는다. 더 높으면 쭉이 머리에서 물이 뿜는 것처럼 읽힌다(#486 리뷰).
- * 오르는 방울은 밝은 물 2px, 꼭대기 근처는 흰 물보라, 내려오는 방울은 중간 물 1~2px.
+ * `splash`: 물벼락(설계 `park_fountain.md` 3절 5번 "장대가 물줄기에 닿아 튕기고 물벼락", #525). 기준점(대상 머리 위끝 가운데)
+ * 위 30~44px, 펴진 장대가 물줄기에 닿은 높이에서 물이 쏟아져 머리·어깨로 떨어진다. 위에서 좁게 시작해 내려오며 좌우로 벌어진다.
+ * 방울은 아래로만 움직인다: 머리에서 솟는 방울은 쭉이 머리에서 물을 뿜는 것처럼 읽힌다(#486 리뷰).
+ * 방울 절반과 머리 높이에 닿은 방울은 흰 물보라, 나머지는 밝은 물 → 중간 물. 어깨 바로 위까지는 2px.
  */
 function splash(at: { x: number; y: number }, t: number): FxParticle[] {
   const out: FxParticle[] = [];
   for (let i = 0; i < SPLASH_DROPS; i++) {
-    const spread = (i / (SPLASH_DROPS - 1)) * 2 - 1 + (fxHash(i, 11) - 0.5) * 0.2; // −1 왼쪽 ~ 1 오른쪽
-    const vx = spread * 0.9;
-    const vy = -(1.8 + fxHash(i, 12) * 0.8) * (1 - 0.35 * Math.abs(spread));
-    const y = at.y + vy * t + 0.5 * SPLASH_G * t * t;
+    const age = t - (i % SPLASH_STAGGER);
+    if (age < 0) continue;
+    const spread = (fxHash(i, 11) * 2 - 1); // −1 왼쪽 ~ 1 오른쪽
+    const top = at.y - SPLASH_TOP - Math.round(fxHash(i, 12) * SPLASH_TOP_SPREAD);
+    const y = top + SPLASH_V0 * age + 0.5 * SPLASH_G * age * age;
     if (y > at.y + SPLASH_FLOOR) continue;
-    const peakT = -vy / SPLASH_G;
-    const rising = t < peakT;
-    const nearPeak = Math.abs(t - peakT) < 2.5;
-    const color = nearPeak || fxHash(i, 13) < 0.12 ? SPRAY : rising ? BRIGHT : MID;
-    out.push({ x: Math.round(at.x + vx * t), y: Math.round(y), size: rising || fxHash(i, 14) < 0.5 ? 2 : 1, color });
+    const x = at.x + spread * (3 + 0.6 * age);
+    // 배경이 어두운 동상·돌 테두리라 절반은 흰 물보라로 둔다(1배에서 물 색만으로는 묻힌다, #525 캡처).
+    const color = y >= at.y - 4 || fxHash(i, 13) < 0.5 ? SPRAY : y < at.y - 18 ? BRIGHT : MID;
+    out.push({ x: Math.round(x), y: Math.round(y), size: y < at.y + 4 || fxHash(i, 14) < 0.5 ? 2 : 1, color });
   }
   return out;
 }
