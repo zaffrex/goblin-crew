@@ -10,7 +10,7 @@ import { bubbleFontPx, bubbleMaxWidth, bubbleTailInset, placeBubble, type Bubble
 import { CHARACTERS, type CharacterId } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
-import { actorEdgeAt, dustPush, FX_COLORS, FX_STYLE, fxTextSpot, SHAKE_FX, shakeOffset } from './core/fx';
+import { actorEdgeAt, besideFeetAt, dustPush, FX_COLORS, FX_STYLE, fxTextSpot, SHAKE_FX, shakeOffset } from './core/fx';
 import { drawnByShape, frameNudges, fxNudges, particleFx, shapeParticles, type Nudge } from './core/fxShape';
 import type { HitBox } from './core/hit';
 import { cardFacePx, cardInput, cardPointer, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
@@ -251,11 +251,16 @@ function anchorOf(target: string, layout: ReturnType<typeof sceneLayout>): Point
 }
 
 /**
- * 소리 글자 자리 예외(`fx.ts` `FX_TEXT_SPOT`)의 기준점. 고정 점은 그대로, `'actor'`는 그 효과를 낸 캐릭터 쪽 대상 끝(#530).
- * 예외가 없거나, `'actor'`인데 캐릭터·대상 상자를 모르면(입장 연출 등) null → 대상 위 끝 가운데.
+ * 소리 글자 자리 예외(`fx.ts` `FX_TEXT_SPOT`)의 기준점. 고정 점은 그대로, `'actor'`는 그 효과를 낸 캐릭터 쪽 대상 끝(#530),
+ * `'feet'`는 대상 캐릭터 몸 옆 발치(#553).
+ * 예외가 없거나, 상자를 모르면(입장 연출 등) null → 대상 위 끝 가운데.
  */
 function fxTextSpotAt(f: { effect: string; target: string; by?: CharacterId }, layout: ReturnType<typeof sceneLayout>): Point | null {
-  const spot = fxTextSpot(f.effect, f.target);
+  const spot = fxTextSpot(f.effect, f.target, data.screen.id);
+  if (spot === 'feet') {
+    const body: HitBox | undefined = layout.chars[f.target as CharacterId];
+    return body ? besideFeetAt(body, fxTextWidth(f.effect)) : null;
+  }
   if (spot !== 'actor') return spot;
   const box: HitBox | undefined = layout.hotspots[f.target] ?? layout.spots[f.target];
   const actor = f.by === undefined ? undefined : scene.walkers[f.by];
