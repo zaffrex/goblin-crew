@@ -25,7 +25,8 @@ describe('slack.sh qa guard', () => {
     expect(r.err).toContain('qa 실행은 --as qa만');
   });
   it('does not fall back to another role token or legacy token when qa token is missing', () => {
-    const { SLACK_TOKEN_QA: _q, ...env } = ALL;
+    const env: Record<string, string> = { ...ALL };
+    delete env.SLACK_TOKEN_QA;
     const r = run(env, 'history', 'dev');
     expect(r.code).not.toBe(0);
     expect(r.err).toContain("no Slack token for role 'qa'");
