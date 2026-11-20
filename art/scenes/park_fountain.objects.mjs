@@ -706,19 +706,26 @@ const [JX, JY] = JACKET_TOP_AT;
 const JACKET_W = JACKET_TOP[0].length;
 
 /**
- * 0칸 소매 움찔: 바람이 왼쪽 밑단으로 들어가 재킷이 처마 쪽(오른쪽)으로 2px 밀리면서 **왼쪽이 들려 오른쪽으로 기운다**
- * (열마다 들림: 왼끝 4px → 오른끝 1px). 소매는 늘어진 그대로라 몸 밖으로 뻗는 부분이 없다. 왼쪽(바람이 오는 쪽)에 바람선 3줄.
- * #530: 예전엔 몸판 1px라 처음 보는 사람이 못 봤다(#468 블라인드). 소매만 옆으로 뻗게 키운 판은 재판정에서
- * "코·다리 달린 분홍 짐승"으로 읽혀서(소매 = 코) 통째로 기우는 모양으로 바꿨다
+ * 0칸 소매 움찔: 바람이 왼쪽 밑단으로 들어가 재킷이 꼭지에서 **처마 쪽(오른쪽 아래) 경사로 6px·3px 미끄러지며** 왼쪽이 들려 기운다
+ * (열마다 들림: 왼끝 7px → 오른끝 1px). 그래서 오른쪽 아래(앞판 밑단·늘어진 오른소매)가 돔 윗선을 넘어 **어두운 돔 오른쪽(plum) 위에 얹힌다**.
+ * 꼭대기 그림에서는 재킷 전체가 돔 윗선 위 하늘 앞에 있으니, 이 칸만 분홍이 어두운 돔을 먹는다 = 1배에서 실루엣이 바뀐다.
+ * 소매는 늘어진 그대로라 몸 밖으로 뻗는 부분이 없다. 왼쪽(바람이 오는 쪽)에 바람선 3줄(재킷을 따라 옮긴다).
+ * #530: 예전엔 몸판 1px라 처음 보는 사람이 못 봤다(#468 블라인드). 소매만 옆으로 뻗게 키운 판은 "코·다리 달린 분홍 짐승"으로 읽혔다(소매 = 코).
+ * 2~4px 기울기 판(#537)은 PM 재판정 2(2배)에서 "움직인 걸 못 봄"이었다. 실루엣이 그대로였기 때문이다.
+ * 소매를 경사 따라 길게 늘어뜨려 처마까지 닿게 한 판도 그려 봤지만, 소매 길이가 몸통만 해져서 "코끼리 코·팔"로 읽혀 버렸다(PR 본문 비교)
  */
+const TWITCH_SHIFT = [6, 3];
+const TWITCH_LIFT = 6;
 function jacketTwitch(t) {
+  const [dx, dy] = TWITCH_SHIFT;
   for (let c = 0; c < JACKET_W; c++) {
-    const lift = 1 + Math.round(((JACKET_W - 1 - c) * 3) / (JACKET_W - 1));
-    JACKET_TOP.forEach((row, j) => stamp(t, JX + 2 + c, JY + j - lift, [row[c]], JACKET_LEGEND));
+    const lift = 1 + Math.round(((JACKET_W - 1 - c) * TWITCH_LIFT) / (JACKET_W - 1));
+    JACKET_TOP.forEach((row, j) => stamp(t, JX + dx + c, JY + dy + j - lift, [row[c]], JACKET_LEGEND));
   }
 }
 const twitchFx = (im) => {
-  for (const [x, y, n] of [[204, 39, 3], [202, 42, 4], [205, 45, 2]]) for (let i = 0; i < n; i++) im.set(x + i, y, C.white);
+  const [dx, dy] = TWITCH_SHIFT;
+  for (const [x, y, n] of [[204, 39, 3], [202, 42, 4], [205, 45, 2]]) for (let i = 0; i < n; i++) im.set(x + dx + i, y + dy, C.white);
 };
 
 /** 1칸 미끄러짐: 돔 오른쪽 경사(x 234 → 252, 윗면 y 41 → 45)에 배를 대고 오른쪽 아래로. 깃과 두 소매가 뒤(왼쪽 위)로 끌린다 */
