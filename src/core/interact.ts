@@ -142,6 +142,12 @@ function act(action: Action, label: Label, to: Point | null = null): Resolved {
   return { kind: 'act', action, key: actionKey(action), to, label };
 }
 
+/** 퍼즐 행동을 정하는 데 필요한 것만. 몸·얼굴 상자(입력층)는 빼서 테스트가 퍼즐 상태만으로 부를 수 있게 한다. */
+export type PuzzleView = Pick<TapContext, 'screen' | 'puzzle'>;
+
+/** 퍼즐 행동이 될 수 있는 월드 대상. null = 바닥(아무 대상도 안 맞음). 캐릭터는 전환이라 넣지 않는다. */
+export type PuzzleTarget = { kind: 'spot' | 'hotspot'; ref: string } | null;
+
 /** 대상에 자기 능력을 쓰는 행동. */
 function ability(char: CharacterId, target: string): Resolved {
   const verb = characterDef(char).ability;
@@ -149,12 +155,28 @@ function ability(char: CharacterId, target: string): Resolved {
 }
 
 /** 바닥(대상 없음). */
-function floorIntent(ctx: TapContext, char: CharacterId, p: Point): Resolved {
+function floorIntent(ctx: PuzzleView, char: CharacterId, p: Point): Resolved {
   const here = ctx.puzzle.at[char];
   const spot = ctx.screen.spots[here];
   if (here === FLOOR || spot?.free) return { kind: 'walk', to: p, label: { verb: 'walk', target: null } };
   const verb: LabelVerb = spot?.hold ? 'release' : 'walk';
   return act({ char, verb: 'move', target: FLOOR }, { verb, target: null }, p);
+}
+
+/**
+ * 지금 캐릭터가 대상 하나(또는 바닥)를 눌렀을 때의 의도. `resolveTap`이 히트 판정 뒤에 부르는 바로 그 함수다.
+ * 테스트(`tests/art/screen-poses.test.ts` 반응 없는 행동, #469)가 "누를 수 있는 행동"을 이것으로 만들어
+ * 판정 규칙을 손으로 옮겨 적지 않는다(#476 리뷰 후속). p는 바닥 걷기 목적지로만 쓴다.
+ */
+export function targetIntent(ctx: PuzzleView, me: CharacterId, target: PuzzleTarget, p: Point): Resolved {
+  if (!target) return floorIntent(ctx, me, p);
+  if (target.kind === 'hotspot') return ability(me, target.ref);
+  // hold 자리는 move로 못 간다(ADR-0065). 핫스팟처럼 내 능력(설계 2절, PR #115).
+  // 내가 선 자리를 다시 누르면 내 능력(화면 1 정답 3번 "올라선 뒤 한 번 더 = 쿵", 6-4-1절).
+  if (ctx.puzzle.at[me] !== target.ref && !ctx.screen.spots[target.ref]?.hold) {
+    return act({ char: me, verb: 'move', target: target.ref }, { verb: 'climb', target: target.ref });
+  }
+  return ability(me, target.ref);
 }
 
 /**
@@ -174,24 +196,14 @@ export function resolveTap(ctx: TapContext, ui: UiState, p: Point, slop: number)
 
   // 2. 월드.
   const hit = hitTest(worldTargets(ctx, ui), p, slop);
-  if (!hit) return floorIntent(ctx, me, p);
-  switch (hit.kind) {
-    case 'char': {
-      const id = hit.ref as CharacterId;
-      // 매달린 내 몸(설계 2절 hold 예외): 아무 일 없음.
-      if (id === me) return { kind: 'none', label: { verb: null, target: id } };
-      return { kind: 'switch', char: id, label: { verb: null, target: id } };
-    }
-    case 'spot':
-      // hold 자리는 move로 못 간다(ADR-0065). 핫스팟처럼 내 능력(설계 2절, PR #115).
-      // 내가 선 자리를 다시 누르면 내 능력(화면 1 정답 3번 "올라선 뒤 한 번 더 = 쿵", 6-4-1절).
-      if (ctx.puzzle.at[me] !== hit.ref && !ctx.screen.spots[hit.ref]?.hold) {
-        return act({ char: me, verb: 'move', target: hit.ref }, { verb: 'climb', target: hit.ref });
-      }
-      return ability(me, hit.ref);
-    case 'hotspot':
-      return ability(me, hit.ref);
+  if (!hit) return targetIntent(ctx, me, null, p);
+  if (hit.kind === 'char') {
+    const id = hit.ref as CharacterId;
+    // 매달린 내 몸(설계 2절 hold 예외): 아무 일 없음.
+    if (id === me) return { kind: 'none', label: { verb: null, target: id } };
+    return { kind: 'switch', char: id, label: { verb: null, target: id } };
   }
+  return targetIntent(ctx, me, { kind: hit.kind, ref: hit.ref }, p);
 }
 
 /**

@@ -13,8 +13,9 @@ import { join } from 'node:path';
 import { stateKey } from '../../src/core/puzzle/bfs';
 import { screenHost } from '../../src/core/puzzle/check';
 import { step } from '../../src/core/puzzle/step';
-import { characterDef } from '../../src/core/characters';
-import { FLOOR, type Action, type CharactersData, type PuzzleState, type ScreenData, type StepResult } from '../../src/core/puzzle/types';
+import type { CharacterId } from '../../src/core/characters';
+import { actionKey, targetIntent, type PuzzleTarget } from '../../src/core/interact';
+import { type Action, type CharactersData, type PuzzleState, type ScreenData, type StepResult } from '../../src/core/puzzle/types';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const load = (...p: string[]): unknown => JSON.parse(readFileSync(join(ROOT, ...p), 'utf8'));
@@ -83,20 +84,25 @@ function screenPoses(screen: ScreenData): string[] {
 }
 
 /**
- * 플레이어가 이 상태에서 누를 수 있는 행동인가. `src/core/interact.ts` `resolveTap`과 같은 규칙이다.
- * 입력은 "얼굴 고르기 → 물건 누르기"뿐이라 동사는 `move`와 그 캐릭터 특기 하나다. `look`·`hand`·`item`은 UI에 없다(아이템 칸은 M2).
- * - 핫스팟 → 특기
- * - 상자 있는 자리 → 다른 자리면 `move`, 내가 선 자리나 `hold` 자리면 특기
- * - 바닥(상자 없는 자리) → 바닥·`free`가 아닐 때만 `move floor`(내려오기). 바닥에 특기는 못 쓴다
- * UI 판정이 바뀌면 여기도 바꾼다.
+ * 플레이어가 이 상태에서 누를 수 있는 행동의 `actionKey` 집합.
+ * 규칙을 손으로 옮기지 않고 UI 판정(`resolveTap`)이 히트 뒤에 부르는 `targetIntent`를 그대로 부른다(#476 리뷰 후속).
+ * 대상 = 바닥 + 모든 핫스팟 + 상자 있는 자리. 캐릭터 대상은 전환이라 퍼즐 행동이 아니다.
+ * 상자가 겹쳐 실제로는 못 누르는 대상(입력층)은 여기서 안 본다. 그건 replay 몫이다.
  */
-function isTappable(screen: ScreenData, s: PuzzleState, a: Action): boolean {
-  const ability = characterDef(a.char).ability;
-  if (screen.hotspots[a.target]) return a.verb === ability;
-  const spot = screen.spots[a.target];
-  if (spot?.box) return a.verb === (s.at[a.char] !== a.target && !spot.hold ? 'move' : ability);
-  const here = screen.spots[s.at[a.char]];
-  return a.verb === 'move' && a.target === FLOOR && s.at[a.char] !== FLOOR && !here?.free;
+function tappableKeys(screen: ScreenData, s: PuzzleState): Set<string> {
+  const targets: PuzzleTarget[] = [
+    null,
+    ...Object.keys(screen.hotspots).map((ref) => ({ kind: 'hotspot' as const, ref })),
+    ...Object.entries(screen.spots).filter(([, sp]) => sp.box).map(([ref]) => ({ kind: 'spot' as const, ref })),
+  ];
+  const keys = new Set<string>();
+  for (const char of Object.keys(s.at) as CharacterId[]) {
+    for (const t of targets) {
+      const r = targetIntent({ screen, puzzle: s }, char, t, { x: 0, y: 0 });
+      if (r.kind === 'act') keys.add(r.key);
+    }
+  }
+  return keys;
 }
 
 /**
@@ -107,8 +113,11 @@ function isTappable(screen: ScreenData, s: PuzzleState, a: Action): boolean {
  */
 function silentActions(screen: ScreenData, chars: CharactersData): string[] {
   const out = new Map<string, string>();
+  let last: PuzzleState | null = null;
+  let tappable = new Set<string>();
   eachStep(screen, chars, (s, a, r) => {
-    if (!isTappable(screen, s, a)) return;
+    if (s !== last) [last, tappable] = [s, tappableKeys(screen, s)];
+    if (!tappable.has(actionKey(a))) return;
     if (r.events.some((e) => e.type !== 'walk')) return;
     if (a.verb === 'move' && r.state.at[a.char] !== s.at[a.char]) return;
     const key = `${a.char}.${a.verb}@${a.target} (${r.source})`;

@@ -4,7 +4,8 @@ import texts from '../../content/text/ja.json';
 import { characterDef, characterFaceBox, characterHitBox, CHARACTERS, type CharacterId } from './characters';
 import type { HitBox } from './hit';
 import { CHAR_SLOTS, HUD_AREA } from './hud';
-import { hudTargets, labelText, resolveTap, tap, worldTargets, type TapContext, type UiState } from './interact';
+import { hitTest } from './hit';
+import { hudTargets, labelText, resolveTap, tap, targetIntent, worldTargets, type TapContext, type UiState } from './interact';
 import { initialState } from './puzzle/step';
 import type { PuzzleState, ScreenData } from './puzzle/types';
 import { HUD_BOX } from './puzzle/validate';
@@ -330,6 +331,39 @@ describe('터치 탭 2번 (설계 4절)', () => {
     expect(a.intent).toMatchObject({ kind: 'select', label: { verb: 'release' } });
     expect(tap(hang, a.ui, { x: 310, y: 250 }, 8, true).intent).toMatchObject({ kind: 'act', action: { verb: 'move', target: 'floor' } });
     expect(tap(hang, ui('jjuk'), center(CHAR_SLOTS.ppik), 8, true).intent.kind).toBe('switch');
+  });
+});
+
+describe('targetIntent = resolveTap이 히트 뒤에 부르는 판정 (#476 리뷰 후속)', () => {
+  it('대상 상자 중심을 누르면 resolveTap과 targetIntent가 같다(그 대상이 맞을 때)', () => {
+    const states = [puzzleWith({}), puzzleWith({ mukjik: 'seesaw_right' }), puzzleWith({ jjuk: 'hook' }), puzzleWith({ jjuk: 'seesaw_left' })];
+    let checked = 0;
+    for (const p of states) {
+      const ctx = ctxFor(p);
+      for (const c of CHARACTERS) {
+        const targets = worldTargets(ctx, ui(c.id));
+        for (const t of targets) {
+          if (t.kind === 'char') continue;
+          const pt = center(t.box);
+          if (hitTest(targets, pt, 0)?.id !== t.id) continue; // 다른 대상에 가려진 중심은 입력층 몫
+          expect(resolveTap(ctx, ui(c.id), pt, 0)).toEqual(targetIntent(ctx, c.id, { kind: t.kind, ref: t.ref }, pt));
+          checked++;
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(20);
+  });
+
+  it('바닥(맞는 대상 없음)은 targetIntent(null)과 같다: 걷기 / 내려오기 / 손 놓기', () => {
+    const pt = { x: 300, y: 240 };
+    for (const p of [puzzleWith({}), puzzleWith({ mukjik: 'seesaw_right' }), puzzleWith({ jjuk: 'hook' })]) {
+      const ctx = ctxFor(p);
+      for (const c of CHARACTERS) {
+        if (hitTest(worldTargets(ctx, ui(c.id)), pt, 0)) continue;
+        expect(resolveTap(ctx, ui(c.id), pt, 0)).toEqual(targetIntent(ctx, c.id, null, pt));
+      }
+    }
+    expect(targetIntent(ctxFor(puzzleWith({ jjuk: 'hook' })), 'jjuk', null, pt)).toMatchObject({ kind: 'act', label: { verb: 'release' } });
   });
 });
 
