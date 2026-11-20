@@ -569,6 +569,15 @@
         {
           "when": {
             "flags": {
+              "jacket.taken": true
+            }
+          },
+          "frame": null,
+          "layer": "back"
+        },
+        {
+          "when": {
+            "flags": {
               "jacket.on_hand": true
             }
           },

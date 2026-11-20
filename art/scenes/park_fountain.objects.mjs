@@ -815,14 +815,20 @@ OBJECTS.jacket = {
   draw: jacket.top,
   // 9절 재킷 대기(#477): 약 12초마다 바람에 소매가 움찔(P5 0칸 재사용). 손으로 내려온 뒤(state)에는 loop가 없어서 멈춘다
   loop: { ms: [12000, 300], frames: [jacket.top, jacket.twitch] },
-  states: [{ when: { flags: { 'jacket.on_hand': true } }, draw: jacket.hand }],
+  states: [
+    // 클리어(#529, 형식 기록 14절 개정 9): 재킷은 ノビー 머리 → 손님 만세 칸으로 갔다. 동상 손은 비운다.
+    // 클리어 때 `jacket.on_hand`가 참으로 남으니까 첫 일치가 되게 이 줄이 on_hand보다 앞이어야 한다.
+    // 히트 상자는 그대로 둔다: taken부터는 컷(busy)·클리어(`scene.cleared`)라 호버·클릭이 꺼져 닿지 않는다(PR #552 Luna 리뷰).
+    { when: { flags: { 'jacket.taken': true } }, draw: null },
+    { when: { flags: { 'jacket.on_hand': true } }, draw: jacket.hand },
+  ],
 };
 // 9번 `fountain_tap`(단서 ①): カーン에 소매가 움찔 → 제자리 → 한 번 더. 상태는 안 바뀌어서 끝나면 꼭대기 그림
 ANIMS['jacket.twitch'] = { ms: [160, 90, 420], frames: [jacket.twitch, jacket.top, jacket.twitch] };
 // 3번★(주 아하): ゴォン 뒤 움찔 → 경사를 타고 미끄러짐 → 처마에서 떨어짐(두 자리) → 손에 턱. 끝나면 state 그림(손)과 같은 그림
 ANIMS['jacket.slide'] = { ms: [200, 260, 90, 90, 400], frames: [jacket.twitch, jacket.slide, jacket.fallHigh, jacket.fallLow, jacket.hand] };
 // 8번★ P6(#529): ノビー `take_up` 1번 칸(확 당김)의 cue로 겹쳐 뜬다. 활짝 → 떨어짐, 합 350ms = take_up 1번 칸 길이라
-// 끝나는 틱에 ノビー가 2번 칸(머리에 덮임)으로 넘어간다. hold 없음: 끝나면 `jacket.taken` 멈춘 모습으로
+// 끝나는 틱에 ノビー가 2번 칸(머리에 덮임)으로 넘어간다. hold 없음: 끝나면 `jacket.taken` 멈춘 모습(안 그림)으로
 ANIMS['jacket.cover'] = { ms: [200, 150], frames: [jacket.coverOpen, jacket.coverDrop] };
 
 // ═════════════ 분수대 테두리 (fountain, 히트 128,180 192×24 / 그림 앞면 128,180 192×18) ═════════════
