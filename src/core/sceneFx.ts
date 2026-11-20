@@ -70,8 +70,13 @@ const STREAMS = [
   { spread: -0.75, lift: 0.8, n: 34, phase: 0.31 },
   { spread: 0.75, lift: 0.8, n: 34, phase: 0.62 },
 ] as const;
-/** 물방울 하나의 비행 시간(ms). 짧을수록 물이 빨라 보인다. stop은 이 시간 뒤 다 떨어져서 off와 같아진다. */
-export const WATER_FLIGHT_MS = 800;
+/**
+ * 물방울 하나의 비행 시간(ms). 짧을수록 물이 빨라 보인다.
+ * 한 틱(60Hz)에 가는 거리가 가닥 안 물방울 간격의 0.4배쯤 아래여야 한다(#512). 넘으면 눈이 바로 뒤 물방울을 같은 물방울로 짝지어
+ * 물이 노즐 쪽으로 거꾸로 빨려 들어가 보인다(바퀴살 착시). 양옆 호 34개면 34 × 16.7 / 1400 ≈ 0.41. 800ms일 때는 0.71이었다.
+ * 그래서 연출 길이(stop 900ms, burst 1200ms)보다 길다. stop·burst는 이 값이 아니라 anim 길이 안에 끝나게 센다(아래 `fountainWater`).
+ */
+export const WATER_FLIGHT_MS = 1400;
 /** on 높이 = area 높이 ÷ 1.5. burst 꼭대기(×1.5)가 area 위 끝에 닿는다(#380 회색 배치 "위쪽 여유는 burst 몫"). */
 const BURST_SCALE = 1.5;
 
@@ -81,10 +86,13 @@ const BURST_SCALE = 1.5;
  *   해시는 물방울마다 높이를 조금(3%) 흔드는 데만 쓴다. 그래도 결정적이다(화면 시계와 번호만 본다).
  * - 흰색(물보라)은 호 꼭대기에만 쓴다. 예전의 "군데군데 무작위 흰 점"은 반짝이로 읽혀서 뺐다(#510).
  * - on: 전부. off: 없음.
- * - stop: stop이 시작된 뒤(효과 자리 시계 0 이후)에 뿜을 물방울은 안 나온다 → 이미 뜬 물은 계속 떨어지고 물기둥이 아래부터 낮아진다.
- *   비행 시간(800ms)이 지나면 비어서 `off`와 같다(anim 900ms 끝 → off로 끊김 없이).
- * - burst: 꺼진 물에서 시작한다(엔딩 ③ 순서). 처음 (길이 − 비행 시간) 동안 뿜는 물은 최대 1.5배 높이로 솟고, 그 뒤는 on 높이다.
- *   anim이 끝날 때 떠 있는 물방울은 전부 on 높이라 `on` 첫 박자와 같다.
+ * - stop/burst는 비행 시간이 아니라 **anim 길이**(`durMs`) 안에 끝난다(#512). 보이는 경계(끊는 자리)가 노즐에서 물 끝까지
+ *   `max(1, 비행 시간 ÷ 길이)` 배 빠르기로 훑는다. 물방울보다 조금 빨라서 경계 근처 물방울은 날다가 사라진다(2px라 1배에서 안 보인다).
+ * - stop: 효과 자리 시계 t에서 `age ≥ t × 배`인 물방울만 남는다. t = 0이면 on과 같고, 물기둥이 아래부터 낮아지다가
+ *   anim 끝(900ms)에 비어서 `off`와 같다(끊김 없이).
+ * - burst: 꺼진 물에서 시작한다(엔딩 ③ 순서). `age ≤ t × 배`인 물방울만 나온다(노즐에서 물이 차오른다).
+ *   높이 배율은 효과 자리 시계로 한꺼번에 정한다: `1 + 0.5 × sin(π t / 길이)`, 가운데에서 1.5배(area 위 끝), 끝에서 1이다.
+ *   그래서 anim 끝에는 물방울이 다 나와 있고 on 높이라 `on` 첫 박자와 같다. 길이를 넘어 붙든 burst(13절)도 on과 같다.
  */
 function fountainWater(d: SceneFxDraw): FxParticle[] {
   const [ax, ay, aw, ah] = d.area;
@@ -94,20 +102,18 @@ function fountainWater(d: SceneFxDraw): FxParticle[] {
   const base = ay + ah;
   const onH = ah / BURST_SCALE;
   const T = WATER_FLIGHT_MS;
-  const peakWindow = Math.max(0, d.durMs - T);
+  const dur = d.durMs > 0 ? d.durMs : T;
+  /** 보이는 경계가 효과 자리 시계로 t ms일 때 지난 비행 나이(ms). 길이 끝에 T(전부)에 닿는다. */
+  const front = Math.min(T, d.slotMs * Math.max(1, T / dur));
+  const k = d.mode === 'burst' && d.slotMs < dur ? 1 + (BURST_SCALE - 1) * Math.sin((Math.PI * Math.max(0, d.slotMs)) / dur) : 1;
   const out: FxParticle[] = [];
   let i = 0; // 물방울 번호(해시 입력). 가닥을 지나도 이어서 센다.
   for (const s of STREAMS) {
     for (let j = 0; j < s.n; j++, i++) {
       const phase = (((d.clockMs / T + j / s.n + s.phase) % 1) + 1) % 1;
       const age = phase * T;
-      const born = d.slotMs - age; // 효과 자리 시계로 이 물방울을 뿜은 때
-      let k = 1;
-      if (d.mode === 'stop' && born > 0) continue;
-      if (d.mode === 'burst') {
-        if (born < 0) continue;
-        if (born < peakWindow) k = 1 + (BURST_SCALE - 1) * Math.sin((Math.PI * born) / peakWindow);
-      }
+      if (d.mode === 'stop' && age < front) continue; // 경계보다 노즐 쪽 = stop 뒤에 뿜을 물
+      if (d.mode === 'burst' && age > front) continue; // 경계보다 앞 = 아직 안 뿜은 물
       const u = age / T;
       const lift = s.lift * (0.97 + 0.03 * fxHash(i, 5));
       const size = 2;

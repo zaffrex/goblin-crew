@@ -1,6 +1,6 @@
 // 팔레트·빌드 표와 같은지는 tests/art/scene-fx.test.ts(노드 파일 읽기가 필요해서 core 밖)에서 본다.
 import { describe, expect, it } from 'vitest';
-import { FX_MAX_PARTICLES, fxParticles, WATER_FLIGHT_MS, type FxParticle, type SceneFxDraw } from './sceneFx';
+import { FX_MAX_PARTICLES, fxParticles, type FxParticle, type SceneFxDraw } from './sceneFx';
 
 /** #424 회색 배치 값 */
 const AREA = [152, 8, 144, 172] as const;
@@ -17,6 +17,7 @@ const water = (over: Partial<SceneFxDraw> = {}): SceneFxDraw => ({
   ...over,
 });
 const key = (ps: FxParticle[]) => ps.map((p) => `${p.x},${p.y},${p.size},${p.color}`).join(' ');
+const TICK = 1000 / 60;
 const top = (ps: FxParticle[]) => Math.min(...ps.map((p) => p.y));
 
 describe('fountain_water (11-4절)', () => {
@@ -80,12 +81,17 @@ describe('fountain_water (11-4절)', () => {
     expect(fxParticles(water({ mode: 'off', clockMs: 500 }))).toEqual([]);
   });
 
-  it('stop: 시작 순간은 on과 같고, 점점 줄다가 비행 시간 뒤에는 비어 off와 이어진다', () => {
-    const c0 = 5000;
-    expect(key(fxParticles(water({ mode: 'stop', clockMs: c0, slotMs: 0, durMs: 900 })))).toBe(key(fxParticles(water({ clockMs: c0 }))));
-    const counts = [0, 200, 400, 600, 799].map((t) => fxParticles(water({ mode: 'stop', clockMs: c0 + t, slotMs: t, durMs: 900 })).length);
-    for (let i = 1; i < counts.length; i++) expect(counts[i]).toBeLessThan(counts[i - 1]!);
-    expect(fxParticles(water({ mode: 'stop', clockMs: c0 + WATER_FLIGHT_MS, slotMs: WATER_FLIGHT_MS, durMs: 900 }))).toEqual([]);
+  it('stop: 시작 순간은 on과 같고, 틱마다 줄다가 anim 끝(900ms)에 비어 off와 이어진다(비행 시간 1400ms보다 짧아도, #512)', () => {
+    const c0 = 5000, dur = 900;
+    expect(key(fxParticles(water({ mode: 'stop', clockMs: c0, slotMs: 0, durMs: dur })))).toBe(key(fxParticles(water({ clockMs: c0 }))));
+    let prev = FX_MAX_PARTICLES;
+    for (let f = 1; f * TICK < dur; f++) {
+      const n = fxParticles(water({ mode: 'stop', clockMs: c0 + f * TICK, slotMs: f * TICK, durMs: dur })).length;
+      expect(n).toBeLessThanOrEqual(prev); // 한 번 꺼진 물은 다시 안 나온다
+      prev = n;
+    }
+    expect(prev).toBeGreaterThan(0);
+    expect(fxParticles(water({ mode: 'stop', clockMs: c0 + dur, slotMs: dur, durMs: dur }))).toEqual([]);
   });
 
   it('stop: 아래부터 꺼진다(남은 물방울은 이미 떠서 떨어지는 중)', () => {
@@ -108,6 +114,38 @@ describe('fountain_water (11-4절)', () => {
     expect(burstTop).toBeGreaterThanOrEqual(AREA[1]);
     // anim 끝(slotMs = dur) = on의 그 화면 시계
     expect(key(fxParticles(water({ mode: 'burst', clockMs: c0 + dur, slotMs: dur, durMs: dur })))).toBe(key(fxParticles(water({ clockMs: c0 + dur }))));
+    // 길이를 넘어 붙든 burst(13절 hold)도 on과 같다
+    expect(key(fxParticles(water({ mode: 'burst', clockMs: c0 + dur + 500, slotMs: dur + 500, durMs: dur })))).toBe(key(fxParticles(water({ clockMs: c0 + dur + 500 }))));
+  });
+
+  it('burst: 물이 노즐에서 차오른다(틱마다 줄지 않고, 막 나온 물은 아래쪽)', () => {
+    const c0 = 8000, dur = 1200;
+    let prev = 0;
+    for (let f = 0; f * TICK <= dur; f++) {
+      const n = fxParticles(water({ mode: 'burst', clockMs: c0 + f * TICK, slotMs: f * TICK, durMs: dur })).length;
+      expect(n).toBeGreaterThanOrEqual(prev);
+      prev = n;
+    }
+    // 처음 1/4 동안은 올라가는 물(물 밝음)만 있다
+    const early = fxParticles(water({ mode: 'burst', clockMs: c0 + 250, slotMs: 250, durMs: dur }));
+    expect(early.length).toBeGreaterThan(0);
+    expect(early.every((p) => p.color === COLORS[0])).toBe(true);
+  });
+
+  it('흐르는 방향이 읽힌다: 60Hz 다음 틱에 가장 가까운 점이 자기 자신인 비율이 높다(#512 바퀴살 착시, 800ms일 때 약 14%)', () => {
+    // fxParticles(on)은 같은 순서로 같은 물방울을 돌려준다(가닥 → 번호). 그래서 i번째끼리가 같은 물방울이다.
+    let self = 0, all = 0;
+    for (let f = 0; f < 600; f++) {
+      const now = fxParticles(water({ clockMs: f * TICK }));
+      const next = fxParticles(water({ clockMs: (f + 1) * TICK }));
+      now.forEach((p, i) => {
+        const d2 = (q: FxParticle) => (q.x - p.x) ** 2 + (q.y - p.y) ** 2;
+        const best = Math.min(...next.map(d2));
+        if (d2(next[i]!) <= best) self++;
+        all++;
+      });
+    }
+    expect(self / all).toBeGreaterThan(0.6); // 1400ms에서 약 75%
   });
 
   it('모르는 효과는 빈 목록(빌드 검사가 먼저 막는다)', () => {
