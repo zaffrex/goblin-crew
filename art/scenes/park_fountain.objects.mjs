@@ -950,10 +950,66 @@ ANIMS['floor.pigeons_up'] = {
 // 재킷 × プピ 폴백: 소리 쪽을 두리번(돌아봄 → 원래 → 다시 돌아봄). 날지는 않는다(프피는 쿵보다 약하다).
 ANIMS['floor.pigeons_turn'] = { ms: [300, 150, 350], frames: [pigeonsPic.turn, pigeonsPic.rest, pigeonsPic.turn] };
 
+// ═════════════ 오리 (duck, 히트 175,156 24×24 / 그림 181,167 14×9 + 외곽선, P9) ═════════════
+// 공원 연못의 カモ(설계 6절 이름표). 집오리·장난감 오리가 아니라 갈색 암컷 청둥오리: 몸은 woodL·wood에 woodD 얼룩,
+// 눈선 woodD, 노랑 부리, 날개 끝 보라 거울깃 + 흰 테두리(작아도 "오리"를 나르는 표시). 녹색 머리 수컷은 뒤 덤불(grn)에 머리가 묻혀서 뺐다.
+// 물에 뜬 높이: 연못 뒤 가장자리(lint, y 168~171) 앞, 물(y 172~179) 위. 배 아랫줄(y 175)과 외곽선(y 176)을 물빛 점선(tealL)이 끊어
+// "물에 잠겼다"로 읽힌다. 처음 좌표(180,158)는 뒤 덤불 앞이라 떠 있지 않고 서 있는 것처럼 보여서 9px 내렸다(히트 상자도 같이).
+// 만질 수 있는 물건이라 외곽선을 두른다. 물방울·물빛 점선만 외곽선 밖 효과 픽셀이다.
+// 칸 3개(설계 7절 P9): 0 떠 있기 / 1 콕(머리를 물 쪽으로 내리꽂고 꽁지가 들림) / 2 퍼덕(앞 날개를 높이 치켜들고 3px 뜸).
+// 나머지는 다시 찍기다: 뒤집기(오른쪽 보기)와 자리 옮기기(손님 run_in과 같은 방식, 새 칸 0).
+const DUCK_LEGEND = { b: C.woodL, B: C.wood, d: C.woodD, t: C.tan, y: C.yel, Y: C.yelD, k: C.ink, p: C.pur, w: C.white };
+/** 떠 있기 왼쪽 위(외곽선 안쪽). 배 아랫줄 = y + 8 = 175. */
+export const DUCK_AT = [181, 167];
+const DUCK_SHAPES = {
+  // 왼쪽을 본다(세 사람이 오는 흙길 쪽이 아니라 연못 왼쪽 끝: 콕 쪼고 그쪽으로 헤엄쳐 떠난다).
+  rest: ['..BBB.........', '.Bbttb........', 'yybkdtb.......', 'yYbbbbb.......', '...bbB.....BB.', '...tbbbbbbBBdB', '..tbbbBpwBBdBB', '..bbbBBBBBBBB.', '...BdBBdBBdBB.'],
+  // 콕: 머리가 몸 앞 아래(x 181~184, y 172~175)로 내려가 부리가 물 높이에 닿는다. 장대 집게가 오는 쪽(상자 아래 끝)이다.
+  peck: ['...........BB.', '.........bBBdB', '......bbbbBBB.', '..BBbbbbBpwBB.', '.Bttbbbbbbbbb.', 'Bbkdb.BdBBdBB.', 'bbbb..........', 'yYb...........', '.Yy...........'],
+  // 퍼덕: 앞 날개 하나를 등 위로 세운다. 밑동 woodD 줄이 몸과 날개를 가른다(같은 갈색이라 줄이 없으면 한 덩어리로 묻혔다).
+  // 첫 시안의 작은 두 날개는 1배에서 "고양이 귀"로 읽혀서 버렸다.
+  flap: ['..........B...', '.........BbB..', '........Bbbp..', '..BBB..Bbbpw..', '.Bbttb.Bbbpw..', 'yybkdtbdBddBBB', 'yYbbbbbbBBBBdB', '...tbbbbBBBBB.', '...BdBBdBBdB..'],
+};
+/** 물빛 점선: 배 아래 외곽선 줄을 끊는다(떠 있음). 폭 14, 세 칸에 한 번 비운다. */
+const duckWaterline = (x) => (im) => { for (let i = 0; i < 14; i++) if ((x + i) % 3) im.set(x + i, 176, C.tealL); };
+/** 물방울(효과 픽셀). 콕 = 부리 끝 작은 튐, 퍼덕 = 양옆으로 튀는 물. */
+const DUCK_DROPS = {
+  peck: [[-2, 10, C.white], [2, 10, C.white], [-1, 11, C.aqua], [1, 11, C.aqua]],
+  flap: [[-3, 3, C.white], [-4, 1, C.aqua], [-5, 5, C.aqua], [-2, 7, C.white], [16, 2, C.white], [17, 0, C.aqua], [18, 4, C.aqua], [15, 7, C.white]],
+};
+/** 한 칸. `dx`만큼 옆에, `right`면 오른쪽을 본다(행 뒤집기, 폭이 같아 자리 보정 없음). 퍼덕은 3px 뜬다. */
+function duckPic(shape, { dx = 0, right = false } = {}) {
+  const x = DUCK_AT[0] + dx, y = DUCK_AT[1] + (shape === 'flap' ? -3 : 0);
+  const rows = right ? DUCK_SHAPES[shape].map((r) => [...r].reverse().join('')) : DUCK_SHAPES[shape];
+  const drops = DUCK_DROPS[shape] ?? [];
+  return pic((im) => stamp(im, x, y, rows, DUCK_LEGEND), (im) => {
+    duckWaterline(x)(im);
+    for (const [ddx, ddy, c] of drops) im.set(x + (right ? 13 - ddx : ddx), DUCK_AT[1] + ddy, c);
+  });
+}
+const duck = {
+  rest: duckPic('rest'),
+  peck: duckPic('peck'),
+  flap: duckPic('flap'),
+  restRight: duckPic('rest', { right: true }),
+};
+OBJECTS.duck = { draw: duck.rest };
+// duck × stretch(설계 4절): 집게를 콕, 한 번 더 콕. 쪼임 대사(`duck_peck`)는 콕 바로 뒤에 떠야 해서 헤엄은 따로 뺐다(`duck.lap`).
+ANIMS['duck.peck'] = { ms: [140, 160, 140, 200], frames: [duck.peck, duck.rest, duck.peck, duck.rest] };
+// 쪼고 나서 "연못을 한 바퀴 돌아 제자리로"(설계 4절): 왼쪽으로 12px 헤엄쳐 가다 돌아서 온다. 엔진 이동이 아니라 칸마다 자리(새 칸 0).
+ANIMS['duck.lap'] = {
+  ms: [220, 220, 260, 220, 220],
+  frames: [duckPic('rest', { dx: -6 }), duckPic('rest', { dx: -12 }), duckPic('rest', { dx: -12, right: true }), duckPic('rest', { dx: -6, right: true }), duck.rest],
+};
+// duck × stomp: 쿵에 놀라 퍼덕퍼덕. 날개 든 칸(뜸) ↔ 떠 있기(날개 내림)를 번갈아 친다. 물벼락은 화면 JSON의 `splash` fx가 ズッシー 머리에 맡는다.
+ANIMS['duck.flap'] = { ms: [110, 90, 110, 90, 110, 160], frames: [duck.flap, duck.rest, duck.flap, duck.rest, duck.flap, duck.rest] };
+// duck × squeak: 소리 난 쪽을 홱 돌아봤다가 다시 앞으로(제자리 한 바퀴), 그 뒤 クワッ(화면 JSON `quack_text`).
+ANIMS['duck.turn'] = { ms: [260, 160], frames: [duck.restRight, duck.rest] };
+
 // ═════════════ 그리는 순서 (설계 1-4절, 뒤 → 앞) ═════════════
-// back 목록은 OBJECTS 키 순서다(형식 6절). 재킷 → 물줄기(재킷 앞을 지나감) → 테두리 앞면 → 비둘기(흙길이라 테두리 앞, 날아오르면 흰 돌 앞) → 창(관리인·커튼) → 자명종 → 손님.
+// back 목록은 OBJECTS 키 순서다(형식 6절). 오리(연못 물 위, 동상보다 앞이지만 물줄기·테두리 뒤) → 재킷 → 물줄기(재킷 앞을 지나감) → 테두리 앞면 → 비둘기(흙길이라 테두리 앞, 날아오르면 흰 돌 앞) → 창(관리인·커튼) → 자명종 → 손님.
 // 손님이 맨 앞이어야 재회 자리(290,188)에서 테두리(y 180~198)가 손님 머리를 덮지 않는다. 파일에서 그린 순서와 달라서 여기서 다시 줄 세운다.
-for (const k of ['jacket', 'water', 'fountain', 'pigeons', 'keeper', 'alarm_clock', 'guest']) {
+for (const k of ['duck', 'jacket', 'water', 'fountain', 'pigeons', 'keeper', 'alarm_clock', 'guest']) {
   const v = OBJECTS[k];
   delete OBJECTS[k];
   OBJECTS[k] = v;
