@@ -15,7 +15,7 @@
 
 import { Canvas, C } from '../lib/pixel.mjs';
 import { colorLines, rimShade, soles } from '../lib/finish.mjs';
-import { puff } from '../lib/fx.mjs';
+import { puff, drops } from '../lib/fx.mjs';
 import { squash } from '../lib/squash.mjs';
 
 export const CELL = [48, 64];
@@ -71,6 +71,7 @@ export function pose(kind, k) {
   if (kind === 'common.flatten') return FLATTEN[k];
   if (kind === 'step_up') return STEP_UP[k];
   if (kind === 'sit_corner') return SIT_CORNER[k];
+  if (kind === 'common.wet') return WET[k];
   if (kind === 'idle') {
     return {
       chest: k, // 숨 들이쉬기(배가 나온다) / 내쉬기
@@ -164,10 +165,28 @@ const FACE = {
     tongue: ['...dsssssssmmmmmmmm...', '...ddsssxsxsmkkkkmss..', '....dsssxsxssmrrmsss..'], // 어질: 입이 헤 벌어지고 혀가 빠진다
   },
 };
+// 젖은 머리(common.wet 1~3번): 짧은 머리가 물에 눌려 정수리가 한 줄 낮아지고 빛 가닥(g)이 늘어난다.
+//   젖은 머리띠가 무게로 흘러내려 **일자 눈썹과 두 눈을 통째로 덮는다**(8~10행). 코와 이를 악문 입만 남는다 = "앞이 안 보여도 비장".
+//   쭉이 젖은 앞머리(jjuk-v4.mjs WET_BANGS)와 같은 웃음을 묵직이 물건(머리띠)으로 한다. 원래 띠 자리(4~6행)엔 젖은 머리가 드러난다.
+const WET_HEAD = [
+  '......................',
+  '...KKgKKKKgKKKKK......',
+  '.kKKKgKKKKKKgKKKKK....',
+  '.kKKKKKgKKKKKKgKKKK...',
+  '.kKKgKKKKKKgKKKKKKKK..',
+  '.kKKKKdKKsKKKsKKKsKK..',
+  '.kKKdsssKssttsKsttss..',
+  '.kKdssstttsssssttsss..',
+  'eWWWWWWWWWWWWWWWWWWWW.',
+  'eWWWWWWWWWWWWWWWWWWWW.',
+  'leeeeleeeeeleeeeleeee.',
+  '..dsssssssssssssssss..',
+];
 function face(f) {
   const r = HEAD.slice();
-  if (f.brows) r.splice(9, 1, ...FACE.brows[f.brows]);
-  if (f.eyes) r.splice(10, 2, ...FACE.eyes[f.eyes]);
+  if (f.band === 'wet') r.splice(0, WET_HEAD.length, ...WET_HEAD);
+  if (f.brows && f.band !== 'wet') r.splice(9, 1, ...FACE.brows[f.brows]);
+  if (f.eyes && f.band !== 'wet') r.splice(10, 2, ...FACE.eyes[f.eyes]);
   if (f.mouth) r.splice(15, 3, ...FACE.mouth[f.mouth]);
   for (const row of r) if (row.length !== 22) throw new Error(`[mukjik] 얼굴 줄 길이 ${row.length}: ${row}`);
   return r;
@@ -269,10 +288,13 @@ export function drawFrame(p) {
   // 머리: 상체와 같은 정수 px만큼 내리고 lean만큼
   const hx0 = HEAD_X + p.lean, hy0 = HEAD_Y + p.chest;
   const headPart = K.part(R4.skin);
-  K.stamp(hx0 - 5, hy0 + 4, TAILS[clamp(p.tails, 0, 2)], HL, headPart);
+  // 젖은 띠(face.band 'wet')는 4행 아래로 흘러내렸다: 매듭 꼬리도 같이 내려가고, 귀는 띠 아래로 나온 끝(2행~)만 보인다.
+  const band = p.face?.band === 'wet' ? 4 : 0;
+  K.stamp(hx0 - 5, hy0 + 4 + band, TAILS[clamp(p.tails, 0, 2)], HL, headPart);
   K.stamp(hx0, hy0, p.face ? face(p.face) : HEAD, HL, headPart);
   K.stamp(hx0 + NOSE[0], hy0 + NOSE[1], NOSE[2], HL, headPart);
-  K.stamp(hx0 + EAR[0], hy0 + EAR[1], EAR[2], HL, headPart);
+  if (band) K.stamp(hx0 + EAR[0], hy0 + EAR[1] + 2, EAR[2].slice(2), HL, headPart);
+  else K.stamp(hx0 + EAR[0], hy0 + EAR[1], EAR[2], HL, headPart);
 
   // 단추·명찰·주머니·무릎 기운 자국
   const bt = [{ C: C.yel, c: C.yelD }];
@@ -465,6 +487,52 @@ const SIT_CORNER = [
   },
 ];
 
+// ══════════ 공용 리액션 (#529, 화면 2 duck stomp·8절 ③ 클리어 컷) ══════════
+// common.wet  공용 "젖음". 쭉이 common.wet(jjuk-v4.mjs)과 같은 박자 [100, 400, 300, 500]와 같은 순서:
+//   0 철썩(물이 확 덮침: 두 주먹이 머리 옆으로 튀고 눈 질끈, 머리띠는 아직 제자리, 물보라)
+//   → 1 흠뻑(젖은 머리띠가 흘러내려 눈썹·눈을 덮는다. 어깨가 축 처지고 두 팔이 늘어진다. 머리띠 꼬리 처짐, 물 뚝뚝)
+//   → 2 부르르(상체를 털어 물이 양옆으로 튄다. 배가 한 칸 늦게 반대로 출렁)
+//   → 3 뚝뚝(띠에 눈이 가린 채 이를 악문다 = 젖어도 비장. 코끝·주먹에서 방울). 마지막 칸이 말풍선 동안 남는다(#193).
+//   묵직이 웃음은 "안 무너지는 얼굴"이라(쭉이는 입 벌림, 묵직이는 비장) 3번 입은 grit이다.
+const WET_BAND = { band: 'wet' };
+const WET = [
+  { // 0 철썩: 무릎이 살짝 굽고 두 주먹이 반사적으로 머리 옆까지 튄다. 눈 질끈 + 이 악묾
+    chest: 2, belly: 0.6, jiggle: -1, lean: -1,
+    legs: { back: { x: -1.2, lift: 0, toe: false }, front: { x: 2.4, lift: 0, toe: false } },
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [UP - 0.6, UP - 0.25], front: [UP + 0.55, UP + 0.2] },
+    tails: 0,
+    face: { brows: 'furrow', eyes: 'shut', mouth: 'grit' },
+    fx: (K) => drops(K, [[4, 3, 2], [10, 0, 1], [17, 0, 0], [31, 0, 0], [38, 1, 2], [43, 7, 1], [2, 12, 1], [45, 15, 0], [7, 8, 0]]),
+  },
+  { // 1 흠뻑: 띠가 눈을 덮고, 어깨가 내려앉아(chest 3) 두 팔이 축 늘어진다. 배는 한 칸 늦게 아래
+    chest: 3, belly: 0.6, jiggle: 1, lean: 0,
+    legs: { back: { x: -0.6, lift: 0, toe: false }, front: { x: 1.6, lift: 0, toe: false } },
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [1.8, 1.7], front: [1.35, 1.45] }, // 축 늘어진 팔(서 있기보다 더 곧게 아래)
+    tails: 2,
+    face: WET_BAND,
+    fx: (K) => drops(K, [[12, 22, 1], [20, 23, 1], [28, 22, 2], [36, 25, 1], [6, 40, 2], [41, 41, 1], [16, 54, 0], [33, 55, 0]]),
+  },
+  { // 2 부르르: 상체를 앞으로 털고(lean +2) 배는 반대로(jiggle −2). 물이 양옆으로 튄다
+    chest: 2, belly: 0.6, jiggle: -2, lean: 2,
+    legs: { back: { x: -1.6, lift: 0, toe: false }, front: { x: 2.8, lift: 0, toe: false } },
+    armSwing: { back: 0.9, front: -0.9 },
+    tails: 1,
+    face: WET_BAND,
+    fx: (K) => drops(K, [[0, 13, 2], [3, 21, 1], [1, 29, 0], [6, 7, 0], [44, 12, 2], [46, 21, 1], [45, 29, 0], [41, 5, 0]]),
+  },
+  { // 3 뚝뚝: 띠에 눈이 가린 채 이를 악문다. 코끝·두 주먹 끝에서 방울
+    chest: 3, belly: 0.6, jiggle: 0, lean: 0,
+    legs: { back: { x: -0.6, lift: 0, toe: false }, front: { x: 1.6, lift: 0, toe: false } },
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [1.8, 1.7], front: [1.35, 1.45] }, // 축 늘어진 팔(서 있기보다 더 곧게 아래)
+    tails: 2,
+    face: { ...WET_BAND, mouth: 'grit' },
+    fx: (K) => drops(K, [[37, 22, 2], [8, 42, 1], [40, 43, 1], [24, 55, 0]]),
+  },
+];
+
 export const SHEET = {
   name: 'mukjik-base',
   character: 'mukjik',
@@ -491,6 +559,8 @@ export const SHEET = {
     // 화면 2 P4 테두리 돌에 털썩 앉기(#380, park_fountain.md 7절). 맨 뒤에 붙여서 앞 칸 번호는 그대로다.
     // cue [1, 2]: 털썩 칸에서 `ゴォン`, 비장 칸에서 흔들림(3번)·물결(4번).
     { name: 'sit_corner', frames: 3, ms: [400, 150, 700], cue: [1, 2] },
+    // 공용 젖음(#529). 쭉이와 같은 박자. 맨 뒤에 붙여서 앞 칸 번호는 그대로다.
+    { name: 'common.wet', frames: 4, ms: [100, 400, 300, 500] },
   ],
   pose,
   drawFrame,
