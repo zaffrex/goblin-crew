@@ -787,6 +787,18 @@ const JACKET_HAND = [
   '.................ww.',
 ];
 
+/**
+ * P6 덮어쓰기 두 자리(#529, 설계 1-3·7절). 집게는 발 y와 상관없이 대상 점 y 124에서 8px 위(116..124), x는 바라보는 방향에 따라
+ * 253..269 안이다(tip 29). 0 활짝: 집게가 문 밑단이 집게 위 끝(116)에 오게 손 위로 확 펼쳐진다(낙하산, 앞판·두 소매 위로).
+ * 1 떨어짐: 집게 아래로 빠져 ノビー 쪽으로. 발 y 200이면 칸 위 끝 136이라 이 칸이 머리에 막 닿고, 252면 아직 위에 있다.
+ * 머리에 덮인 모습은 ノビー 시트 `take_up` 2번 칸이 그린다(발 y를 따라가야 해서 물건 칸이 아니다).
+ */
+export const JACKET_COVER_AT = [[250, 101], [250, 124]];
+/** 활짝 칸 양옆 펄럭선(바람이 재킷 안으로 들어감). 외곽선 없음 */
+const coverOpenFx = (im) => {
+  for (const [x, y, n] of [[245, 104, 3], [244, 107, 3], [274, 104, 3], [275, 107, 3]]) for (let i = 0; i < n; i++) im.set(x + i, y, C.white);
+};
+
 const jacket = {
   top: pic((t) => stamp(t, JX, JY, JACKET_TOP, JACKET_LEGEND)),
   twitch: pic(jacketTwitch, twitchFx),
@@ -794,6 +806,9 @@ const jacket = {
   fallHigh: pic((t) => stamp(t, ...JACKET_FALL_AT[0], JACKET_FALL, JACKET_LEGEND), fallFx(...JACKET_FALL_AT[0])),
   fallLow: pic((t) => stamp(t, ...JACKET_FALL_AT[1], JACKET_FALL, JACKET_LEGEND), fallFx(...JACKET_FALL_AT[1])),
   hand: pic((t) => stamp(t, ...JACKET_HAND_AT, JACKET_HAND, JACKET_LEGEND)),
+  // P6 덮어쓰기(#529): 2칸 낙하 그림(JACKET_FALL)을 두 자리에 다시 찍는다(새 칸 0).
+  coverOpen: pic((t) => stamp(t, ...JACKET_COVER_AT[0], JACKET_FALL, JACKET_LEGEND), coverOpenFx),
+  coverDrop: pic((t) => stamp(t, ...JACKET_COVER_AT[1], JACKET_FALL, JACKET_LEGEND), fallFx(...JACKET_COVER_AT[1])),
 };
 
 OBJECTS.jacket = {
@@ -806,6 +821,9 @@ OBJECTS.jacket = {
 ANIMS['jacket.twitch'] = { ms: [160, 90, 420], frames: [jacket.twitch, jacket.top, jacket.twitch] };
 // 3번★(주 아하): ゴォン 뒤 움찔 → 경사를 타고 미끄러짐 → 처마에서 떨어짐(두 자리) → 손에 턱. 끝나면 state 그림(손)과 같은 그림
 ANIMS['jacket.slide'] = { ms: [200, 260, 90, 90, 400], frames: [jacket.twitch, jacket.slide, jacket.fallHigh, jacket.fallLow, jacket.hand] };
+// 8번★ P6(#529): ノビー `take_up` 1번 칸(확 당김)의 cue로 겹쳐 뜬다. 활짝 → 떨어짐, 합 350ms = take_up 1번 칸 길이라
+// 끝나는 틱에 ノビー가 2번 칸(머리에 덮임)으로 넘어간다. hold 없음: 끝나면 `jacket.taken` 멈춘 모습으로
+ANIMS['jacket.cover'] = { ms: [200, 150], frames: [jacket.coverOpen, jacket.coverDrop] };
 
 // ═════════════ 분수대 테두리 (fountain, 히트 128,180 192×24 / 그림 앞면 128,180 192×18) ═════════════
 // 흰 돌 블록(주색 cotton Y222). 둘레 흙길(woodL Y149)과 73 차이라 "돌 / 흙"이 1배에서 갈린다(단서 ②, 설계 1-1).

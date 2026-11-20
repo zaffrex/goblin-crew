@@ -184,6 +184,7 @@
         { "anim": ["jacket", "cover"] },
         { "say": ["jjuk", "park_fountain.take"] },
         { "anim": ["guest", "run_in"] },
+        { "anim": ["jjuk", "take_off"] },
         { "anim": ["guest", "cheer"] },
         { "say": ["guest", "park_fountain.guest_thanks"] },
         { "fx": ["kokee_text", "alarm_clock"] },
