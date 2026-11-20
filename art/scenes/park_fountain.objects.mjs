@@ -589,11 +589,22 @@ function cord(im, ...pts) {
 const tug = (im) => { for (const [x, y] of [[67, 141], [68, 140], [67, 144], [68, 145]]) im.set(x, y, C.white); };
 /** 거꾸로 선 자명종(다리가 위). 왼쪽 위 (x, y), 오른발 끝 = (x + 8, y). */
 const CLOCK_FLIP = [...CLOCK_REST.slice(2)].reverse();
+/**
+ * #547 쉬는 끈: 떨어질 때 갑자기 생기던 끈(#468 재판정 2 S02)을 대기 때부터 보인다.
+ * 오른발(92,151) 아래에서 창턱 앞면 밑으로 처졌다가(세로 5px, 판벽 크림 위라 1배에서도 보임) 창틀 오른쪽 아랫귀퉁이를 넘어
+ * 창 안 아랫단(76,148)에서 끝난다. 관리인 손까지는 잇지 않는다: 관리인 포즈 9개마다 손 자리가 달라 끈이 허공에 뜬다.
+ * 떨어질 때(`tumble`부터)는 지금처럼 손에서 나와 "창 안으로 들어간 끈이 관리인 손에 있었다"가 드러난다.
+ * `rest`·`boing`·`sway`(= `spring`·`ring_late`) 모두 몸통 아랫단이 같은 자리라 같은 끈을 쓴다(새 칸 0).
+ */
+const restCord = (im) => {
+  const pts = [[93, 152], [91, 155], [88, 156], [85, 156], [82, 154], [80, 151], [78, 149], [76, 148]];
+  for (let i = 1; i < pts.length; i++) line(im, ...pts[i - 1], ...pts[i], CORD_COLOR);
+};
 
 /** pose: 'rest' 창턱 / 'boing' 머리가 왼쪽 위로 튐 / 'sway' 오른쪽으로 출렁(놀란 얼굴) / 'tumble' 떨어지는 중 / 'fallen' 땅에 거꾸로 처박힘
  *  / 'reel1'·'reel2' 끈에 거꾸로 매달려 올라옴 / 'reel3' 창턱 위로 퐁 뒤집혀 섬(#542) */
 function clockPic(pose) {
-  if (pose === 'rest') return pic((t) => stamp(t, CX, CY, CLOCK_REST, CLOCK_LEGEND));
+  if (pose === 'rest') return pic((t) => stamp(t, CX, CY, CLOCK_REST, CLOCK_LEGEND), restCord);
   if (pose === 'reel1' || pose === 'reel2') {
     // 1: 흙에서 22px 들림(몸 상자 왼쪽 끝 70보다 왼쪽) / 2: 창 아래 벽, ズッシー 머리 위(몸 상자 위 끝 183 위)
     const [X, Y] = pose === 'reel1' ? [54, 214] : [62, 172];
@@ -659,6 +670,7 @@ function clockPic(pose) {
     const pts = boing ? [[hx + 10, hy + 1], [hx + 11, hy + 2], [hx + 10, hy + 5], [hx + 11, hy + 6]]
       : [[hx - 3, hy + 1], [hx - 4, hy + 2], [hx - 3, hy + 5], [hx - 4, hy + 6]];
     for (const [x, y] of pts) im.set(x, y, C.white);
+    restCord(im);
   });
 }
 const clock = Object.fromEntries(['rest', 'boing', 'sway', 'tumble', 'fallen', 'reel1', 'reel2', 'reel3'].map((k) => [k, clockPic(k)]));
