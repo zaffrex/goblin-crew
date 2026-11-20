@@ -2,7 +2,7 @@
 # Slack helper for goblin-crew agents. Requires curl, jq and per-role bot tokens.
 #
 # Usage:
-#   scripts/slack.sh --as <role> post <channel> <text|-> [--thread <ts>]   # prints message ts
+#   scripts/slack.sh --as <role> post <channel> <text|-> [--thread <ts>] [--no-mentions]   # prints message ts
 #   scripts/slack.sh [--as <role>] history <channel> [limit=30] [oldest_ts] # newest last
 #   scripts/slack.sh [--as <role>] thread <channel> <ts>
 #   scripts/slack.sh --as <role> react <channel> <ts> <emoji-name>
@@ -16,6 +16,9 @@
 # <role>:    pm | designer | frontend | backend | infra
 # text "-" reads the message body from stdin (use for multi-line messages).
 # Mentions in posted text: {CEO} -> the CEO, {@pm} {@designer} {@frontend} {@backend} {@infra} -> that member.
+# --no-mentions: post untrusted text (e.g. commit subjects) verbatim: no {CEO}/{@role} expansion, and
+#   & < > are escaped so raw <@U..>, <!channel> cannot ping anyone either.
+# SLACK_DRY_RUN=1 prints the post body JSON instead of sending it (used by tests).
 #
 # Tokens: each member is a separate Slack app. Its bot token is in the env var named by
 # team.json .roles.<role>.slack_token_env (e.g. SLACK_TOKEN_PM). Without --as, AGENT_ROLE's token
@@ -122,18 +125,32 @@ expand_mentions() { # replace {CEO} and {@role} with real Slack mentions
   printf '%s' "$t"
 }
 
+escape_slack() { # Slack control characters, so untrusted text cannot form mentions
+  local t="$1"
+  t="${t//&/\&amp;}"; t="${t//</\&lt;}"; t="${t//>/\&gt;}"
+  printf '%s' "$t"
+}
+
 case "$CMD" in
   post)
     [ -n "$ROLE" ] || die "post requires --as <role>"
     ch=$(channel_id "${1:?channel}"); text="${2:?text or -}"; shift 2
-    thread=""; if [ "${1:-}" = "--thread" ]; then thread="${2:?ts}"; fi
+    thread=""; nomen=0
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --thread) thread="${2:?ts}"; shift 2 ;;
+        --no-mentions) nomen=1; shift ;;
+        *) die "post: unknown option: $1" ;;
+      esac
+    done
     [ "$text" = "-" ] && text="$(cat)"
-    text=$(expand_mentions "$text")
+    if [ "$nomen" = 1 ]; then text=$(escape_slack "$text"); else text=$(expand_mentions "$text"); fi
     body=$(jq -n --arg ch "$ch" --arg t "$text" --arg th "$thread" \
       '{channel:$ch, text:$t, unfurl_links:false} + (if $th != "" then {thread_ts:$th} else {} end)')
     if [ "$LEGACY" = 1 ]; then
       body=$(jq --arg u "$(field "$ROLE" slack_username)" --arg i "$(field "$ROLE" icon_emoji)" '. + {username:$u, icon_emoji:$i}' <<<"$body")
     fi
+    if [ "${SLACK_DRY_RUN:-}" = 1 ]; then echo "$body"; exit 0; fi
     api chat.postMessage "$body" | jq -r '.ts'
     ;;
   history)
