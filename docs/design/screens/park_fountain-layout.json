@@ -1,6 +1,6 @@
 {
   "id": "park_fountain",
-  "note": "회색 배치 v1의 남은 부분, 설계 park_fountain.md 1절 (#380). 서는 자리·핫스팟 좌표의 진실은 화면 JSON(content/screens/park_fountain.json)이고 여기서는 지웠다(4절 1번 M2 초안 '진실은 하나'). 시작 좌표(엔진 배치, floor ±40): ノビー(jjuk) 336,244 / ズッシー(mukjik) 376,244 / プピ(ppik) 416,244. 남은 것: 도달 기대값(reachExpect, 검사 park_fountain-layout.mjs 5번)과 물 효과 자리(effects). 그림 빌드 연결 PR(#468)에서 effects를 art/scenes로 옮기고 이 파일을 지운다.",
+  "note": "회색 배치 v1의 남은 부분, 설계 park_fountain.md 1절 (#380). 서는 자리·핫스팟 좌표의 진실은 화면 JSON(content/screens/park_fountain.json)이고 여기서는 지웠다(4절 1번 M2 초안 '진실은 하나'). 시작 좌표(엔진 배치, floor ±40): ノビー(jjuk) 336,244 / ズッシー(mukjik) 376,244 / プピ(ppik) 416,244. 남은 것: 도달 기대값(reachExpect, 검사 park_fountain-layout.mjs 5번). 물 효과 자리(effects)는 배경 본 그림 PR에서 art/scenes/park_fountain.objects.mjs `OBJECTS.water`로 옮겼다.",
   "reachExpect": [
     {
       "from": "floor",
@@ -26,23 +26,5 @@
         252
       ]
     }
-  ],
-  "effects": {
-    "water": {
-      "note": "그림 메타 효과 자리(scene-art-format 개정 4, 11절). 화면 JSON이 아니라 art/scenes/park_fountain.mjs로 옮긴다. colors = 물 밝음·물 중간·물보라 흰색·그림자(bosong-32 번호)",
-      "effect": "fountain_water",
-      "area": [
-        152,
-        8,
-        144,
-        172
-      ],
-      "colors": [
-        26,
-        25,
-        6,
-        24
-      ]
-    }
-  }
+  ]
 }

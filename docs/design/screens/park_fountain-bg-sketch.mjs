@@ -1,6 +1,6 @@
 // 엔딩 화면 `park_fountain` 배경 **구도 시안** (#380). 완성 그림이 아니다.
 // 목적: 완성 밀도로 그리기 전에 소품 배치·시선 흐름·색 분위기(아침 7시 57분 공원)를 먼저 맞춘다.
-//       특히 물줄기 4색(26·25·6·24, 회색 배치 JSON effects.water)이 뒤 배경에서 읽히게 뒤를 정한다(PR #426 리뷰에서 예고).
+//       특히 물줄기 4색(26·25·6·24, 지금은 art/scenes/park_fountain.objects.mjs OBJECTS.water)이 뒤 배경에서 읽히게 뒤를 정한다(PR #426 리뷰에서 예고).
 // 실행: node docs/design/screens/park_fountain-bg-sketch.mjs
 // 출력(같은 폴더):
 //   park_fountain-bg-sketch-2x.png       시안(480×270을 2배). 세 사람은 배포 시트(public/sprites/*-base.png) 0칸을 시작 위치에 올렸다
@@ -312,7 +312,7 @@ if (resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) {
   const rimMain = mainColor(fg, fx, fy, fw, 18);
   check(dY(rimMain, floorMain) >= 30, `테두리 돌 주색 #${rimMain}(Y${Y[rimMain]}) vs 흙길 차 ${dY(rimMain, floorMain)} ≥ 30`);
   // 물줄기 기둥: 효과 자리 가운데 1/3, 켜짐 높이(물보라 꼭대기 ~ 연못)
-  const [wx, , ww] = L.effects.water.area;
+  const [wx, , ww] = OBJECTS.water.area;
   const columnBack = mainColor(bg, wx + ww / 3, 70, ww / 3, 96);
   for (const c of [C.tealL, C.white]) check(dY(c, columnBack) >= 60, `물줄기 뒤 주색 #${columnBack}(Y${Y[columnBack]}) vs 물 #${c}(Y${Y[c]}) 차 ${dY(c, columnBack)} ≥ 60`);
   const jacketMain = C.pink; // 외곽선(ink)이 더 많아서 주색을 직접 둔다
