@@ -255,7 +255,7 @@ for (const [name, k, at] of [['입구 대기', 'watch', GUEST_AT], ['재회 만�
     for (let y = 139; y < wy + wh; y++) for (let x = wx; x < wx + ww; x++) if (doze.get(x, y) !== nod.get(x, y)) same = false;
     check(same, '꾸벅: 책상·포갠 팔(y ≥ 139)이 졸기와 같다');
     const top = (im) => { for (let y = wy; y < wy + wh; y++) for (let x = wx + 13; x < 70; x++) if ([C.tan, C.woodL].includes(im.get(x, y))) return y; return -1; };
-    check(top(nod) - top(doze) === 2, `꾸벅: 머리 맨 위 y ${top(doze)} → ${top(nod)}(2px 아래)`);
+    check(top(nod) - top(doze) === 4, `꾸벅: 머리 맨 위 y ${top(doze)} → ${top(nod)}(4px 아래, #530)`);
   }
   check(hasRed.join() === 'press', `제어판 빨간 단추는 꾹 칸에만: ${hasRed.join(', ')}`);
 }
