@@ -9,11 +9,16 @@
 //   park_fountain-objects-guest-gray-2x.png  위 화면 위 손님·관리인의 명도(흑백) (ADR-0007 결정 3-6)
 //   park_fountain-objects-keeper-5x.png  관리인 P1·P2 7칸 + 2번 규칙 `swat`을 5배로, 창·창턱·자명종(구도 시안 그림)과 함께
 //     순서: 졸기 | 꾸벅(대기 loop) | wake(벌떡·탁·갸웃) | clean_time(벽시계·꾹·털썩) | swat(졸면서 탁)
+//   park_fountain-objects-clock-5x.png  커튼 P3 2칸 + 자명종 P7 3칸을 5배로, 판잣집 창 아래 흙길까지(배경 시안 위)
+//     순서: 커튼 확 | 커튼 닫힘 | 자명종 창턱 | ビヨーン | 출렁 | 흙길에 거꾸로
 // 검사(어기면 종료 코드 1): buildScene 문제 0건(배경 시안의 ink는 빼고 센다), 손님 주색과 뒤 배경(입구 기둥·흙길)의 명도 차 ≥ 30,
 //   넥타이 = 재킷 같은 분홍, 금색(yel 계열) 없음, 재회 자리 칸이 ノビー 칸(기준점 ±24)과 겹치지 않음,
 //   달려오기 칸이 입구 → 재회 자리로 x가 줄고 발 y가 늘어남(뒷걸음·튐 없음).
 //   관리인: 피부·작업복과 창 안 실내 명도 차 ≥ 30, 창 밖으로 나가는 칸은 탁(swat) 두 칸뿐, 탁 손바닥이 자명종 볏 바로 위(2px 안),
 //   제어판 빨간 단추는 꾹 칸에만(설계 7절 P2), 대기 꾸벅은 고개만 떨어진다(책상·포갠 팔 y ≥ 139는 졸기와 같고, 머리 맨 위가 2px 아래, #477).
+//   커튼(P3): 닫힘 칸은 창 안에 피부가 0픽셀, 확 칸은 얼굴 오른쪽만 보인다(피부 > 0, 왼쪽 절반은 0), 둘 다 창 밖으로 안 나간다.
+//   자명종(P7): 창턱 그림 = 구도 시안 그림(84,140) 그대로, 튄 칸의 몸통(y ≥ 145)은 창턱 그림과 같다(머리만 튄다),
+//   거꾸로 칸은 창 아래 흙길(아래 끝 ≥ 198)에 있고 창(관리인 히트)과 안 겹친다, 화면 JSON의 자명종·커튼 anim 이름이 시트에 다 있다.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { inflateSync, deflateSync } from 'node:zlib';
@@ -25,7 +30,7 @@ import { dirname, join } from 'node:path';
 import { C, PALETTE, EMPTY, Image, indexedPng } from '../../../art/lib/pixel.mjs';
 import { stamp } from '../../../art/lib/texture.mjs';
 import { buildScene } from '../../../art/scene-build.mjs';
-import { OBJECTS, ANIMS, GUEST_AT, GUEST_REUNION_AT, KEEPER_WINDOW } from '../../../art/scenes/park_fountain.objects.mjs';
+import { OBJECTS, ANIMS, GUEST_AT, GUEST_REUNION_AT, KEEPER_WINDOW, CLOCK_AT } from '../../../art/scenes/park_fountain.objects.mjs';
 import { bg, fg } from './park_fountain-bg-sketch.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -54,9 +59,11 @@ const A = meta.anims;
 const K = meta.objects.find((o) => o.key === 'keeper');
 const keeperFrames = [K.default.frame, K.default.loop.frames[1], ...A['keeper.wake'].frames, ...A['keeper.clean_time'].frames, ...A['keeper.swat'].frames];
 const keeperNames = ['doze', 'nod', 'jolt', 'swat', 'tilt', 'look', 'press', 'plop', 'swatAsleep'];
-// 창턱 닭 자명종: 아직 물건 시트에 없어서 구도 시안의 그림(84,140 12×12)을 그대로 찍어 탁 자리를 본다
-const CLOCK = { x: 84, y: 140 };
-const clock = (im) => stamp(im, CLOCK.x, CLOCK.y, ['....rr......', '...rrr......', '..wwww......', '.wwkwwww....', 'yywwwwwwww..', '.wwwccccwww.', '.wwcwwwwcww.', '.wwcwwkwcww.', '.wwcwwwwcww.', '..wwccccww..', '...ww..ww...', '...yy..yy...'], { r: C.red, w: C.white, k: C.plum, y: C.yel, c: C.redL });
+// 창턱 닭 자명종(물건 시트의 멈춘 모습). 구도 시안 그림(84,140 12×12)과 같은 자리·같은 픽셀인지 아래에서 검사한다
+const CLOCK = { x: CLOCK_AT[0], y: CLOCK_AT[1] };
+const KC = meta.objects.find((o) => o.key === 'alarm_clock');
+const clock = (im) => put(im, KC.default.frame);
+const SKETCH_CLOCK = ['....rr......', '...rrr......', '..wwww......', '.wwkwwww....', 'yywwwwwwww..', '.wwwccccwww.', '.wwcwwwwcww.', '.wwcwwkwcww.', '.wwcwwwwcww.', '..wwccccww..', '...ww..ww...', '...yy..yy...'];
 const frameOf = { watch: G.default.loop.frames[0], tap: G.default.loop.frames[1], cheer: A['guest.cheer'].frames[0], wet: A['guest.soaked'].frames[0] };
 
 // ── 세 사람 시트(ノビー 0칸)를 읽어 재회 자리 옆에 세운다
@@ -111,6 +118,21 @@ const base = () => { const im = new Image(W, H); im.blit(bg, 0, 0); im.blit(fg, 
     for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) out.set(n * cw + x, y, im.get(x0 + x, y0 + y));
   });
   writeFileSync(join(HERE, 'park_fountain-objects-keeper-5x.png'), indexedPng(out, S));
+}
+
+// ── 1c. 커튼 P3 2칸 + 자명종 P7 (창턱 | 튐 | 출렁 | 거꾸로) 5배
+const curtainFrames = A['keeper.curtain'].frames;
+const clockFrames = [KC.default.frame, A['alarm_clock.spring'].frames[0], A['alarm_clock.spring'].frames[1], A['alarm_clock.fall'].frames[0]];
+{
+  const S = 5, cw = 84, ch = 98, x0 = 30, y0 = 108;
+  const shots = [...curtainFrames.map((f) => [f, null]), ...clockFrames.map((f) => [K.default.frame, f])];
+  const out = new Image(cw * shots.length, ch);
+  shots.forEach(([kf, cf], n) => {
+    const im = new Image(W, H); im.blit(bg, 0, 0); put(im, kf);
+    if (cf === null) clock(im); else put(im, cf);
+    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) out.set(n * cw + x, y, im.get(x0 + x, y0 + y));
+  });
+  writeFileSync(join(HERE, 'park_fountain-objects-clock-5x.png'), indexedPng(out, S));
 }
 
 // ── 2. 화면 위: 입구 대기 + 재회 자리(만세, ノビー 재킷 밑) + 조는 관리인
@@ -215,6 +237,53 @@ for (const [name, k, at] of [['입구 대기', 'watch', GUEST_AT], ['재회 만�
     check(top(nod) - top(doze) === 2, `꾸벅: 머리 맨 위 y ${top(doze)} → ${top(nod)}(2px 아래)`);
   }
   check(hasRed.join() === 'press', `제어판 빨간 단추는 꾹 칸에만: ${hasRed.join(', ')}`);
+}
+
+{
+  // 커튼 P3
+  const only3 = (i) => { const im = new Image(W, H); put(im, i); return im; };
+  const { x: wx, y: wy, w: ww, h: wh } = KEEPER_WINDOW;
+  const skin = (im, xa, xb) => { let n = 0; for (let y = wy; y < wy + wh; y++) for (let x = xa; x < xb; x++) if ([C.tan, C.woodL].includes(im.get(x, y)) && y < 147) n++; return n; };
+  const [closing, closed] = curtainFrames.map(only3);
+  check(skin(closed, wx, wx + ww) === 0, `커튼 닫힘: 창 안 피부 ${skin(closed, wx, wx + ww)}픽셀 = 0 (얼굴이 안 보이고 말풍선만)`);
+  check(skin(closing, 54, 62) === 0 && skin(closing, 64, wx + ww) > 0, `커튼 확: 얼굴 왼쪽(x 54~61) 피부 ${skin(closing, 54, 62)} = 0, 오른쪽 ${skin(closing, 64, wx + ww)} > 0`);
+  for (const [name, f] of [['확', curtainFrames[0]], ['닫힘', curtainFrames[1]]]) {
+    const { at: [ax, ay], src: [, , sw, sh] } = meta.frames[f];
+    check(ax >= wx - 1 && ay >= wy - 1 && ax + sw <= wx + ww + 1 && ay + sh <= wy + wh + 1, `커튼 ${name} 칸이 창 안(외곽선 1px 포함): ${ax},${ay} ${sw}×${sh}`);
+  }
+  const ca = A['keeper.curtain_open'];
+  check(ca && ca.frames.every((f) => curtainFrames.includes(f)), 'curtain_open은 커튼 두 칸을 다시 튼다(새 칸 0)');
+
+  // 자명종 P7
+  const rest = only3(KC.default.frame);
+  const sk = new Image(W, H); stamp(sk, CLOCK.x, CLOCK.y, SKETCH_CLOCK, { r: C.red, w: C.white, k: C.plum, y: C.yel, c: C.redL });
+  let same = true;
+  for (let y = CLOCK.y; y < CLOCK.y + 12; y++) for (let x = CLOCK.x; x < CLOCK.x + 12; x++) if (sk.get(x, y) !== EMPTY && sk.get(x, y) !== rest.get(x, y)) same = false;
+  check(same, `자명종 창턱 그림 = 구도 시안 그림(${CLOCK.x},${CLOCK.y})`);
+  for (const [name, f] of [['ビヨーン', clockFrames[1]], ['출렁', clockFrames[2]]]) {
+    const im = only3(f);
+    let body = true;
+    for (let y = CLOCK.y + 5; y < CLOCK.y + 13; y++) for (let x = CLOCK.x - 1; x < CLOCK.x + 13; x++) if (rest.get(x, y) !== im.get(x, y)) body = false;
+    const { at: [, ay] } = meta.frames[f];
+    check(body && ay < CLOCK.y - 5, `${name}: 몸통(y ≥ ${CLOCK.y + 5})은 창턱 그림과 같고 머리만 위로 튐(칸 위 끝 ${ay})`);
+  }
+  {
+    const { at: [ax, ay], src: [, , sw, sh] } = meta.frames[clockFrames[3]];
+    const hitWin = ax < wx + ww && ax + sw > wx && ay < wy + wh && ay + sh > wy;
+    check(ay + sh - 1 >= 198 && !hitWin, `거꾸로: 칸 ${ax},${ay} ${sw}×${sh}, 아래 끝 ${ay + sh - 1} ≥ 198(흙길), 창과 안 겹침`);
+  }
+  // 화면 JSON의 모든 { anim: [물건, 이름] } 중 관리인·자명종 것
+  const used = new Set();
+  const walk = (v) => {
+    if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === 'object') {
+      if (Array.isArray(v.anim) && ['keeper', 'alarm_clock'].includes(v.anim[0])) used.add(v.anim.join('.'));
+      Object.values(v).forEach(walk);
+    }
+  };
+  walk(screen);
+  const missing = [...used].filter((k) => !A[k]);
+  check(missing.length === 0, `화면 JSON의 keeper·alarm_clock anim이 시트에 다 있다${missing.length ? `: 없음 ${missing.join(', ')}` : ''}`);
 }
 
 if (problems.length) { console.error(`${problems.length}개 검사 실패`); process.exit(1); }
