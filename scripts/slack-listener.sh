@@ -51,7 +51,21 @@ done
 
 # --- channels to watch: team channels + CEO DM per member ----------------------------------------
 declare -A CH_TOKEN CH_NAME CH_DMROLE CURSOR
-start_cursor="$(( $(date +%s) - LOOKBACK )).000000"
+# Start cursor: previous listener's end - OVERLAP (covers the handover and any cron-recovery gap, issue #11).
+# Capped at MAX_BACKFILL so old posts never wake agents; falls back to now - LOOKBACK if no previous run is found.
+OVERLAP=${OVERLAP_SECONDS:-30}; MAX_BACKFILL=${MAX_BACKFILL_SECONDS:-3600}
+PREV_END=""
+prev_iso=$(gh run list -R "$REPO" --workflow slack-listener.yml --status completed --limit 1 --json updatedAt --jq '.[0].updatedAt // empty' 2>/dev/null) || prev_iso=""
+[ -n "$prev_iso" ] && PREV_END=$(date -d "$prev_iso" +%s 2>/dev/null || true)
+now_s=$(date +%s)
+if [ -n "$PREV_END" ]; then
+  start_s=$(( PREV_END - OVERLAP ))
+  [ "$start_s" -lt $(( now_s - MAX_BACKFILL )) ] && start_s=$(( now_s - MAX_BACKFILL ))
+  [ "$start_s" -gt "$now_s" ] && start_s=$(( now_s - LOOKBACK ))
+else
+  start_s=$(( now_s - LOOKBACK ))
+fi
+start_cursor="${start_s}.000000"
 i=0
 while IFS=$'\t' read -r name id; do
   CH_TOKEN[$id]="${TOKENS[$(( i % ${#TOKENS[@]} ))]}"; CH_NAME[$id]=$name; CH_DMROLE[$id]=""; CURSOR[$id]=$start_cursor
@@ -66,11 +80,8 @@ done
 # Handover gap (numbers only, no message text): seconds between the previous listener job ending and this one starting.
 # If the max over a week exceeds LOOKBACK_SECONDS, raise LOOKBACK_SECONDS (issue #11).
 gap_log() {
-  local prev end
-  prev=$(gh run list -R "$REPO" --workflow slack-listener.yml --status completed --limit 1 --json updatedAt --jq '.[0].updatedAt // empty' 2>/dev/null) || return 0
-  [ -n "$prev" ] || return 0
-  end=$(date -d "$prev" +%s 2>/dev/null) || return 0
-  log "handover gap: $(( $(date +%s) - end ))s since previous listener ended (lookback ${LOOKBACK}s)"
+  [ -n "$PREV_END" ] || return 0
+  log "handover gap: $(( $(date +%s) - PREV_END ))s since previous listener ended (cursor = prev end - ${OVERLAP}s, cap ${MAX_BACKFILL}s)"
 }
 gap_log
 log "watching ${#CH_NAME[@]} conversations, ${#ROLE_OF_UID[@]} member bots"
