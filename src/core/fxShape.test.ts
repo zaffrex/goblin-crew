@@ -4,7 +4,7 @@ import screenJson from '../../content/screens/magpie_nest.json';
 import parkJson from '../../content/screens/park_fountain.json';
 import { FX_STYLE, FX_TICKS } from './fx';
 import {
-  drawnByShape, frameNudges, fxNudges, HOP_PX, HOP_TICKS, NUDGE_FX, nudgeOf, particleFx, shapeParticles, SOIL_COLORS, SOIL_FROM, SOIL_HIGH, SOIL_WIDE,
+  drawnByShape, frameNudges, fxNudges, HOP_PX, HOP_TICKS, NUDGE_FX, nudgeOf, particleFx, RATTLE_TICKS, shapeParticles, SOIL_COLORS, SOIL_FROM, SOIL_HIGH, SOIL_WIDE,
   SPLASH_DROPS, SPLASH_TOP, TEXT_PARTICLE_FX, WATER_COLORS, WATER_FX, waterParticles,
 } from './fxShape';
 import { parseSceneArt, type SceneDraws } from './sceneArt';
@@ -41,6 +41,22 @@ describe('hop·nod: 물건 그림 옮기기 (#485)', () => {
     expect(nudgeOf('nod', FX_TICKS)).toBeNull();
     expect(nudgeOf('nod', -1)).toBeNull();
     expect(nudgeOf('squeak_text', 7)).toBeNull();
+  });
+
+  it('rattle: 좌우로만 2px, 잦아들어 fx가 끝나기 전에 제자리(#556)', () => {
+    const xs = Array.from({ length: FX_TICKS }, (_, t) => nudgeOf('rattle', t)?.dx ?? 0);
+    const ys = Array.from({ length: FX_TICKS }, (_, t) => nudgeOf('rattle', t)?.dy ?? 0);
+    expect(ys.every((y) => y === 0)).toBe(true);
+    expect(Math.max(...xs)).toBe(2);
+    expect(Math.min(...xs)).toBe(-2);
+    // 첫 틱부터 보인다(별이 뜨던 자리에서 바로 덜컹), 좌우를 오간다
+    expect(xs[0]).not.toBe(0);
+    expect(new Set(xs.slice(0, RATTLE_TICKS).map(Math.sign))).toEqual(new Set([1, -1]));
+    // 잦아든다: 뒤 절반은 1px 안
+    expect(xs.slice(RATTLE_TICKS / 2, RATTLE_TICKS).every((x) => Math.abs(x) <= 1)).toBe(true);
+    expect(RATTLE_TICKS).toBeLessThan(FX_TICKS);
+    expect(xs.slice(RATTLE_TICKS).every((x) => x === 0)).toBe(true);
+    expect(drawnByShape('rattle')).toBe(true);
   });
 
   it('shake는 화면 1 재플레이 답 전에는 켜지 않는다(#485)', () => {
@@ -133,10 +149,11 @@ describe('splash·ripple: 물 4색 입자 (#485)', () => {
 
 describe('park_fountain 글자 아닌 fx (#483 Luna가 찾은 5개 + hop)', () => {
   // 비둘기 2개(`pigeons_up`·`pigeons_turn`)는 #526에서 물건 anim(`floor.pigeons_*`, 시트 칸)으로 옮겨 fx가 아니다.
-  it('hop·nod·splash·ripple은 여기서 그리고, 임시 별로 남는 글자 아닌 fx가 없다(shake는 #485 밖)', () => {
+  // `shake`는 #556에서 `rattle`로 바꿨다(화면 1 `shake`는 #485대로 그대로 둔다).
+  it('hop·nod·rattle·splash·ripple은 여기서 그리고, 임시 별로 남는 글자 아닌 fx가 없다', () => {
     const names = new Set(fxNamesOf(parkJson));
-    const notText = [...names].filter((n) => !FX_STYLE[n] && n !== 'shake').sort();
-    expect(notText).toEqual(['hop', 'nod', 'ripple', 'splash']);
+    const notText = [...names].filter((n) => !FX_STYLE[n]).sort();
+    expect(notText).toEqual(['hop', 'nod', 'rattle', 'ripple', 'splash']);
     expect(notText.filter((n) => !drawnByShape(n))).toEqual([]);
   });
 });
