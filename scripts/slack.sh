@@ -13,7 +13,8 @@
 #
 # <channel>: general | dev | meeting | decisions | ceo | github | ceo-dm  (or a raw channel ID)
 #            ceo-dm = the DM between the CEO and <role>'s own bot (use with --as <role>).
-# <role>:    pm | designer | frontend | backend | infra
+# <role>:    pm | designer | frontend | backend | infra | qa
+#            qa(Mia)는 정답 차단 때문에 general만 읽고(#516), dev·general에만 쓴다.
 # text "-" reads the message body from stdin (use for multi-line messages).
 # Mentions in posted text: {CEO} -> the CEO, {@pm} {@designer} {@frontend} {@backend} {@infra} -> that member.
 #
@@ -24,7 +25,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEAM="$ROOT/team/team.json"
-ROLES=(pm designer frontend backend infra)
+ROLES=(pm designer frontend backend infra qa)
 CEO_ID=$(jq -r '.ceo.slack_user_id' "$TEAM")
 
 die() { echo "slack.sh: $*" >&2; exit 1; }
@@ -122,8 +123,17 @@ expand_mentions() { # replace {CEO} and {@role} with real Slack mentions
   printf '%s' "$t"
 }
 
+# QA(Mia)는 정답을 모르는 채 플레이해야 한다(#516). dev·meeting 기록에는 정답이 있으므로 읽기를 막는다.
+qa_guard() { # qa_guard <allowed channel names...> ; 첫 인자 channel은 $QA_CH
+  [ "$ACTOR" = qa ] || return 0
+  local c="${QA_CH#\#}"; c="${c#goblin-}"; local a
+  for a in "$@"; do [ "$c" = "$a" ] && return 0; done
+  die "qa는 이 채널을 쓸 수 없어요: $QA_CH (허용: $*)"
+}
+
 case "$CMD" in
   post)
+    QA_CH="${1:?channel}"; qa_guard dev general
     [ -n "$ROLE" ] || die "post requires --as <role>"
     ch=$(channel_id "${1:?channel}"); text="${2:?text or -}"; shift 2
     thread=""; if [ "${1:-}" = "--thread" ]; then thread="${2:?ts}"; fi
@@ -137,14 +147,17 @@ case "$CMD" in
     api chat.postMessage "$body" | jq -r '.ts'
     ;;
   history)
+    QA_CH="${1:?channel}"; qa_guard general
     ch=$(channel_id "${1:?channel}"); limit="${2:-30}"; oldest="${3:-0}"
     api_get conversations.history "channel=$ch&limit=$limit&oldest=$oldest" | jq '.messages | reverse' | format_messages
     ;;
   thread)
+    QA_CH="${1:?channel}"; qa_guard general
     ch=$(channel_id "${1:?channel}"); ts="${2:?ts}"
     api_get conversations.replies "channel=$ch&ts=$ts&limit=200" | jq '.messages' | format_messages
     ;;
   react)
+    QA_CH="${1:?channel}"; qa_guard dev general
     ch=$(channel_id "${1:?channel}")
     api reactions.add "$(jq -n --arg c "$ch" --arg t "${2:?ts}" --arg n "${3:?emoji}" '{channel:$c, timestamp:$t, name:$n}')" >/dev/null
     echo ok
@@ -170,6 +183,7 @@ case "$CMD" in
     ;;
   upload)
     [ -n "$ROLE" ] || die "upload requires --as <role>"
+    QA_CH="${1:?channel}"; qa_guard dev general
     ch=$(channel_id "${1:?channel}"); file="${2:?file}"; comment="${3:-}"; shift 2; [ $# -gt 0 ] && shift
     thread=""; if [ "${1:-}" = "--thread" ]; then thread="${2:?ts}"; fi
     [ -f "$file" ] || die "no such file: $file"

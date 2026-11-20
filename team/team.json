@@ -66,6 +66,19 @@
       "effort": "medium",
       "slack_token_env": "SLACK_TOKEN_INFRA",
       "slack_color": "#c69c00"
+    },
+    "qa": {
+      "name": "Mia",
+      "title": "QA",
+      "slack_username": "Mia (QA)",
+      "icon_emoji": ":mag:",
+      "signature": "**[QA Mia]**",
+      "label": "role:qa",
+      "model": "claude-sonnet-5-5",
+      "effort": "medium",
+      "slack_token_env": "SLACK_TOKEN_QA",
+      "slack_color": "#d93f0b",
+      "isolated": true
     }
   },
   "slack_channels": {
