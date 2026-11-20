@@ -3,17 +3,17 @@
 // 만질 수 있는 것이라 바깥 1px ink 외곽선을 두른다(ADR-0007 결정 3-1). 물방울·땀 같은 효과 픽셀만 외곽선 밖이다.
 // 광원은 배경과 같은 왼쪽 위 하나. 좌표 근거: content/screens/park_fountain.json 히트 박스, docs/design/screens/park_fountain.md 1·7·8절.
 //
-// 아직 빌드(art/build.mjs)에 연결하지 않았다. 배경 완성 밀도·나머지 물건(관리인·재킷·자명종·오리·분수대)이 다 그려지면
-// art/scenes/park_fountain.mjs `SCENE`에서 이 파일을 불러 연결한다. 그 전까지 확인은 미리보기 스크립트로 한다:
-//   node docs/design/screens/park_fountain-objects-preview.mjs
+// 빌드(art/build.mjs)에 연결돼 있다(#505). 고치면 `node art/build.mjs`로 시트를 다시 만들어 같이 커밋한다. 미리보기·검사:
+//   node docs/design/screens/park_fountain-objects-preview.mjs (물건), node docs/design/screens/park_fountain-bg-preview.mjs (배경과 합친 판)
 //
 // 뼈대 1: 손님 P8 4칸(설계 7절)과 멈춘 모습 2개, anim 4개(`guest.wait`·`run_in`·`cheer`·`soaked`).
 // 뼈대 2: 관리인 P1 4칸 + P2 3칸, anim 3개(`keeper.wake`·`clean_time`·`swat`), 대기 꾸벅 `loop`(#477).
 // 뼈대 3: 커튼 P3 2칸(`keeper.curtain`·`curtain_open`) + 자명종 P7 3칸과 멈춘 모습(`alarm_clock.spring`·`fall`·`ring_late`).
 // 뼈대 4: 재킷 P5 4칸(꼭대기·손 멈춘 모습, 대기 움찔 `loop`, `jacket.twitch`·`slide`).
+// 뼈대 5: 분수대 테두리 앞면(`fountain` 멈춘 모습 1장). 물줄기는 효과 자리(scene-art-format 11절)라 여기 없다.
 
 import { C, Image, EMPTY } from '../lib/pixel.mjs';
-import { stamp, outlined, line, fill, bay } from '../lib/texture.mjs';
+import { stamp, outlined, line, fill, bay, hash } from '../lib/texture.mjs';
 
 const W = 480, H = 270;
 
@@ -729,3 +729,58 @@ OBJECTS.jacket = {
 ANIMS['jacket.twitch'] = { ms: [160, 90, 420], frames: [jacket.twitch, jacket.top, jacket.twitch] };
 // 3번★(주 아하): ゴォン 뒤 움찔 → 경사를 타고 미끄러짐 → 처마에서 떨어짐(두 자리) → 손에 턱. 끝나면 state 그림(손)과 같은 그림
 ANIMS['jacket.slide'] = { ms: [200, 260, 90, 90, 400], frames: [jacket.twitch, jacket.slide, jacket.fallHigh, jacket.fallLow, jacket.hand] };
+
+// ═════════════ 분수대 테두리 (fountain, 히트 128,180 192×24 / 그림 앞면 128,180 192×18) ═════════════
+// 흰 돌 블록(주색 cotton Y222). 둘레 흙길(woodL Y149)과 73 차이라 "돌 / 흙"이 1배에서 갈린다(단서 ②, 설계 1-1).
+// 윗면(갓돌)은 아침 빛을 받아 흰색 2줄, 앞면은 24px 블록 두 단 + 줄눈. 오른쪽 끝과 아랫단은 그늘, 아랫단 줄눈에 물때·이끼.
+// 쿵 자리(x 339)는 테두리 오른쪽 끝(320) 바깥이라 테두리 그림은 흔들림 연출을 따로 갖지 않는다(엔진 화면 흔들림).
+const RIM = { x: 128, y: 180, w: 192, h: 18 };
+const rimPic = pic((t) => {
+  const { x: X, y: Y0, w: RW, h: RH } = RIM;
+  fill(t, X, Y0, RW, RH, (x, y) => {
+    const lx = x - X, ly = y - Y0;
+    if (ly === 0) return C.white; // 갓돌 윗면 빛
+    if (ly === 1) return lx > RW - 14 ? C.cotton : C.white;
+    if (ly === 2) return C.lint; // 갓돌 아래 그늘 줄
+    const row = ly < 10 ? 0 : 1; // 블록 두 단(윗단 3~9, 아랫단 10~17)
+    const off = row ? 12 : 0;
+    const bx = Math.floor((lx + off) / 24), bl = (lx + off) % 24;
+    if (ly === 9 || bl === 23) return C.lint; // 줄눈
+    if (row === 1 && (ly === 10 || bl === 0) && hash(bx, row, 81) < 0.8) return C.white; // 아랫단 블록 모서리 빛
+    if (row === 0 && bl === 0) return C.white;
+    if (bl === 22 || ly === 8 || ly === RH - 1) return C.lint; // 블록 아래·오른쪽 그늘
+    if (lx > RW - 5) return C.lint; // 오른쪽 끝 둥글게 돌아가는 그늘
+    if (lx > RW - 9 && (x + y) % 2 === 0) return C.lint;
+    if (row === 1 && ly > 14 && hash(x, y, 82) < 0.25) return C.lint; // 아랫단 물때
+    if (hash(x >> 1, y >> 1, 83 + bx) < 0.05) return C.lint; // 돌 결
+    return C.cotton;
+  });
+  // 줄눈 이끼(아랫단, 몇 군데만) + 금 간 블록 하나
+  for (const x of [151, 199, 247, 271]) { t.set(x, RIM.y + 16, C.grn); t.set(x, RIM.y + 15, C.grnL); }
+  line(t, 186, RIM.y + 4, 189, RIM.y + 7, C.lint); t.set(190, RIM.y + 7, C.lav);
+});
+OBJECTS.fountain = { draw: rimPic };
+
+// ═════════════ 물줄기 효과 자리 (water, scene-art-format 개정 4·11절) ═════════════
+// 그림 없음. 엔진 입자 효과 `fountain_water`가 area 안에 colors 4색(물 밝음 26·물 중간 25·물보라 흰색 6·그림자 24)으로 그린다.
+// 좌표·색은 회색 배치 JSON(docs/design/screens/park_fountain-layout.json `effects.water`)에서 옮겼다. 위쪽 여유는 burst 1.5배 높이 몫이다.
+// 물 뒤 대비(물 밝음·물보라 vs 뒤 주색 ≥ 60)는 배경 미리보기(park_fountain-bg-preview.mjs)가 본다.
+OBJECTS.water = {
+  effect: 'fountain_water',
+  area: [152, 8, 144, 172],
+  colors: [C.tealL, C.tealM, C.white, C.teal],
+  mode: 'on',
+  states: [{ when: { flags: { 'fountain.off': true } }, mode: 'off' }],
+};
+// 1번★ 관리인 제어판 꾹 뒤 아래부터 꺼짐 / 8번★ 클리어 컷 ③ 크게 솟았다 다시 뿜음(끝난 뒤 모드는 states가 정한다, 11-3절)
+ANIMS['fountain.water_off'] = { effect: 'water', mode: 'stop', ms: 900 };
+ANIMS['fountain.water_burst'] = { effect: 'water', mode: 'burst', ms: 1200 };
+
+// ═════════════ 그리는 순서 (설계 1-4절, 뒤 → 앞) ═════════════
+// back 목록은 OBJECTS 키 순서다(형식 6절). 재킷 → 물줄기(재킷 앞을 지나감) → 테두리 앞면 → 창(관리인·커튼) → 자명종 → 손님.
+// 손님이 맨 앞이어야 재회 자리(290,188)에서 테두리(y 180~198)가 손님 머리를 덮지 않는다. 파일에서 그린 순서와 달라서 여기서 다시 줄 세운다.
+for (const k of ['jacket', 'water', 'fountain', 'keeper', 'alarm_clock', 'guest']) {
+  const v = OBJECTS[k];
+  delete OBJECTS[k];
+  OBJECTS[k] = v;
+}

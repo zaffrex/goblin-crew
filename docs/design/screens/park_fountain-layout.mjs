@@ -1,10 +1,10 @@
 // 엔딩 화면 `park_fountain` 회색 배치 검사 + 스케치 (#380). 외부 이미지 없이 코드로만 그린다.
 // 실행: node docs/design/screens/park_fountain-layout.mjs
 // 입력: 서는 자리·핫스팟 좌표는 화면 JSON content/screens/park_fountain.json(좌표의 진실),
-//       도달 기대값(reachExpect)·물 효과 자리(effects)는 같은 폴더 park_fountain-layout.json. 이 파일은 숫자를 따로 갖지 않는다.
+//       도달 기대값(reachExpect)은 같은 폴더 park_fountain-layout.json, 물 효과 자리는 그림 원본 art/scenes/park_fountain.objects.mjs `OBJECTS.water`. 이 파일은 숫자를 따로 갖지 않는다.
 // 출력: park_fountain-layout-2x.png (960×540, 보송 팔레트 인덱스 PNG)
 // 검사: 하나라도 어기면 종료 코드 1. 엔진 숫자는 아래 ENGINE에 출처와 같이 적었다(바뀌면 같이 고친다).
-// 빌드에 들어가지 않는 설계 자료다. layout.json은 그림 빌드 연결 PR(#468)에서 effects를 art/scenes로 옮기며 지운다.
+// 빌드에 들어가지 않는 설계 자료다.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
@@ -13,6 +13,7 @@ import console from 'node:console';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { OBJECTS } from '../../../art/scenes/park_fountain.objects.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCREEN = JSON.parse(readFileSync(join(HERE, '../../../content/screens/park_fountain.json'), 'utf8'));
@@ -198,7 +199,7 @@ const span = (a0, a1, b0, b1) => Math.min(a1, b1) - Math.max(a0, b0);
 ok(reachY(jhb) < WA.top - ENGINE.CELL_TOP, `손 위 재킷 대상 y ${reachY(jhb)} < 맨 뒤 줄 칸 위 끝 ${WA.top - ENGINE.CELL_TOP} (장대가 보인다)`);
 
 // 6. 물줄기 효과 자리
-const water = L.effects.water;
+const water = OBJECTS.water;
 const wa = box(water.area);
 ok(wa.x >= 0 && wa.y >= 0 && wa.x + wa.w <= W && wa.y + wa.h <= H, '물줄기 area 화면 안');
 ok(wa.y + wa.h <= fb.y, `물줄기 area 아래 끝 ${wa.y + wa.h} ≤ 테두리 위 끝 ${fb.y} (테두리 앞면이 물 앞)`);
