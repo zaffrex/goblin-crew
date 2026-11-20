@@ -562,18 +562,20 @@ export function gaugeBeforeSay(events: readonly PuzzleEvent[]): readonly PuzzleE
 }
 
 /**
- * 행동하는 캐릭터가 판 끝(`board` 자리)에서 바닥(`free` 자리)으로 떠나는 `walk`로 `step` 결과가 시작하면 그 이벤트와 바닥 점.
- * 대상의 `approach`가 바닥이라 `step`이 먼저 내려서게 한 경우다(1-5-2절 내려서기). 아니면 null.
+ * 행동하는 캐릭터가 바닥이 아닌 서는 자리에서 바닥(`free` 자리)으로 떠나는 `walk`로 `step` 결과가 시작하면 그 이벤트와,
+ * 걷기를 이어 갈 바닥 점(판 끝이면 그 `board`, 아니면 null = 지금 x·바닥 자리 y). 대상의 `approach`가 바닥이라 `step`이
+ * 먼저 바닥으로 내려보낸 경우다(1-5-2절 내려서기, 화면 2 `fountain_seat` #517). `hold` 자리는 `releasePoint`가 따로 있어 뺀다. 아니면 null.
  */
 function stepDownWalk(
   data: SceneData,
   events: readonly PuzzleEvent[],
   char: CharacterId,
-): { walk: Extract<PuzzleEvent, { type: 'walk' }>; board: readonly [number, number] } | null {
+): { walk: Extract<PuzzleEvent, { type: 'walk' }>; board: readonly [number, number] | null } | null {
   const first = events[0];
-  if (first?.type !== 'walk' || first.char !== char || !isFree(data, first.to)) return null;
-  const board = data.screen.spots[first.from]?.board;
-  return board ? { walk: first, board } : null;
+  if (first?.type !== 'walk' || first.char !== char || !isFree(data, first.to) || isFree(data, first.from)) return null;
+  const spot = data.screen.spots[first.from];
+  if (!spot || spot.hold) return null;
+  return { walk: first, board: spot.board ?? null };
 }
 
 /**
@@ -617,7 +619,8 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
   } else if (leaving && !stay) {
     // 판 끝에서 바닥으로 내려서는 `walk`로 시작하면(#416): 바닥 점에 내려선 뒤 그 걷기의 끝을 5-1절 설 곳으로 잇는다(1-5-2절
     // "내려서기 → 대상 앞까지 걷기"). 설 곳·방향은 바닥 점에 선 사람 기준이다. 퍼즐 상태와 이벤트 순서는 그대로다.
-    const [bx, by] = leaving.board;
+    // 판이 없는 자리(`fountain_seat`)는 지금 x·바닥 자리 y에서 걷기 시작한 것으로 본다(#517: 안 그러면 바로 아래로 내려와 그 자리에서 행동한다).
+    const [bx, by] = leaving.board ?? [w.x, spotPoint(data, leaving.walk.to).y];
     const down = approachPoint(data, { ...prev, at: { ...prev.at, [action.char]: leaving.walk.to } }, action, { x: bx, y: by });
     if (down) {
       s.floorTo[action.char] = { x: down.x, y: by };
