@@ -604,47 +604,47 @@ ANIMS['alarm_clock.fall'] = { ms: [700], frames: [clock.fallen], hold: true };
 ANIMS['alarm_clock.ring_late'] = { ms: [120, 120, 120, 120, 120, 120], frames: [clock.boing, clock.sway, clock.boing, clock.sway, clock.boing, clock.sway] };
 
 // ═════════════ 재킷 (jacket, 히트 꼭대기 212,27 24×24 / 손 249,100 24×24) ═════════════
-// 손님의 분홍 정장 재킷(pink Y173, 넥타이와 같은 색). 꼭대기 그림은 구도 시안 그림(214,32 20×14)을 그대로 옮겼다.
+// 손님의 분홍 정장 재킷(pink Y173, 넥타이와 같은 색).
 // 설계 7절 P5: 0 소매 움찔 → 1 돌우산 경사를 타고 미끄러짐 → 2 우산 끝에서 떨어지는 중 → 3 동상 손에 턱.
 // 미끄러지는 쪽은 오른쪽(내민 손 위 처마 끝 x 255)이다. 떨어지는 칸은 같은 그림을 두 자리에 찍어 64px 낙하를 끊김 없이 보인다(손님 run_in과 같은 방식, 새 칸 0).
 const JACKET_LEGEND = { r: C.red, P: C.pink, L: C.pinkL, w: C.white };
-/** 꼭대기(돔에 등판이 덮임). 깃은 위, 왼소매는 돔 위로 늘어지고(흰 안감 끝) 오른소매는 바람에 펄럭인다 */
-export const JACKET_TOP_AT = [214, 32];
+/**
+ * 꼭대기: 돌우산 꼭지(x 222~225)에 옷걸이처럼 걸쳐 **앞판이 보인다**. 깃이 꼭지 위로 솟고(A자 어깨),
+ * 흰 V 깃 사이 안감 + 단추 둘 + 갈라진 밑단 + 양쪽 소매(소매 끝 흰 안감)로 1배에서 "재킷"이 읽힌다(떨어지는 칸과 같은 표지).
+ * 왼소매는 짧게 돔에 얹히고 오른소매(처마 쪽)만 길게 늘어져서, 처마 쪽으로 쏠려 있다 = "미끄러질 것 같다".
+ * #530: 예전 그림은 등판이 덮인 뭉친 모양이라 #468 재판정에서 1배 꼭대기가 "생물"로 읽혔다
+ */
+export const JACKET_TOP_AT = [213, 32];
 const JACKET_TOP = [
-  '......rrrrrr........',
-  '....rLLLLPPPPr......',
-  '..rLLLPPPPPPPPr.....',
-  '.rLLPPPPPPPPPPPrrrr.',
-  'rLLPPPPPPPPPPPPPPPPr',
-  'rLPrPPPPPPPPPPPrPPrr',
-  'rLPrrPPPPPPPPPPr.rr.',
-  'rPr.rPPPPPPPPPPr....',
-  'rPr.rPPPPPPPPPPPr...',
-  'rPr..rPPPPPPPPPPr...',
-  'rPr..rrrrrrrrrrr....',
-  'rPr.................',
-  '.ww.................',
+  '........rrLLrr........',
+  '......rrLLwwLLrr......',
+  '....rrPLLrwwrLLPrr....',
+  '..rrPPPLLrwwrLLPPPrr..',
+  '.rLPPPPPLrwwrLPPPPPPr.',
+  'rLPPrPPPPLrwrPPPPrPPPr',
+  'rLPrrPPPPPLrPPPPPrrPPr',
+  'rPPr.rPPPPPwPPPPr.rPPr',
+  'rPPr.rPPPPPrPPPPr.rPPr',
+  'rPPr.rPPPPPwPPPPr.rPPr',
+  '.ww..rPPPPPrPPPPr.rPPr',
+  '.....rPPPPr.rPPPr.rPPr',
+  '.....rrrrr...rrrr.rPPr',
+  '..................rwwr',
 ];
-/** 늘어진 왼소매(0~2열, 7줄부터)를 뺀 몸판 줄 */
-const JACKET_SLEEVE_ROW = 7;
 const [JX, JY] = JACKET_TOP_AT;
+const JACKET_W = JACKET_TOP[0].length;
 
 /**
- * 0칸 소매 움찔: 바람이 밑으로 들어가 재킷째 처마 쪽(오른쪽)으로 들린다. 위쪽(깃)일수록 더 밀려 3px, 아래는 2px → 오른쪽으로 기운 모양.
- * 늘어진 왼소매는 바깥(왼쪽) 위로 휙 젖혀진다(끝이 4px 바깥). 소매 끝 왼쪽에 바람선 3줄.
- * #530: 예전엔 몸판 1px라 처음 보는 사람이 못 봤다(#468 블라인드). "미끄러질 것 같다"가 프레임 한 장에서 읽히게 키웠다
+ * 0칸 소매 움찔: 바람이 왼쪽 밑단으로 들어가 재킷이 처마 쪽(오른쪽)으로 2px 밀리면서 **왼쪽이 들려 오른쪽으로 기운다**
+ * (열마다 들림: 왼끝 4px → 오른끝 1px). 소매는 늘어진 그대로라 몸 밖으로 뻗는 부분이 없다. 왼쪽(바람이 오는 쪽)에 바람선 3줄.
+ * #530: 예전엔 몸판 1px라 처음 보는 사람이 못 봤다(#468 블라인드). 소매만 옆으로 뻗게 키운 판은 재판정에서
+ * "코·다리 달린 분홍 짐승"으로 읽혀서(소매 = 코) 통째로 기우는 모양으로 바꿨다
  */
 function jacketTwitch(t) {
-  const lean = (j) => (j < 5 ? 3 : 2);
-  JACKET_TOP.forEach((row, j) => {
-    const body = j >= JACKET_SLEEVE_ROW ? '...' + row.slice(3) : row;
-    stamp(t, JX + lean(j), JY + j, [body], JACKET_LEGEND);
-  });
-  JACKET_TOP.forEach((row, j) => {
-    if (j < JACKET_SLEEVE_ROW) return;
-    const k = j - JACKET_SLEEVE_ROW; // 0 → 5
-    stamp(t, JX + 2 - k, JY + j - (k >> 1), [row.slice(0, 3)], JACKET_LEGEND);
-  });
+  for (let c = 0; c < JACKET_W; c++) {
+    const lift = 1 + Math.round(((JACKET_W - 1 - c) * 3) / (JACKET_W - 1));
+    JACKET_TOP.forEach((row, j) => stamp(t, JX + 2 + c, JY + j - lift, [row[c]], JACKET_LEGEND));
+  }
 }
 const twitchFx = (im) => {
   for (const [x, y, n] of [[204, 39, 3], [202, 42, 4], [205, 45, 2]]) for (let i = 0; i < n; i++) im.set(x + i, y, C.white);
