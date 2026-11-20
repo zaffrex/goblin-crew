@@ -84,6 +84,26 @@ describe('park_fountain 테두리 カーン (#530 할 일 3)', () => {
     expect(p.x + cell[2] <= stLeft || p.x >= stRight, `clang ${p.x}..${p.x + cell[2]} vs stretch ${stLeft}..${stRight}`).toBe(true);
   });
 
+  it('왼쪽에서 쳐도(자명종 쪽에 섰다가) カーン은 왼쪽 끝 장대 옆, 테두리 안에 뜬다(#530: 화면 확인은 `clue-main-1-tap-left`)', () => {
+    const s = createScene(data);
+    settle(s);
+    runAction(data, s, { char: 'jjuk', verb: 'stretch', target: 'alarm_clock' }, null);
+    settle(s);
+    runAction(data, s, { char: 'jjuk', verb: 'stretch', target: 'fountain' }, null);
+    let clang: ReturnType<typeof activeFx>[number] | undefined;
+    for (let i = 0; i < 5000 && !clang; i++) {
+      sceneTick(data, s);
+      clang = activeFx(s).find((f) => f.effect === 'clang_text');
+    }
+    expect(clang?.by).toBe('jjuk');
+    const x = s.walkers.jjuk.x;
+    expect(x).toBeLessThan(RIM.left); // 테두리 왼쪽 밖에 선다(로컬 probe x 111)
+    const cell = fxMeta.cells.clang_text!;
+    const p = fxTextAt('clang_text', cell, actorEdgeAt(RIM, x, cell[2]), 0, INTERNAL_WIDTH)!;
+    expect(p.x).toBe(RIM.left + ACTOR_EDGE_GAP + 1); // 칸 왼쪽 끝 = 상자 왼쪽 + 틈(홀수 폭 반올림 1px)
+    expect(p.x + cell[2]).toBeLessThan(224); // 가운데보다 왼쪽
+  });
+
   it('털썩 ゴォン은 엉덩이 오른쪽 테두리 앞면 위에 뜬다(#528 실패 1: 가슴 위 가운데가 아니다)', () => {
     const cell = fxMeta.cells.gon_text!;
     const p = fxTextAt('gon_text', cell, fxTextSpot('gon_text', 'fountain') as { x: number; y: number }, 0, INTERNAL_WIDTH)!;
