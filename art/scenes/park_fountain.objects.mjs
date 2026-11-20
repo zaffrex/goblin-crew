@@ -567,16 +567,30 @@ function spring(t, x0, y0, x1, y1) {
   }
 }
 
-/** pose: 'rest' 창턱 / 'boing' 머리가 왼쪽 위로 튐 / 'sway' 오른쪽으로 출렁(놀란 얼굴) / 'fallen' 땅에 거꾸로 처박힘 */
+/** 시계 방향 90° 돌린 줄 묶음(옆으로 누운 칸, `tumble`). */
+const rotateCW = (rows) => [...rows[0]].map((_, i) => rows.map((r) => r[i]).reverse().join(''));
+
+/** pose: 'rest' 창턱 / 'boing' 머리가 왼쪽 위로 튐 / 'sway' 오른쪽으로 출렁(놀란 얼굴) / 'tumble' 떨어지는 중 / 'fallen' 땅에 거꾸로 처박힘 */
 function clockPic(pose) {
   if (pose === 'rest') return pic((t) => stamp(t, CX, CY, CLOCK_REST, CLOCK_LEGEND));
+  // #527: 처음 자리(92,188 판잣집 벽 아래)는 ズッシー가 서는 곳(x 92, 몸 70..109 × 183..244) 바로 뒤라 몸에 다 가려졌다.
+  // 그래서 창턱에서 벽을 타고 떨어져 **쿵 한 발 왼쪽 앞 흙**으로 튕겨 나온 자리로 옮긴다. ズッシー가 왼쪽을 보고 서니
+  // 시선이 닿는 곳이고(`…すまん` 이 자명종에게 하는 말로 읽힌다), 창 바로 아래라 "창턱에서 떨어졌다"가 이어진다.
+  // 떨어지는 길은 칸 하나(옆으로 누워 벽 앞을 지나는 중)로만 보인다. 엔진 이동 없음, 설계 7절 P7.
+  if (pose === 'tumble') {
+    // 창턱(84,140) → 땅(54,236) 길 중간, 벽 밑동 앞. 몸 상자 왼쪽 끝 70보다 왼쪽(외곽선 포함 x 55..68). 위쪽 흰 점 3개는 떨어진 자리에서 남은 빠름 선(효과)
+    const TX = 56, TY = 178;
+    return pic(
+      (t) => stamp(t, TX, TY, rotateCW(CLOCK_REST), CLOCK_LEGEND),
+      (im) => { for (const [x, y] of [[66, 172], [67, 170], [62, 173], [63, 171], [58, 174]]) im.set(x, y, C.white); },
+    );
+  }
   if (pose === 'fallen') {
-    // 판잣집 벽 아래 흙길 가장자리(y 198~)에 거꾸로: 다리·발이 위로, 볏은 흙에 묻혀 안 보인다. 몸통 위 끝 y 189.
-    // 굴러가는 길은 그리지 않는다(엔진 이동 없이 0.3초 안에 툭 바뀜, 설계 7절 P7). 흙 튄 자국 3점은 효과
-    const FX = 96, FY = 189;
+    // 쿵 한 발 왼쪽 앞 흙(외곽선 포함 x 50..68, y 235..248)에 거꾸로: 다리·발이 위로, 볏은 흙에 묻혀 안 보인다. 흙 튄 자국 5점은 효과
+    const FX = 54, FY = 236;
     return pic(
       (t) => stamp(t, FX, FY, [...CLOCK_REST.slice(2)].reverse(), CLOCK_LEGEND),
-      (im) => { for (const [x, y] of [[94, 198], [93, 196], [109, 197], [110, 195], [92, 199]]) im.set(x, y, C.wood); },
+      (im) => { for (const [dx, dy] of [[-2, 9], [-3, 7], [13, 8], [14, 6], [-4, 10]]) im.set(FX + dx, FY + dy, C.wood); },
     );
   }
   const boing = pose === 'boing';
@@ -593,13 +607,13 @@ function clockPic(pose) {
     for (const [x, y] of pts) im.set(x, y, C.white);
   });
 }
-const clock = Object.fromEntries(['rest', 'boing', 'sway', 'fallen'].map((k) => [k, clockPic(k)]));
+const clock = Object.fromEntries(['rest', 'boing', 'sway', 'tumble', 'fallen'].map((k) => [k, clockPic(k)]));
 
 OBJECTS.alarm_clock = { draw: clock.rest };
 // P7 0·1칸, `alarm_clock` × ノビー(단서 ①): ビヨーン → 출렁 → 다시 튐. 마지막 칸을 붙든 채 `clock_broken` 대사
 ANIMS['alarm_clock.spring'] = { ms: [220, 200, 260], frames: [clock.boing, clock.sway, clock.boing], hold: true };
-// P7 2칸, `alarm_clock` × ズッシー(단서 ②): 툭 → 흙길에 거꾸로. 붙든 채 `clock_fall` 대사, 대기열이 비면 창턱(장난감, 13절 Q4)
-ANIMS['alarm_clock.fall'] = { ms: [700], frames: [clock.fallen], hold: true };
+// P7 2칸, `alarm_clock` × ズッシー(단서 ②): 옆으로 누워 떨어지는 중(#527) → 쿵 한 발 앞 흙에 거꾸로. 붙든 채 `clock_fall` 대사, 대기열이 비면 창턱(장난감, 13절 Q4)
+ANIMS['alarm_clock.fall'] = { ms: [160, 540], frames: [clock.tumble, clock.fallen], hold: true };
 // 8절 ③ (새 칸 0): 늦게 우는 자명종. 0·1칸을 빠르게 번갈아 덜덜. 끝나면 창턱 그림으로 돌아가 관리인이 탁 친다
 ANIMS['alarm_clock.ring_late'] = { ms: [120, 120, 120, 120, 120, 120], frames: [clock.boing, clock.sway, clock.boing, clock.sway, clock.boing, clock.sway] };
 
