@@ -19,7 +19,7 @@ import { abilityText, cutFontPx, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, g
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { pickScreen, screenTextKey } from './core/screenPick';
-import { activeFx, activeMarkerVisible, boardDrop, charPose, createScene, currentBubble, drawOrder, gaugeDrop, heldArtView, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, tiltOf, type SceneData } from './core/scene';
+import { activeFx, activeMarkerVisible, boardDrop, charPose, createScene, cuedArtView, currentBubble, drawOrder, gaugeDrop, heldArtView, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, tiltOf, type SceneData } from './core/scene';
 import { animFrameBox, coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
 import { isTapKey } from './core/keys';
@@ -456,7 +456,7 @@ function render(): void {
   let draws: SceneDraws | null = null;
   let artView: SceneView | null = null;
   if (art) {
-    const view: SceneView = { flagsOf: (k: string) => shownFlags(scene, k), playing, held: heldArtView(scene), clockMs: scene.tick * TICK_MS, tiltOf: (k: string) => tiltOf(data, scene, k) };
+    const view: SceneView = { flagsOf: (k: string) => shownFlags(scene, k), playing, cued: cuedArtView(scene), held: heldArtView(scene), clockMs: scene.tick * TICK_MS, tiltOf: (k: string) => tiltOf(data, scene, k) };
     artView = view;
     loopClock = loopStarts(art.meta, view, loopClock);
     draws = sceneDraws(art.meta, { ...view, loopStarts: loopClock });

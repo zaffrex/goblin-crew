@@ -280,6 +280,8 @@ export interface SceneView {
   flagsOf(objectKey: string): Flags;
   /** 재생 중인 물건 anim(이미 고른 갈래)과 시작 뒤 지난 ms. 없으면 null. */
   playing: { object: string; anim: SceneAnim; ms: number } | null;
+  /** 물건 키 → 캐릭터 연출의 칸 신호로 겹쳐 재생 중인 물건 anim(#507)과 시작 뒤 지난 ms. `playing` 다음, `held`보다 먼저다. */
+  cued?: Readonly<Record<string, { anim: SceneAnim; ms: number }>>;
   /**
    * 물건 키 → 끝났지만 붙들고 있는 `hold` anim(13절)과 그 anim 시작 뒤 지난 ms(길이보다 크다). 재생 중인 anim이 먼저다.
    * 그림 물건은 마지막 칸, 효과 자리는 그 연출 모드를 시계를 계속 돌려 그린다.
@@ -303,11 +305,11 @@ export function tiltFrame(o: SceneObject, d: number): number | null {
   return d === 0 ? null : (o.tilt?.frames[String(d)] ?? null);
 }
 
-/** 이 물건이 지금 그리는 anim: 재생 중인 것, 없으면 붙든 `hold` anim(13절). 없으면 null(멈춘 모습). */
+/** 이 물건이 지금 그리는 anim: 재생 중인 것, 칸 신호로 겹쳐 재생 중인 것(#507), 없으면 붙든 `hold` anim(13절). 없으면 null(멈춘 모습). */
 function artNow(view: SceneView, objectKey: string): { anim: SceneAnim; ms: number } | null {
   const p = view.playing;
   if (p && p.object === objectKey) return p;
-  return view.held?.[objectKey] ?? null;
+  return view.cued?.[objectKey] ?? view.held?.[objectKey] ?? null;
 }
 
 /** 물건 하나의 loop 시작. `pic`이 null이면 그 물건 anim 재생 중(또는 붙든 중)이다. 효과 자리는 멈춘 모드(`SceneFxMode`)다. */

@@ -147,7 +147,7 @@ export interface Playing {
   cut?: string;
   /**
    * 캐릭터 연출의 남은 칸 신호 시각(틱, 오름차순, 형식 기록 5-2절, #199·#284). 시각마다 대기열 맨 앞의 `fx` 하나를 `overlays`로 띄우고 지운다.
-   * 맨 앞이 fx가 아니면(이어진 fx가 신호보다 적음) 그 신호는 아무것도 띄우지 않는다(`ability-feedback.md` 4절).
+   * 맨 앞이 물건 anim이면 그 anim을 겹쳐 시작한다(#507). 그 밖이면(말풍선·캐릭터 연출 등) 그 신호는 아무것도 띄우지 않는다(`ability-feedback.md` 4절).
    */
   cues?: number[];
   /** `walk`의 남은 구간(#397). 앞 구간(걷기·깡충)이 끝나면 다음을 시작한다. 비면 도착이다. */
@@ -177,7 +177,7 @@ export interface SceneState {
   queue: PlayEvent[];
   current: Playing | null;
   /**
-   * 칸 신호로 연출과 겹쳐 뜬 `fx`(#199). `current`와 따로 시간이 간다. 남아 있는 동안 busy다.
+   * 칸 신호로 연출과 겹쳐 뜬 `fx`(#199)와 물건 anim(#507). `current`와 따로 시간이 간다. 남아 있는 동안 busy다.
    * 신호 없는 시트·실루엣에서는 늘 비어 있다(fx는 지금처럼 연출이 끝난 뒤 `current`로 돈다).
    */
   overlays: Playing[];
@@ -1089,6 +1089,16 @@ function holdLast(s: SceneState, p: Playing): void {
   s.held[p.ev.target] = { name: p.ev.name, ms: p.t * TICK_MS };
 }
 
+/**
+ * 칸 신호로 겹쳐 재생 중인 물건 anim(#507)을 그리기 쪽 모양(`SceneView.cued`)으로. ms는 그 anim 시작 뒤 지난 시간이다.
+ * `current`의 물건 anim은 `SceneView.playing`이 따로 맡는다.
+ */
+export function cuedArtView(s: SceneState): Record<string, { anim: SceneAnim; ms: number }> {
+  const out: Record<string, { anim: SceneAnim; ms: number }> = {};
+  for (const o of s.overlays) if (o.art) out[o.art.object] = { anim: o.art.anim, ms: o.t * TICK_MS };
+  return out;
+}
+
 /** 붙든 물건 anim(13절)을 그리기 쪽 모양(`SceneView.held`)으로. ms는 그 anim 시작 뒤 지난 시간이다. */
 export function heldArtView(s: SceneState): Record<string, { anim: SceneAnim; ms: number }> {
   const out: Record<string, { anim: SceneAnim; ms: number }> = {};
@@ -1199,22 +1209,25 @@ export function charPose(data: SceneData, s: SceneState, id: CharacterId): Pose 
 /**
  * 칸 신호(#199): 재생 중인 캐릭터 연출이 신호 칸에 닿으면, show에서 그 연출 바로 뒤에 붙은 `fx` **하나만** 지금 띄운다.
  * 신호가 여럿(`cue` 배열, #284)이면 k번째 신호가 이어진 fx 중 k번째를 띄운다(앞 신호가 앞 fx를 이미 꺼냈으니 늘 맨 앞).
- * 그 뒤의 fx는 지금처럼 연출이 끝난 뒤 차례로 뜬다(둥지 삑의 메아리가 원래 삑보다 늦게 와야 한다, ADR-0003). 신호 하나 = fx 하나.
- * 바로 뒤가 fx가 아니면 아무것도 띄우지 않는다. 순번(`seq`)은 대기열 순서 그대로다.
+ * 그 뒤의 fx는 지금처럼 연출이 끝난 뒤 차례로 뜬다(둥지 삑의 메아리가 원래 삑보다 늦게 와야 한다, ADR-0003). 신호 하나 = 한 줄.
+ * 맨 앞이 **물건 anim**이면 그 anim을 겹쳐 시작한다(#507: 장대가 자명종에 닿는 칸에 용수철이 튄다. 원인과 결과가 같은 프레임).
+ * 그 밖(말풍선, 캐릭터 연출 등)이면 아무것도 띄우지 않는다. 순번(`seq`)은 대기열 순서 그대로다.
  */
 function fireCue(data: SceneData, s: SceneState, p: Playing): void {
   while (p.cues && p.cues.length > 0 && p.t >= p.cues[0]!) {
     p.cues.shift();
-    if (s.queue[0]?.type === 'fx') s.overlays.push(start(data, s, s.queue.shift()!));
+    const next = s.queue[0];
+    if (next?.type === 'fx' || (next?.type === 'anim' && !isCharacter(next.target))) s.overlays.push(start(data, s, s.queue.shift()!));
   }
   if (p.cues?.length === 0) delete p.cues;
 }
 
-/** 겹쳐 뜬 fx의 시간을 한 틱 보내고, 끝난 것을 내린다. */
+/** 겹쳐 뜬 fx·물건 anim의 시간을 한 틱 보내고, 끝난 것을 내린다. 물건 anim은 `current`처럼 `hold`면 붙든다. */
 function tickOverlays(s: SceneState): void {
   s.overlays = s.overlays.filter((o) => {
     o.t += 1;
     if (!finished(s, o)) return true;
+    holdLast(s, o);
     commitShown(s, o.seq, 'end');
     return false;
   });
