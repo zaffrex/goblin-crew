@@ -10,6 +10,7 @@
 // 뼈대 1: 손님 P8 4칸(설계 7절)과 멈춘 모습 2개, anim 4개(`guest.wait`·`run_in`·`cheer`·`soaked`).
 // 뼈대 2: 관리인 P1 4칸 + P2 3칸, anim 3개(`keeper.wake`·`clean_time`·`swat`), 대기 꾸벅 `loop`(#477).
 // 뼈대 3: 커튼 P3 2칸(`keeper.curtain`·`curtain_open`) + 자명종 P7 3칸과 멈춘 모습(`alarm_clock.spring`·`fall`·`ring_late`).
+// 뼈대 4: 재킷 P5 4칸(꼭대기·손 멈춘 모습, 대기 움찔 `loop`, `jacket.twitch`·`slide`).
 
 import { C, Image, EMPTY } from '../lib/pixel.mjs';
 import { stamp, outlined, line, fill, bay } from '../lib/texture.mjs';
@@ -600,3 +601,131 @@ ANIMS['alarm_clock.spring'] = { ms: [220, 200, 260], frames: [clock.boing, clock
 ANIMS['alarm_clock.fall'] = { ms: [700], frames: [clock.fallen], hold: true };
 // 8절 ③ (새 칸 0): 늦게 우는 자명종. 0·1칸을 빠르게 번갈아 덜덜. 끝나면 창턱 그림으로 돌아가 관리인이 탁 친다
 ANIMS['alarm_clock.ring_late'] = { ms: [120, 120, 120, 120, 120, 120], frames: [clock.boing, clock.sway, clock.boing, clock.sway, clock.boing, clock.sway] };
+
+// ═════════════ 재킷 (jacket, 히트 꼭대기 212,27 24×24 / 손 249,100 24×24) ═════════════
+// 손님의 분홍 정장 재킷(pink Y173, 넥타이와 같은 색). 꼭대기 그림은 구도 시안 그림(214,32 20×14)을 그대로 옮겼다.
+// 설계 7절 P5: 0 소매 움찔 → 1 돌우산 경사를 타고 미끄러짐 → 2 우산 끝에서 떨어지는 중 → 3 동상 손에 턱.
+// 미끄러지는 쪽은 오른쪽(내민 손 위 처마 끝 x 255)이다. 떨어지는 칸은 같은 그림을 두 자리에 찍어 64px 낙하를 끊김 없이 보인다(손님 run_in과 같은 방식, 새 칸 0).
+const JACKET_LEGEND = { r: C.red, P: C.pink, L: C.pinkL, w: C.white };
+/** 꼭대기(돔에 등판이 덮임). 깃은 위, 왼소매는 돔 위로 늘어지고(흰 안감 끝) 오른소매는 바람에 펄럭인다 */
+export const JACKET_TOP_AT = [214, 32];
+const JACKET_TOP = [
+  '......rrrrrr........',
+  '....rLLLLPPPPr......',
+  '..rLLLPPPPPPPPr.....',
+  '.rLLPPPPPPPPPPPrrrr.',
+  'rLLPPPPPPPPPPPPPPPPr',
+  'rLPrPPPPPPPPPPPrPPrr',
+  'rLPrrPPPPPPPPPPr.rr.',
+  'rPr.rPPPPPPPPPPr....',
+  'rPr.rPPPPPPPPPPPr...',
+  'rPr..rPPPPPPPPPPr...',
+  'rPr..rrrrrrrrrrr....',
+  'rPr.................',
+  '.ww.................',
+];
+/** 늘어진 왼소매(0~2열, 7줄부터)를 뺀 몸판 줄 */
+const JACKET_SLEEVE_ROW = 7;
+const [JX, JY] = JACKET_TOP_AT;
+
+/** 0칸 소매 움찔: 몸판이 오른쪽(처마 쪽)으로 1px 미끄러지고, 늘어진 소매 끝이 바깥(왼쪽)으로 휙 젖혀진다. 소매 끝 옆 바람선 3점 */
+function jacketTwitch(t) {
+  const body = JACKET_TOP.map((row, j) => (j >= JACKET_SLEEVE_ROW ? '...' + row.slice(3) : row));
+  stamp(t, JX + 1, JY, body, JACKET_LEGEND);
+  JACKET_TOP.forEach((row, j) => {
+    if (j < JACKET_SLEEVE_ROW) return;
+    const dx = 1 - ((j - JACKET_SLEEVE_ROW + 1) >> 1); // 7줄 +1 → 12줄 −2: 소매가 바깥으로 비스듬히
+    stamp(t, JX + dx, JY + j, [row.slice(0, 3)], JACKET_LEGEND);
+  });
+}
+const twitchFx = (im) => { for (const [x, y] of [[209, 41], [208, 42], [209, 45]]) im.set(x, y, C.white); };
+
+/** 1칸 미끄러짐: 돔 오른쪽 경사(x 234 → 252, 윗면 y 41 → 45)에 배를 대고 오른쪽 아래로. 깃과 두 소매가 뒤(왼쪽 위)로 끌린다 */
+const JACKET_SLIDE_AT = [230, 30];
+const JACKET_SLIDE = [
+  '..rr......................',
+  '.rPPr.....................',
+  '.rPPPr....................',
+  '..rPPPrrrr................',
+  '...rPLLLLLrr..............',
+  '....rLLPPPPPrr............',
+  '...rLLPPPPPPPPrr..........',
+  '..rLLPPPPPPPPPPPrr........',
+  '..rLPPPPPPPPPPPPPPrr......',
+  '...rPPPPPrPPPPPPPPPPr.....',
+  '....rrPPPPrPPPPPPPPPPr....',
+  '......rrPPPPPPPPPPPPPr....',
+  '........rrPPPPPPPPPPPPr...',
+  '..........rrrPPPPPPPPPr...',
+  '.............rrrPPPPPPr...',
+  '................rrrrrrPrr.',
+  '.....................rPPr.',
+  '......................ww..',
+];
+const slideFx = (im) => { for (const [x, y] of [[227, 33], [226, 34], [229, 37], [228, 38], [230, 42]]) im.set(x, y, C.white); };
+
+/** 2칸 떨어지는 중: 앞판이 보이게 뒤집혀 활짝, 두 소매는 바람에 위로 뻗는다(만세 모양, 소매 끝 흰 안감). V 깃·단추 하나·갈라진 밑단으로 재킷이 읽힌다. 위쪽에 낙하선 */
+const JACKET_FALL = [
+  'ww..................ww',
+  'rPr................rPr',
+  '.rPr..............rPr.',
+  '..rPr..rrr..rrr..rPr..',
+  '...rPrrLLLrrLLLrrPr...',
+  '....rPLLLLwwLLLLPr....',
+  '....rPPLLLwwLLLPPr....',
+  '....rPPPLLwwLLPPPr....',
+  '....rPPPPLrrLPPPPr....',
+  '....rPPPPPrPPPPPPr....',
+  '....rPPPPPwPPPPPPr....',
+  '....rPPPPPrPPPPPPr....',
+  '....rPPPPPrPPPPPPr....',
+  '....rPPPPr.rPPPPPr....',
+  '....rrrrr...rrrrrr....',
+];
+/** 낙하 두 자리: 처마 끝 바로 아래 → 손 바로 위. 손(손바닥 윗면 y 119)까지 끊김 없이 */
+export const JACKET_FALL_AT = [[246, 60], [248, 88]];
+const fallFx = (x, y) => (im) => { for (const [dx, dy] of [[4, -6], [4, -5], [10, -8], [10, -7], [10, -6], [16, -5], [16, -4]]) im.set(x + dx, y + dy, C.white); };
+
+/** 3칸 동상 손에 턱(멈춘 모습, `jacket.on_hand`): 손바닥 위에 뭉쳐 얹히고, 왼앞판이 손바닥 앞으로, 오른소매가 손끝 너머로 늘어진다.
+ *  손바닥 가운데(x 257~261, y 119~121)는 보인다("손이 쥐었다"). 소매 끝 y 124(설계 1-3 집기 조건) */
+export const JACKET_HAND_AT = [250, 107];
+const JACKET_HAND = [
+  '....rrrrrr..........',
+  '..rrLLLLPPrr........',
+  '.rLLLPPPPPPPrr......',
+  'rLLPPPPPPPPPPPrr....',
+  'rLPPPPrPPPPPPPPPr...',
+  'rPPPPPrPPPPPPPPPPr..',
+  'rPPPPrrPPPPPPPPPPPr.',
+  'rPPPPrPPPPPPPPPrPPPr',
+  'rPPPPrPPPPPPPPPrrPPr',
+  'rPPPPrPPPPPPPPr.rPPr',
+  'rPPPPrrrrrrrrr..rPPr',
+  'rPPPPr..........rPPr',
+  'rPPPr...........rPPr',
+  '.rPPr...........rPPr',
+  '.rPPr...........rPPr',
+  '.rPr............rPPr',
+  '..r.............rwwr',
+  '.................ww.',
+];
+
+const jacket = {
+  top: pic((t) => stamp(t, JX, JY, JACKET_TOP, JACKET_LEGEND)),
+  twitch: pic(jacketTwitch, twitchFx),
+  slide: pic((t) => stamp(t, ...JACKET_SLIDE_AT, JACKET_SLIDE, JACKET_LEGEND), slideFx),
+  fallHigh: pic((t) => stamp(t, ...JACKET_FALL_AT[0], JACKET_FALL, JACKET_LEGEND), fallFx(...JACKET_FALL_AT[0])),
+  fallLow: pic((t) => stamp(t, ...JACKET_FALL_AT[1], JACKET_FALL, JACKET_LEGEND), fallFx(...JACKET_FALL_AT[1])),
+  hand: pic((t) => stamp(t, ...JACKET_HAND_AT, JACKET_HAND, JACKET_LEGEND)),
+};
+
+OBJECTS.jacket = {
+  draw: jacket.top,
+  // 9절 재킷 대기(#477): 약 12초마다 바람에 소매가 움찔(P5 0칸 재사용). 손으로 내려온 뒤(state)에는 loop가 없어서 멈춘다
+  loop: { ms: [12000, 300], frames: [jacket.top, jacket.twitch] },
+  states: [{ when: { flags: { 'jacket.on_hand': true } }, draw: jacket.hand }],
+};
+// 9번 `fountain_tap`(단서 ①): カーン에 소매가 움찔 → 제자리 → 한 번 더. 상태는 안 바뀌어서 끝나면 꼭대기 그림
+ANIMS['jacket.twitch'] = { ms: [160, 90, 420], frames: [jacket.twitch, jacket.top, jacket.twitch] };
+// 3번★(주 아하): ゴォン 뒤 움찔 → 경사를 타고 미끄러짐 → 처마에서 떨어짐(두 자리) → 손에 턱. 끝나면 state 그림(손)과 같은 그림
+ANIMS['jacket.slide'] = { ms: [200, 260, 90, 90, 400], frames: [jacket.twitch, jacket.slide, jacket.fallHigh, jacket.fallLow, jacket.hand] };

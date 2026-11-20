@@ -11,6 +11,8 @@
 //     순서: 졸기 | 꾸벅(대기 loop) | wake(벌떡·탁·갸웃) | clean_time(벽시계·꾹·털썩) | swat(졸면서 탁)
 //   park_fountain-objects-clock-5x.png  커튼 P3 2칸 + 자명종 P7 3칸을 5배로, 판잣집 창 아래 흙길까지(배경 시안 위)
 //     순서: 커튼 확 | 커튼 닫힘 | 자명종 창턱 | ビヨーン | 출렁 | 흙길에 거꾸로
+//   park_fountain-objects-jacket-4x.png  재킷 P5를 4배로, 동상·돌우산(배경 시안)과 함께
+//     순서: 꼭대기(멈춤) | 움찔 | 미끄러짐 | 떨어짐(위) | 떨어짐(아래) | 손에 턱(= on_hand 멈춘 모습)
 // 검사(어기면 종료 코드 1): buildScene 문제 0건(배경 시안의 ink는 빼고 센다), 손님 주색과 뒤 배경(입구 기둥·흙길)의 명도 차 ≥ 30,
 //   넥타이 = 재킷 같은 분홍, 금색(yel 계열) 없음, 재회 자리 칸이 ノビー 칸(기준점 ±24)과 겹치지 않음,
 //   달려오기 칸이 입구 → 재회 자리로 x가 줄고 발 y가 늘어남(뒷걸음·튐 없음).
@@ -19,6 +21,10 @@
 //   커튼(P3): 닫힘 칸은 창 안에 피부가 0픽셀, 확 칸은 얼굴 오른쪽만 보인다(피부 > 0, 왼쪽 절반은 0), 둘 다 창 밖으로 안 나간다.
 //   자명종(P7): 창턱 그림 = 구도 시안 그림(84,140) 그대로, 튄 칸의 몸통(y ≥ 145)은 창턱 그림과 같다(머리만 튄다),
 //   거꾸로 칸은 창 아래 흙길(아래 끝 ≥ 198)에 있고 창(관리인 히트)과 안 겹친다, 화면 JSON의 자명종·커튼 anim 이름이 시트에 다 있다.
+//   재킷(P5): 꼭대기 그림 = 구도 시안 그림(214,32) 그대로, 대기 loop의 움찔 칸 = twitch anim 첫 칸(같은 그림 재사용),
+//   slide 마지막 칸 = 손 멈춘 모습(도착 순간 튀지 않음), slide가 오른쪽·아래로만 간다, 떨어지는 칸은 처마(y ≤ 52) 아래,
+//   손 칸 아래 끝 y 123~125(소매 끝 124)이고 집게 자리(x 252~270, y 116~124) 안에 4×4 불투명 덩어리가 있다(설계 1-3 집기 조건),
+//   손 칸에서 손바닥 가운데(x 257~260, y 119~121)가 보인다, 재킷 주색과 뒤 배경(하늘·나무)의 명도 차 ≥ 60.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { inflateSync, deflateSync } from 'node:zlib';
@@ -30,7 +36,7 @@ import { dirname, join } from 'node:path';
 import { C, PALETTE, EMPTY, Image, indexedPng } from '../../../art/lib/pixel.mjs';
 import { stamp } from '../../../art/lib/texture.mjs';
 import { buildScene } from '../../../art/scene-build.mjs';
-import { OBJECTS, ANIMS, GUEST_AT, GUEST_REUNION_AT, KEEPER_WINDOW, CLOCK_AT } from '../../../art/scenes/park_fountain.objects.mjs';
+import { OBJECTS, ANIMS, GUEST_AT, GUEST_REUNION_AT, KEEPER_WINDOW, CLOCK_AT, JACKET_TOP_AT } from '../../../art/scenes/park_fountain.objects.mjs';
 import { bg, fg } from './park_fountain-bg-sketch.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -64,6 +70,7 @@ const CLOCK = { x: CLOCK_AT[0], y: CLOCK_AT[1] };
 const KC = meta.objects.find((o) => o.key === 'alarm_clock');
 const clock = (im) => put(im, KC.default.frame);
 const SKETCH_CLOCK = ['....rr......', '...rrr......', '..wwww......', '.wwkwwww....', 'yywwwwwwww..', '.wwwccccwww.', '.wwcwwwwcww.', '.wwcwwkwcww.', '.wwcwwwwcww.', '..wwccccww..', '...ww..ww...', '...yy..yy...'];
+const SKETCH_JACKET = ['......rrrrrr........', '....rLLLLPPPPr......', '..rLLLPPPPPPPPr.....', '.rLLPPPPPPPPPPPrrrr.', 'rLLPPPPPPPPPPPPPPPPr', 'rLPrPPPPPPPPPPPrPPrr', 'rLPrrPPPPPPPPPPr.rr.', 'rPr.rPPPPPPPPPPr....', 'rPr.rPPPPPPPPPPPr...', 'rPr..rPPPPPPPPPPr...', 'rPr..rrrrrrrrrrr....', 'rPr.................', '.ww.................'];
 const frameOf = { watch: G.default.loop.frames[0], tap: G.default.loop.frames[1], cheer: A['guest.cheer'].frames[0], wet: A['guest.soaked'].frames[0] };
 
 // ── 세 사람 시트(ノビー 0칸)를 읽어 재회 자리 옆에 세운다
@@ -133,6 +140,20 @@ const clockFrames = [KC.default.frame, A['alarm_clock.spring'].frames[0], A['ala
     for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) out.set(n * cw + x, y, im.get(x0 + x, y0 + y));
   });
   writeFileSync(join(HERE, 'park_fountain-objects-clock-5x.png'), indexedPng(out, S));
+}
+
+// ── 1d. 재킷 P5 4배(동상·돌우산 배경 시안 위). 꼭대기 | 움찔 | 미끄러짐 | 떨어짐 둘 | 손
+const JK = meta.objects.find((o) => o.key === 'jacket');
+const slideFrames = A['jacket.slide'].frames;
+const jacketShots = [JK.default.frame, ...slideFrames];
+{
+  const S = 4, cw = 84, ch = 104, x0 = 194, y0 = 24;
+  const out = new Image(cw * jacketShots.length, ch);
+  jacketShots.forEach((f, n) => {
+    const im = new Image(W, H); im.blit(bg, 0, 0); put(im, f);
+    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) out.set(n * cw + x, y, im.get(x0 + x, y0 + y));
+  });
+  writeFileSync(join(HERE, 'park_fountain-objects-jacket-4x.png'), indexedPng(out, S));
 }
 
 // ── 2. 화면 위: 입구 대기 + 재회 자리(만세, ノビー 재킷 밑) + 조는 관리인
@@ -284,6 +305,48 @@ for (const [name, k, at] of [['입구 대기', 'watch', GUEST_AT], ['재회 만�
   walk(screen);
   const missing = [...used].filter((k) => !A[k]);
   check(missing.length === 0, `화면 JSON의 keeper·alarm_clock anim이 시트에 다 있다${missing.length ? `: 없음 ${missing.join(', ')}` : ''}`);
+}
+
+{
+  // 재킷 P5
+  const one = (i) => { const im = new Image(W, H); put(im, i); return im; };
+  const [jx, jy] = JACKET_TOP_AT;
+  const top = one(JK.default.frame);
+  const sk = new Image(W, H); stamp(sk, jx, jy, SKETCH_JACKET, { r: C.red, P: C.pink, L: C.pinkL, w: C.white });
+  let same = true;
+  for (let y = jy; y < jy + 14; y++) for (let x = jx; x < jx + 20; x++) if (sk.get(x, y) !== EMPTY && sk.get(x, y) !== top.get(x, y)) same = false;
+  check(same, `재킷 꼭대기 그림 = 구도 시안 그림(${jx},${jy})`);
+  const tw = A['jacket.twitch'];
+  check(JK.default.loop?.frames[1] === tw.frames[0] && slideFrames[0] === tw.frames[0], '대기 움찔 = tap 움찔 = slide 첫 칸(P5 0칸 하나를 다시 쓴다)');
+  const handState = JK.states?.find((st) => st.when.flags['jacket.on_hand'] === true);
+  check(handState && !handState.loop && slideFrames.at(-1) === handState.frame, 'slide 마지막 칸 = 손 멈춘 모습, 손 state에는 대기 움찔이 없다');
+  const box = (i) => { const { at: [ax, ay], src: [, , sw, sh] } = meta.frames[i]; return { x: ax, y: ay, w: sw, h: sh, cx: ax + sw / 2, bottom: ay + sh - 1 }; };
+  const path = slideFrames.map(box);
+  check(path.every((b, i) => i === 0 || (b.cx > path[i - 1].cx && b.bottom >= path[i - 1].bottom)),
+    `slide가 오른쪽·아래로만: 가운데 x ${path.map((b) => b.cx).join(' → ')}, 아래 끝 ${path.map((b) => b.bottom).join(' → ')}`);
+  for (const i of [2, 3]) {
+    const im = one(slideFrames[i]);
+    let topBody = H;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if ([C.pink, C.pinkL, C.red].includes(im.get(x, y))) topBody = Math.min(topBody, y);
+    check(topBody > 52, `떨어짐 ${i - 1}: 재킷 위 끝 y ${topBody} > 처마 52`);
+  }
+  const hand = one(handState.frame);
+  const hb = box(handState.frame);
+  check(hb.bottom >= 123 && hb.bottom <= 125, `손 칸 아래 끝 y ${hb.bottom} (소매 끝 124 ±1)`);
+  const solid = (x0, y0) => { for (let y = y0; y < y0 + 4; y++) for (let x = x0; x < x0 + 4; x++) if (hand.get(x, y) === EMPTY) return false; return true; };
+  let claw = false;
+  for (let y = 116; y <= 121; y++) for (let x = 252; x <= 267; x++) if (solid(x, y)) claw = true;
+  check(claw, '손 칸: 집게 자리(x 252~270, y 116~124) 안에 4×4 불투명 덩어리');
+  let palm = 0;
+  for (let y = 119; y <= 121; y++) for (let x = 257; x <= 260; x++) if (hand.get(x, y) === EMPTY) palm++;
+  check(palm >= 8, `손 칸: 손바닥 가운데(x 257~260, y 119~121)가 ${palm}/12픽셀 보인다(≥ 8)`);
+  for (const [name, f, x0, y0, w, h] of [['꼭대기', JK.default.frame, 214, 18, 20, 12], ['손', handState.frame, 248, 100, 26, 26]]) {
+    const back = mainColor(bg, x0, y0, w, h);
+    const main = mainColor(one(f), 0, 0, W, H, [C.ink]);
+    check(main === C.pink && dY(main, back) >= 60, `재킷 ${name}: 주색 #${main}(Y${Y[main]}) vs 뒤 #${back}(Y${Y[back]}) 차 ${dY(main, back)} ≥ 60`);
+  }
+  const missing = ['jacket.twitch', 'jacket.slide'].filter((k) => !A[k]);
+  check(missing.length === 0, `화면 JSON의 재킷 P5 anim이 시트에 있다${missing.length ? `: 없음 ${missing.join(', ')}` : ''}`);
 }
 
 if (problems.length) { console.error(`${problems.length}개 검사 실패`); process.exit(1); }
