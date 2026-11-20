@@ -4,7 +4,8 @@
 //
 // 방법: 시작 상태와 정답 경로 중간 상태마다, 모든 핫스팟 × 세 사람 특기를 실제 `runAction`으로 돌리고 연출이 끝날 때까지 틱한다.
 // 틱마다 재생·칸 신호·붙든 물건 anim 중 `back` 층 칸의 그림 상자가 세 사람 몸 상자(`characterHitBox`) 밖으로 몇 %
-// 나오는지 세고, 그 anim이 보이는 동안 가장 많이 나온 값이 기준 미만이면 실패다. 몸 상자는 실제 실루엣보다 조금 크고,
+// 나오는지 세고, 그 anim이 보이는 동안 가장 많이 나온 값이 기준 미만이면 실패다. 끝난 뒤 붙든(`hold`) 마지막 칸은
+// `anim (hold)`로 따로 센다(재생 중 앞 칸이 몸 밖이어도 몇 초 붙드는 칸이 가려지면 실패, #539 리뷰). 몸 상자는 실제 실루엣보다 조금 크고,
 // 칸 상자는 투명 픽셀을 포함한다. 그래서 대략값이고, 기준을 넉넉히(절반) 잡았다.
 import { describe, expect, it } from 'vitest';
 import charactersJson from '../../content/characters.json';
@@ -84,7 +85,9 @@ function reactions(data: SceneData, raw: Frames, s: SceneState, action: { char: 
       const f = frame === undefined ? undefined : raw.frames[frame];
       if (!f) continue;
       const share = visibleShare({ left: f.at[0]!, top: f.at[1]!, width: f.src[2]!, height: f.src[3]! }, bodies);
-      const name = Object.entries(art.anims).find(([, v]) => v === a.anim || (v as { variants?: unknown[] }).variants?.includes(a.anim))?.[0] ?? `${o.key}.?`;
+      const anim = Object.entries(art.anims).find(([, v]) => v === a.anim || (v as { variants?: unknown[] }).variants?.includes(a.anim))?.[0] ?? `${o.key}.?`;
+      // 붙든 칸은 따로 센다: 앞의 짧은 칸(#539 `tumble` 160ms)만 몸 밖이어도 anim 전체가 통과해, 몇 초 붙드는 마지막 칸이 가려진 걸 놓친다.
+      const name = p?.object !== o.key && !cued[o.key] ? `${anim} (hold)` : anim;
       best.set(name, Math.max(best.get(name) ?? 0, share));
     }
   }
