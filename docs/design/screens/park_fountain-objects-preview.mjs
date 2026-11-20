@@ -21,7 +21,7 @@
 //   커튼(P3): 닫힘 칸은 창 안에 피부가 0픽셀, 확 칸은 얼굴 오른쪽만 보인다(피부 > 0, 왼쪽 절반은 0), 둘 다 창 밖으로 안 나간다.
 //   자명종(P7): 창턱 그림 = 구도 시안 그림(84,140) 그대로, 튄 칸의 몸통(y ≥ 145)은 창턱 그림과 같다(머리만 튄다),
 //   거꾸로 칸은 창 아래 흙길(아래 끝 ≥ 198)에 있고 창(관리인 히트)과 안 겹친다, 화면 JSON의 자명종·커튼 anim 이름이 시트에 다 있다.
-//   재킷(P5): 꼭대기 그림 = 구도 시안 그림(214,32) 그대로, 대기 loop의 움찔 칸 = twitch anim 첫 칸(같은 그림 재사용),
+//   재킷(P5): 꼭대기 그림 = 구도 시안 그림(213,32) 그대로(#530에서 앞판이 보이게 둘 다 고침), 대기 loop의 움찔 칸 = twitch anim 첫 칸(같은 그림 재사용),
 //   slide 마지막 칸 = 손 멈춘 모습(도착 순간 튀지 않음), slide가 오른쪽·아래로만 간다, 떨어지는 칸은 처마(y ≤ 52) 아래,
 //   손 칸 아래 끝 y 123~125(소매 끝 124)이고 집게 자리(x 252~270, y 116~124) 안에 4×4 불투명 덩어리가 있다(설계 1-3 집기 조건),
 //   손 칸에서 손바닥 가운데(x 257~260, y 119~121)가 보인다, 재킷 주색과 뒤 배경(하늘·나무)의 명도 차 ≥ 60.
@@ -70,7 +70,7 @@ const CLOCK = { x: CLOCK_AT[0], y: CLOCK_AT[1] };
 const KC = meta.objects.find((o) => o.key === 'alarm_clock');
 const clock = (im) => put(im, KC.default.frame);
 const SKETCH_CLOCK = ['....rr......', '...rrr......', '..wwww......', '.wwkwwww....', 'yywwwwwwww..', '.wwwccccwww.', '.wwcwwwwcww.', '.wwcwwkwcww.', '.wwcwwwwcww.', '..wwccccww..', '...ww..ww...', '...yy..yy...'];
-const SKETCH_JACKET = ['......rrrrrr........', '....rLLLLPPPPr......', '..rLLLPPPPPPPPr.....', '.rLLPPPPPPPPPPPrrrr.', 'rLLPPPPPPPPPPPPPPPPr', 'rLPrPPPPPPPPPPPrPPrr', 'rLPrrPPPPPPPPPPr.rr.', 'rPr.rPPPPPPPPPPr....', 'rPr.rPPPPPPPPPPPr...', 'rPr..rPPPPPPPPPPr...', 'rPr..rrrrrrrrrrr....', 'rPr.................', '.ww.................'];
+const SKETCH_JACKET = ['........rrLLrr........', '......rrLLwwLLrr......', '....rrPLLrwwrLLPrr....', '..rrPPPLLrwwrLLPPPrr..', '.rLPPPPPLrwwrLPPPPPPr.', 'rLPPrPPPPLrwrPPPPrPPPr', 'rLPrrPPPPPLrPPPPPrrPPr', 'rPPr.rPPPPPwPPPPr.rPPr', 'rPPr.rPPPPPrPPPPr.rPPr', 'rPPr.rPPPPPwPPPPr.rPPr', '.ww..rPPPPPrPPPPr.rPPr', '.....rPPPPr.rPPPr.rPPr', '.....rrrrr...rrrr.rPPr', '..................rwwr'];
 const frameOf = { watch: G.default.loop.frames[0], tap: G.default.loop.frames[1], cheer: A['guest.cheer'].frames[0], wet: A['guest.soaked'].frames[0] };
 
 // ── 세 사람 시트(ノビー 0칸)를 읽어 재회 자리 옆에 세운다
@@ -314,7 +314,7 @@ for (const [name, k, at] of [['입구 대기', 'watch', GUEST_AT], ['재회 만�
   const top = one(JK.default.frame);
   const sk = new Image(W, H); stamp(sk, jx, jy, SKETCH_JACKET, { r: C.red, P: C.pink, L: C.pinkL, w: C.white });
   let same = true;
-  for (let y = jy; y < jy + 14; y++) for (let x = jx; x < jx + 20; x++) if (sk.get(x, y) !== EMPTY && sk.get(x, y) !== top.get(x, y)) same = false;
+  for (let y = jy; y < jy + 14; y++) for (let x = jx; x < jx + 22; x++) if (sk.get(x, y) !== EMPTY && sk.get(x, y) !== top.get(x, y)) same = false;
   check(same, `재킷 꼭대기 그림 = 구도 시안 그림(${jx},${jy})`);
   const tw = A['jacket.twitch'];
   check(JK.default.loop?.frames[1] === tw.frames[0] && slideFrames[0] === tw.frames[0], '대기 움찔 = tap 움찔 = slide 첫 칸(P5 0칸 하나를 다시 쓴다)');

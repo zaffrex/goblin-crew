@@ -188,25 +188,25 @@ obj((t) => {
     return hash(x >> 1, y >> 1, 30) < 0.08 ? C.lint : C.cotton;
   });
 });
-// B 재킷(꼭대기) 214,32,20×14: 신랑의 분홍 정장 재킷(pink Y173). 위는 밝은 하늘, 손 자리는 짙은 나무·돌 앞이라
-//   둘 다에서 읽히는 명도대가 Y 165~173뿐이다(검사 마지막 줄). 소매가 우산 위로 늘어진다.
+// B 재킷(꼭대기) 213,32,22×14: 신랑의 분홍 정장 재킷(pink Y173). 위는 밝은 하늘, 손 자리는 짙은 나무·돌 앞이라
+//   둘 다에서 읽히는 명도대가 Y 165~173뿐이다(검사 마지막 줄).
 obj((t) => {
-  // 등판이 보이게 돔에 덮였다. 깃은 위, 왼소매는 아래로 늘어지고 오른소매는 바람에 펄럭인다(매트릭스 76행 "펄럭인다").
-  stamp(t, 214, 32, [
-    '......rrrrrr........',
-    '....rLLLLPPPPr......',
-    '..rLLLPPPPPPPPr.....',
-    '.rLLPPPPPPPPPPPrrrr.',
-    'rLLPPPPPPPPPPPPPPPPr',
-    'rLPrPPPPPPPPPPPrPPrr',
-    'rLPrrPPPPPPPPPPr.rr.',
-    'rPr.rPPPPPPPPPPr....',
-    'rPr.rPPPPPPPPPPPr...',
-    'rPr..rPPPPPPPPPPr...',
-    'rPr..rrrrrrrrrrr....',
-    'rPr.................',
-    '.ww.................',
-    '....................',
+  // 돌우산 꼭지에 옷걸이처럼 걸쳐 앞판이 보인다: A자 어깨, 흰 V 깃, 단추 둘, 갈라진 밑단, 양 소매. 오른소매(처마 쪽)만 길게 늘어진다(#530).
+  stamp(t, 213, 32, [
+    '........rrLLrr........',
+    '......rrLLwwLLrr......',
+    '....rrPLLrwwrLLPrr....',
+    '..rrPPPLLrwwrLLPPPrr..',
+    '.rLPPPPPLrwwrLPPPPPPr.',
+    'rLPPrPPPPLrwrPPPPrPPPr',
+    'rLPrrPPPPPLrPPPPPrrPPr',
+    'rPPr.rPPPPPwPPPPr.rPPr',
+    'rPPr.rPPPPPrPPPPr.rPPr',
+    'rPPr.rPPPPPwPPPPr.rPPr',
+    '.ww..rPPPPPrPPPPr.rPPr',
+    '.....rPPPPr.rPPPr.rPPr',
+    '.....rrrrr...rrrr.rPPr',
+    '..................rwwr',
   ], { r: C.red, P: C.pink, L: C.pinkL, w: C.white });
 });
 // C 관리인 창 안: 반쯤 열린 커튼 + 조는 얼굴(Zz)
