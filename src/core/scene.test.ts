@@ -1422,3 +1422,58 @@ describe('바닥 동료는 얼굴로 고른다 (ui-interaction.md 2-1절, #427)'
     expect(flipped.left).not.toBe(right.left);
   });
 });
+
+describe('같은 발 y면 연출 중·조작 중인 사람이 앞 (#506)', () => {
+  /** 셋을 같은 바닥 줄에 세우고 쭉이·묵직이를 거의 같은 x에 겹친다(화면 2 쿵 자리 x 339 ≈ 쭉이 시작 x 336). */
+  function overlapped(): SceneState {
+    const s = createScene(data);
+    while (isBusy(s)) sceneTick(data, s);
+    s.walkers.jjuk = { ...s.walkers.jjuk, x: 336, y: 244 };
+    s.walkers.mukjik = { ...s.walkers.mukjik, x: 339, y: 244 };
+    s.walkers.ppik = { ...s.walkers.ppik, x: 420, y: 244 };
+    return s;
+  }
+  const front = (s: SceneState): string => {
+    const o = drawOrder(data, s).filter((c) => c === 'jjuk' || c === 'mukjik');
+    return o[o.length - 1]!;
+  };
+
+  it('조작 중인 사람이 앞이다(예전엔 늘 쭉이가 앞이라 묵직이 엉덩방아가 가려졌다)', () => {
+    const s = overlapped();
+    s.ui.active = 'mukjik';
+    expect(front(s)).toBe('mukjik');
+    s.ui.active = 'jjuk';
+    expect(front(s)).toBe('jjuk');
+  });
+
+  it('연출 중인 사람이 조작 중인 사람보다 앞이다(다른 사람이 리액션하는 동안)', () => {
+    const s = overlapped();
+    s.ui.active = 'jjuk';
+    s.queue.push({ type: 'anim', target: 'mukjik', name: 'common.stomp' });
+    sceneTick(data, s);
+    expect(s.current?.ev).toMatchObject({ type: 'anim', target: 'mukjik' });
+    expect(front(s)).toBe('mukjik');
+  });
+
+  it('물건 anim이면 연출 중인 사람이 없어서 조작 중인 사람 기준이다', () => {
+    const s = overlapped();
+    s.ui.active = 'mukjik';
+    s.queue.push({ type: 'anim', target: 'magpie', name: 'fly_down' });
+    sceneTick(data, s);
+    expect(s.current?.ev).toMatchObject({ type: 'anim', target: 'magpie' });
+    expect(front(s)).toBe('mukjik');
+  });
+
+  it('발 y가 다르면 예전대로 y가 정한다(조작 중이어도 뒤 줄이면 뒤)', () => {
+    const s = overlapped();
+    s.walkers.mukjik = { ...s.walkers.mukjik, y: 240 };
+    s.ui.active = 'mukjik';
+    expect(front(s)).toBe('jjuk');
+  });
+
+  it('클릭 판정도 같은 순서를 쓴다(보이는 사람이 눌린다)', () => {
+    const s = overlapped();
+    s.ui.active = 'mukjik';
+    expect(tapContext(data, s).order).toEqual(drawOrder(data, s));
+  });
+});

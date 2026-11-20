@@ -387,11 +387,17 @@ export function bodies(data: SceneData, s: SceneState): Record<CharacterId, HitB
 /**
  * 캐릭터 그리는 순서(뒤 → 앞). 엔진 그리기와 클릭 판정(`TapContext.order`)이 같이 쓴다(형식 기록 6절 2·3).
  * 1. `hold` 자리(고리)에 매달린 캐릭터(`isHanging`)는 맨 앞 2. 발 y가 작을수록 뒤 3. 같으면 나중에 떨어진 사람이 앞
- * 4. 그래도 같으면 CHARACTERS 순서의 앞쪽(쭉이)이 앞(예전 엔진 순서 그대로).
+ * 4. 그래도 같으면 지금 연출 중인 캐릭터(`current`가 그 캐릭터 anim)가 앞, 그다음 조작 중인 캐릭터(`ui.active`)가 앞(#506).
+ *    같은 바닥 줄에서 연출 자리가 다른 사람 자리와 겹쳐도 특기를 쓰는 몸이 가려지지 않는다(화면 2 쿵 자리 x 339 ≈ 쭉이 시작 x 336).
+ *    연출이 끝나도 조작 중인 사람이 앞이라 엉덩방아 뒤에 갑자기 뒤로 숨지 않는다. 클릭도 같은 순서라 "보이는 사람이 눌린다".
+ * 5. 그래도 같으면 CHARACTERS 순서의 앞쪽(쭉이)이 앞(예전 엔진 순서 그대로).
  */
 export function drawOrder(data: SceneData, s: SceneState): CharacterId[] {
   const y = (c: CharacterId): number => (isHanging(data, s, c) ? Infinity : Math.round(s.walkers[c].y));
   const rank = (c: CharacterId): number => CHARACTERS.findIndex((d) => d.id === c);
+  const ev = s.current?.ev;
+  const performer = ev?.type === 'anim' && ev.target in s.walkers ? ev.target : null;
+  const focus = (c: CharacterId): number => (c === performer ? 2 : c === s.ui.active ? 1 : 0);
   return CHARACTERS.map((c) => c.id).sort((a, b) => {
     const ya = y(a);
     const yb = y(b);
@@ -399,6 +405,9 @@ export function drawOrder(data: SceneData, s: SceneState): CharacterId[] {
     const la = s.landed[a] ?? -1;
     const lb = s.landed[b] ?? -1;
     if (la !== lb) return la - lb;
+    const fa = focus(a);
+    const fb = focus(b);
+    if (fa !== fb) return fa - fb;
     return rank(b) - rank(a);
   });
 }
