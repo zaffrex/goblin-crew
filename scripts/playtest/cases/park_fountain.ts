@@ -45,6 +45,11 @@ const CASES: FrameCase[] = [
     every: 250, // 클리어 컷이 길어서 120ms로는 100칸 상한에 걸린다
     why: '3절 8번 ★: 손 위 재킷을 장대로 집기 → 클리어 컷(8절). 클리어 카드 프레임은 진마씨께 보이는 자료에서 뺀다',
   },
+
+  // 장난감 오리(4절, 7절 P9). 단서가 아니라서 블라인드 대조 대상은 아니다. 그림이 물 위에 떠 있는지, 셋이 서로 다른 반응으로 읽히는지 본다(#529).
+  { id: 'toy-duck-peck', action: { char: 'jjuk', verb: 'stretch', target: 'duck' }, says: 'park_fountain.duck_peck', why: '4절 오리 × ノビー: 집게를 콕 → いてっ → 왼쪽으로 헤엄쳐 갔다가 제자리' },
+  { id: 'toy-duck-flap', action: { char: 'mukjik', verb: 'stomp', target: 'duck' }, says: 'park_fountain.duck_splash', why: '4절 오리 × ズッシー: 쿵에 놀라 퍼덕 → 물벼락 → 젖은 ズッシー' },
+  { id: 'toy-duck-turn', action: { char: 'ppik', verb: 'squeak', target: 'duck' }, says: 'park_fountain.duck_reply', why: '4절 오리 × プピ: 홱 돌아봄 → クワッ 대답' },
 ];
 
 export default CASES;

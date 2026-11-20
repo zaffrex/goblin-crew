@@ -15,6 +15,7 @@
 //     순서: 꼭대기(멈춤) | 움찔 | 미끄러짐 | 떨어짐(위) | 떨어짐(아래) | 손에 턱(= on_hand 멈춘 모습)
 //   park_fountain-objects-pigeons-4x.png  비둘기 셋(#526)을 4배로, **완성 배경** 위에(테두리·연못 앞 대비를 보려고)
 //     테두리 앞면(물건)도 엔진 순서대로 깐다. 순서: 쉬기 | pigeons_up 8칸(놀람 → 퍼덕 → 꼭대기 → 내려옴 → 놀람) | pigeons_turn 돌아보기
+//   park_fountain-objects-duck-4x.png  오리 P9(#529)를 4배로, 완성 배경 + 테두리 앞면 위에. 순서: 떠 있기 | 콕 | 퍼덕 | lap 왼쪽 12px | 돌아섬
 // 검사(어기면 종료 코드 1): buildScene 문제 0건(배경 시안의 ink는 빼고 센다), 손님 주색과 뒤 배경(입구 기둥·흙길)의 명도 차 ≥ 30,
 //   넥타이 = 재킷 같은 분홍, 금색(yel 계열) 없음, 재회 자리 칸이 ノビー 칸(기준점 ±24)과 겹치지 않음,
 //   달려오기 칸이 입구 → 재회 자리로 x가 줄고 발 y가 늘어남(뒷걸음·튐 없음).
@@ -429,6 +430,37 @@ for (const [name, k, at] of [['입구 대기', 'watch', GUEST_AT], ['재회 만�
       if (n > 0) for (let y = 0; y < ch; y++) out.set(n * (cw + 1) - 1, y, C.ink);
     });
     writeFileSync(join(HERE, 'park_fountain-objects-pigeons-4x.png'), indexedPng(out, S));
+  }
+}
+
+// ── 오리 P9 (#529): 연못 물 위에 떠 있는지, 테두리(y 180~)에 안 걸리는지, 화면 JSON의 오리 anim이 시트에 다 있는지.
+{
+  const D = meta.objects.find((o) => o.key === 'duck');
+  const names = ['duck.peck', 'duck.lap', 'duck.flap', 'duck.turn'];
+  const missing = names.filter((n) => !A[n]);
+  check(Boolean(D) && missing.length === 0, `오리 물건과 anim 4개가 시트에 있다${missing.length ? `: 없음 ${missing.join(', ')}` : ''}`);
+  const raw = JSON.stringify(screen);
+  check(names.every((n) => raw.includes(`"anim":["duck","${n.slice(5)}"]`)), '화면 JSON이 오리 anim 4개를 다 부른다');
+  if (D && missing.length === 0) {
+    const frames = [D.default.frame, ...names.flatMap((n) => A[n].frames)];
+    const bottom = (f) => meta.frames[f].at[1] + meta.frames[f].src[3] - 1;
+    // 물(y 172~179) 위에 떠 있다: 아래 끝(물방울 포함)이 물 띠 안, 테두리 앞면(y 180)보다 위
+    check(frames.every((f) => bottom(f) >= 174 && bottom(f) <= 179), `오리 칸 아래 끝이 물 띠 안(174~179): ${[...new Set(frames.map(bottom))].join(', ')}`);
+    const hot = screen.hotspots.duck.box;
+    const [rx, ry] = meta.frames[D.default.frame].at, [, , rw, rh] = meta.frames[D.default.frame].src;
+    check(rx >= hot[0] && ry >= hot[1] && rx + rw <= hot[0] + hot[2] && ry + rh <= hot[1] + hot[3], '떠 있는 그림이 히트 상자 안');
+    const real = new Image(W, H);
+    PARK.bg(real);
+    const rim = meta.objects.find((o) => o.key === 'fountain').default.frame;
+    const S = 4, x0 = 160, y0 = 152, cw = 48, ch = 34;
+    const shots = [D.default.frame, A['duck.peck'].frames[0], A['duck.flap'].frames[0], ...A['duck.lap'].frames.slice(1, 3)];
+    const out = new Image(cw * shots.length + shots.length - 1, ch);
+    shots.forEach((f, n) => {
+      const im = new Image(W, H); im.blit(real, 0, 0); put(im, f); put(im, rim);
+      for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) out.set(n * (cw + 1) + x, y, im.get(x0 + x, y0 + y));
+      if (n > 0) for (let y = 0; y < ch; y++) out.set(n * (cw + 1) - 1, y, C.ink);
+    });
+    writeFileSync(join(HERE, 'park_fountain-objects-duck-4x.png'), indexedPng(out, S));
   }
 }
 

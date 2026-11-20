@@ -8,6 +8,18 @@
       "src": [
         0,
         0,
+        16,
+        11
+      ],
+      "at": [
+        180,
+        166
+      ]
+    },
+    {
+      "src": [
+        16,
+        0,
         24,
         16
       ],
@@ -18,7 +30,7 @@
     },
     {
       "src": [
-        24,
+        40,
         0,
         36,
         18
@@ -30,7 +42,7 @@
     },
     {
       "src": [
-        60,
+        76,
         0,
         22,
         20
@@ -42,7 +54,7 @@
     },
     {
       "src": [
-        82,
+        98,
         0,
         194,
         20
@@ -54,7 +66,7 @@
     },
     {
       "src": [
-        276,
+        292,
         0,
         71,
         16
@@ -66,7 +78,7 @@
     },
     {
       "src": [
-        347,
+        363,
         0,
         46,
         38
@@ -78,7 +90,7 @@
     },
     {
       "src": [
-        393,
+        409,
         0,
         46,
         38
@@ -90,7 +102,7 @@
     },
     {
       "src": [
-        439,
+        455,
         0,
         13,
         14
@@ -102,7 +114,7 @@
     },
     {
       "src": [
-        452,
+        468,
         0,
         21,
         58
@@ -114,7 +126,7 @@
     },
     {
       "src": [
-        473,
+        489,
         0,
         21,
         58
@@ -543,21 +555,115 @@
         196,
         204
       ]
+    },
+    {
+      "src": [
+        450,
+        219,
+        17,
+        13
+      ],
+      "at": [
+        179,
+        166
+      ]
+    },
+    {
+      "src": [
+        467,
+        219,
+        16,
+        11
+      ],
+      "at": [
+        174,
+        166
+      ]
+    },
+    {
+      "src": [
+        483,
+        219,
+        16,
+        11
+      ],
+      "at": [
+        168,
+        166
+      ]
+    },
+    {
+      "src": [
+        0,
+        235,
+        16,
+        11
+      ],
+      "at": [
+        168,
+        166
+      ]
+    },
+    {
+      "src": [
+        16,
+        235,
+        16,
+        11
+      ],
+      "at": [
+        174,
+        166
+      ]
+    },
+    {
+      "src": [
+        32,
+        235,
+        24,
+        14
+      ],
+      "at": [
+        176,
+        163
+      ]
+    },
+    {
+      "src": [
+        56,
+        235,
+        16,
+        11
+      ],
+      "at": [
+        180,
+        166
+      ]
     }
   ],
   "objects": [
+    {
+      "key": "duck",
+      "ids": [
+        "duck"
+      ],
+      "default": {
+        "frame": 0,
+        "layer": "back"
+      }
+    },
     {
       "key": "jacket",
       "ids": [
         "jacket"
       ],
       "default": {
-        "frame": 0,
+        "frame": 1,
         "layer": "back",
         "loop": {
           "frames": [
-            0,
-            1
+            1,
+            2
           ],
           "ms": [
             12000,
@@ -581,7 +687,7 @@
               "jacket.on_hand": true
             }
           },
-          "frame": 2,
+          "frame": 3,
           "layer": "back"
         }
       ]
@@ -622,7 +728,7 @@
         "fountain"
       ],
       "default": {
-        "frame": 3,
+        "frame": 4,
         "layer": "back"
       }
     },
@@ -632,7 +738,7 @@
         "floor"
       ],
       "default": {
-        "frame": 4,
+        "frame": 5,
         "layer": "back"
       }
     },
@@ -642,12 +748,12 @@
         "keeper"
       ],
       "default": {
-        "frame": 5,
+        "frame": 6,
         "layer": "back",
         "loop": {
           "frames": [
-            5,
-            6
+            6,
+            7
           ],
           "ms": [
             15000,
@@ -662,7 +768,7 @@
         "alarm_clock"
       ],
       "default": {
-        "frame": 7,
+        "frame": 8,
         "layer": "back"
       }
     },
@@ -672,14 +778,14 @@
         "guest"
       ],
       "default": {
-        "frame": 8,
+        "frame": 9,
         "layer": "back",
         "loop": {
           "frames": [
-            8,
             9,
-            8,
-            9
+            10,
+            9,
+            10
           ],
           "ms": [
             1400,
@@ -696,7 +802,7 @@
               "jacket.taken": true
             }
           },
-          "frame": 10,
+          "frame": 11,
           "layer": "back"
         }
       ]
@@ -706,11 +812,11 @@
     "guest.wait": {
       "object": "guest",
       "frames": [
-        8,
         9,
-        8,
+        10,
         9,
-        8
+        10,
+        9
       ],
       "ms": [
         400,
@@ -724,10 +830,10 @@
     "guest.run_in": {
       "object": "guest",
       "frames": [
-        11,
         12,
         13,
-        14
+        14,
+        15
       ],
       "ms": [
         120,
@@ -741,7 +847,7 @@
     "guest.cheer": {
       "object": "guest",
       "frames": [
-        15
+        16
       ],
       "ms": [
         600
@@ -752,7 +858,7 @@
     "guest.soaked": {
       "object": "guest",
       "frames": [
-        10
+        11
       ],
       "ms": [
         600
@@ -763,9 +869,9 @@
     "keeper.wake": {
       "object": "keeper",
       "frames": [
-        16,
         17,
-        18
+        18,
+        19
       ],
       "ms": [
         260,
@@ -778,9 +884,9 @@
     "keeper.clean_time": {
       "object": "keeper",
       "frames": [
-        19,
         20,
-        21
+        21,
+        22
       ],
       "ms": [
         520,
@@ -793,7 +899,7 @@
     "keeper.swat": {
       "object": "keeper",
       "frames": [
-        22
+        23
       ],
       "ms": [
         500
@@ -803,8 +909,8 @@
     "keeper.curtain": {
       "object": "keeper",
       "frames": [
-        23,
-        24
+        24,
+        25
       ],
       "ms": [
         160,
@@ -816,8 +922,8 @@
     "keeper.curtain_open": {
       "object": "keeper",
       "frames": [
-        24,
-        23
+        25,
+        24
       ],
       "ms": [
         200,
@@ -828,9 +934,9 @@
     "alarm_clock.spring": {
       "object": "alarm_clock",
       "frames": [
-        25,
         26,
-        25
+        27,
+        26
       ],
       "ms": [
         220,
@@ -843,8 +949,8 @@
     "alarm_clock.fall": {
       "object": "alarm_clock",
       "frames": [
-        27,
-        28
+        28,
+        29
       ],
       "ms": [
         160,
@@ -856,9 +962,9 @@
     "alarm_clock.reel_up": {
       "object": "alarm_clock",
       "frames": [
-        29,
         30,
-        31
+        31,
+        32
       ],
       "ms": [
         200,
@@ -870,12 +976,12 @@
     "alarm_clock.ring_late": {
       "object": "alarm_clock",
       "frames": [
-        25,
         26,
-        25,
+        27,
         26,
-        25,
-        26
+        27,
+        26,
+        27
       ],
       "ms": [
         120,
@@ -890,9 +996,9 @@
     "jacket.twitch": {
       "object": "jacket",
       "frames": [
+        2,
         1,
-        0,
-        1
+        2
       ],
       "ms": [
         160,
@@ -904,11 +1010,11 @@
     "jacket.slide": {
       "object": "jacket",
       "frames": [
-        1,
-        32,
+        2,
         33,
         34,
-        2
+        35,
+        3
       ],
       "ms": [
         200,
@@ -922,8 +1028,8 @@
     "jacket.cover": {
       "object": "jacket",
       "frames": [
-        35,
-        36
+        36,
+        37
       ],
       "ms": [
         200,
@@ -952,14 +1058,14 @@
     "floor.pigeons_up": {
       "object": "pigeons",
       "frames": [
-        37,
         38,
         39,
         40,
         41,
         42,
         43,
-        37
+        44,
+        38
       ],
       "ms": [
         100,
@@ -976,14 +1082,80 @@
     "floor.pigeons_turn": {
       "object": "pigeons",
       "frames": [
-        44,
-        4,
-        44
+        45,
+        5,
+        45
       ],
       "ms": [
         300,
         150,
         350
+      ],
+      "layer": "back"
+    },
+    "duck.peck": {
+      "object": "duck",
+      "frames": [
+        46,
+        0,
+        46,
+        0
+      ],
+      "ms": [
+        140,
+        160,
+        140,
+        200
+      ],
+      "layer": "back"
+    },
+    "duck.lap": {
+      "object": "duck",
+      "frames": [
+        47,
+        48,
+        49,
+        50,
+        0
+      ],
+      "ms": [
+        220,
+        220,
+        260,
+        220,
+        220
+      ],
+      "layer": "back"
+    },
+    "duck.flap": {
+      "object": "duck",
+      "frames": [
+        51,
+        0,
+        51,
+        0,
+        51,
+        0
+      ],
+      "ms": [
+        110,
+        90,
+        110,
+        90,
+        110,
+        160
+      ],
+      "layer": "back"
+    },
+    "duck.turn": {
+      "object": "duck",
+      "frames": [
+        52,
+        0
+      ],
+      "ms": [
+        260,
+        160
       ],
       "layer": "back"
     }
