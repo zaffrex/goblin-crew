@@ -15,7 +15,7 @@
 
 import { Canvas, C } from '../lib/pixel.mjs';
 import { colorLines, rimShade, soles } from '../lib/finish.mjs';
-import { puff, shadow, streaks } from '../lib/fx.mjs';
+import { puff, shadow, streaks, drops } from '../lib/fx.mjs';
 import { squash } from '../lib/squash.mjs';
 
 export const CELL = [48, 64];
@@ -32,6 +32,8 @@ const R4 = {
   // 뒷장화: 한 단 어둡게 + 다른 ramp라 앞장화와 맞닿는 곳에 선이 생긴다(걷기에서 두 다리가 뭉치지 않게)
   bootBack: [C.redD, C.redD, C.red, C.red],
   chick: [C.lint, C.cotton, C.white, C.white],
+  // 젖은 우비(common.wet 1~3번): 물을 먹어 한 단 어둡고 빛(yelL)이 빠진다. 첫 색이 같아서 안쪽 경계선(LINE)은 그대로다
+  coatWet: [C.yelD, C.yelD, C.yel, C.yel],
 };
 // 안쪽 경계선 색: 뒤에 있는 부품 ramp 첫 색 → 선 색
 const LINE = new Map([
@@ -81,6 +83,7 @@ export function pose(kind, k) {
   if (kind === 'common.wag_finger') return WAG[k];
   if (kind === 'hide_in_basket') return HIDE[k];
   if (kind === 'step_up') return STEP_UP[k];
+  if (kind === 'common.wet') return WET[k];
   if (kind === 'idle') {
     return {
       chest: k, // 숨 들이쉬기 / 내쉬기
@@ -122,6 +125,7 @@ const HL = {
   K: C.plum, g: C.dusk,
   D: C.wood, d: C.woodL, s: C.tan, t: C.yelL,
   B: C.plum, F: C.ink, w: C.white, a: C.aqua, l: C.lint, P: C.ink, m: C.redD, c: C.pink,
+  A: C.tealL, M: C.tealM, // 렌즈에 찬 물(common.wet)
 };
 const HEAD = [
   '......LLLLYYYY.........',
@@ -148,6 +152,24 @@ const HEAD = [
   '............ddsssd.....',
   '..............dddd.....',
 ];
+// 젖은 후드(common.wet 1~3번): 물을 먹어 정수리가 2행 납작해지고(빛 L이 가는 줄로 남는다), 처진 챙이 앞머리와 눈썹을 덮는다(9행).
+//   물 자국(y 세로 줄)이 후드에 몇 줄 진다. 챙 밑 그늘(10행)이 안경 바로 위에 붙는다. 쭉이 젖은 앞머리·묵직이 흘러내린 띠와 같은 "젖어서 눈가가 가린다" 웃음을 삑삑이는 후드 + 물안경으로 한다.
+//   0~10행만 바꾸고 11행부터(안경·코·입·턱)는 HEAD 그대로다.
+const WET_HOOD = [
+  '.......................',
+  '.......................',
+  '.....yLYYYYYLYYYy......',
+  '...yLYYYYYYYYYYLYYy....',
+  '..yLYYYYYYYYYYYYYYYy...',
+  '.yLYYYYYyYYYYYYyYYYYy..',
+  'yLYYYYYYyYYYYYYyYYYYYy.',
+  'LYYYyYYYYYYYYYYYYYyYYYy',
+  'LYYYyYYYYYYYYYYYYYyYYYy',
+  'YYYYYYYyyyyyyyyyyyyyyyy',
+  'YYYYYYYyooddddddddddddd',
+];
+for (const row of WET_HOOD) if (row.length !== 23) throw new Error(`[ppik] 젖은 후드 줄 길이 ${row.length}: ${row}`);
+const WET_HEAD = [...WET_HOOD, ...HEAD.slice(WET_HOOD.length)];
 // 얼굴 위에 찍는 것: [열, 행, 격자]
 const BROWS = [11, 9, ['..BB..BB..', 'BB......BB']]; // 가운데가 올라간 걱정 눈썹
 const GLASSES = {
@@ -163,6 +185,13 @@ const GLASSES = {
   up: [11, 11, ['.FFF...FFF.', 'FwwPFFFwwPF', 'FwwPF.FwwPF', 'FlwwF.FlwwF', '.FFF...FFF.']],
   // 내려다봄(빼꼼, "아, 내 닭이구나"): 눈동자가 렌즈 앞쪽 아래에 붙는다
   down: [11, 11, ['.FFF...FFF.', 'FawwFFFawwF', 'FwwwF.FwwwF', 'FlwPF.FlwPF', '.FFF...FFF.']],
+  // 물 찬 안경(common.wet 1번, "물안경"): 렌즈 아래 두 줄이 물(A 밝은 물, M 물 바닥). 눈동자는 물 위에 둥둥 뜬다
+//   (맨 윗줄에 두면 테와 붙어서 안 보인다. 위에 흰 줄 하나를 남겨 "물 위 공기"로 쓴다).
+  flood: [11, 11, ['.FFF...FFF.', 'FwwwFFFwwwF', 'FAPAF.FAPAF', 'FMAMF.FMAMF', '.FFF...FFF.']],
+  // 털다가 출렁(common.wet 2번): 물이 몸 반대쪽(뒤)으로 기운다. 눈동자는 물 위로 밀려 앞쪽 위
+  slosh: [11, 11, ['.FFF...FFF.', 'FAwPFFFAwPF', 'FAAwF.FAAwF', 'FMAAF.FMAAF', '.FFF...FFF.']],
+  // 반쯤 빠짐(common.wet 3번): 물은 맨 아랫줄만 남고 눈동자가 물 바로 위에서 앞을 본다
+  drain: [11, 11, ['.FFF...FFF.', 'FawwFFFawwF', 'FwwPF.FwwPF', 'FAMAF.FAMAF', '.FFF...FFF.']],
   askew: [11, 10, ['.FFF.......', 'FPwwF..FFF.', 'FwwwFFFawwF', 'FlwwF.FwwwF', '.FFF..FwwPF', '.......FFF.']],
 };
 const TEMPLE = [10, 12, ['F']]; // 안경다리(후드 안으로)
@@ -240,18 +269,19 @@ export function drawFrame(p) {
   // 상체 기울기: 위로 갈수록 lean(① y 22에서 lean, 골반에서 0)
   const bx = (x, y) => x + lean * clamp((HIP_Y + d - y) / (HIP_Y - 22), 0, 1);
   const P = (x, y) => [Math.round(K.X(x)), Math.round(K.Y(y))];
+  const coat = p.wet ? R4.coatWet : R4.coat;
 
   const feet = [];
   feet.push(drawLeg(K, 'back', p.legs.back, d, -0.3));
   feet.push(drawLeg(K, 'front', p.legs.front, d, 0));
 
   // 뒷팔 소매(우비 뒤, 닭 쪽으로 뻗는다). 손은 닭 등 위에 따로 찍는다.
-  K.limb([[bx(12.8, body(27.6)), body(27.6), 1.5], [bx(18.6, body(30.0)), body(30.0), 1.35]], R4.coat, { bias: -0.35 });
+  K.limb([[bx(12.8, body(27.6)), body(27.6), 1.5], [bx(18.6, body(30.0)), body(30.0), 1.35]], coat, { bias: -0.35 });
 
   // 우비: 아래로 퍼지는 A라인(큰 타원 아래쪽만). 밑단은 내려앉은 다음 칸에 양 끝이 들린다(종처럼 벌어짐).
   const cx = 14.6, cy = body(38.2), rx = 6.6;
   const hem = HEM_Y + d;
-  K.ball(cx, cy, rx, 13.5, R4.coat, {
+  K.ball(cx, cy, rx, 13.5, coat, {
     clip: (x, y) => y >= body(24.4) && y <= hem - p.flare * 0.9 * Math.min(1, Math.abs(x - cx) / rx) ** 2,
   });
 
@@ -270,8 +300,8 @@ export function drawFrame(p) {
   // 손가락질(p.point)이면 닭은 뒷손에 맡기고 앞팔을 얼굴 앞으로 세운다(손은 머리 다음에 찍는다).
   const sx = bx(16.6, body(27.8)), sy = body(27.8);
   const pt = p.point && { x: bx(28.2 + p.point.x, body(25.0)), y: body(25.0) };
-  if (pt) K.limb([[sx, sy, 1.6], [bx(22.0, body(31.2)), body(31.2), 1.5], [pt.x, pt.y, 1.45]], R4.coat);
-  else K.limb([[sx, sy, 1.6], [bx(18.0, body(31.4)), body(31.4), 1.5], [cbx - 2.2, cby + 1.2, 1.55]], R4.coat);
+  if (pt) K.limb([[sx, sy, 1.6], [bx(22.0, body(31.2)), body(31.2), 1.5], [pt.x, pt.y, 1.45]], coat);
+  else K.limb([[sx, sy, 1.6], [bx(18.0, body(31.4)), body(31.4), 1.5], [cbx - 2.2, cby + 1.2, 1.55]], coat);
   colorLines(K, LINE);
 
   // 닭 세부: 볏·부리·눈·늘어진 다리
@@ -313,11 +343,12 @@ export function drawFrame(p) {
   // 머리: 상체와 같은 정수 px만큼 내리고 lean만큼 앞으로
   const hx0 = HEAD_X + p.lean + dx, hy0 = HEAD_Y + p.chest + oy;
   const headPart = K.part(R4.skin);
-  K.stamp(hx0, hy0, HEAD, HL, headPart);
+  K.stamp(hx0, hy0, p.wet ? WET_HEAD : HEAD, HL, headPart);
   // 고리에 걸린 후드 꼭지: 정수리 천이 텐트처럼 당겨져 손 기준점(hand)까지 솟는다. 당긴 주름이 정수리로 내려온다.
   if (p.snag) K.stamp(hx0 + 7, hy0 - 6, SNAG, HL, headPart);
   const gUp = p.glassesUp ?? 0; // 안경·눈썹이 튀어 오른다(놀람)
-  for (const [cx2, cy2, rows] of [[BROWS[0], BROWS[1] - gUp, BROWS[2]], [...GLASSES[p.eyes].slice(0, 1), GLASSES[p.eyes][1] - gUp, GLASSES[p.eyes][2]], TEMPLE, NOSE, MOUTHS[p.mouth ?? 'shake'], CHEEK])
+  const brows = p.wet ? [] : [[BROWS[0], BROWS[1] - gUp, BROWS[2]]]; // 젖은 후드 챙이 눈썹을 덮는다
+  for (const [cx2, cy2, rows] of [...brows, [...GLASSES[p.eyes].slice(0, 1), GLASSES[p.eyes][1] - gUp, GLASSES[p.eyes][2]], TEMPLE, NOSE, MOUTHS[p.mouth ?? 'shake'], CHEEK])
     K.stamp(hx0 + cx2, hy0 + cy2, rows, HL, headPart);
   if (p.sweat >= 0) K.stamp(hx0 + 21, hy0 + 1 + p.sweat, SWEAT, { A: C.tealM, W: C.white }, K.part(R4.chick));
   // 세운 검지(머리 앞에 찍는다): 소매 끝에서 주먹, 그 위로 검지가 까딱(tilt −1 뒤 / 0 곧게 / 1 앞)
@@ -635,6 +666,41 @@ const STEP_UP = [
   },
 ];
 
+// ══════════ 공용 리액션 (#529, 화면 2 8절 ③ 클리어 컷) ══════════
+// common.wet  공용 "젖음". 쭉이(jjuk-v4.mjs)·묵직이(mukjik.mjs)와 같은 박자 [100, 400, 300, 500], 같은 순서:
+//   0 철썩(물이 확 덮침: 움찔하며 닭을 반사적으로 쥐어짜 부리가 쩍, 눈 질끈, 안경 튐, 물보라. 후드는 아직 제자리)
+//   → 1 흠뻑(후드가 물을 먹어 납작해지고 챙이 눈썹까지 처진다. **안경에 물이 차서 눈동자가 렌즈 위에 둥둥 뜬다** = 물안경. 어깨 축, 덜덜 입, 닭 머리 축)
+//   → 2 부르르(몸을 1px 앞으로 털고 물이 양옆으로 튄다. 렌즈 속 물이 뒤로 출렁, 닭 머리가 반대로 휙)
+//   → 3 졸졸(허리를 펴고 입을 다문 "직원 자세". 렌즈 물은 맨 아랫줄만 남고, **품의 고무 닭 부리에서 물이 졸졸** 흘러내린다).
+//   삑삑이 웃음은 "닭부터 운다"(납작·엉덩방아와 같은 단서)라서, 젖었을 때는 닭이 울 대신 물을 토한다. 소리 글자는 없다.
+//   마지막 칸이 말풍선 동안 남는다(#193). 화면 2에서는 손님 `guest_hand` → プピ `clear`(`はい！\nお預かりします！`) 동안이라
+//   3번은 겁먹은 얼굴이 아니라 다문 입으로 똑바로 선다(젖어도 맡은 일은 받는 막내 알바).
+//   서 있기와 같은 drawFrame에 젖은 후드(wet)·렌즈 물(eyes)·물방울(fx)만 더한다. 방향은 고정하지 않는다.
+const WET_LEGS = { back: { x: -0.9, lift: 0, toe: false }, front: { x: 1.0, lift: 0, toe: false } };
+const WET = [
+  { // 0 철썩: 무릎을 모으고 움찔, 닭을 반사적으로 쥐어짜 부리가 쩍. 안경이 튀고 눈 질끈. 물보라가 몸 둘레로
+    chest: 2, lean: -1,
+    legs: { back: { x: -0.3, lift: 0, toe: false }, front: { x: 0.4, lift: 0, toe: false } },
+    eyes: 'shut', mouth: 'clench', glassesUp: 1, sweat: -1, chickHead: -3, chickUp: 2, squash: 1, beakOpen: true, flare: 1,
+    fx: (K) => drops(K, [[6, 6, 2], [12, 2, 1], [20, 0, 0], [30, 1, 1], [38, 4, 2], [44, 12, 1], [3, 18, 1], [45, 22, 0], [9, 10, 0]]),
+  },
+  { // 1 흠뻑: 후드가 납작, 챙이 눈썹을 덮고 렌즈에 물이 찬다. 어깨가 내려앉고(chest 3) 닭 머리는 축 처진다. 챙 끝·밑단에서 물 뚝
+    chest: 3, lean: 0, wet: true, legs: WET_LEGS,
+    eyes: 'flood', mouth: 'shake', sweat: -1, chickHead: 2, chickUp: 0, flare: 0,
+    fx: (K, { head: [hx, hy] }) => drops(K, [[hx + 23, hy + 11, 2], [hx + 1, hy + 9, 1], [9, 49, 1], [31, 50, 2], [15, 56, 0], [36, 57, 0]]),
+  },
+  { // 2 부르르: 몸 전체를 1px 앞으로 털고 물이 양옆으로 튄다. 렌즈 물은 뒤로 출렁, 닭 머리는 반대로 휙, 우비 밑단이 벌어진다
+    chest: 2, lean: 1, dx: 1, wet: true, legs: WET_LEGS,
+    eyes: 'slosh', mouth: 'clench', sweat: -1, chickHead: -2, chickUp: 1, flare: 1,
+    fx: (K) => drops(K, [[1, 16, 2], [4, 25, 1], [2, 33, 0], [7, 9, 0], [44, 14, 2], [46, 24, 1], [45, 32, 0], [40, 7, 0]]),
+  },
+  { // 3 졸졸: 허리를 펴고 입을 다문다. 렌즈 물은 아랫줄만, 고무 닭 부리에서 물이 졸졸(부리 앞 → 아래로 가늘어지는 줄)
+    chest: 1, lean: 0, wet: true, legs: WET_LEGS,
+    eyes: 'drain', mouth: 'prim', sweat: -1, chickHead: 0, chickUp: 1, beakOpen: true, flare: 0,
+    fx: (K, { beak: [x, y], head: [hx, hy] }) => drops(K, [[x + 5, y, 1], [x + 6, y + 2, 1], [x + 6, y + 4, 0], [x + 6, y + 7, 0], [x + 5, y + 11, 2], [hx + 23, hy + 12, 1]]),
+  },
+];
+
 export const SHEET = {
   name: 'ppik-base',
   character: 'ppik',
@@ -655,6 +721,8 @@ export const SHEET = {
     { name: 'hide_in_basket', frames: 4, ms: [200, 300, 350, 500] },
     // 웅크림·공중(#397 1-5-3절). 착지는 엔진이 0번 칸을 50ms 다시 쓴다. 맨 뒤에 붙여서 앞 칸 번호(#357 납작 17)는 그대로다.
     { name: 'step_up', frames: 2, ms: [50, 150] },
+    // 공용 젖음(#529). 쭉이·묵직이와 같은 박자. 맨 뒤에 붙여서 앞 칸 번호는 그대로다.
+    { name: 'common.wet', frames: 4, ms: [100, 400, 300, 500] },
   ],
   pose,
   drawFrame,
