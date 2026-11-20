@@ -1,0 +1,656 @@
+{
+  "//": "node art/build.mjs로 만든 파일. 직접 고치지 않는다. 원본: art/scenes/park_fountain.mjs. 형식: docs/decisions/2026-11-16-scene-art-format-v1.md. frames[i].src = 시트 안 [x,y,w,h], at = 화면 좌표(왼쪽 위).",
+  "image": "park_fountain-objects.png",
+  "bg": null,
+  "screen": "park_fountain",
+  "frames": [
+    {
+      "src": [
+        0,
+        0,
+        21,
+        58
+      ],
+      "at": [
+        439,
+        175
+      ]
+    },
+    {
+      "src": [
+        21,
+        0,
+        21,
+        58
+      ],
+      "at": [
+        437,
+        175
+      ]
+    },
+    {
+      "src": [
+        42,
+        0,
+        20,
+        55
+      ],
+      "at": [
+        289,
+        190
+      ]
+    },
+    {
+      "src": [
+        62,
+        0,
+        46,
+        38
+      ],
+      "at": [
+        35,
+        113
+      ]
+    },
+    {
+      "src": [
+        108,
+        0,
+        46,
+        38
+      ],
+      "at": [
+        35,
+        113
+      ]
+    },
+    {
+      "src": [
+        154,
+        0,
+        13,
+        14
+      ],
+      "at": [
+        83,
+        139
+      ]
+    },
+    {
+      "src": [
+        167,
+        0,
+        22,
+        15
+      ],
+      "at": [
+        213,
+        31
+      ]
+    },
+    {
+      "src": [
+        189,
+        0,
+        28,
+        15
+      ],
+      "at": [
+        208,
+        31
+      ]
+    },
+    {
+      "src": [
+        217,
+        0,
+        22,
+        20
+      ],
+      "at": [
+        249,
+        106
+      ]
+    },
+    {
+      "src": [
+        239,
+        0,
+        21,
+        58
+      ],
+      "at": [
+        409,
+        178
+      ]
+    },
+    {
+      "src": [
+        260,
+        0,
+        21,
+        58
+      ],
+      "at": [
+        375,
+        181
+      ]
+    },
+    {
+      "src": [
+        281,
+        0,
+        21,
+        58
+      ],
+      "at": [
+        341,
+        184
+      ]
+    },
+    {
+      "src": [
+        302,
+        0,
+        21,
+        58
+      ],
+      "at": [
+        309,
+        186
+      ]
+    },
+    {
+      "src": [
+        323,
+        0,
+        26,
+        59
+      ],
+      "at": [
+        286,
+        186
+      ]
+    },
+    {
+      "src": [
+        349,
+        0,
+        46,
+        38
+      ],
+      "at": [
+        35,
+        113
+      ]
+    },
+    {
+      "src": [
+        395,
+        0,
+        61,
+        38
+      ],
+      "at": [
+        35,
+        113
+      ]
+    },
+    {
+      "src": [
+        456,
+        0,
+        46,
+        38
+      ],
+      "at": [
+        35,
+        113
+      ]
+    },
+    {
+      "src": [
+        0,
+        59,
+        46,
+        38
+      ],
+      "at": [
+        35,
+        113
+      ]
+    },
+    {
+      "src": [
+        46,
+        59,
+        46,
+        38
+      ],
+      "at": [
+        35,
+        113
+      ]
+    },
+    {
+      "src": [
+        92,
+        59,
+        46,
+        38
+      ],
+      "at": [
+        35,
+        113
+      ]
+    },
+    {
+      "src": [
+        138,
+        59,
+        57,
+        38
+      ],
+      "at": [
+        35,
+        113
+      ]
+    },
+    {
+      "src": [
+        195,
+        59,
+        46,
+        38
+      ],
+      "at": [
+        35,
+        113
+      ]
+    },
+    {
+      "src": [
+        241,
+        59,
+        46,
+        38
+      ],
+      "at": [
+        35,
+        113
+      ]
+    },
+    {
+      "src": [
+        287,
+        59,
+        15,
+        24
+      ],
+      "at": [
+        81,
+        129
+      ]
+    },
+    {
+      "src": [
+        302,
+        59,
+        13,
+        21
+      ],
+      "at": [
+        83,
+        132
+      ]
+    },
+    {
+      "src": [
+        315,
+        59,
+        19,
+        12
+      ],
+      "at": [
+        92,
+        188
+      ]
+    },
+    {
+      "src": [
+        334,
+        59,
+        30,
+        20
+      ],
+      "at": [
+        226,
+        29
+      ]
+    },
+    {
+      "src": [
+        364,
+        59,
+        24,
+        24
+      ],
+      "at": [
+        245,
+        52
+      ]
+    },
+    {
+      "src": [
+        388,
+        59,
+        24,
+        24
+      ],
+      "at": [
+        247,
+        80
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "key": "guest",
+      "ids": [
+        "guest"
+      ],
+      "default": {
+        "frame": 0,
+        "layer": "back",
+        "loop": {
+          "frames": [
+            0,
+            1,
+            0,
+            1
+          ],
+          "ms": [
+            1400,
+            220,
+            300,
+            220
+          ]
+        }
+      },
+      "states": [
+        {
+          "when": {
+            "flags": {
+              "jacket.taken": true
+            }
+          },
+          "frame": 2,
+          "layer": "back"
+        }
+      ]
+    },
+    {
+      "key": "keeper",
+      "ids": [
+        "keeper"
+      ],
+      "default": {
+        "frame": 3,
+        "layer": "back",
+        "loop": {
+          "frames": [
+            3,
+            4
+          ],
+          "ms": [
+            15000,
+            400
+          ]
+        }
+      }
+    },
+    {
+      "key": "alarm_clock",
+      "ids": [
+        "alarm_clock"
+      ],
+      "default": {
+        "frame": 5,
+        "layer": "back"
+      }
+    },
+    {
+      "key": "jacket",
+      "ids": [
+        "jacket"
+      ],
+      "default": {
+        "frame": 6,
+        "layer": "back",
+        "loop": {
+          "frames": [
+            6,
+            7
+          ],
+          "ms": [
+            12000,
+            300
+          ]
+        }
+      },
+      "states": [
+        {
+          "when": {
+            "flags": {
+              "jacket.on_hand": true
+            }
+          },
+          "frame": 8,
+          "layer": "back"
+        }
+      ]
+    }
+  ],
+  "anims": {
+    "guest.wait": {
+      "object": "guest",
+      "frames": [
+        0,
+        1,
+        0,
+        1,
+        0
+      ],
+      "ms": [
+        400,
+        200,
+        200,
+        200,
+        300
+      ],
+      "layer": "back"
+    },
+    "guest.run_in": {
+      "object": "guest",
+      "frames": [
+        9,
+        10,
+        11,
+        12
+      ],
+      "ms": [
+        120,
+        120,
+        120,
+        120
+      ],
+      "layer": "back",
+      "hold": true
+    },
+    "guest.cheer": {
+      "object": "guest",
+      "frames": [
+        13
+      ],
+      "ms": [
+        600
+      ],
+      "layer": "back",
+      "hold": true
+    },
+    "guest.soaked": {
+      "object": "guest",
+      "frames": [
+        2
+      ],
+      "ms": [
+        600
+      ],
+      "layer": "back",
+      "hold": true
+    },
+    "keeper.wake": {
+      "object": "keeper",
+      "frames": [
+        14,
+        15,
+        16
+      ],
+      "ms": [
+        260,
+        340,
+        600
+      ],
+      "layer": "back",
+      "hold": true
+    },
+    "keeper.clean_time": {
+      "object": "keeper",
+      "frames": [
+        17,
+        18,
+        19
+      ],
+      "ms": [
+        520,
+        420,
+        480
+      ],
+      "layer": "back",
+      "hold": true
+    },
+    "keeper.swat": {
+      "object": "keeper",
+      "frames": [
+        20
+      ],
+      "ms": [
+        500
+      ],
+      "layer": "back"
+    },
+    "keeper.curtain": {
+      "object": "keeper",
+      "frames": [
+        21,
+        22
+      ],
+      "ms": [
+        160,
+        300
+      ],
+      "layer": "back",
+      "hold": true
+    },
+    "keeper.curtain_open": {
+      "object": "keeper",
+      "frames": [
+        22,
+        21
+      ],
+      "ms": [
+        200,
+        160
+      ],
+      "layer": "back"
+    },
+    "alarm_clock.spring": {
+      "object": "alarm_clock",
+      "frames": [
+        23,
+        24,
+        23
+      ],
+      "ms": [
+        220,
+        200,
+        260
+      ],
+      "layer": "back",
+      "hold": true
+    },
+    "alarm_clock.fall": {
+      "object": "alarm_clock",
+      "frames": [
+        25
+      ],
+      "ms": [
+        700
+      ],
+      "layer": "back",
+      "hold": true
+    },
+    "alarm_clock.ring_late": {
+      "object": "alarm_clock",
+      "frames": [
+        23,
+        24,
+        23,
+        24,
+        23,
+        24
+      ],
+      "ms": [
+        120,
+        120,
+        120,
+        120,
+        120,
+        120
+      ],
+      "layer": "back"
+    },
+    "jacket.twitch": {
+      "object": "jacket",
+      "frames": [
+        7,
+        6,
+        7
+      ],
+      "ms": [
+        160,
+        90,
+        420
+      ],
+      "layer": "back"
+    },
+    "jacket.slide": {
+      "object": "jacket",
+      "frames": [
+        7,
+        26,
+        27,
+        28,
+        8
+      ],
+      "ms": [
+        200,
+        260,
+        90,
+        90,
+        400
+      ],
+      "layer": "back"
+    }
+  }
+}
