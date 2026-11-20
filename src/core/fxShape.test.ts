@@ -5,7 +5,7 @@ import parkJson from '../../content/screens/park_fountain.json';
 import { FX_STYLE, FX_TICKS } from './fx';
 import {
   drawnByShape, frameNudges, fxNudges, HOP_PX, HOP_TICKS, NUDGE_FX, nudgeOf, particleFx, RATTLE_TICKS, shapeParticles, SOIL_COLORS, SOIL_FROM, SOIL_HIGH, SOIL_WIDE,
-  SPLASH_DROPS, SPLASH_TOP, TEXT_PARTICLE_FX, WATER_COLORS, WATER_FX, waterParticles,
+  SPLASH_DROPS, SPLASH_TOP, TEXT_PARTICLE_FX, WATER_COLORS, WATER_FX,
 } from './fxShape';
 import { parseSceneArt, type SceneDraws } from './sceneArt';
 import { FX_MAX_PARTICLES } from './sceneFx';
@@ -92,58 +92,58 @@ describe('splash·ripple: 물 4색 입자 (#485)', () => {
 
   it.each(Object.keys(WATER_FX))('%s: 물 4색만, 1~2px, 상한 안, 결정적', (fx) => {
     for (let t = 0; t < FX_TICKS; t++) {
-      const ps = waterParticles(fx, at, t);
+      const ps = shapeParticles(fx, at, t);
       expect(ps.length).toBeLessThanOrEqual(FX_MAX_PARTICLES);
       for (const p of ps) {
         expect(WATER_COLORS).toContain(p.color);
         expect([1, 2]).toContain(p.size);
         expect(Number.isInteger(p.x) && Number.isInteger(p.y)).toBe(true);
       }
-      expect(waterParticles(fx, at, t)).toEqual(ps);
+      expect(shapeParticles(fx, at, t)).toEqual(ps);
     }
   });
 
   it.each(Object.keys(WATER_FX))('%s: 시작하면 보이고, 길이가 끝나면 없다', (fx) => {
-    expect(waterParticles(fx, at, 0).length).toBeGreaterThan(0);
-    expect(waterParticles(fx, at, FX_TICKS)).toEqual([]);
-    expect(waterParticles(fx, at, -1)).toEqual([]);
+    expect(shapeParticles(fx, at, 0).length).toBeGreaterThan(0);
+    expect(shapeParticles(fx, at, FX_TICKS)).toEqual([]);
+    expect(shapeParticles(fx, at, -1)).toEqual([]);
   });
 
   it('splash: 물벼락, 머리 위 30px 넘는 곳에서 쏟아져 내려와 좌우로 벌어지고, 끝나기 전에 다 떨어진다 (#525)', () => {
-    const first = waterParticles('splash', at, 0);
+    const first = shapeParticles('splash', at, 0);
     expect(first.length).toBeGreaterThan(0);
     expect(first.every((p) => p.y <= at.y - SPLASH_TOP)).toBe(true);
-    const meanY = (t: number) => { const ps = waterParticles('splash', at, t); return ps.reduce((n, p) => n + p.y, 0) / ps.length; };
+    const meanY = (t: number) => { const ps = shapeParticles('splash', at, t); return ps.reduce((n, p) => n + p.y, 0) / ps.length; };
     expect(meanY(14)).toBeGreaterThan(meanY(4) + 10);
-    const late = waterParticles('splash', at, 14);
+    const late = shapeParticles('splash', at, 14);
     expect(Math.min(...late.map((p) => p.x))).toBeLessThan(at.x - 6);
     expect(Math.max(...late.map((p) => p.x))).toBeGreaterThan(at.x + 6);
     // 머리 높이에 닿은 방울이 있다(물벼락을 "맞았다")
-    expect(Array.from({ length: FX_TICKS }, (_, t) => waterParticles('splash', at, t)).flat().some((p) => p.y >= at.y)).toBe(true);
+    expect(Array.from({ length: FX_TICKS }, (_, t) => shapeParticles('splash', at, t)).flat().some((p) => p.y >= at.y)).toBe(true);
     // 공중에서 한꺼번에 사라지지 않게: 끝나기 몇 틱 전이면 이미 0개 (#486 리뷰)
-    expect(waterParticles('splash', at, FX_TICKS - 4)).toEqual([]);
+    expect(shapeParticles('splash', at, FX_TICKS - 4)).toEqual([]);
   });
 
   it('splash: 방울 수가 늘 32개 이하이고, 어느 방울도 솟지 않는다(머리에서 물을 뿜는 것처럼 보이지 않게, #486 리뷰)', () => {
-    for (let t = 0; t < FX_TICKS; t++) expect(waterParticles('splash', at, t).length).toBeLessThanOrEqual(SPLASH_DROPS);
-    const all = Array.from({ length: FX_TICKS }, (_, t) => waterParticles('splash', at, t)).flat();
+    for (let t = 0; t < FX_TICKS; t++) expect(shapeParticles('splash', at, t).length).toBeLessThanOrEqual(SPLASH_DROPS);
+    const all = Array.from({ length: FX_TICKS }, (_, t) => shapeParticles('splash', at, t)).flat();
     // 가장 높은 방울도 시작 높이(위 30~44px) 안, 가장 낮은 방울은 어깨(아래 12px) 위, 좌우 24px 안
     expect(Math.min(...all.map((p) => p.y))).toBeGreaterThanOrEqual(at.y - SPLASH_TOP - 14);
     expect(Math.max(...all.map((p) => p.y))).toBeLessThanOrEqual(at.y + 12);
     expect(Math.max(...all.map((p) => Math.abs(p.x - at.x)))).toBeLessThanOrEqual(24);
     expect(all.some((p) => p.color === WATER_COLORS[3])).toBe(false);
     // 틱이 갈수록 가장 낮은 방울은 내려가기만 한다(처음 몇 틱, 새 방울은 위에서 생긴다)
-    const lowest = Array.from({ length: 10 }, (_, t) => Math.max(...waterParticles('splash', at, t).map((p) => p.y)));
+    const lowest = Array.from({ length: 10 }, (_, t) => Math.max(...shapeParticles('splash', at, t).map((p) => p.y)));
     for (let t = 1; t < lowest.length; t++) expect(lowest[t]).toBeGreaterThanOrEqual(lowest[t - 1]!);
   });
 
   it('ripple: 고리가 기준점 둘레에서 퍼지고 납작하다(가로 > 세로)', () => {
-    const ps = waterParticles('ripple', at, 12);
+    const ps = shapeParticles('ripple', at, 12);
     const w = Math.max(...ps.map((p) => p.x)) - Math.min(...ps.map((p) => p.x));
     const h = Math.max(...ps.map((p) => p.y)) - Math.min(...ps.map((p) => p.y));
     expect(w).toBeGreaterThan(h * 2);
-    const late = waterParticles('ripple', at, 24);
-    expect(Math.max(...late.map((p) => p.x))).toBeGreaterThan(Math.max(...waterParticles('ripple', at, 4).map((p) => p.x)));
+    const late = shapeParticles('ripple', at, 24);
+    expect(Math.max(...late.map((p) => p.x))).toBeGreaterThan(Math.max(...shapeParticles('ripple', at, 4).map((p) => p.x)));
   });
 });
 
