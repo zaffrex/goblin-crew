@@ -70,6 +70,7 @@ export function pose(kind, k) {
   if (kind === 'common.stomp') return STOMP[k];
   if (kind === 'common.flatten') return FLATTEN[k];
   if (kind === 'step_up') return STEP_UP[k];
+  if (kind === 'sit_corner') return SIT_CORNER[k];
   if (kind === 'idle') {
     return {
       chest: k, // 숨 들이쉬기(배가 나온다) / 내쉬기
@@ -237,6 +238,8 @@ export function drawFrame(p) {
   // 몸통: 흰 셔츠 위에 공 같은 배를 감싼 작업복. 배는 한 프레임 늦게 출렁인다.
   const jig = u(p.jiggle);
   const bel = p.belly;
+  // 엉덩이(앉기 sit_corner): 배 뒤 아래로 튀어나온 작업복 엉덩이. 배보다 먼저 그려 배가 앞을 덮는다.
+  if (p.seat) K.ball(p.seat[0], body(p.seat[1]), p.seat[2], p.seat[3], R4.overall, { bias: -0.2 });
   K.ball(bx(16, body(26.4)), body(26.4), 10.4, 9.4, R4.shirt);
   const belly = K.ball(bx(16.8 + bel, body(31.2 + jig)), body(31.2 + jig), 11.4 + bel * 0.4, 7.9, R4.overall, {
     clip: (x, y) => y > body(27.4 + jig) - 0.3 * (x - 16 - lean),
@@ -406,6 +409,62 @@ const STEP_UP = [
   },
 ];
 
+// ══════════ 화면 2 자세 (#380, 설계 docs/design/screens/park_fountain.md 7절 P4) ══════════
+// sit_corner  분수대 테두리 돌에 일부러 털썩 앉기(3번★ 주 아하, 4번). 자리 fountain_seat(발 y 200 = 테두리 아래 끝 198 바로 앞)에서
+//   재생해서, 엉덩이가 테두리 앞면 윗단(칸 y 44~53) 위에 놓인다. 발 y 244에서 앉으면 흙길에 앉은 것으로 읽혀 단서 ②(돌/흙)가 무너진다.
+//   넘어지는 실패 리액션 common.bump_bottom(뒤로 자빠짐, 별)과 다르게 *일부러* 앉는다: 별 없음, 마지막 얼굴이 비장(눈 뜬 기합).
+//   0 겨누기: 무릎을 굽혀 엉덩이를 뒤로 쭉 빼고, 뒷손으로 등 뒤 돌을 더듬는다. 앞주먹은 무릎에. 미간 찌푸림.
+//   1 털썩: 엉덩이가 돌에 닿는 칸. 허벅지가 앞으로 눕고 두 팔이 튀어 오른다. 배는 아직 위(한 칸 늦음). 엉덩이 옆 먼지 + 충격선.
+//      시트 cue 1 = 이 칸에서 `ゴォン`(gon_text)이 뜬다.
+//   2 비장: 앉은 채 가슴을 펴고 앞주먹은 무릎, 뒷손은 돌을 짚는다. 배가 늦게 내려앉아 한 번 출렁. 머리띠 꼬리 처짐.
+//      cue 2 = 이 칸에서 분수대 흔들림(shake)·물결(ripple). 말풍선 동안 이 칸이 남는다(#193).
+//   합 1250ms ≤ 연출 상한 1500. 방향은 고정하지 않는다(테두리 앞면 앞에 서니 어느 쪽을 봐도 엉덩이가 돌 위다).
+/** 앉은 다리: 허벅지가 앞으로 눕고(무릎 = 골반 높이) 정강이는 곧게 내려 발바닥이 바닥에 닿는다. */
+const SEAT_LEGS = {
+  back: { x: 3.4, lift: 0, toe: false, knee: [3.6, 0.6] },
+  front: { x: 4.6, lift: 0, toe: false, knee: [4.8, 0.4] },
+};
+/** 엉덩이 뒤 먼지·충격선(외곽선 없음): 엉덩이가 돌에 닿는 자리 뒤쪽으로 짧게 튄다. 몸 위에는 그리지 않는다. */
+function seatImpact(K) {
+  const rays = [
+    [[5, 47, C.white], [4, 46, C.white], [3, 45, C.cotton]],
+    [[5, 52, C.white], [4, 52, C.white], [3, 52, C.cotton]],
+    [[7, 43, C.white], [7, 42, C.cotton]],
+  ];
+  for (const ray of rays) for (const [x, y, c] of ray) if (K.get(x, y) === -1) K.dot(x, y, c);
+}
+const SIT_CORNER = [
+  { // 0 겨누기: 엉덩이를 뒤로 빼고 몸을 앞으로 숙인다. 뒷손은 등 뒤 아래(돌 더듬기), 앞주먹은 앞 무릎 위
+    chest: 4, belly: 0.6, jiggle: 0, lean: 2,
+    legs: { back: { x: -0.4, lift: 0, toe: false, knee: [1.8, 1.6] }, front: { x: 2.0, lift: 0, toe: false, knee: [3.6, 1.2] } },
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [2.2, 2.0], front: [1.15, 1.6] },
+    seat: [6.4, 38.6, 4.0, 3.2],
+    tails: 1,
+    face: { brows: 'furrow' },
+  },
+  { // 1 털썩: 앉는 칸. 허벅지가 눕고 몸은 살짝 뒤로, 배는 아직 위(jiggle -2). 두 주먹이 반동으로 어깨 옆까지 튄다
+    chest: 2, belly: 0.6, jiggle: -2, lean: -1,
+    legs: SEAT_LEGS,
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [UP - 0.3, UP + 0.05], front: [UP + 0.9, UP + 0.4] },
+    seat: [7.0, 39.4, 4.4, 2.6],
+    tails: 0,
+    face: { brows: 'furrow', eyes: 'shut', mouth: 'grit' },
+    fx: (K) => { puff(K, 4, 1, { behind: true }); seatImpact(K); },
+  },
+  { // 2 비장: 앉은 채 가슴을 편다. 앞주먹은 무릎, 뒷손은 엉덩이 옆 돌을 짚는다. 배가 늦게 내려앉아 출렁(jiggle +2)
+    chest: 1, belly: 0.6, jiggle: 2, lean: -1,
+    legs: SEAT_LEGS,
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [2.0, 1.75], front: [1.2, 1.5] },
+    seat: [7.0, 39.0, 4.4, 3.0],
+    tails: 2,
+    face: { brows: 'furrow', mouth: 'grit' },
+    fx: (K) => puff(K, 4, 2, { behind: true }),
+  },
+];
+
 export const SHEET = {
   name: 'mukjik-base',
   character: 'mukjik',
@@ -429,6 +488,9 @@ export const SHEET = {
       cue: [3],
       air: [1, 2],
     },
+    // 화면 2 P4 테두리 돌에 털썩 앉기(#380, park_fountain.md 7절). 맨 뒤에 붙여서 앞 칸 번호는 그대로다.
+    // cue [1, 2]: 털썩 칸에서 `ゴォン`, 비장 칸에서 흔들림(3번)·물결(4번).
+    { name: 'sit_corner', frames: 3, ms: [400, 150, 700], cue: [1, 2] },
   ],
   pose,
   drawFrame,

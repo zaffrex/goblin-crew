@@ -19,10 +19,12 @@ describe('park_fountain BFS check', () => {
     expect(r.explore.deadEnds).toEqual([]);
   });
   it('matches the expected size and shortest path', () => {
-    expect(r.explore.stateCount).toBe(25);
+    // 25 -> 180 with the `fountain_seat` spot (P4 sit on the rim stone, #380): BFS also tries `move` into it for every
+    // character (capacity 3). The spot has no box, so in play only mukjik's stomp on `fountain` walks there.
+    expect(r.explore.stateCount).toBe(180);
     expect(r.explore.shortestLength).toBe(3);
     expect(r.explore.safeShortestLength).toBe(3);
-    expect(r.explore.foldedCount).toBe(5);
+    expect(r.explore.foldedCount).toBe(36);
   });
   it('requires all three abilities', () => {
     expect(r.requiredAbilities).toEqual({ stretch: true, stomp: true, squeak: true });
