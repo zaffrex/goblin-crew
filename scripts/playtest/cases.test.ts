@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { Action, CharactersData, ScreenData } from '../../src/core/puzzle/types';
 import { createScene, currentBubble, currentCut, isBusy, sceneLayout, sceneTap, sceneTick, type SceneData, type SceneState } from '../../src/core/scene';
+import { parseSceneArt } from '../../src/core/sceneArt';
 import { CASES_BY_SCREEN } from './cases/index';
 import { planAction, type Input } from './plan';
 
@@ -80,4 +81,36 @@ describe('frames.ts 사례 (#466 2부)', () => {
       expect(ids.some((id) => id.startsWith(p)), p).toBe(true);
     }
   });
+});
+
+describe('idle 사례가 대기 loop의 첫 움직임을 찍는다 (#477)', () => {
+  // frames.ts는 시작 카드를 닫은 순간부터 `every`마다 찍고, 연출이 끝났으면 `minMs`에서 멈춘다.
+  // 그림 쪽에서 loop 주기를 늘리면(예: 꾸벅 15초 → 18초) 사례는 조용히 움직임을 놓친다. 그래서 그림 데이터로 잰다.
+  // 2026-11-20 로컬 캡처: 꾸벅이 15000·15200ms, 움찔이 12001·12200ms 칸에 찍혔다(벽시계 = 화면 시계).
+  // 느린 PC에서는 화면 시계가 벽시계보다 늦게 가므로(#286) 끝에 1초를 남긴다.
+  const LAG_MS = 1000;
+  for (const [screenId, cases] of Object.entries(CASES_BY_SCREEN)) {
+    const c = cases.find((x) => x.id === 'idle');
+    const artPath = `public/scenes/${screenId}-objects.json`;
+    if (!c) continue;
+    it(`${screenId}: idle 사례 창(minMs)과 간격(every)이 멈춘 모습 loop마다 움직이는 칸을 덮는다`, () => {
+      const art = parseSceneArt(load(artPath));
+      const every = c.every ?? 120;
+      const minMs = c.minMs ?? 0;
+      let loops = 0;
+      for (const o of art.objects) {
+        const loop = 'default' in o ? o.default.loop : undefined;
+        if (!loop) continue;
+        loops++;
+        // 처음으로 첫 칸과 다른 칸이 나오는 자리 = 처음 보이는 움직임.
+        const i = loop.frames.findIndex((f) => f !== loop.frames[0]);
+        expect(i, `${o.key}: loop 칸이 다 같다`).toBeGreaterThan(0);
+        const start = loop.ms.slice(0, i).reduce((a, b) => a + b, 0);
+        const end = start + loop.ms[i]!;
+        expect(end + LAG_MS, `${o.key}: 첫 움직임 ${start}~${end}ms가 창 ${minMs}ms(여유 ${LAG_MS}) 밖`).toBeLessThanOrEqual(minMs);
+        expect(every, `${o.key}: 움직이는 칸 ${loop.ms[i]}ms보다 간격이 길면 칸 사이로 빠진다`).toBeLessThanOrEqual(loop.ms[i]!);
+      }
+      expect(loops, 'idle 사례가 있는데 멈춘 모습 loop가 없다').toBeGreaterThan(0);
+    });
+  }
 });
