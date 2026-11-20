@@ -99,7 +99,7 @@ describe('idle 사례가 대기 loop의 첫 움직임을 찍는다 (#477)', () =
       const minMs = c.minMs ?? 0;
       let loops = 0;
       for (const o of art.objects) {
-        const loop = 'default' in o ? o.default.loop : undefined;
+        const loop = o.effect === undefined ? o.default.loop : undefined;
         if (!loop) continue;
         loops++;
         // 처음으로 첫 칸과 다른 칸이 나오는 자리 = 처음 보이는 움직임.
