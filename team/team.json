@@ -4,7 +4,7 @@
     "github_login": "zaffrex"
   },
   "github_bot_login": "claude[bot]",
-  "model_policy": "모델 하향(비용 절감)은 L1, 상향(사용량 증가)은 L3(사장님 결정). 저장소 변수 AGENT_MODEL이 있으면 모든 역할에 우선 적용된다(비상 조절용).",
+  "model_policy": "모델 하향(비용 절감)은 L1, 상향(사용량 증가)은 L3(진마씨 결정). 저장소 변수 AGENT_MODEL이 있으면 모든 역할에 우선 적용된다(비상 조절용).",
   "fallback_model": "claude-sonnet-5-5",
   "roles": {
     "pm": {

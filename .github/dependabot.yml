@@ -18,7 +18,7 @@ updates:
         update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
-    # 워크플로 파일은 CODEOWNERS로 사장님 승인이 필요하다. 한 달에 PR 하나로 묶어 승인 횟수를 줄인다.
+    # 워크플로 파일은 CODEOWNERS로 진마씨 승인이 필요하다. 한 달에 PR 하나로 묶어 승인 횟수를 줄인다.
     schedule:
       interval: monthly
     groups:
