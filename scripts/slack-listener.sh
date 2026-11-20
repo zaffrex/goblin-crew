@@ -52,10 +52,11 @@ done
 # --- channels to watch: team channels + CEO DM per member ----------------------------------------
 declare -A CH_TOKEN CH_NAME CH_DMROLE CURSOR
 # Start cursor: previous listener's end - OVERLAP (covers the handover and any cron-recovery gap, issue #11).
+# Cancelled runs are skipped: queued cron runs get cancelled at each handover and would give a too-early end (PM #11).
 # Capped at MAX_BACKFILL so old posts never wake agents; falls back to now - LOOKBACK if no previous run is found.
 OVERLAP=${OVERLAP_SECONDS:-30}; MAX_BACKFILL=${MAX_BACKFILL_SECONDS:-3600}
 PREV_END=""
-prev_iso=$(gh run list -R "$REPO" --workflow slack-listener.yml --status completed --limit 1 --json updatedAt --jq '.[0].updatedAt // empty' 2>/dev/null) || prev_iso=""
+prev_iso=$(gh run list -R "$REPO" --workflow slack-listener.yml --status completed --limit 10 --json updatedAt,conclusion --jq '[.[] | select(.conclusion != "cancelled")] | max_by(.updatedAt) | .updatedAt // empty' 2>/dev/null) || prev_iso=""
 [ -n "$prev_iso" ] && PREV_END=$(date -d "$prev_iso" +%s 2>/dev/null || true)
 now_s=$(date +%s)
 if [ -n "$PREV_END" ]; then
