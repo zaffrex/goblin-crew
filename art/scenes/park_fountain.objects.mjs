@@ -477,10 +477,11 @@ const KEEPER_POSES = {
   // P1 0칸: 졸기(대기). 고개가 앞으로 2px 떨구고 팔은 창턱 안쪽 책상에 포갠다. 입가에 침 한 방울
   doze: { at: [54, 120], bodyDy: -2, head: { eyes: 'closed', mouth: 'drool' }, arms: [], folded: true,
     fx: (im) => { zz(im); im.set(61, 135, C.tealL); } },
-  // 9절 대기 꾸벅(졸기 덧그림, 칸으로 안 센다): 몸·포갠 팔은 그대로, 고개만 2px 떨어지며 창턱 자명종(오른쪽)으로 기운다.
-  // 시선이 자명종으로 가는 보조 단서(설계 9절). 턱이 깃에 묻히고 침이 한 줄 길어진다
-  nod: { at: [54, 122], bodyDy: -4, head: { eyes: 'closed', mouth: 'drool', tilt: true }, arms: [], folded: true,
-    fx: (im) => { zz(im); im.set(61, 137, C.tealL); im.set(61, 138, C.tealL); } },
+  // 9절 대기 꾸벅(졸기 덧그림, 칸으로 안 센다): 몸·포갠 팔은 그대로, 고개만 4px 떨어지며 창턱 자명종(오른쪽)으로 기운다.
+  // 시선이 자명종으로 가는 보조 단서(설계 9절). 턱이 깃에 묻혀 침 방울은 안 보인다.
+  // #530: 2px로는 처음 보는 사람이 못 봤다(#468 블라인드). 4px + 꾸벅 순간 `Zz`가 끊기고 정수리 위에 떨어지는 선 2줄
+  nod: { at: [54, 124], bodyDy: -6, head: { eyes: 'closed', mouth: 'drool', tilt: true }, arms: [], folded: true,
+    fx: (im) => { for (const [x, y] of [[58, 118], [58, 119], [66, 118], [66, 119], [66, 120]]) im.set(x, y, C.white); } },
   // P1 1칸: 벌떡. 몸째 2px 솟고 옆머리가 곤두서고 두 손바닥을 머리 옆으로
   jolt: { at: [54, 116], head: { eyes: 'wide', mouth: 'open', raised: true, spiky: true },
     arms: [[51, 133, 47, 121], [71, 133, 74, 121]],
@@ -628,17 +629,26 @@ const JACKET_TOP = [
 const JACKET_SLEEVE_ROW = 7;
 const [JX, JY] = JACKET_TOP_AT;
 
-/** 0칸 소매 움찔: 몸판이 오른쪽(처마 쪽)으로 1px 미끄러지고, 늘어진 소매 끝이 바깥(왼쪽)으로 휙 젖혀진다. 소매 끝 옆 바람선 3점 */
+/**
+ * 0칸 소매 움찔: 바람이 밑으로 들어가 재킷째 처마 쪽(오른쪽)으로 들린다. 위쪽(깃)일수록 더 밀려 3px, 아래는 2px → 오른쪽으로 기운 모양.
+ * 늘어진 왼소매는 바깥(왼쪽) 위로 휙 젖혀진다(끝이 4px 바깥). 소매 끝 왼쪽에 바람선 3줄.
+ * #530: 예전엔 몸판 1px라 처음 보는 사람이 못 봤다(#468 블라인드). "미끄러질 것 같다"가 프레임 한 장에서 읽히게 키웠다
+ */
 function jacketTwitch(t) {
-  const body = JACKET_TOP.map((row, j) => (j >= JACKET_SLEEVE_ROW ? '...' + row.slice(3) : row));
-  stamp(t, JX + 1, JY, body, JACKET_LEGEND);
+  const lean = (j) => (j < 5 ? 3 : 2);
+  JACKET_TOP.forEach((row, j) => {
+    const body = j >= JACKET_SLEEVE_ROW ? '...' + row.slice(3) : row;
+    stamp(t, JX + lean(j), JY + j, [body], JACKET_LEGEND);
+  });
   JACKET_TOP.forEach((row, j) => {
     if (j < JACKET_SLEEVE_ROW) return;
-    const dx = 1 - ((j - JACKET_SLEEVE_ROW + 1) >> 1); // 7줄 +1 → 12줄 −2: 소매가 바깥으로 비스듬히
-    stamp(t, JX + dx, JY + j, [row.slice(0, 3)], JACKET_LEGEND);
+    const k = j - JACKET_SLEEVE_ROW; // 0 → 5
+    stamp(t, JX + 2 - k, JY + j - (k >> 1), [row.slice(0, 3)], JACKET_LEGEND);
   });
 }
-const twitchFx = (im) => { for (const [x, y] of [[209, 41], [208, 42], [209, 45]]) im.set(x, y, C.white); };
+const twitchFx = (im) => {
+  for (const [x, y, n] of [[204, 39, 3], [202, 42, 4], [205, 45, 2]]) for (let i = 0; i < n; i++) im.set(x + i, y, C.white);
+};
 
 /** 1칸 미끄러짐: 돔 오른쪽 경사(x 234 → 252, 윗면 y 41 → 45)에 배를 대고 오른쪽 아래로. 깃과 두 소매가 뒤(왼쪽 위)로 끌린다 */
 const JACKET_SLIDE_AT = [230, 30];
