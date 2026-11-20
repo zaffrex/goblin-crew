@@ -23,6 +23,7 @@ describe('fxTextSpot', () => {
   it('`효과@대상`이 먼저, 그다음 대상 전체, 없으면 null', () => {
     expect(fxTextSpot('squeak_text', 'nest')).toEqual({ x: 188, y: 46 });
     expect(fxTextSpot('clang_text', 'fountain')).toBe('actor');
+    expect(fxTextSpot('gon_text', 'fountain')).toEqual({ x: 266, y: 198 });
     // 같은 테두리라도 물소리 シャー·작은 삑은 그대로 위 끝 가운데
     expect(fxTextSpot('shaa_text', 'fountain')).toBeNull();
     expect(fxTextSpot('small_squeak_text', 'fountain')).toBeNull();
@@ -79,6 +80,19 @@ describe('park_fountain 테두리 カーン (#530 할 일 3)', () => {
     const stLeft = Math.round(x) - Math.floor(st[2] / 2);
     const stRight = stLeft + st[2];
     expect(p.x + cell[2] <= stLeft || p.x >= stRight, `clang ${p.x}..${p.x + cell[2]} vs stretch ${stLeft}..${stRight}`).toBe(true);
+  });
+
+  it('털썩 ゴォン은 엉덩이 오른쪽 테두리 앞면 위에 뜬다(#528 실패 1: 가슴 위 가운데가 아니다)', () => {
+    const cell = fxMeta.cells.gon_text!;
+    const p = fxTextAt('gon_text', cell, fxTextSpot('gon_text', 'fountain') as { x: number; y: number }, 0, INTERNAL_WIDTH)!;
+    expect(p).toEqual({ x: 250, y: 182 });
+    // 시작 칸은 테두리 앞면(128,180,192×18) 안
+    expect(p.y).toBeGreaterThanOrEqual(RIM.top);
+    expect(p.y + cell[3]).toBeLessThanOrEqual(RIM.top + 18);
+    expect(p.x + cell[2]).toBeLessThanOrEqual(RIM.left + RIM.width);
+    // 앉는 자리(x 220) 오른쪽으로 떨어져 있다. 몸 오른쪽 끝 약 x 242 + 틈 8
+    const seat = (screenJson as unknown as { spots: Record<string, { x: number }> }).spots.fountain_seat!;
+    expect(p.x).toBeGreaterThanOrEqual(seat.x + 30);
   });
 
   it('입장 연출 fx(행동이 없다)에는 by가 없다 → 엔진은 위 끝 가운데로 되돌린다', () => {

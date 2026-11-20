@@ -67,10 +67,14 @@ export type FxTextSpot = { x: number; y: number } | 'actor';
  *   → `squeak_text` 폭 31·`TEXT_LIFT` 4로 at = (188, 46). 까치가 바닥에 내려온 뒤에도 같은 자리다.
  * - `clang_text@fountain`(#530 할 일 3, #528): 테두리는 192px로 넓어서 가운데(x 224)에 띄우면 장대가 친 모서리에서 약 90px 떨어져
  *   "효과가 있었는지 모르겠다"로 읽혔다. ノビー가 선 쪽 테두리 끝, 장대 집게 바로 옆에 띄운다. 같은 `fountain`의 `シャー`(물소리)는 그대로다.
+ * - `gon_text@fountain`(#528 실패 1·2, Luna 결정 2안): 위 끝 가운데(224, 180)면 글자 칸(y 약 166~176)이 앉은 ズッシー(`fountain_seat` x 220)
+ *   가슴에 얹히고, `lav`가 어두운 동상 돌색과 섞여 "돌 덩어리"로 읽혔다. 단서 ②(흙은 `ぼふっ`)와 짝이 되게 엉덩이 오른쪽 테두리 흰 돌 위:
+ *   `gon_text` 33×12·`TEXT_LIFT` 4로 시작 칸 x 250~283, y 182~194(테두리 앞면 y 180~198 안). 앉은 몸 오른쪽 끝(약 x 242)과 8px 띄운다.
  */
 export const FX_TEXT_SPOT: Readonly<Record<string, FxTextSpot>> = {
   nest: { x: 188, y: 46 },
   'clang_text@fountain': 'actor',
+  'gon_text@fountain': { x: 266, y: 198 },
 };
 
 /** 이 글자(효과·대상)의 자리 예외. `효과@대상`이 `대상`보다 먼저다. 없으면 null. */
