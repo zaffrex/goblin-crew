@@ -167,7 +167,7 @@
         { "anim": ["mukjik", "common.stomp"] },
         { "fx": ["stomp_text", "mukjik"] },
         { "fx": ["poof_text", "mukjik"] },
-        { "fx": ["pigeons_up", "mukjik"] },
+        { "anim": ["floor", "pigeons_up"] },
         { "say": ["mukjik", ["park_fountain.soft", "park_fountain.soft_again"]] }
       ],
       "note": "#7 흙길 쿵은 안 울린다(단서 ②). 재킷 밑 흙길 x 224에서 발 구르기"
@@ -248,7 +248,7 @@
       "squeak": { "show": [
         { "anim": ["ppik", "common.squeeze_chicken"] },
         { "fx": ["squeak_text", "ppik"] },
-        { "fx": ["pigeons_turn", "jacket"] },
+        { "anim": ["floor", "pigeons_turn"] },
         { "say": ["ppik", "park_fountain.jacket_squeak"] }
       ] }
     },

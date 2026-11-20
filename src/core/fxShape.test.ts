@@ -129,10 +129,11 @@ describe('splash·ripple: 물 4색 입자 (#485)', () => {
 });
 
 describe('park_fountain 글자 아닌 fx (#483 Luna가 찾은 5개 + hop)', () => {
-  it('hop·nod·splash·ripple은 여기서 그리고, 비둘기 2개만 임시 별로 남는다(shake는 #485 밖)', () => {
+  // 비둘기 2개(`pigeons_up`·`pigeons_turn`)는 #526에서 물건 anim(`floor.pigeons_*`, 시트 칸)으로 옮겨 fx가 아니다.
+  it('hop·nod·splash·ripple은 여기서 그리고, 임시 별로 남는 글자 아닌 fx가 없다(shake는 #485 밖)', () => {
     const names = new Set(fxNamesOf(parkJson));
     const notText = [...names].filter((n) => !FX_STYLE[n] && n !== 'shake').sort();
-    expect(notText).toEqual(['hop', 'nod', 'pigeons_turn', 'pigeons_up', 'ripple', 'splash']);
-    expect(notText.filter((n) => !drawnByShape(n))).toEqual(['pigeons_turn', 'pigeons_up']);
+    expect(notText).toEqual(['hop', 'nod', 'ripple', 'splash']);
+    expect(notText.filter((n) => !drawnByShape(n))).toEqual([]);
   });
 });

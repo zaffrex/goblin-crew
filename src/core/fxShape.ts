@@ -3,7 +3,7 @@
 // - 새 칸 0. 물 입자는 물줄기(`fountain_water`, core/sceneFx.ts)와 같은 물 4색, 1~2px 정수 사각형, 반투명 없음(ADR-0007).
 // - 결정적: 입자 위치는 (fx 시작 뒤 틱, 입자 번호) 해시로 고른다. 재생 도구 스크린샷이 흔들리지 않는다.
 // - `shake`는 화면 1(`hook`·`basket`)에도 쓰여서 진마씨 재플레이 답 전에는 켜지 않는다(#485). 켤 때는 `NUDGE_FX`에 한 줄.
-// - `pigeons_up`·`pigeons_turn`은 모양이 있어서 칸(Luna)이다. 여기 없다 → 칸이 오기 전까지 임시 별.
+// - 비둘기(`pigeons_up`·`pigeons_turn`)는 모양이 있어서 fx가 아니라 물건 anim `floor.pigeons_*`(시트 칸, #526)이다.
 
 import { FX_TICKS } from './fx';
 import { objectOf, type SceneArtMeta, type SceneDraws } from './sceneArt';
