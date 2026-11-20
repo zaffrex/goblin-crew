@@ -23,7 +23,8 @@ interface Timed {
 }
 
 export interface ScenePicture {
-  frame: number;
+  /** 시트 칸 번호. `null` = 안 그림(state만, 형식 기록 개정 9 #551: 물건이 화면 밖으로 갔다). 외곽선도 켜지지 않는다. */
+  frame: number | null;
   layer: Layer;
   loop?: Timed;
 }
@@ -137,9 +138,12 @@ export function parseSceneArt(raw: unknown): SceneArtMeta {
   const when = (v: unknown, where: string): void => {
     if (!isObj(v) || !isObj(v.flags) || !Object.values(v.flags).every((b) => typeof b === 'boolean')) fail(`${where}: when`);
   };
-  const picture = (p: Partial<ScenePicture> | undefined, where: string): void => {
+  /** `hidden`이면 `frame: null`(안 그림)을 받는다. 안 그리는 모습에는 반복이 없다(개정 9). */
+  const picture = (p: Partial<ScenePicture> | undefined, where: string, hidden = false): void => {
     if (!isObj(p)) return fail(where);
-    frame(p.frame, where);
+    if (hidden && p.frame === null) {
+      if (p.loop !== undefined) fail(`${where}: 안 그리는 모습(frame null)에 loop`);
+    } else frame(p.frame, where);
     layer(p.layer, where);
     if (p.loop !== undefined) timed(p.loop, `${where}.loop`);
   };
@@ -169,7 +173,7 @@ export function parseSceneArt(raw: unknown): SceneArtMeta {
     if (typeof o?.key !== 'string' || !Array.isArray(o.ids) || o.ids.length === 0 || !o.ids.every((t) => typeof t === 'string')) fail(`${w}: key·ids`);
     picture(o.default, `${w}.default`);
     for (const [j, s] of (o.states ?? []).entries()) {
-      picture(s, `${w}.states[${j}]`);
+      picture(s, `${w}.states[${j}]`, true);
       when(s.when, `${w}.states[${j}]`);
     }
     if (o.overlay !== undefined) {
@@ -361,6 +365,11 @@ export function sceneDraws(meta: SceneArtMeta, view: SceneView): SceneDraws {
       out[p.anim.layer].push(frame);
     } else {
       const pic = pictureOf(o, view.flagsOf(o.key));
+      if (pic.frame === null) {
+        // 안 그리는 멈춘 모습(개정 9): 앞판도 없고 외곽선도 안 켜진다. 히트 박스·`coveredIds`는 그대로다(임시 상자도 안 그린다).
+        out.byObject[o.key] = [];
+        continue;
+      }
       const tilted = o.tilt && view.tiltOf ? tiltFrame(o, view.tiltOf(o.key)) : null;
       frame = tilted ?? (pic.loop ? timedFrame(pic.loop, view.clockMs - (view.loopStarts?.[o.key]?.atMs ?? 0), true) : pic.frame);
       out[pic.layer].push(frame);
