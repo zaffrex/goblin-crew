@@ -24,6 +24,8 @@ describe('fxTextSpot', () => {
     expect(fxTextSpot('squeak_text', 'nest')).toEqual({ x: 188, y: 46 });
     expect(fxTextSpot('clang_text', 'fountain')).toBe('actor');
     expect(fxTextSpot('gon_text', 'fountain')).toEqual({ x: 266, y: 198 });
+    expect(fxTextSpot('poof_text', 'mukjik')).toEqual({ x: 266, y: 248 });
+    expect(fxTextSpot('stomp_text', 'mukjik')).toBeNull();
     // 같은 테두리라도 물소리 シャー·작은 삑은 그대로 위 끝 가운데
     expect(fxTextSpot('shaa_text', 'fountain')).toBeNull();
     expect(fxTextSpot('small_squeak_text', 'fountain')).toBeNull();
@@ -93,6 +95,21 @@ describe('park_fountain 테두리 カーン (#530 할 일 3)', () => {
     // 앉는 자리(x 220) 오른쪽으로 떨어져 있다. 몸 오른쪽 끝 약 x 242 + 틈 8
     const seat = (screenJson as unknown as { spots: Record<string, { x: number }> }).spots.fountain_seat!;
     expect(p.x).toBeGreaterThanOrEqual(seat.x + 30);
+  });
+
+  it('흙길 쿵 ぼふっ은 테두리가 아니라 발치 흙 위, 몸 오른쪽에 뜬다(#526: 머리 위면 "분수가 낸 소리"로 읽혔다)', () => {
+    const cell = fxMeta.cells.poof_text!;
+    const at = fxTextSpot('poof_text', 'mukjik') as { x: number; y: number };
+    const start = fxTextAt('poof_text', cell, at, 0, INTERNAL_WIDTH)!;
+    const end = fxTextAt('poof_text', cell, at, 29, INTERNAL_WIDTH)!;
+    expect(start).toEqual({ x: 252, y: 234 });
+    // 뜨는 내내 테두리 앞면 아래 끝(y 198)보다 한참 아래, 흙 위
+    expect(end.y).toBeGreaterThan(RIM.top + 18 + 20);
+    // 쿵 자리(재킷 아래 x 224)의 몸 오른쪽 끝(약 x 246)과 겹치지 않는다
+    const jacket = (screenJson as unknown as { hotspots: Record<string, { box: number[] }> }).hotspots.jacket!;
+    const stompX = jacket.box[0]! + jacket.box[2]! / 2;
+    expect(stompX).toBe(224);
+    expect(start.x).toBeGreaterThanOrEqual(stompX + 22 + 6);
   });
 
   it('입장 연출 fx(행동이 없다)에는 by가 없다 → 엔진은 위 끝 가운데로 되돌린다', () => {

@@ -3,7 +3,10 @@ import sheetJson from '../../public/scenes/magpie_nest-objects.json';
 import screenJson from '../../content/screens/magpie_nest.json';
 import parkJson from '../../content/screens/park_fountain.json';
 import { FX_STYLE, FX_TICKS } from './fx';
-import { drawnByShape, frameNudges, fxNudges, HOP_PX, HOP_TICKS, NUDGE_FX, nudgeOf, SPLASH_DROPS, SPLASH_TOP, WATER_COLORS, WATER_FX, waterParticles } from './fxShape';
+import {
+  drawnByShape, frameNudges, fxNudges, HOP_PX, HOP_TICKS, NUDGE_FX, nudgeOf, particleFx, shapeParticles, SOIL_COLORS, SOIL_FROM, SOIL_HIGH, SOIL_WIDE,
+  SPLASH_DROPS, SPLASH_TOP, TEXT_PARTICLE_FX, WATER_COLORS, WATER_FX, waterParticles,
+} from './fxShape';
 import { parseSceneArt, type SceneDraws } from './sceneArt';
 import { FX_MAX_PARTICLES } from './sceneFx';
 
@@ -135,5 +138,58 @@ describe('park_fountain 글자 아닌 fx (#483 Luna가 찾은 5개 + hop)', () =
     const notText = [...names].filter((n) => !FX_STYLE[n] && n !== 'shake').sort();
     expect(notText).toEqual(['hop', 'nod', 'ripple', 'splash']);
     expect(notText.filter((n) => !drawnByShape(n))).toEqual([]);
+  });
+});
+
+describe('poof_text 흙먼지: 글자 곁 입자 (#526)', () => {
+  const at = { x: 224, y: 244 };
+  const all = Array.from({ length: FX_TICKS }, (_, t) => shapeParticles('poof_text', at, t));
+
+  it('글자는 그대로 그린다(임시 별·글자 생략 대상이 아니다), 입자 표에서는 발 기준', () => {
+    expect(drawnByShape('poof_text')).toBe(false);
+    expect(FX_STYLE.poof_text).toBeDefined();
+    expect(particleFx('poof_text')).toBe(TEXT_PARTICLE_FX.poof_text);
+    expect(TEXT_PARTICLE_FX.poof_text!.anchor).toBe('foot');
+    // 화면 1이 쓰는 fx에는 글자 곁 입자가 없다(배포본 화면 1 모습 그대로)
+    expect(fxNamesOf(screenJson).filter((n) => particleFx(n) !== undefined)).toEqual([]);
+  });
+
+  it('흙 3색만, 1~2px, 상한 안, 결정적, 시작하면 보이고 끝나면 없다', () => {
+    all.forEach((ps, t) => {
+      expect(ps.length).toBeLessThanOrEqual(FX_MAX_PARTICLES);
+      for (const p of ps) {
+        expect(SOIL_COLORS).toContain(p.color);
+        expect([1, 2]).toContain(p.size);
+        expect(Number.isInteger(p.x) && Number.isInteger(p.y)).toBe(true);
+      }
+      expect(shapeParticles('poof_text', at, t)).toEqual(ps);
+    });
+    expect(all[0]!.length).toBeGreaterThan(0);
+    expect(shapeParticles('poof_text', at, FX_TICKS)).toEqual([]);
+    expect(shapeParticles('poof_text', at, -1)).toEqual([]);
+  });
+
+  it('낮고 옆으로 넓다: 높이는 발에서 SOIL_HIGH+4px 안, 가로 폭은 높이의 4배 넘게, 양옆으로', () => {
+    const flat = all.flat();
+    const top = Math.min(...flat.map((p) => p.y));
+    expect(top).toBeGreaterThanOrEqual(at.y - SOIL_HIGH - 4);
+    expect(Math.max(...flat.map((p) => p.y + p.size))).toBeLessThanOrEqual(at.y);
+    expect(Math.max(...flat.map((p) => Math.abs(p.x - at.x)))).toBeLessThanOrEqual(SOIL_WIDE + 2);
+    const mid = all[12]!;
+    const w = Math.max(...mid.map((p) => p.x)) - Math.min(...mid.map((p) => p.x));
+    const h = Math.max(...mid.map((p) => p.y)) - Math.min(...mid.map((p) => p.y));
+    expect(w).toBeGreaterThan(h * 4);
+    expect(mid.some((p) => p.x < at.x - SOIL_FROM - 4)).toBe(true);
+    expect(mid.some((p) => p.x > at.x + SOIL_FROM + 4)).toBe(true);
+  });
+
+  it('발 밑(±SOIL_FROM−1px)은 비운다, 시간이 갈수록 더 멀리 번진다', () => {
+    for (const p of all.flat()) expect(p.x + p.size <= at.x - SOIL_FROM + 1 || p.x >= at.x + SOIL_FROM - 1).toBe(true);
+    const far = (t: number) => Math.max(...all[t]!.map((p) => Math.abs(p.x - at.x)));
+    expect(far(14)).toBeGreaterThan(far(2) + 8);
+  });
+
+  it('흙길 바탕색(12 c48a52)은 쓰지 않는다: 바탕에 묻힌다', () => {
+    expect(SOIL_COLORS).not.toContain(12);
   });
 });
