@@ -25,9 +25,7 @@ const MIN_VISIBLE = 0.5;
  * 알고 있는 가림(이슈가 열려 있는 것). 키는 `화면 사람 특기 대상 → anim`.
  * 고쳐지면 아래 "아직 가려진다" 테스트가 실패하니 그때 이 줄을 지운다.
  */
-const KNOWN: Record<string, string> = {
-  'park_fountain mukjik stomp alarm_clock → alarm_clock.fall': '#527 쓰러진 칸이 ズッシー 설 곳(x 92) 몸 뒤. 칸 자리는 Luna 몫',
-};
+const KNOWN: Record<string, string> = {};
 
 const characters = charactersJson as CharactersData;
 const sprites = { jjuk: parseSpriteMeta(jjukJson), mukjik: parseSpriteMeta(mukjikJson), ppik: parseSpriteMeta(ppikJson) };
