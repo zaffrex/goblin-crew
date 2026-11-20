@@ -13,6 +13,13 @@ const CASES: FrameCase[] = [
 
   // 0절 주 아하(돌 테두리 쿵 → 재킷이 손으로) 단서.
   { id: 'clue-main-1-tap', action: { char: 'jjuk', verb: 'stretch', target: 'fountain' }, says: 'park_fountain.tap', why: '주 단서 ①(3절 9번): 장대로 테두리 カーン → 재킷 소매가 움찔, 1px 미끄러졌다 멈춤' },
+  {
+    id: 'clue-main-1-tap-left',
+    pre: [{ char: 'jjuk', verb: 'stretch', target: 'alarm_clock' }],
+    action: { char: 'jjuk', verb: 'stretch', target: 'fountain' },
+    says: 'park_fountain.tap',
+    why: '주 단서 ① 왼쪽(#530): 쭉이가 자명종 쪽(테두리 왼쪽 x 111)에서 칠 때 カーン이 왼쪽 끝 장대 옆에 뜨는가, ニューッ과 안 겹치는가',
+  },
   { id: 'clue-main-2-soft', action: { char: 'mukjik', verb: 'stomp', target: 'jacket' }, says: 'park_fountain.soft', why: '주 단서 ②(3절 7번): 재킷 밑 흙길에서 쿵 → ぼふっ 흙먼지, 비둘기. 재킷은 그대로' },
   {
     id: 'clue-main-3-high-again',
