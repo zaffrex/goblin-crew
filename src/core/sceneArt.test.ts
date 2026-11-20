@@ -363,6 +363,44 @@ describe('litFrames (10-1절 호버 외곽선 대상)', () => {
   });
 });
 
+describe('안 그리는 멈춘 모습 frame null (형식 기록 개정 9, #551)', () => {
+  /** 열쇠를 가져간 둥지는 안 그린다고 친 가짜 메타(JSON 왕복으로 파서를 거친다). */
+  function hiddenMeta(): SceneArtMeta {
+    const m = clone(meta());
+    pobj(m, 'nest').states![0]!.frame = null;
+    return parseSceneArt(m);
+  }
+  const taken = (k: string) => ({ 'nest.key_taken': k === 'nest', 'magpie.on_ground': false });
+
+  it('parse: state에서는 받고, default에서는 던진다', () => {
+    expect(pictureOf(pobj(hiddenMeta(), 'nest'), taken('nest')).frame).toBeNull();
+    const bad = clone(sheetJson) as { objects: { default: { frame: number | null } }[] };
+    bad.objects[0]!.default.frame = null;
+    expect(() => parseSceneArt(bad)).toThrow('프레임 번호 null');
+    const looped = clone(meta());
+    pobj(looped, 'nest').states![0] = { ...pobj(looped, 'nest').states![0]!, frame: null, loop: { frames: [0], ms: [100] } };
+    expect(() => parseSceneArt(looped)).toThrow('안 그리는 모습(frame null)에 loop');
+  });
+
+  it('sceneDraws: 그 물건만 안 그리고, 외곽선도 안 켜지고, 시트가 맡은 대상(임시 상자 없음)으로 남는다', () => {
+    const m = hiddenMeta();
+    const before = sceneDraws(m, view());
+    const d = sceneDraws(m, view({ flagsOf: taken }));
+    expect(d.back).toEqual(before.back.slice(1)); // 둥지(맨 앞) 하나만 빠진다
+    expect(d.byObject.nest).toEqual([]);
+    expect(litFrames(m, d, 'nest').size).toBe(0);
+    expect(coveredIds(m).has('nest')).toBe(true);
+  });
+
+  it('anim이 오면 안 그리는 모습보다 anim을 그린다(재생·붙든 칸)', () => {
+    const m = hiddenMeta();
+    m.anims['nest.shake'] = { object: 'nest', frames: [3], ms: [100], layer: 'back' };
+    const a = animOf(m, 'nest', 'shake', {})!;
+    const d = sceneDraws(m, view({ flagsOf: taken, playing: { object: a.object, anim: a.anim, ms: 50 } }));
+    expect(d.byObject.nest).toEqual([3]);
+  });
+});
+
 // ── 효과 자리(형식 기록 11절, 개정 4). 둥지 다음에 물줄기 자리를 끼우고, 까치가 바닥이면 꺼지게 한 가짜 메타.
 function fxMeta(): SceneArtMeta {
   const m = meta();

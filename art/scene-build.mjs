@@ -246,6 +246,13 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
       }
       for (const f of Object.keys(flags)) if (!(f in screenFlags)) problems.push(`${sw}: 플래그 '${f}'가 화면 JSON flags에 없다`);
       const boxes = boxesAt({ ...screenFlags, ...flags });
+      // 개정 9(#551): `draw: null` = 안 그리는 멈춘 모습(물건이 화면 밖으로 갔다). 반복은 막는다(그릴 첫 칸이 없다).
+      if (s.draw === null) {
+        if (s.loop !== undefined) problems.push(`${sw}: draw가 null(안 그림)이면 loop를 둘 수 없다(개정 9)`);
+        if (o.overlay !== undefined || o.tilt !== undefined) problems.push(`${sw}: 앞판(overlay)·기울기(tilt)가 있는 물건은 draw null(안 그림)을 둘 수 없다(개정 9)`);
+        states.push({ when: { flags }, frame: null, layer: layerOf(s.layer, sw) });
+        continue;
+      }
       const st = { when: { flags }, frame: picture(s.draw, `${sw}.draw`, boxes), layer: layerOf(s.layer, sw) };
       const lp = loopOf(s.loop, `${sw}.loop`, boxes);
       if (lp) st.loop = lp;
