@@ -9,8 +9,8 @@ import mukjikJson from '../../public/sprites/mukjik-base.json';
 import ppikJson from '../../public/sprites/ppik-base.json';
 import { TICK_MS } from './config';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { activeFx, charFacing, charPose, createScene, cuedArtView, heldArtView, isBusy, runAction, sceneTick, type SceneData, type SceneState } from './scene';
-import { parseSceneArt, sceneDraws, type SceneView } from './sceneArt';
+import { activeFx, charFacing, charPose, createScene, cuedArtView, heldArtView, isBusy, runAction, sceneTick, shownFlags, type SceneData, type SceneState } from './scene';
+import { objectOf, parseSceneArt, pictureOf, sceneDraws, type SceneView } from './sceneArt';
 import { parseSpriteMeta, spritePole } from './sprite';
 
 const art = parseSceneArt(artJson);
@@ -131,5 +131,33 @@ describe('화면 2 물벼락: 장대가 다 펴진 틱에 물이 쏟아진다 (#
     expect(pole, '장대를 이어야 한다(common.stretch는 tip이 없어 장대가 안 펴졌다)').not.toBeNull();
     expect(pole!.bottom - pole!.top).toBeGreaterThanOrEqual(48);
     expect(activeFx(s)).toContainEqual(expect.objectContaining({ effect: 'splash', target: 'jjuk', t: 0 }));
+  });
+});
+
+describe('화면 2 클리어 컷: 재킷은 한 번에 한 곳 (#529, 형식 기록 14절)', () => {
+  it('jacket.cover가 시작된 뒤로 동상 손 재킷이 다시 그려지지 않고, 클리어 뒤에는 물건 그림이 비어 있다', () => {
+    const s = ready();
+    const jacket = objectOf(art, 'jacket')!;
+    const hand = pictureOf(jacket, { 'jacket.on_hand': true, 'jacket.taken': false }).frame;
+    expect(hand).not.toBeNull();
+    const [last, ...before] = [...data.screen.solution!].reverse();
+    for (const a of before.reverse()) {
+      runAction(data, s, a, null);
+      for (let i = 0; i < 5000 && isBusy(s); i++) sceneTick(data, s);
+    }
+    const full = (): SceneView => ({ ...view(s), flagsOf: (k) => shownFlags(s, k), playing: s.current?.art ? { ...s.current.art, ms: s.current.t * TICK_MS } : null });
+    runAction(data, s, last!, null);
+    let coverSeen = false;
+    for (let i = 0; i < 5000 && (isBusy(s) || !s.cleared); i++) {
+      sceneTick(data, s);
+      const v = full();
+      const drawn = sceneDraws(art, v).byObject.jacket ?? [];
+      if (v.cued?.jacket?.anim === art.anims['jacket.cover'] || v.playing?.anim === art.anims['jacket.cover']) coverSeen = true;
+      if (coverSeen) expect(drawn, `틱 ${s.tick}`).not.toContain(hand);
+    }
+    expect(coverSeen, 'jacket.cover가 컷에서 돌아야 한다').toBe(true);
+    expect(s.cleared && !isBusy(s)).toBe(true);
+    sceneTick(data, s);
+    expect(sceneDraws(art, full()).byObject.jacket).toEqual([]);
   });
 });
