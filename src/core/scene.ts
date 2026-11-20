@@ -507,6 +507,11 @@ const APPROACH_GAP = 2;
  * 화면 1 `long_johns`는 위쪽 바닥(발 y 200)에서 약 3할을 가려서 그대로 둔다. 화면 2 오리(14×9)는 몸에 다 덮인다.
  */
 const HIDE_MAX = 0.5;
+/**
+ * 내려설 때 몸 위 끝과 대상 그림 아래 끝 사이 세로 틈(#575 PR #577 Luna 리뷰). 얼굴 그림은 몸 상자보다 1px 위로 나와서
+ * 틈이 0이면 머리와 그림이 붙어 "머리에 올라탄 오리"로 읽힌다. 4px면 그 사이에 물가 돌 선이 약 3px 남는다.
+ */
+const CLEAR_GAP = 4;
 
 /** 그림 상자 넓이 중 몸 상자에 덮인 비율(0~1). */
 function hiddenShare(art: HitBox, body: HitBox): number {
@@ -564,7 +569,7 @@ export function approachPoint(data: SceneData, puzzle: PuzzleState, action: Acti
 
 /**
  * 높은 대상 앞 발 y(#575). 대상 지금 그림(시트 없으면 핫스팟 상자)을 몸 상자가 `HIDE_MAX`보다 많이 가리면
- * 몸 위 끝이 그림 아래 끝에 닿는 y까지 앞(아래)으로 내려선다. 걷기 영역 아래 끝에서 멈춘다. 위로는 가지 않는다.
+ * 몸 위 끝이 그림 아래 끝보다 `CLEAR_GAP` 아래가 되는 y까지 앞(아래)으로 내려선다. 걷기 영역 아래 끝에서 멈춘다. 위로는 가지 않는다.
  * 방향이 정해지지 않았으면(가운데에 섬) 두 방향 중 더 가리는 쪽으로 본다.
  */
 function clearOf(data: SceneData, puzzle: PuzzleState, action: Action, box: HitBox, x: number, y: number, face: Facing | null): number {
@@ -573,7 +578,7 @@ function clearOf(data: SceneData, puzzle: PuzzleState, action: Action, box: HitB
   const faces: Facing[] = face === null ? [1, -1] : [face];
   const hidden = Math.max(...faces.map((f) => hiddenShare(art, characterHitBox(def, x, y, f))));
   if (hidden <= HIDE_MAX) return y;
-  return Math.max(y, Math.min(WALK_AREA.bottom, art.top + art.height - def.hit.dy));
+  return Math.max(y, Math.min(WALK_AREA.bottom, art.top + art.height - def.hit.dy + CLEAR_GAP));
 }
 
 /**
