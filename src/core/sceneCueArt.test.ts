@@ -118,3 +118,18 @@ describe('화면 2 장대 단서: 닿는 칸에 글자·반응이 같이 (#507)'
     });
   }
 });
+
+describe('화면 2 물벼락: 장대가 다 펴진 틱에 물이 쏟아진다 (#525)', () => {
+  it('jacket × stretch(물 켜짐): 닿는 틱에 장대가 48px 넘게 펴져 있고 splash가 함께 시작한다, ビヨーン은 0틱부터', () => {
+    const s = ready();
+    runAction(data, s, { char: 'jjuk', verb: 'stretch', target: 'jacket' }, null);
+    untilWobble(s, 0);
+    expect(activeFx(s)).toContainEqual(expect.objectContaining({ effect: 'stretch_text', target: 'jjuk' }));
+    untilWobble(s, TOUCH_TICK);
+    const w = s.walkers.jjuk;
+    const pole = spritePole(sprites.jjuk, charPose(data, s, 'jjuk'), w.x, w.y, charFacing(data, s, 'jjuk'));
+    expect(pole, '장대를 이어야 한다(common.stretch는 tip이 없어 장대가 안 펴졌다)').not.toBeNull();
+    expect(pole!.bottom - pole!.top).toBeGreaterThanOrEqual(48);
+    expect(activeFx(s)).toContainEqual(expect.objectContaining({ effect: 'splash', target: 'jjuk', t: 0 }));
+  });
+});
