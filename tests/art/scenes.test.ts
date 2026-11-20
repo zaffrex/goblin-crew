@@ -135,6 +135,30 @@ describe('scene build (format v1)', () => {
     });
   });
 
+  describe('안 그리는 멈춘 모습 draw: null (개정 9, #551)', () => {
+    it('state에서는 받고 메타 frame이 null이다(시트 칸이 늘지 않는다)', () => {
+      const base = buildScene(goodScene(), screen).meta!.frames.length;
+      const s = goodScene();
+      s.objects!.magpie!.states![0]!.draw = null;
+      const r = buildScene(s, screen);
+      expect(r.problems).toEqual([]);
+      expect(r.meta!.objects[1]!.states![0]).toEqual({ when: { flags: { 'magpie.on_ground': true } }, frame: null, layer: 'front' });
+      expect(r.meta!.frames).toHaveLength(base - 1); // 바닥 까치 칸이 빠졌다
+    });
+    it('default·loop가 있는 state·앞판/기울기 물건에서는 막는다', () => {
+      expect(problemsOf((s) => ((s.objects!.magpie as Record<string, unknown>).draw = null))).toEqual([expect.stringContaining('objects.magpie.draw: draw가 함수가 아니다')]);
+      expect(
+        problemsOf((s) => {
+          s.objects!.magpie!.states![0]!.draw = null;
+          s.objects!.magpie!.states![0]!.loop = { ms: [2200, 150], frames: [box(92, 220, 16, 14, INK), box(92, 221, 16, 13, INK)] };
+        }),
+      ).toEqual([expect.stringContaining('objects.magpie.states[0]: draw가 null(안 그림)이면 loop')]);
+      expect(problemsOf((s) => (s.objects!.basket!.states = [{ when: { flags: { 'nest.key_taken': true } }, draw: null }]))).toEqual([
+        expect.stringContaining('objects.basket.states[0]: 앞판(overlay)·기울기(tilt)'),
+      ]);
+    });
+  });
+
   describe('그림과 히트 박스', () => {
     it('기본 그림이 히트 박스와 안 겹침', () => {
       expect(problemsOf((s) => (s.objects!.basket!.draw = box(300, 214, 20, 20)))).toEqual([expect.stringContaining('objects.basket.draw')]);

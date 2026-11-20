@@ -475,8 +475,10 @@ function drawPose(p) {
   const P = (x, y) => [Math.round(K.X(x)), Math.round(K.Y(y))];
   K.stamp(...P(t0[0] - 1.2, t0[1] - 1.1), ['WW..W', 'cWWWc'], { W: C.white, c: C.lint });
   K.stamp(...P(t0[0] + 1.1, t0[1] + 2.5), ['AAA', 'AtA'], { A: C.aqua, t: C.tealM });
+  // 덮어쓴 물건(take_up 2번 칸 재킷): 머리·어깨 위에 찍고 몸과 같이 바깥 외곽선을 받는다. 명암은 손으로 넣어서 rimShade에서 뺀다
+  const over = p.over ? p.over(K) : undefined;
 
-  rimShade(K, new Set([headPart, handPart, ...(pole === undefined ? [] : [pole])]), DOWN);
+  rimShade(K, new Set([headPart, handPart, ...(pole === undefined ? [] : [pole]), ...(over === undefined ? [] : [over])]), DOWN);
   const joint = pole === undefined ? undefined : poleJoints(K, pole, p.pole.top[1]);
   soles(K, feet);
   // 납작(common.flatten): 눈(8~11행)과 입(14~17행)은 누르지 않고 그대로 옮긴다
@@ -871,6 +873,115 @@ Object.assign(POSES, {
   },
 });
 
+// take_up  P6 재킷 집기(park_fountain 8번★, 설계 docs/design/screens/park_fountain.md 1-3·7절, #529).
+//   조건(1-3절, PR #424 Theo 리뷰): 장대 tip 0행, short 0, |tip x − 25| ≤ 5. 엔진이 tip에서 수직으로 재킷 손(대상 점 y 124)까지 잇는다.
+//   쭉이는 머리가 팔보다 길어서(머리 위 끝 → 어깨 19 ① > 팔 12.7 ①) 손을 머리 위로 못 올린다. 그래서 "머리 위로 곧게"를
+//   **몸을 뒤로 젖혀 버티고 얼굴 앞에 장대를 세워 두 손으로 당기는** 모양으로 그린다. 머리가 칸 왼쪽(3열)으로 물러나서
+//   장대(29열)가 코 앞을 지나 0행으로 곧게 나간다. 발은 기준점 그대로라 서 있던 자리에서 안 튄다.
+//   0 쭉(집게 벌림, 올려다봄) → 1 확!(집게 다묾, 더 젖히고 무릎 굽힘, 이 악묾, 당김선) → 2 푹(재킷이 머리에 덮여 발·장대만 보인다,
+//   tip 없음 = 장대가 칸 안으로 접혀 들어옴). 2번 칸이 `take` 말풍선("真っ暗やん") 동안 남는다(#189 holdLast).
+//   cue [0, 1]: 0번 칸에 `ビヨーン`(stretch_text, ability-feedback 2·4절), 당기는 1번 칸에 `jacket.cover`(집게 끝에서 활짝 → 떨어짐).
+const TAKE_POLE_X = (29 - OX) / S; // 장대 축 = 칸 29열(tip x 29, 기준점 25에서 +4)
+// 머리에 덮인 재킷(take_up 2번 칸). 칸 px, 왼쪽 위 기준. 깃이 정수리에 걸려 앞판(흰 V 깃·단추 둘·갈라진 밑단)이 보이게 통째로 덮였다.
+// 빈 두 소매가 양옆으로 축 늘어지고, 밑단 아래로 줄무늬 셔츠·다리·장대만 보인다. 큰 코끝만 재킷 오른쪽 밖으로 삐져나온다 = "안에 쭉이가 있다".
+// r red(안쪽 선) P pink L pinkL(빛) w white(안감·깃) — 동상 위 재킷(park_fountain.objects.mjs JACKET_LEGEND)과 같은 색
+const COVER_AT = [8, 1]; // 0행은 바깥 외곽선 자리(칸 가장자리 잘림 검사)
+const COVER = [
+  '........rrrrrrrrrrr........',
+  '......rrLLLLLLLLLLLrr......',
+  '.....rLLLLPPPPPPPLLLLr.....',
+  '....rLLPPPPPPPPPPPPPLLr....',
+  '...rLPPPPPPPPPPPPPPPPPLr...',
+  '...rLPPPPPPPPPPPPPPPPPPr...',
+  '..rLPPPPPPPPPPPPPPPPPPPPr..',
+  '..rLPPPPPPrrrrrrrPPPPPPPr..',
+  '..rPPPPPrrwwwwwwwrrPPPPPr..',
+  '..rPPPPrLwwwwwwwwwLrPPPPPr.',
+  '.rLPPPrLLrwwwwwwwrLLrPPPPr.',
+  '.rLPPPrLPPrwwwwwrPPLrPPPPr.',
+  '.rPPPPrLPPPrwwwrPPPLrPPPPr.',
+  '.rPPPPrLPPPPrwrPPPPLrPPPPr.',
+  '.rPPPPrPPPPPPrPPPPPPrPPPPr.',
+  'rLPPPPrPPPPPPwPPPPPPrPPPPr.',
+  'rLPPPPrPPPPPPrPPPPPPrPPPPr.',
+  'rPPPPPrPPPPPPrPPPPPPrPPPPr.',
+  'rPPPPPrPPPPPPrPPPPPPrPPPPr.',
+  'rPPPPPrPPPPPPrPPPPPPrPPPPr.',
+  'rPPPPPrPPPPPPwPPPPPPrPPPPr.',
+  'rPPPPPrPPPPPPrPPPPPPrPPPPr.',
+  'rPPPPPrPPPPPPrPPPPPPrPPPPr.',
+  'rPPPPPrPPPPPPrPPPPPPrPPPPr.',
+  'rPPPPPrPPPPPPrPPPPPPrPPPPr.',
+  'rPPPPPrPPPPPrrrPPPPPrPPPPr.',
+  'rPPPPPrrrrrrr.rrrrrrrPPPPr.',
+  '.rPPPPr..............rPPPr.',
+  '.rPPPPr..............rPPPr.',
+  '.rPPPr...............rPPPr.',
+  '.rwwwr...............rwwwr.',
+  '..www.................www..',
+];
+const COVER_LEGEND = { r: C.red, P: C.pink, L: C.pinkL, w: C.white };
+Object.assign(POSES, {
+  take_up(k) {
+    if (k === 2) {
+      // 푹: 서 있기 자세에 재킷을 덮는다. 장대는 땅을 짚고(서 있기와 같은 실루엣) 손만 재킷 밑단 아래로 나온다
+      const base = standPose({
+        dy: 0.6,
+        head: { eyes: 'shock', mouth: 'open', brows: 'up', hair: 2 },
+        back: { sh: [13, 20.6], el: [11.2, 26.2], wr: [10.0, 30.8], hand: { rows: 'mid', at: handAt([10.0, 30.8], -2, -1) } },
+        el: [19.6, 25.8], wr: [22.8, 24.4], grip: [24.2, 24.4],
+        pole: { top: [24.2, 4.4], bot: [24.2, 45.5], shut: true },
+      });
+      return {
+        ...base,
+        over: (K) => {
+          const part = K.part([C.red, C.pink, C.pink, C.pinkL]);
+          K.stamp(...COVER_AT, COVER, COVER_LEGEND, part);
+          return part;
+        },
+      };
+    }
+    // 0 쭉 / 1 확: 몸을 뒤로 젖힌다. 1번은 더 젖히고(머리 1px 왼쪽, 2px 아래) 무릎을 굽힌다
+    const yank = k === 1;
+    const hx = yank ? 2 : 3, hy = yank ? 8 : 6;
+    const hd = (hy - 1) / S; // 서 있기 머리(y 1)에서 내려온 ① 양
+    const hd0 = (hx - 13) / S; // 서 있기 머리(x 13)에서 물러난 ① 양
+    const sh = [15.2 + hd0 + 1.2, 19.5 + hd];
+    const hip = [13.8, 30.6 + (yank ? 1.4 : 0.4)];
+    const wr = [TAKE_POLE_X - 0.6, yank ? 16.4 : 15.0]; // 위 손(앞손): 코 오른쪽 위
+    const bwr = [TAKE_POLE_X - 0.8, yank ? 22.6 : 21.4]; // 아래 손(뒷손): 장대 아래쪽을 받친다
+    return {
+      kind: 'pose',
+      chest: 0,
+      head: { x: hx, y: hy, eyes: yank ? 'squint' : 'up', mouth: 'grit', brows: yank ? 'up' : undefined, hair: yank ? 2 : 0 },
+      neck: [[15.0 + hd0, 14 + hd], [15.4 + hd0 + 0.6, 18.5 + hd]],
+      torso: [[...sh, 3.4], [(sh[0] + hip[0]) / 2 + 0.4, (sh[1] + hip[1]) / 2, 3.6], [...hip, 3.4]],
+      hip,
+      hipSpread: 1.85,
+      back: { sh: [sh[0] - 1.6, sh[1] + 0.4], el: [sh[0] + 4.2, sh[1] + 3.6], wr: bwr, hand: { rows: 'grip', at: handAt([TAKE_POLE_X, bwr[1]], -3, -3) } },
+      front: { sh: [sh[0] + 1.4, sh[1] + 0.4], el: [sh[0] + 6.4, sh[1] - 1.2], wr, hand: { rows: 'grip', at: handAt([TAKE_POLE_X, wr[1]], -3, -3) } },
+      pole: { top: [TAKE_POLE_X, -4], bot: [TAKE_POLE_X, yank ? 33 : 31.5], claw: false },
+      claw: yank ? 1 : 0,
+      // 발은 앞으로 버틴다(뒤로 젖힌 몸의 반대). 1번은 무릎이 더 굽는다(골반이 내려감)
+      legs: { back: { x: -1.2, lift: 0, toe: false }, front: { x: 3.8, lift: 0, toe: false } },
+      fx: yank ? (K) => streaks(K, [[34, 2, 9], [36, 12, 18], [24, 1, 4]]) : undefined,
+    };
+  },
+  // take_off  재킷이 머리에서 휙 벗겨진 뒤(8절 ②, 손님이 달려와 재킷을 낚아챈 순간). 1칸: 정전기로 머리가 곤두서고(찌릿 SPIKES)
+  //   눈은 어질, 입은 헤벌쭉. 이 칸이 take_up 2번 칸(머리에 덮인 재킷)의 holdLast를 끊어서, 손님이 재킷을 입고 만세하는 동안
+  //   재킷이 두 벌 보이지 않는다(설계 8절 "찾은 문제", 원래 안 `jacket.lift`를 대신한다). 장대는 땅을 짚은 채.
+  take_off() {
+    return standPose({
+      dy: 1.9, // 곤두선 머리(머리 위 3줄 + 외곽선)가 칸 안에 들어오려면 head y ≥ 4 (common.wet 0번과 같은 이유)
+      head: { eyes: 'daze', mouth: 'open', hair: 's1' },
+      back: { sh: [13, 21.9], el: [11.0, 27.6], wr: [9.6, 32.4], hand: { rows: 'spread', at: handAt([9.6, 32.4], -3, -2) } },
+      el: [19.6, 27.1], wr: [22.8, 25.3], grip: [24.2, 25.3],
+      pole: { top: [24.2, 6.9], bot: [24.2, 45.5] },
+      fx: (K) => streaks(K, [[8, 2, 6], [40, 1, 5], [44, 6, 9]], { fall: true }),
+    });
+  },
+});
+
 // step_up  시소 올라서기 깡충(#397, 설계 docs/design/screens/magpie_nest.md 1-5-3절). 엔진이 칸을 궤적 위에 놓는다:
 //   웅크림 0번(100ms) → 공중 1번(150ms, 기준점이 포물선으로 10px 솟는다) → 착지 0번(50ms). 내려서기는 1번 → 0번.
 //   0 웅크림: 무릎을 굽혀 몸을 낮추고(머리 3px) 상체는 앞으로, 뒷팔은 뒤로 젖혀 반동. 장대는 땅에서 들어 앞손에 쥔다. 이 악묾.
@@ -967,6 +1078,9 @@ export const SHEET = {
     { name: 'common.wet', frames: 4, ms: [100, 400, 300, 500] },
     // 웅크림·공중(#397 1-5-3절). 착지는 엔진이 0번 칸을 50ms 다시 쓴다. 맨 뒤에 붙여서 앞 칸 번호(#357 납작 20)는 그대로다.
     { name: 'step_up', frames: 2, ms: [100, 150] },
+    // P6 재킷 집기(#529, park_fountain 1-3·7절). short 0(집게가 재킷 손 그림 안에 다 든다), cue [0, 1] = ビヨーン / jacket.cover.
+    { name: 'take_up', frames: 3, ms: [300, 350, 500], short: 0, cue: [0, 1] },
+    { name: 'take_off', frames: 1, ms: [450] },
   ],
   pose,
   drawFrame,

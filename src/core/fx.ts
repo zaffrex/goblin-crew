@@ -2,6 +2,7 @@
 // 순수 로직이다. 엔진(main.ts)은 이 값으로 그리기만 한다. 글자는 시트 `fx-text`(core/fxText.ts)로 그리고, `FX_STYLE.color`는 시트가 없을 때 임시 별 칠에만 쓴다.
 
 import type { CharacterId } from './characters';
+import { TEXT_LIFT } from './fxText';
 import { isDoHere, type RuleShowItem } from './puzzle/types';
 
 /** 보송 32색 중 fx가 쓰는 색(`docs/design/art/bosong-32.hex`). 32색 밖의 색을 만들지 않으려고 이름으로만 고른다. */
@@ -55,11 +56,15 @@ export const FX_STYLE: Readonly<Record<string, { color: FxColor; height: number 
   shaa_text: { color: 'aqua', height: 8 },
 };
 
-/** 소리 글자 자리 예외의 값: 고정 기준점(내부 px, `fxTextAt`의 `at`) 또는 `'actor'`(행동한 캐릭터 쪽 대상 끝, `actorEdgeAt`). */
-export type FxTextSpot = { x: number; y: number } | 'actor';
+/**
+ * 소리 글자 자리 예외의 값: 고정 기준점(내부 px, `fxTextAt`의 `at`), `'actor'`(행동한 캐릭터 쪽 대상 끝, `actorEdgeAt`),
+ * 또는 `'feet'`(대상 캐릭터 몸 옆 발치, `besideFeetAt`).
+ */
+export type FxTextSpot = { x: number; y: number } | 'actor' | 'feet';
 
 /**
  * 소리 글자 자리 예외. 키는 `대상 ID`(그 대상에 뜨는 글자 전부) 또는 `효과@대상 ID`(그 글자만, 먼저 본다).
+ * `화면 ID:효과@대상 ID`는 그 화면에서만 쓰고 가장 먼저 본다(배경 탓이라 다른 화면은 그대로 둘 때).
  * 표에 없으면 대상 그림 위 끝 가운데다.
  *
  * - `nest`: 둥지 위 끝 기준이면 글자가 까치 몸에 얹혀 "까치에게 삑 했는데 반응 없음"으로 읽혀 정답 #4를 가린다(PR #299 Luna 리뷰).
@@ -70,16 +75,38 @@ export type FxTextSpot = { x: number; y: number } | 'actor';
  * - `gon_text@fountain`(#528 실패 1·2, Luna 결정 2안): 위 끝 가운데(224, 180)면 글자 칸(y 약 166~176)이 앉은 ズッシー(`fountain_seat` x 220)
  *   가슴에 얹히고, `lav`가 어두운 동상 돌색과 섞여 "돌 덩어리"로 읽혔다. 단서 ②(흙은 `ぼふっ`)와 짝이 되게 엉덩이 오른쪽 테두리 흰 돌 위:
  *   `gon_text` 33×12·`TEXT_LIFT` 4로 시작 칸 x 250~283, y 182~194(테두리 앞면 y 180~198 안). 앉은 몸 오른쪽 끝(약 x 242)과 8px 띄운다.
+ * - `poof_text@mukjik`(#526): 머리 위(테두리 윗면 높이)에 뜨면 블라인드 판정에서 "분수가 낸 소리"로 읽혔다. 흙길 쿵 자리(x 224, 발 y 244)의
+ *   오른쪽 발치, 흙 위에 띄운다: `poof_text` 29×10·`TEXT_LIFT` 4로 시작 칸 x 252~281, y 234~244(발 아래 끝과 같은 높이),
+ *   0.5초 동안 5px 뜬다. 몸 오른쪽 끝(약 x 246)과 6px 띄운다. `poof_text`는 이 화면 흙길 쿵에만 쓴다.
+ * - `park_fountain:stomp_text@mukjik`(#553): 묵직이 머리 위 끝은 이 화면에서 분수대 테두리 윗면·수면 높이(y 약 163~176)라,
+ *   `tealM` 글자가 물빛에 묻혀 블라인드 판정에서 "분수에서 소리가 났나?"로 읽혔다. 몸 왼쪽 발치에 띄운다(`'feet'`).
+ *   오른쪽 발치는 흙길 쿵의 `ぼふっ` 자리라 비워 둔다. 화면 1은 뒤가 하늘·벽이라 머리 위 그대로다(판정 2 통과 판).
  */
 export const FX_TEXT_SPOT: Readonly<Record<string, FxTextSpot>> = {
   nest: { x: 188, y: 46 },
   'clang_text@fountain': 'actor',
   'gon_text@fountain': { x: 266, y: 198 },
+  'poof_text@mukjik': { x: 266, y: 248 },
+  'park_fountain:stomp_text@mukjik': 'feet',
 };
 
-/** 이 글자(효과·대상)의 자리 예외. `효과@대상`이 `대상`보다 먼저다. 없으면 null. */
-export function fxTextSpot(effect: string, target: string): FxTextSpot | null {
-  return FX_TEXT_SPOT[`${effect}@${target}`] ?? FX_TEXT_SPOT[target] ?? null;
+/** 이 글자(효과·대상)의 자리 예외. `화면:효과@대상` → `효과@대상` → `대상` 순서다. 없으면 null. */
+export function fxTextSpot(effect: string, target: string, screen?: string): FxTextSpot | null {
+  return (screen === undefined ? undefined : FX_TEXT_SPOT[`${screen}:${effect}@${target}`])
+    ?? FX_TEXT_SPOT[`${effect}@${target}`] ?? FX_TEXT_SPOT[target] ?? null;
+}
+
+/** `'feet'` 자리: 글자 칸 아래 끝을 발보다 이만큼 위에 둔다(px). 쿵 발밑 먼지(발 높이, `dustPush`)와 겹치지 않게. */
+export const FEET_TEXT_RAISE = 6;
+
+/**
+ * `'feet'` 자리의 기준점(`fxTextAt`의 `at`). 칸(폭 `w`)을 몸 상자 왼쪽 밖에 `ACTOR_EDGE_GAP` 띄워 붙이고,
+ * 칸 아래 끝은 발(상자 아래 끝)보다 `FEET_TEXT_RAISE` 위다. 왼쪽에 칸이 들어갈 자리가 없으면(화면 왼쪽 끝) 오른쪽 밖에 붙인다.
+ */
+export function besideFeetAt(box: { left: number; top: number; width: number; height: number }, w: number): { x: number; y: number } {
+  const half = w / 2 + ACTOR_EDGE_GAP;
+  const x = box.left - half - w / 2 >= 0 ? box.left - half : box.left + box.width + half;
+  return { x, y: box.top + box.height - FEET_TEXT_RAISE + TEXT_LIFT };
 }
 
 /** `'actor'` 자리에서 글자 칸과 대상 상자 끝 사이 틈(px). 캐릭터 머리 위 글자(`ニューッ` 등)와 붙지 않게 한다. */

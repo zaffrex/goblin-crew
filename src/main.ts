@@ -10,8 +10,8 @@ import { bubbleFontPx, bubbleMaxWidth, bubbleTailInset, placeBubble, type Bubble
 import { CHARACTERS, type CharacterId } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
-import { actorEdgeAt, dustPush, FX_COLORS, FX_STYLE, fxTextSpot, SHAKE_FX, shakeOffset } from './core/fx';
-import { drawnByShape, frameNudges, fxNudges, WATER_FX, waterParticles, type Nudge } from './core/fxShape';
+import { actorEdgeAt, besideFeetAt, dustPush, FX_COLORS, FX_STYLE, fxTextSpot, SHAKE_FX, shakeOffset } from './core/fx';
+import { drawnByShape, frameNudges, fxNudges, particleFx, shapeParticles, type Nudge } from './core/fxShape';
 import type { HitBox } from './core/hit';
 import { cardFacePx, cardInput, cardPointer, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
 import { createFirstNotes, currentNote, noteGauge, noteSwitch, noteTap } from './core/firstNotes';
@@ -19,7 +19,7 @@ import { abilityText, cutFontPx, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, g
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { pickScreen, screenTextKey } from './core/screenPick';
-import { activeFx, activeMarkerVisible, boardDrop, charPose, createScene, cuedArtView, currentBubble, drawOrder, gaugeDrop, heldArtView, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, tiltOf, type SceneData } from './core/scene';
+import { activeFx, activeMarkerVisible, boardDrop, charPose, createScene, cuedArtView, currentBubble, drawOrder, gaugeDrop, heldArtView, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, tiltOf, type SceneData, type SceneState } from './core/scene';
 import { animFrameBox, coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
 import { isTapKey } from './core/keys';
@@ -29,7 +29,7 @@ import { onPointerTap } from './engine/input';
 import { startLoop } from './engine/loop';
 import { drawHud } from './engine/hud';
 import { drawActiveMarker, drawCharacter, drawOutline, drawRoom, drawSpark, drawStompDust, drawTarget, drawTargets } from './engine/placeholder';
-import { drawParticles, drawSceneBg, drawSceneFrame, drawSceneFx, loadSceneArt, sceneArtMeta } from './engine/sceneArt';
+import { drawParticles, drawSceneBg, drawSceneFrame, drawSceneFx, loadSceneArt, sceneArtMeta, type SceneArt } from './engine/sceneArt';
 import { drawHead, drawSprite, spriteMetas, spriteState, type SpriteTop } from './engine/sprites';
 import { drawFxText, fxTextState, fxTextWidth } from './engine/fxText';
 import { hudIconState, paintHudIcon } from './engine/hudIcons';
@@ -56,26 +56,47 @@ const SCREENS = new Map(
 );
 const picked = pickScreen(new URLSearchParams(location.search).get('screen'), [...SCREENS.keys()]);
 if (picked.unknown) console.warn(`?screen=${picked.unknown}: 없는 화면이라 ${picked.id}로 엽니다`);
-const screenData = SCREENS.get(picked.id)!;
 const TEXT: Readonly<Record<string, string>> = texts;
-const t = (id: string): string => TEXT[screenTextKey(TEXT, screenData.id, id)] ?? id;
-/** 클리어 컷 글(L32, 설계 8절). 화면 문법에 필드가 없어 `<화면 ID>.clear` 텍스트가 있으면 쓴다. */
-const clearLine = `${screenData.id}.clear` in TEXT ? `${screenData.id}.clear` : undefined;
-const data: SceneData = {
-  screen: screenData,
-  characters: charactersJson as CharactersData,
-  art: sceneArtMeta(screenData.id) ?? undefined,
-  sprites: spriteMetas(),
-  clearLine,
-  texts: TEXT,
-};
-const art = loadSceneArt(screenData.id);
-/** 시트가 그리는 대상. 이 밖의 대상만 임시 상자로 그린다. */
-const covered = art ? coveredIds(art.meta) : new Set<string>();
+
+/**
+ * 한 화면 판(#230 여러 화면 연결 1단계, 설계 `ui-interaction.md` 11절). 화면에 묶인 상태는 전부 여기 있다.
+ * 다음 화면으로 넘어가면 `enterScreen`으로 통째로 새로 만든다. 그래서 이전 화면의 loop 시각·그림 앵커가 새지 않는다(#230 Q2 `loopClock`).
+ * 다른 곳은 `session`을 매번 다시 읽는다(따로 붙잡아 두지 않는다). 화면을 바꾸는 연결(2단계)에서 `let`이 된다.
+ */
+interface Session {
+  data: SceneData;
+  art: SceneArt | null;
+  /** 시트가 그리는 대상. 이 밖의 대상만 임시 상자로 그린다. */
+  covered: ReadonlySet<string>;
+  /** 지금 판. 처음부터 버튼(#387)이 같은 화면 새 판으로 바꾼다. */
+  scene: SceneState;
+  /** 물건별 loop 시작 시각(#237). anim이 끝나거나 멈춘 모습이 바뀌면 그 물건만 0부터 다시 센다. */
+  loopClock: LoopStarts;
+  /** 이번 프레임에 시트 그림으로 그린 캐릭터의 앵커 높이. 실루엣으로 그렸으면 없다(히트 박스 위끝을 쓴다). */
+  spriteTops: Partial<Record<CharacterId, SpriteTop>>;
+}
+
+function enterScreen(id: string): Session {
+  const screen = SCREENS.get(id);
+  if (!screen) throw new Error(`화면 ${id}가 번들에 없습니다`);
+  const data: SceneData = {
+    screen,
+    characters: charactersJson as CharactersData,
+    art: sceneArtMeta(id) ?? undefined,
+    sprites: spriteMetas(),
+    // 클리어 컷 글(L32, 설계 8절). 화면 문법에 필드가 없어 `<화면 ID>.clear` 텍스트가 있으면 쓴다.
+    clearLine: `${id}.clear` in TEXT ? `${id}.clear` : undefined,
+    texts: TEXT,
+  };
+  const art = loadSceneArt(id);
+  return { data, art, covered: art ? coveredIds(art.meta) : new Set<string>(), scene: createScene(data), loopClock: {}, spriteTops: {} };
+}
+
+const session = enterScreen(picked.id);
+/** 글 ID → 지금 화면의 글(`<화면 ID>.card.goal` 등이 있으면 그것, #380). */
+const t = (id: string): string => TEXT[screenTextKey(TEXT, session.data.screen.id, id)] ?? id;
 
 const display = createDisplay(canvas, { width: INTERNAL_WIDTH, height: INTERNAL_HEIGHT });
-/** 지금 판. 처음부터 버튼(#387)이 새 판으로 바꾼다. 다른 곳은 이 변수를 매번 다시 읽는다(따로 붙잡아 두지 않는다). */
-let scene = createScene(data);
 
 /**
  * 로딩 화면(#387, #286 P1-7): 그림이 다 오기 전에는 장면 대신 `#loading`(index.html, JS 전부터 떠 있음)만 보인다.
@@ -84,6 +105,7 @@ let scene = createScene(data);
 const loadStart = performance.now();
 let loaded = false;
 function loadStates(): Loaded[] {
+  const { art } = session;
   const bg: Loaded = !art?.bg ? 'none' : art.bgReady ? 'ready' : 'loading';
   const objects: Loaded = !art ? 'none' : art.objectsReady ? 'ready' : 'loading';
   return [bg, objects, ...CHARACTERS.map((c) => spriteState(c.id)), fxTextState(), hudIconState()];
@@ -95,7 +117,7 @@ const PLAYTEST = new URLSearchParams(location.search).get('playtest') === '1';
 const fallbacks = new Set<string>();
 if (PLAYTEST) {
   const w = window as unknown as { __gcLayout: () => unknown; __gcFallbacks: () => string[] };
-  w.__gcLayout = () => sceneLayout(data, scene);
+  w.__gcLayout = () => sceneLayout(session.data, session.scene);
   w.__gcFallbacks = () => [...fallbacks].sort();
 }
 
@@ -106,7 +128,7 @@ let hoverLabel: Label | null = null;
 /** 데스크톱 호버 중인 HUD 칸(설명은 대상 라벨 자리에, 설계 6-1-3절). */
 let hoverHud: HudId | 'gauge' | null = null;
 /** 처음 한 번 안내(첫 전환 특기 설명, 첫 감소 게이지 뜻, 설계 6-4-3·6-2-5절). */
-const notes = createFirstNotes(scene.shownGauge, scene.ui.active);
+const notes = createFirstNotes(session.scene.shownGauge, session.scene.ui.active);
 /** 배포 빌드의 커밋 앞 7자리(#460). 로컬 빌드는 `dev`. */
 function buildTag(sha: string | undefined): string {
   return sha ? sha.slice(0, 7) : 'dev';
@@ -159,7 +181,7 @@ window.addEventListener('resize', () => display.resize());
 onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
   if (!loaded || startCard.open) return; // 로딩 중이거나 카드 몫(window 핸들러가 닫는다)
   noteTap(notes);
-  const r = sceneTap(data, scene, p, slop, slop > 0);
+  const r = sceneTap(session.data, session.scene, p, slop, slop > 0);
   if (r.kind !== 'intent') return;
   touchLabel = r.intent.kind === 'select' ? r.intent.label : null;
   // 첫 전환 안내는 터치만(설계 6-4-3절, PR #295 리뷰). 마우스는 얼굴 호버로 같은 글을 이미 봤고, 안내가 대상 호버 라벨을 가린다.
@@ -185,13 +207,13 @@ restartEl.addEventListener('click', () => {
   if (!restartPress(restart, performance.now())) return;
   // 누른 뒤 초점이 남으면 Space 한 번에 다시 눌려서(두 번째 누름) 판이 또 날아간다.
   restartEl.blur();
-  scene = createScene(data);
+  session.scene = createScene(session.data);
+  session.loopClock = {};
   touchLabel = null;
   hoverLabel = null;
   hoverHud = null;
-  loopClock = {};
   noteTap(notes);
-  notes.lastGauge = scene.shownGauge;
+  notes.lastGauge = session.scene.shownGauge;
 });
 restartEl.addEventListener('pointerenter', (e) => {
   if (e.pointerType === 'mouse') restartHover = true;
@@ -209,6 +231,7 @@ canvas.addEventListener('pointermove', (e) => {
   hoverLabel = null;
   hoverHud = null;
   canvas.style.cursor = 'default';
+  const { data, scene } = session;
   if (!p || scene.cleared || startCard.open) return;
   // HUD 칸 설명은 busy 중에도 띄운다(칸은 busy 중에도 눌린다, #266). 월드 호버는 busy 중에는 끈다.
   // 게이지 띠(6-3-5절): 어디든 올리면 게이지 설명. 누를 수 없으니 기본 화살표.
@@ -228,12 +251,6 @@ canvas.addEventListener('pointermove', (e) => {
   canvas.style.cursor = r.kind === 'act' ? 'pointer' : 'default';
 });
 
-/** 물건별 loop 시작 시각(#237). anim이 끝나거나 멈춘 모습이 바뀌면 그 물건만 0부터 다시 센다. */
-let loopClock: LoopStarts = {};
-
-/** 이번 프레임에 시트 그림으로 그린 캐릭터의 앵커 높이. 실루엣으로 그렸으면 없다(히트 박스 위끝을 쓴다). */
-const spriteTops: Partial<Record<CharacterId, SpriteTop>> = {};
-
 /**
  * 상자 위끝과 그림 앵커 중 머리 위 높이(내부 y). 보통은 둘 중 위쪽(매달린 자세는 자세 `hit` 상자가 더 위).
  * 낮은 자세(납작·엉덩방아, #464)면 상자는 서 있는 높이 그대로라 그림 앵커만 쓴다.
@@ -247,15 +264,21 @@ function headY(box: HitBox, sprite: SpriteTop | undefined): number {
 function anchorOf(target: string, layout: ReturnType<typeof sceneLayout>): Point | null {
   const box: HitBox | undefined = layout.chars[target as CharacterId] ?? layout.hotspots[target] ?? layout.spots[target];
   if (!box) return null;
-  return { x: box.left + box.width / 2, y: headY(box, spriteTops[target as CharacterId]) };
+  return { x: box.left + box.width / 2, y: headY(box, session.spriteTops[target as CharacterId]) };
 }
 
 /**
- * 소리 글자 자리 예외(`fx.ts` `FX_TEXT_SPOT`)의 기준점. 고정 점은 그대로, `'actor'`는 그 효과를 낸 캐릭터 쪽 대상 끝(#530).
- * 예외가 없거나, `'actor'`인데 캐릭터·대상 상자를 모르면(입장 연출 등) null → 대상 위 끝 가운데.
+ * 소리 글자 자리 예외(`fx.ts` `FX_TEXT_SPOT`)의 기준점. 고정 점은 그대로, `'actor'`는 그 효과를 낸 캐릭터 쪽 대상 끝(#530),
+ * `'feet'`는 대상 캐릭터 몸 옆 발치(#553).
+ * 예외가 없거나, 상자를 모르면(입장 연출 등) null → 대상 위 끝 가운데.
  */
 function fxTextSpotAt(f: { effect: string; target: string; by?: CharacterId }, layout: ReturnType<typeof sceneLayout>): Point | null {
-  const spot = fxTextSpot(f.effect, f.target);
+  const { data, scene } = session;
+  const spot = fxTextSpot(f.effect, f.target, data.screen.id);
+  if (spot === 'feet') {
+    const body: HitBox | undefined = layout.chars[f.target as CharacterId];
+    return body ? besideFeetAt(body, fxTextWidth(f.effect)) : null;
+  }
   if (spot !== 'actor') return spot;
   const box: HitBox | undefined = layout.hotspots[f.target] ?? layout.spots[f.target];
   const actor = f.by === undefined ? undefined : scene.walkers[f.by];
@@ -406,6 +429,7 @@ function placeGoal(scale: number): void {
 
 /** 대상 상자 중 시트가 그리지 않는 것만. 시트 이미지가 아직이면 전부(임시 상자). */
 function uncovered(boxes: Record<string, HitBox>): Record<string, HitBox> {
+  const { art, covered } = session;
   if (!art?.objectsReady) return boxes;
   return Object.fromEntries(Object.entries(boxes).filter(([id]) => !covered.has(id)));
 }
@@ -441,6 +465,8 @@ function render(): void {
   }
   loadingEl.hidden = true;
   const { ctx, internal } = display;
+  const s = session;
+  const { data, scene, art, spriteTops } = s;
   const layout = sceneLayout(data, scene);
   // 라벨과 호버 외곽선(형식 기록 10-1절)은 같은 대상: 마우스 호버 또는 터치 첫 탭. busy·클리어 중에는 끈다.
   const shown = isBusy(scene) || scene.cleared ? null : (touchLabel ?? hoverLabel);
@@ -470,8 +496,8 @@ function render(): void {
   if (art) {
     const view: SceneView = { flagsOf: (k: string) => shownFlags(scene, k), playing, cued: cuedArtView(scene), held: heldArtView(scene), clockMs: scene.tick * TICK_MS, tiltOf: (k: string) => tiltOf(data, scene, k) };
     artView = view;
-    loopClock = loopStarts(art.meta, view, loopClock);
-    draws = sceneDraws(art.meta, { ...view, loopStarts: loopClock });
+    s.loopClock = loopStarts(art.meta, view, s.loopClock);
+    draws = sceneDraws(art.meta, { ...view, loopStarts: s.loopClock });
   }
   const lit = draws ? litFrames(art!.meta, draws, litTarget) : new Set<number>();
   const nudged = draws ? frameNudges(art!.meta, draws, nudges) : new Map<number, Nudge>();
@@ -522,10 +548,11 @@ function render(): void {
   const fxArt: NonNullable<FrameArt['fx']>[number][] = [];
   for (const f of fxNow) {
     // 물 입자 fx(`splash`·`ripple`, #485)는 물 4색 입자로. 옮기는 fx(`nod`)는 위에서 그림을 옮겼다. 둘 다 임시 별을 안 그린다.
-    const water = WATER_FX[f.effect];
-    if (water) {
-      const at = water.anchor === 'foot' ? footOf(f.target, layout) : anchorOf(f.target, layout);
-      if (at) drawParticles(ctx, waterParticles(f.effect, at, f.t));
+    // 글자 곁 입자(`poof_text` 흙먼지, #526)는 입자를 먼저 그리고 글자를 그 위에 그린다.
+    const shape = particleFx(f.effect);
+    if (shape) {
+      const at = shape.anchor === 'foot' ? footOf(f.target, layout) : anchorOf(f.target, layout);
+      if (at) drawParticles(ctx, shapeParticles(f.effect, at, f.t));
     }
     if (drawnByShape(f.effect)) continue;
     const style = FX_STYLE[f.effect];
@@ -651,7 +678,7 @@ startLoop({
     loaded ||= loadingDone(loadStates(), performance.now() - loadStart);
     if (!loaded) return;
     cardTick(startCard);
-    if (!startCard.open) sceneTick(data, scene);
+    if (!startCard.open) sceneTick(session.data, session.scene);
   },
   render,
 });

@@ -7,11 +7,19 @@ import type { FrameCase } from './types.ts';
 const CASES: FrameCase[] = [
   // 9절 진입: 물줄기 `シャーッ` 글자 + プピ `enter`.
   { id: 'enter', why: '9절 진입: 물소리 글자, プピ 첫마디. 재킷·관리인·자명종·손님이 처음부터 다 보이는가(X4)' },
-  // 9절 대기 동작: 관리인 꾸벅(약 15초), 재킷 소매 움찔(약 12초), 손님 동동. 한 번씩은 나오게 16초 찍는다.
-  { id: 'idle', why: '9절 대기: 관리인 꾸벅 + 고개가 자명종 쪽, 재킷 소매 움찔, 손님 시계·동동', minMs: 16_000, every: 200 }, // 꾸벅 400ms(#495)가 칸 사이에 빠지지 않게. 16초/200 = 80칸(상한 100 안)
+  // 9절 대기 동작: 관리인 꾸벅(15000~15400ms), 재킷 소매 움찔(12000~12300ms), 손님 동동. 한 번씩은 나오게 17초 찍는다.
+  // 16초였을 때 꾸벅 뒤 여유가 0.6초뿐이라 느린 PC(화면 시계가 늦게 감, #286)에서 빠질 수 있었다. 창·간격은 cases.test.ts가 그림 loop로 잰다(#477).
+  { id: 'idle', why: '9절 대기: 관리인 꾸벅 + 고개가 자명종 쪽, 재킷 소매 움찔, 손님 시계·동동', minMs: 17_000, every: 200 }, // 움찔 300ms보다 짧은 간격. 17초/200 = 85칸
 
   // 0절 주 아하(돌 테두리 쿵 → 재킷이 손으로) 단서.
   { id: 'clue-main-1-tap', action: { char: 'jjuk', verb: 'stretch', target: 'fountain' }, says: 'park_fountain.tap', why: '주 단서 ①(3절 9번): 장대로 테두리 カーン → 재킷 소매가 움찔, 1px 미끄러졌다 멈춤' },
+  {
+    id: 'clue-main-1-tap-left',
+    pre: [{ char: 'jjuk', verb: 'stretch', target: 'alarm_clock' }],
+    action: { char: 'jjuk', verb: 'stretch', target: 'fountain' },
+    says: 'park_fountain.tap',
+    why: '주 단서 ① 왼쪽(#530): 쭉이가 자명종 쪽(테두리 왼쪽 x 111)에서 칠 때 カーン이 왼쪽 끝 장대 옆에 뜨는가, ニューッ과 안 겹치는가',
+  },
   { id: 'clue-main-2-soft', action: { char: 'mukjik', verb: 'stomp', target: 'jacket' }, says: 'park_fountain.soft', why: '주 단서 ②(3절 7번): 재킷 밑 흙길에서 쿵 → ぼふっ 흙먼지, 비둘기. 재킷은 그대로' },
   {
     id: 'clue-main-3-high-again',
@@ -37,6 +45,19 @@ const CASES: FrameCase[] = [
     every: 250, // 클리어 컷이 길어서 120ms로는 100칸 상한에 걸린다
     why: '3절 8번 ★: 손 위 재킷을 장대로 집기 → 클리어 컷(8절). 클리어 카드 프레임은 진마씨께 보이는 자료에서 뺀다',
   },
+
+  // 장난감 오리(4절, 7절 P9). 단서가 아니라서 블라인드 대조 대상은 아니다. 그림이 물 위에 떠 있는지, 셋이 서로 다른 반응으로 읽히는지 본다(#529).
+  { id: 'toy-duck-peck', action: { char: 'jjuk', verb: 'stretch', target: 'duck' }, says: 'park_fountain.duck_peck', why: '4절 오리 × ノビー: 집게를 콕 → いてっ → 왼쪽으로 헤엄쳐 갔다가 제자리' },
+  { id: 'toy-duck-flap', action: { char: 'mukjik', verb: 'stomp', target: 'duck' }, says: 'park_fountain.duck_splash', why: '4절 오리 × ズッシー: 쿵에 놀라 퍼덕 → 물벼락 → 젖은 ズッシー' },
+  {
+    id: 'toy-duck-flap-high',
+    pre: [{ char: 'mukjik', verb: 'move', target: 'floor' }],
+    floor: [400, 205],
+    action: { char: 'mukjik', verb: 'stomp', target: 'duck' },
+    says: 'park_fountain.duck_splash',
+    why: '#575: 위쪽 바닥(발 y 205)에서 쿵 → x 187에서 발 y 238까지 앞으로 내려선 뒤 퍼덕. 오리가 ズッシー 몸 뒤에 가리지 않는다',
+  },
+  { id: 'toy-duck-turn', action: { char: 'ppik', verb: 'squeak', target: 'duck' }, says: 'park_fountain.duck_reply', why: '4절 오리 × プピ: 홱 돌아봄 → クワッ 대답' },
 ];
 
 export default CASES;

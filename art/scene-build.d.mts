@@ -21,7 +21,8 @@ export interface SceneSrc {
     area?: [number, number, number, number];
     colors?: [number, number, number, number];
     mode?: string;
-    states?: (Partial<Picture> & { when: { flags: Record<string, boolean> }; mode?: string })[];
+    // `draw: null` = 안 그리는 멈춘 모습(개정 9, #551)
+    states?: (Partial<Omit<Picture, 'draw'>> & { draw?: Draw | null; when: { flags: Record<string, boolean> }; mode?: string })[];
     overlay?: { sortY: number; draw: Draw };
     tilt?: { rest: number; weight: Record<string, number>; pivot: number; run: number; draw: Record<string, Draw> };
     noFloor?: { box: [number, number, number, number]; y: number };
@@ -29,7 +30,7 @@ export interface SceneSrc {
   anims?: Record<string, { ms: number | number[]; frames: Draw[]; layer?: 'back' | 'front'; tilt?: number[]; hold?: boolean; variants?: ({ when: { flags: Record<string, boolean> }; ms: number | number[]; frames: Draw[]; layer?: 'back' | 'front'; tilt?: number[] } & Record<string, unknown>)[] } & Record<string, unknown>>;
 }
 export interface Frame { src: [number, number, number, number]; at: [number, number] }
-interface PicMeta { frame: number; layer: 'back' | 'front'; loop?: { frames: number[]; ms: number[] }; mode?: string }
+interface PicMeta { frame: number | null; layer: 'back' | 'front'; loop?: { frames: number[]; ms: number[] }; mode?: string }
 export interface SceneMeta {
   image: string;
   screen: string;

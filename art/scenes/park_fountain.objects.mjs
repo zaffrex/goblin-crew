@@ -36,6 +36,7 @@ const GUEST_LEGEND = {
   e: C.ink, b: C.plum, m: C.woodD, M: C.redD, t: C.white, // 눈·눈썹·입선·입 안·이
   w: C.white, c: C.cotton, l: C.lint, // 셔츠
   p: C.pink, P: C.pinkL, r: C.red, // 넥타이(재킷과 같은 분홍)·재킷 그늘
+  v: C.lav, // 젖은 재킷 그늘(분홍이 물을 먹어 탁해진 쪽, #529)
   u: C.dusk, U: C.plum, // 바지
   o: C.plum, O: C.lav, // 구두
   a: C.lint, A: C.dusk, // 손목시계 알·줄
@@ -207,7 +208,10 @@ const LEGS = {
 /**
  * 분홍 재킷을 입힌 몸. 만세(cheer)는 두 팔이 머리 위로, 젖음(wet)은 팔이 늘어지고 색이 한 단 진하다.
  * 흙길(woodL Y149) 앞에 서므로 재킷 주색 pink(Y173)로는 명도 차가 24라 모자란다(결정 3-4 ≥ 30).
- * 그래서 입은 재킷은 빛 받는 앞판을 pinkL(Y217)로, 젖은 재킷은 red(Y104)로 칠한다. 동상 위 재킷과 같은 분홍 계열이다.
+ * 그래서 입은 재킷은 빛 받는 앞판을 pinkL(Y217)로 칠한다. 동상 위 재킷과 같은 분홍 계열이다.
+ * 젖은 재킷은 통째로 진하게 칠하지 않는다. red(Y104)로 칠했더니 블라인드에서 "빨간 재킷(다른 옷)"으로 읽혔다(#529, ノビー 셔츠와 같은 색).
+ * 대신 물이 위에서 쏟아진 자국으로 보인다: 어깨·가슴은 젖어 한 단 어두운 pink, 아래로 갈수록 젖은 줄이 흘러내리고
+ * 밑단 앞판은 마른 pinkL 그대로, 뒤쪽 그늘만 lav(탁해진 분홍). 젖은 자리와 마른 자리의 들쭉날쭉한 경계가 "젖었다"를 말한다.
  */
 const JACKET = {
   cheer: [
@@ -231,21 +235,21 @@ const JACKET = {
   ],
   wet: [
     '......SSSS..........',
-    '...rrrwrrwrrrr......',
-    '..rrrrrwrrrrrrr.....',
-    '.rrrprrwrrrrrrrr....',
-    '.rrprrrrrrrrrrrr....',
-    '.rrprr.rrrrrrrrr....',
-    '.rrprr.rrprrrrrr....',
-    '.rrprr.rrrrrrrrr....',
-    '.rrprr.rrrrrrrrr....',
-    '.rrrrr.rrprrrrrr....',
-    '.rrrrr.rrrrrrrrr....',
-    '.rrrrr.rrrrrrrrr....',
-    '.SSrr..rrprrrrr.....',
-    '.SS....rrrrrrrr.....',
-    '.......rrrrrrr......',
-    '.......rrrrrrr......',
+    '...pppwppwpppp......',
+    '..pppppwppppppp.....',
+    '.ppppppwpppppppv....',
+    '.ppppppppppppppv....',
+    '.ppPpp.ppPpppppv....',
+    '.PpPpp.PpPppPppv....',
+    '.PpPPp.PpPPpPppv....',
+    '.PPPPp.PpPPpPppv....',
+    '.PPPPp.PpPPpPPpv....',
+    '.PPPPP.PPPPpPPpp....',
+    '.PPPPP.PPPPpPPPp....',
+    '.SSPP..PPPPPPPP.....',
+    '.SS....PPPPPPPP.....',
+    '.......PPPPPPP......',
+    '.......PPPPPPP......',
     '...UUUUUUUUUUUU.....',
   ],
 };
@@ -276,8 +280,8 @@ function guestBody(im, ox, oy, pose) {
 function guestDrips(im, ox, oy) {
   for (const [dx, dy] of [[1, 31], [1, 34], [2, 37], [14, 29], [14, 33], [-1, 13], [16, 46]]) im.set(ox + dx, oy + dy, C.tealL);
   for (const [dx, dy] of [[1, 32], [14, 30], [-1, 14]]) im.set(ox + dx, oy + dy, C.white);
-  // 젖은 천 반들거림(재킷 어깨·앞판). 진한 red 위 흰 점이라 "젖어서 진해졌다"로 읽힌다
-  for (const [dx, dy] of [[4, 18], [5, 19], [11, 18], [9, 23], [3, 25]]) im.set(ox + dx, oy + dy, C.white);
+  // 젖은 천 반들거림. 젖어서 어두워진 어깨·가슴(pink) 위에만 흰 점을 둔다(마른 pinkL 위에서는 안 보인다)
+  for (const [dx, dy] of [[4, 18], [5, 19], [11, 18], [10, 20], [2, 20]]) im.set(ox + dx, oy + dy, C.white);
 }
 /** 효과: 동동 칸의 바닥 먼지 두 점(발을 굴렀다) */
 const tapDust = (ox, oy) => (im) => { for (const [dx, dy] of [[-2, 53], [-3, 55], [5, 55]]) im.set(ox + dx, oy + dy, C.lint); };
@@ -567,16 +571,91 @@ function spring(t, x0, y0, x1, y1) {
   }
 }
 
-/** pose: 'rest' 창턱 / 'boing' 머리가 왼쪽 위로 튐 / 'sway' 오른쪽으로 출렁(놀란 얼굴) / 'fallen' 땅에 거꾸로 처박힘 */
+/** 시계 방향 90° 돌린 줄 묶음(옆으로 누운 칸, `tumble`). */
+const rotateCW = (rows) => [...rows[0]].map((_, i) => rows.map((r) => r[i]).reverse().join(''));
+
+// #542 끈: 자명종 오른발에 빨간 끈이 묶여 있고, 다른 끝은 조는 관리인이 책상에 포갠 손(졸기·꾸벅 둘 다 x 59..64, y 142..145)에 쥐고 있다.
+// 떨어질 때(`tumble`·`fallen`) 처음 보이고, 대사가 끝나면 관리인이 자면서 끈을 당겨 거꾸로 매달린 채 벽을 타고 올라와 창턱에 퐁(`reel_up`).
+// 손을 뻗어 주워 올리는 안(PM 1안)은 팔이 약 90px 늘어나야 해서 쭉이의 특기(늘어나기)와 겹친다. 끈이면 몸은 졸기 그대로다.
+// 끈은 효과 픽셀(외곽선 없음, redD 한 줄). 시계 그림 색(red·redL)과 다른 색이라 미리보기 검사에서 몸통만 따로 셀 수 있다.
+export const CORD_COLOR = C.redD;
+const CORD_HAND = [64, 145];
+/** 손 → pts… → 끝 점을 꺾은선 끈으로 */
+function cord(im, ...pts) {
+  let [x0, y0] = CORD_HAND;
+  for (const [x1, y1] of pts) { line(im, x0, y0, x1, y1, CORD_COLOR); [x0, y0] = [x1, y1]; }
+}
+/** 잡아당김 선(효과): 포갠 손 오른쪽 위 흰 점 둘. 눈은 감은 채, 손만 끈을 당긴다 */
+const tug = (im) => { for (const [x, y] of [[67, 141], [68, 140], [67, 144], [68, 145]]) im.set(x, y, C.white); };
+/** 거꾸로 선 자명종(다리가 위). 왼쪽 위 (x, y), 오른발 끝 = (x + 8, y). */
+const CLOCK_FLIP = [...CLOCK_REST.slice(2)].reverse();
+/**
+ * #547 쉬는 끈: 떨어질 때 갑자기 생기던 끈(#468 재판정 2 S02)을 대기 때부터 보인다.
+ * 오른발(92,151) 아래에서 창턱 앞면 밑으로 처졌다가(세로 5px, 판벽 크림 위라 1배에서도 보임) 창틀 오른쪽 아랫귀퉁이를 넘어
+ * 창 안 아랫단(76,148)에서 끝난다. 관리인 손까지는 잇지 않는다: 관리인 포즈 9개마다 손 자리가 달라 끈이 허공에 뜬다.
+ * 떨어질 때(`tumble`부터)는 지금처럼 손에서 나와 "창 안으로 들어간 끈이 관리인 손에 있었다"가 드러난다.
+ * `rest`·`boing`·`sway`(= `spring`·`ring_late`) 모두 몸통 아랫단이 같은 자리라 같은 끈을 쓴다(새 칸 0).
+ */
+const restCord = (im) => {
+  const pts = [[93, 152], [91, 155], [88, 156], [85, 156], [82, 154], [80, 151], [78, 149], [76, 148]];
+  for (let i = 1; i < pts.length; i++) line(im, ...pts[i - 1], ...pts[i], CORD_COLOR);
+};
+
+/** pose: 'rest' 창턱 / 'boing' 머리가 왼쪽 위로 튐 / 'sway' 오른쪽으로 출렁(놀란 얼굴) / 'tumble' 떨어지는 중 / 'fallen' 땅에 거꾸로 처박힘
+ *  / 'reel1'·'reel2' 끈에 거꾸로 매달려 올라옴 / 'reel3' 창턱 위로 퐁 뒤집혀 섬(#542) */
 function clockPic(pose) {
-  if (pose === 'rest') return pic((t) => stamp(t, CX, CY, CLOCK_REST, CLOCK_LEGEND));
-  if (pose === 'fallen') {
-    // 판잣집 벽 아래 흙길 가장자리(y 198~)에 거꾸로: 다리·발이 위로, 볏은 흙에 묻혀 안 보인다. 몸통 위 끝 y 189.
-    // 굴러가는 길은 그리지 않는다(엔진 이동 없이 0.3초 안에 툭 바뀜, 설계 7절 P7). 흙 튄 자국 3점은 효과
-    const FX = 96, FY = 189;
+  if (pose === 'rest') return pic((t) => stamp(t, CX, CY, CLOCK_REST, CLOCK_LEGEND), restCord);
+  if (pose === 'reel1' || pose === 'reel2') {
+    // 1: 흙에서 22px 들림(몸 상자 왼쪽 끝 70보다 왼쪽) / 2: 창 아래 벽, ズッシー 머리 위(몸 상자 위 끝 183 위)
+    const [X, Y] = pose === 'reel1' ? [54, 214] : [62, 172];
     return pic(
-      (t) => stamp(t, FX, FY, [...CLOCK_REST.slice(2)].reverse(), CLOCK_LEGEND),
-      (im) => { for (const [x, y] of [[94, 198], [93, 196], [109, 197], [110, 195], [92, 199]]) im.set(x, y, C.wood); },
+      (t) => stamp(t, X, Y, CLOCK_FLIP, CLOCK_LEGEND),
+      (im) => {
+        cord(im, [X + 8, Y - 1]);
+        tug(im);
+        // 올라가는 속도선(아래로 남음)
+        for (const [dx, dy] of [[2, 12], [2, 13], [9, 12], [9, 14]]) im.set(X + dx, Y + dy, C.white);
+      },
+    );
+  }
+  if (pose === 'reel3') {
+    // 창턱 위 10px에서 똑바로 뒤집혀 섬 → 다음 틱에 멈춘 모습(창턱)으로 툭 내려앉는다. 양옆 흰 점 넷은 착지 직전 선(끈과 안 겹치게 몸 바깥)
+    const [X, Y] = [CX, CY - 10];
+    return pic(
+      (t) => stamp(t, X, Y, CLOCK_REST, CLOCK_LEGEND),
+      (im) => {
+        cord(im, [72, 149], [X + 8, Y + 12]);
+        tug(im);
+        for (const [x, y] of [[82, Y + 12], [82, Y + 13], [97, Y + 12], [97, Y + 13]]) im.set(x, y, C.white);
+      },
+    );
+  }
+  // #527: 처음 자리(92,188 판잣집 벽 아래)는 ズッシー가 서는 곳(x 92, 몸 70..109 × 183..244) 바로 뒤라 몸에 다 가려졌다.
+  // 그래서 창턱에서 벽을 타고 떨어져 **쿵 한 발 왼쪽 앞 흙**으로 튕겨 나온 자리로 옮긴다. ズッシー가 왼쪽을 보고 서니
+  // 시선이 닿는 곳이고(`…すまん` 이 자명종에게 하는 말로 읽힌다), 창 바로 아래라 "창턱에서 떨어졌다"가 이어진다.
+  // 떨어지는 길은 칸 하나(옆으로 누워 벽 앞을 지나는 중)로만 보인다. 엔진 이동 없음, 설계 7절 P7.
+  if (pose === 'tumble') {
+    // 창턱(84,140) → 땅(54,236) 길 중간, 벽 밑동 앞. 몸 상자 왼쪽 끝 70보다 왼쪽(외곽선 포함 x 55..68). 위쪽 흰 점 3개는 떨어진 자리에서 남은 빠름 선(효과)
+    const TX = 56, TY = 178;
+    return pic(
+      (t) => stamp(t, TX, TY, rotateCW(CLOCK_REST), CLOCK_LEGEND),
+      (im) => {
+        // 끈(#542): 포갠 손 → 책상 앞판 → 창턱 끝 → 옆으로 누운 오른발(왼쪽 x 56, y 185)
+        cord(im, [72, 149], [74, 152], [62, 176], [55, 185]);
+        for (const [x, y] of [[66, 172], [67, 170], [62, 173], [63, 171], [58, 174]]) im.set(x, y, C.white);
+      },
+    );
+  }
+  if (pose === 'fallen') {
+    // 쿵 한 발 왼쪽 앞 흙(외곽선 포함 x 50..68, y 235..248)에 거꾸로: 다리·발이 위로, 볏은 흙에 묻혀 안 보인다. 흙 튄 자국 5점은 효과
+    const FX = 54, FY = 236;
+    return pic(
+      (t) => stamp(t, FX, FY, CLOCK_FLIP, CLOCK_LEGEND),
+      (im) => {
+        // 늘어진 끈(#542): 포갠 손 → 창턱 끝 → 벽을 따라 처져 → 위로 선 오른발 끝(62,235)
+        cord(im, [72, 149], [74, 152], [72, 172], [67, 196], [63, 216], [62, 235]);
+        for (const [dx, dy] of [[-2, 9], [-3, 7], [13, 8], [14, 6], [-4, 10]]) im.set(FX + dx, FY + dy, C.wood);
+      },
     );
   }
   const boing = pose === 'boing';
@@ -591,63 +670,74 @@ function clockPic(pose) {
     const pts = boing ? [[hx + 10, hy + 1], [hx + 11, hy + 2], [hx + 10, hy + 5], [hx + 11, hy + 6]]
       : [[hx - 3, hy + 1], [hx - 4, hy + 2], [hx - 3, hy + 5], [hx - 4, hy + 6]];
     for (const [x, y] of pts) im.set(x, y, C.white);
+    restCord(im);
   });
 }
-const clock = Object.fromEntries(['rest', 'boing', 'sway', 'fallen'].map((k) => [k, clockPic(k)]));
+const clock = Object.fromEntries(['rest', 'boing', 'sway', 'tumble', 'fallen', 'reel1', 'reel2', 'reel3'].map((k) => [k, clockPic(k)]));
 
 OBJECTS.alarm_clock = { draw: clock.rest };
 // P7 0·1칸, `alarm_clock` × ノビー(단서 ①): ビヨーン → 출렁 → 다시 튐. 마지막 칸을 붙든 채 `clock_broken` 대사
 ANIMS['alarm_clock.spring'] = { ms: [220, 200, 260], frames: [clock.boing, clock.sway, clock.boing], hold: true };
-// P7 2칸, `alarm_clock` × ズッシー(단서 ②): 툭 → 흙길에 거꾸로. 붙든 채 `clock_fall` 대사, 대기열이 비면 창턱(장난감, 13절 Q4)
-ANIMS['alarm_clock.fall'] = { ms: [700], frames: [clock.fallen], hold: true };
+// P7 2칸, `alarm_clock` × ズッシー(단서 ②): 옆으로 누워 떨어지는 중(#527) → 쿵 한 발 앞 흙에 거꾸로. 붙든 채 `clock_fall` 대사, 대기열이 비면 창턱(장난감, 13절 Q4)
+ANIMS['alarm_clock.fall'] = { ms: [160, 540], frames: [clock.tumble, clock.fallen], hold: true };
+// #542: 대사가 닫히면 바닥에서 창턱으로 툭 순간이동하던 길. 조는 관리인이 끈을 당겨 거꾸로 매달린 채 올라와(들림 → 벽 중간) 창턱 위로 퐁.
+// 끝나면 멈춘 모습(창턱)으로 내려앉는다. 새 칸 3, 540ms. 관리인 칸은 늘리지 않는다(손은 졸기 그림의 포갠 손 그대로).
+ANIMS['alarm_clock.reel_up'] = { ms: [200, 160, 180], frames: [clock.reel1, clock.reel2, clock.reel3] };
 // 8절 ③ (새 칸 0): 늦게 우는 자명종. 0·1칸을 빠르게 번갈아 덜덜. 끝나면 창턱 그림으로 돌아가 관리인이 탁 친다
 ANIMS['alarm_clock.ring_late'] = { ms: [120, 120, 120, 120, 120, 120], frames: [clock.boing, clock.sway, clock.boing, clock.sway, clock.boing, clock.sway] };
 
 // ═════════════ 재킷 (jacket, 히트 꼭대기 212,27 24×24 / 손 249,100 24×24) ═════════════
-// 손님의 분홍 정장 재킷(pink Y173, 넥타이와 같은 색). 꼭대기 그림은 구도 시안 그림(214,32 20×14)을 그대로 옮겼다.
+// 손님의 분홍 정장 재킷(pink Y173, 넥타이와 같은 색).
 // 설계 7절 P5: 0 소매 움찔 → 1 돌우산 경사를 타고 미끄러짐 → 2 우산 끝에서 떨어지는 중 → 3 동상 손에 턱.
 // 미끄러지는 쪽은 오른쪽(내민 손 위 처마 끝 x 255)이다. 떨어지는 칸은 같은 그림을 두 자리에 찍어 64px 낙하를 끊김 없이 보인다(손님 run_in과 같은 방식, 새 칸 0).
 const JACKET_LEGEND = { r: C.red, P: C.pink, L: C.pinkL, w: C.white };
-/** 꼭대기(돔에 등판이 덮임). 깃은 위, 왼소매는 돔 위로 늘어지고(흰 안감 끝) 오른소매는 바람에 펄럭인다 */
-export const JACKET_TOP_AT = [214, 32];
+/**
+ * 꼭대기: 돌우산 꼭지(x 222~225)에 옷걸이처럼 걸쳐 **앞판이 보인다**. 깃이 꼭지 위로 솟고(A자 어깨),
+ * 흰 V 깃 사이 안감 + 단추 둘 + 갈라진 밑단 + 양쪽 소매(소매 끝 흰 안감)로 1배에서 "재킷"이 읽힌다(떨어지는 칸과 같은 표지).
+ * 왼소매는 짧게 돔에 얹히고 오른소매(처마 쪽)만 길게 늘어져서, 처마 쪽으로 쏠려 있다 = "미끄러질 것 같다".
+ * #530: 예전 그림은 등판이 덮인 뭉친 모양이라 #468 재판정에서 1배 꼭대기가 "생물"로 읽혔다
+ */
+export const JACKET_TOP_AT = [213, 32];
 const JACKET_TOP = [
-  '......rrrrrr........',
-  '....rLLLLPPPPr......',
-  '..rLLLPPPPPPPPr.....',
-  '.rLLPPPPPPPPPPPrrrr.',
-  'rLLPPPPPPPPPPPPPPPPr',
-  'rLPrPPPPPPPPPPPrPPrr',
-  'rLPrrPPPPPPPPPPr.rr.',
-  'rPr.rPPPPPPPPPPr....',
-  'rPr.rPPPPPPPPPPPr...',
-  'rPr..rPPPPPPPPPPr...',
-  'rPr..rrrrrrrrrrr....',
-  'rPr.................',
-  '.ww.................',
+  '........rrLLrr........',
+  '......rrLLwwLLrr......',
+  '....rrPLLrwwrLLPrr....',
+  '..rrPPPLLrwwrLLPPPrr..',
+  '.rLPPPPPLrwwrLPPPPPPr.',
+  'rLPPrPPPPLrwrPPPPrPPPr',
+  'rLPrrPPPPPLrPPPPPrrPPr',
+  'rPPr.rPPPPPwPPPPr.rPPr',
+  'rPPr.rPPPPPrPPPPr.rPPr',
+  'rPPr.rPPPPPwPPPPr.rPPr',
+  '.ww..rPPPPPrPPPPr.rPPr',
+  '.....rPPPPr.rPPPr.rPPr',
+  '.....rrrrr...rrrr.rPPr',
+  '..................rwwr',
 ];
-/** 늘어진 왼소매(0~2열, 7줄부터)를 뺀 몸판 줄 */
-const JACKET_SLEEVE_ROW = 7;
 const [JX, JY] = JACKET_TOP_AT;
+const JACKET_W = JACKET_TOP[0].length;
 
 /**
- * 0칸 소매 움찔: 바람이 밑으로 들어가 재킷째 처마 쪽(오른쪽)으로 들린다. 위쪽(깃)일수록 더 밀려 3px, 아래는 2px → 오른쪽으로 기운 모양.
- * 늘어진 왼소매는 바깥(왼쪽) 위로 휙 젖혀진다(끝이 4px 바깥). 소매 끝 왼쪽에 바람선 3줄.
- * #530: 예전엔 몸판 1px라 처음 보는 사람이 못 봤다(#468 블라인드). "미끄러질 것 같다"가 프레임 한 장에서 읽히게 키웠다
+ * 0칸 소매 움찔: 바람이 왼쪽 밑단으로 들어가 재킷이 꼭지에서 **처마 쪽(오른쪽 아래) 경사로 6px·3px 미끄러지며** 왼쪽이 들려 기운다
+ * (열마다 들림: 왼끝 7px → 오른끝 1px). 그래서 오른쪽 아래(앞판 밑단·늘어진 오른소매)가 돔 윗선을 넘어 **어두운 돔 오른쪽(plum) 위에 얹힌다**.
+ * 꼭대기 그림에서는 재킷 전체가 돔 윗선 위 하늘 앞에 있으니, 이 칸만 분홍이 어두운 돔을 먹는다 = 1배에서 실루엣이 바뀐다.
+ * 소매는 늘어진 그대로라 몸 밖으로 뻗는 부분이 없다. 왼쪽(바람이 오는 쪽)에 바람선 3줄(재킷을 따라 옮긴다).
+ * #530: 예전엔 몸판 1px라 처음 보는 사람이 못 봤다(#468 블라인드). 소매만 옆으로 뻗게 키운 판은 "코·다리 달린 분홍 짐승"으로 읽혔다(소매 = 코).
+ * 2~4px 기울기 판(#537)은 PM 재판정 2(2배)에서 "움직인 걸 못 봄"이었다. 실루엣이 그대로였기 때문이다.
+ * 소매를 경사 따라 길게 늘어뜨려 처마까지 닿게 한 판도 그려 봤지만, 소매 길이가 몸통만 해져서 "코끼리 코·팔"로 읽혀 버렸다(PR 본문 비교)
  */
+const TWITCH_SHIFT = [6, 3];
+const TWITCH_LIFT = 6;
 function jacketTwitch(t) {
-  const lean = (j) => (j < 5 ? 3 : 2);
-  JACKET_TOP.forEach((row, j) => {
-    const body = j >= JACKET_SLEEVE_ROW ? '...' + row.slice(3) : row;
-    stamp(t, JX + lean(j), JY + j, [body], JACKET_LEGEND);
-  });
-  JACKET_TOP.forEach((row, j) => {
-    if (j < JACKET_SLEEVE_ROW) return;
-    const k = j - JACKET_SLEEVE_ROW; // 0 → 5
-    stamp(t, JX + 2 - k, JY + j - (k >> 1), [row.slice(0, 3)], JACKET_LEGEND);
-  });
+  const [dx, dy] = TWITCH_SHIFT;
+  for (let c = 0; c < JACKET_W; c++) {
+    const lift = 1 + Math.round(((JACKET_W - 1 - c) * TWITCH_LIFT) / (JACKET_W - 1));
+    JACKET_TOP.forEach((row, j) => stamp(t, JX + dx + c, JY + dy + j - lift, [row[c]], JACKET_LEGEND));
+  }
 }
 const twitchFx = (im) => {
-  for (const [x, y, n] of [[204, 39, 3], [202, 42, 4], [205, 45, 2]]) for (let i = 0; i < n; i++) im.set(x + i, y, C.white);
+  const [dx, dy] = TWITCH_SHIFT;
+  for (const [x, y, n] of [[204, 39, 3], [202, 42, 4], [205, 45, 2]]) for (let i = 0; i < n; i++) im.set(x + dx + i, y + dy, C.white);
 };
 
 /** 1칸 미끄러짐: 돔 오른쪽 경사(x 234 → 252, 윗면 y 41 → 45)에 배를 대고 오른쪽 아래로. 깃과 두 소매가 뒤(왼쪽 위)로 끌린다 */
@@ -720,6 +810,18 @@ const JACKET_HAND = [
   '.................ww.',
 ];
 
+/**
+ * P6 덮어쓰기 두 자리(#529, 설계 1-3·7절). 집게는 발 y와 상관없이 대상 점 y 124에서 8px 위(116..124), x는 바라보는 방향에 따라
+ * 253..269 안이다(tip 29). 0 활짝: 집게가 문 밑단이 집게 위 끝(116)에 오게 손 위로 확 펼쳐진다(낙하산, 앞판·두 소매 위로).
+ * 1 떨어짐: 집게 아래로 빠져 ノビー 쪽으로. 발 y 200이면 칸 위 끝 136이라 이 칸이 머리에 막 닿고, 252면 아직 위에 있다.
+ * 머리에 덮인 모습은 ノビー 시트 `take_up` 2번 칸이 그린다(발 y를 따라가야 해서 물건 칸이 아니다).
+ */
+export const JACKET_COVER_AT = [[250, 101], [250, 124]];
+/** 활짝 칸 양옆 펄럭선(바람이 재킷 안으로 들어감). 외곽선 없음 */
+const coverOpenFx = (im) => {
+  for (const [x, y, n] of [[245, 104, 3], [244, 107, 3], [274, 104, 3], [275, 107, 3]]) for (let i = 0; i < n; i++) im.set(x + i, y, C.white);
+};
+
 const jacket = {
   top: pic((t) => stamp(t, JX, JY, JACKET_TOP, JACKET_LEGEND)),
   twitch: pic(jacketTwitch, twitchFx),
@@ -727,18 +829,30 @@ const jacket = {
   fallHigh: pic((t) => stamp(t, ...JACKET_FALL_AT[0], JACKET_FALL, JACKET_LEGEND), fallFx(...JACKET_FALL_AT[0])),
   fallLow: pic((t) => stamp(t, ...JACKET_FALL_AT[1], JACKET_FALL, JACKET_LEGEND), fallFx(...JACKET_FALL_AT[1])),
   hand: pic((t) => stamp(t, ...JACKET_HAND_AT, JACKET_HAND, JACKET_LEGEND)),
+  // P6 덮어쓰기(#529): 2칸 낙하 그림(JACKET_FALL)을 두 자리에 다시 찍는다(새 칸 0).
+  coverOpen: pic((t) => stamp(t, ...JACKET_COVER_AT[0], JACKET_FALL, JACKET_LEGEND), coverOpenFx),
+  coverDrop: pic((t) => stamp(t, ...JACKET_COVER_AT[1], JACKET_FALL, JACKET_LEGEND), fallFx(...JACKET_COVER_AT[1])),
 };
 
 OBJECTS.jacket = {
   draw: jacket.top,
   // 9절 재킷 대기(#477): 약 12초마다 바람에 소매가 움찔(P5 0칸 재사용). 손으로 내려온 뒤(state)에는 loop가 없어서 멈춘다
   loop: { ms: [12000, 300], frames: [jacket.top, jacket.twitch] },
-  states: [{ when: { flags: { 'jacket.on_hand': true } }, draw: jacket.hand }],
+  states: [
+    // 클리어(#529, 형식 기록 14절 개정 9): 재킷은 ノビー 머리 → 손님 만세 칸으로 갔다. 동상 손은 비운다.
+    // 클리어 때 `jacket.on_hand`가 참으로 남으니까 첫 일치가 되게 이 줄이 on_hand보다 앞이어야 한다.
+    // 히트 상자는 그대로 둔다: taken부터는 컷(busy)·클리어(`scene.cleared`)라 호버·클릭이 꺼져 닿지 않는다(PR #552 Luna 리뷰).
+    { when: { flags: { 'jacket.taken': true } }, draw: null },
+    { when: { flags: { 'jacket.on_hand': true } }, draw: jacket.hand },
+  ],
 };
 // 9번 `fountain_tap`(단서 ①): カーン에 소매가 움찔 → 제자리 → 한 번 더. 상태는 안 바뀌어서 끝나면 꼭대기 그림
 ANIMS['jacket.twitch'] = { ms: [160, 90, 420], frames: [jacket.twitch, jacket.top, jacket.twitch] };
 // 3번★(주 아하): ゴォン 뒤 움찔 → 경사를 타고 미끄러짐 → 처마에서 떨어짐(두 자리) → 손에 턱. 끝나면 state 그림(손)과 같은 그림
 ANIMS['jacket.slide'] = { ms: [200, 260, 90, 90, 400], frames: [jacket.twitch, jacket.slide, jacket.fallHigh, jacket.fallLow, jacket.hand] };
+// 8번★ P6(#529): ノビー `take_up` 1번 칸(확 당김)의 cue로 겹쳐 뜬다. 활짝 → 떨어짐, 합 350ms = take_up 1번 칸 길이라
+// 끝나는 틱에 ノビー가 2번 칸(머리에 덮임)으로 넘어간다. hold 없음: 끝나면 `jacket.taken` 멈춘 모습(안 그림)으로
+ANIMS['jacket.cover'] = { ms: [200, 150], frames: [jacket.coverOpen, jacket.coverDrop] };
 
 // ═════════════ 분수대 테두리 (fountain, 히트 128,180 192×24 / 그림 앞면 128,180 192×18) ═════════════
 // 흰 돌 블록(주색 cotton Y222). 둘레 흙길(woodL Y149)과 73 차이라 "돌 / 흙"이 1배에서 갈린다(단서 ②, 설계 1-1).
@@ -786,10 +900,128 @@ OBJECTS.water = {
 ANIMS['fountain.water_off'] = { effect: 'water', mode: 'stop', ms: 900 };
 ANIMS['fountain.water_burst'] = { effect: 'water', mode: 'burst', ms: 1200 };
 
+// ═════════════ 비둘기 셋 (pigeons, 바닥 자리 `floor`가 맡는다 / 그림 196..266, 204..219) ═════════════
+// #526: 예전엔 배경에 박혀 있어서 단서 ②(`pigeons_up`)가 임시 별로 떴고, 날아오를 칸을 그려도 땅에 셋이 그대로 남았다.
+// 그래서 물건으로 옮겼다. 핫스팟이 아니라 클릭 대상이 아니다(픽셀 헌팅 미끼가 되지 않게). anim 대상 ID가 있어야 해서
+// 바닥 자리 `floor`가 맡는다(형식 기록: 물건 ids는 hotspot·spot ID). 바닥은 상자가 없어서 히트 박스 검사·호버가 없다.
+// 외곽선 없음: 배경 소품(볼거리)이고, 만질 수 있는 것처럼 보이면 안 된다(ADR-0007 결정 3-1의 반대쪽).
+// 색: lint 몸·cotton 날개 빛·lav 윤곽·청록 목·plum 눈·redL 발. 1배 8×7이라 날 때는 날개(위/아래 4px)로 "퍼덕"을 읽힌다.
+const PIGEON_LEGEND = { l: C.lint, L: C.cotton, k: C.plum, d: C.lav, t: C.tealM, p: C.redL };
+// 나는 칸은 윤곽을 dusk로 한 단 진하게: 테두리 흰 돌·연못 물빛 앞을 지나갈 때 lav 윤곽은 몸(lint)과 함께 묻혔다(로컬 2배 캡처).
+const PIGEON_FLY_LEGEND = { ...PIGEON_LEGEND, d: C.dusk };
+// 왼쪽을 보는 모양. 오른쪽을 보는 새는 행을 뒤집는다(폭이 다른 칸은 머리 자리가 같게 x를 맞춘다).
+const PIGEON_REST = ['.dd......', 'dlkd.....', '.dtl.....', '.dtlllld.', '.dlLllldd', '..dllll..', '...p..p..'];
+// 놀람(땅에서 2px 펄쩍): 날개 반쯤 들고 다리 벌림. 날기 전·내려앉은 직후 칸.
+const PIGEON_STARTLE = ['.dd..d...', 'dlkddLd..', '.dtldLd..', '.dtlllld.', '.dlLllldd', '..dllll..', '..p....p.'];
+// 날개 위 / 날개 아래(폭 11). 몸은 쉬는 모양과 같은 줄에 두어 칸이 바뀌어도 새가 튀지 않는다.
+const PIGEON_UP = ['.....d.d...', '....dLdLd..', '.dd..dLd...', 'dlkd.dLd...', '.dtllllllld', '..dllllldd.', '....pp.....'];
+const PIGEON_DOWN = ['.dd........', 'dlkd.......', '.dtllllllld', '..dlLLLlldd', '...dLLLd...', '....dLd....', '.....d.....'];
+const PIGEON_SHAPES = { rest: PIGEON_REST, startle: PIGEON_STARTLE, up: PIGEON_UP, down: PIGEON_DOWN };
+/** 셋의 쉬는 자리 [x, y, 오른쪽을 보나, 날 때 옆으로 가는 방향]. 쿵 자리(x 224)에서 멀어지는 쪽으로 난다. 셋째는 거의 제자리에서 퍼덕(무리 가운데). */
+export const PIGEONS_AT = [[196, 206, false, -1], [240, 212, true, 1], [258, 204, false, 0]];
+
+/** 한 마리. `shape`는 왼쪽 보기 기준 행, `right`면 뒤집어 머리 자리(오른쪽 끝)를 쉬는 모양과 맞춘다. 땅에 있으면 발밑 그림자. */
+function pigeon(im, x, y, right, shape, grounded) {
+  const rows = right ? shape.map((r) => [...r].reverse().join('')) : shape;
+  const x0 = right ? x + PIGEON_REST[0].length - shape[0].length : x;
+  stamp(im, x0, y, rows, grounded ? PIGEON_LEGEND : PIGEON_FLY_LEGEND);
+  if (grounded) for (let i = 2; i < 7; i++) im.set(x + i, y + 7 + (grounded === 'hop' ? 2 : 0), C.wood);
+}
+/** 셋을 한 칸에. `pose(i)` → [모양 이름, 위로 뜬 px, 옆으로 간 칸 수, 오른쪽 보기 뒤집기]. */
+const flock = (pose) => (im) => {
+  PIGEONS_AT.forEach(([x, y, right, side], i) => {
+    const [shape, up, steps, turn] = pose(i);
+    const face = turn ? !right : right;
+    // 땅에 있는 칸만 그림자. 2px 뜬 놀람 칸은 그림자가 발에서 떨어져 "떴다"가 읽힌다.
+    const grounded = up === 0 ? true : up <= 2 ? 'hop' : false;
+    pigeon(im, x + side * steps, y - up, face, PIGEON_SHAPES[shape], grounded);
+  });
+};
+const pigeonsPic = {
+  rest: flock(() => ['rest', 0, 0]),
+  // 단서 ② 날아오름(설계 2절 7번 "비둘기가 날았다 내려앉음"): 놀람 → 퍼덕퍼덕 40px까지 → 다시 내려와 놀람 칸으로 착지.
+  // 꼭대기는 셋째 새(y 204) 기준 164: 흰 테두리(180~198)를 지나 그 위 연못 뒤 어두운 덤불 앞에서 회색 몸이 갈린다.
+  // 26px 판은 꼭대기가 흰 돌 위라 1배에서 새가 돌에 묻혔다(로컬 캡처).
+  hop: flock(() => ['startle', 2, 0]),
+  up1: flock(() => ['up', 10, 1]),
+  down1: flock(() => ['down', 21, 2]),
+  up2: flock(() => ['up', 32, 3]),
+  down2: flock(() => ['down', 40, 4]),
+  up3: flock(() => ['up', 30, 3]),
+  down3: flock(() => ['down', 15, 2]),
+  // 돌아보기(재킷 프피, 설계 3절 jacket 행 "물줄기가 꺼졌으면 비둘기만 돌아본다"): 셋 다 반대로 고개를 돌린다.
+  turn: flock(() => ['rest', 0, 0, true]),
+};
+OBJECTS.pigeons = { ids: ['floor'], draw: pigeonsPic.rest };
+// 7번 `jacket_ground_stomp`(단서 ②): ぼふっ 뒤 셋이 퍼덕 날았다가 제자리에 내려앉는다. 흙길 쿵은 "새가 잠깐 놀랄" 만큼만 울린다.
+// 끝나면 쉬는 그림(같은 자리)이라 따로 붙들지 않는다.
+ANIMS['floor.pigeons_up'] = {
+  ms: [100, 80, 90, 90, 120, 100, 100, 100],
+  frames: [pigeonsPic.hop, pigeonsPic.up1, pigeonsPic.down1, pigeonsPic.up2, pigeonsPic.down2, pigeonsPic.up3, pigeonsPic.down3, pigeonsPic.hop],
+};
+// 재킷 × プピ 폴백: 소리 쪽을 두리번(돌아봄 → 원래 → 다시 돌아봄). 날지는 않는다(프피는 쿵보다 약하다).
+ANIMS['floor.pigeons_turn'] = { ms: [300, 150, 350], frames: [pigeonsPic.turn, pigeonsPic.rest, pigeonsPic.turn] };
+
+// ═════════════ 오리 (duck, 히트 175,156 24×24 / 그림 181,167 14×9 + 외곽선, P9) ═════════════
+// 공원 연못의 カモ(설계 6절 이름표). 집오리·장난감 오리가 아니라 갈색 암컷 청둥오리: 몸은 woodL·wood에 woodD 얼룩,
+// 눈선 woodD, 노랑 부리, 날개 끝 보라 거울깃 + 흰 테두리(작아도 "오리"를 나르는 표시). 녹색 머리 수컷은 뒤 덤불(grn)에 머리가 묻혀서 뺐다.
+// 물에 뜬 높이: 연못 뒤 가장자리(lint, y 168~171) 앞, 물(y 172~179) 위. 배 아랫줄(y 175)과 외곽선(y 176)을 물빛 점선(tealL)이 끊어
+// "물에 잠겼다"로 읽힌다. 처음 좌표(180,158)는 뒤 덤불 앞이라 떠 있지 않고 서 있는 것처럼 보여서 9px 내렸다(히트 상자도 같이).
+// 만질 수 있는 물건이라 외곽선을 두른다. 물방울·물빛 점선만 외곽선 밖 효과 픽셀이다.
+// 칸 3개(설계 7절 P9): 0 떠 있기 / 1 콕(머리를 물 쪽으로 내리꽂고 꽁지가 들림) / 2 퍼덕(앞 날개를 높이 치켜들고 3px 뜸).
+// 나머지는 다시 찍기다: 뒤집기(오른쪽 보기)와 자리 옮기기(손님 run_in과 같은 방식, 새 칸 0).
+const DUCK_LEGEND = { b: C.woodL, B: C.wood, d: C.woodD, t: C.tan, y: C.yel, Y: C.yelD, k: C.ink, p: C.pur, w: C.white };
+/** 떠 있기 왼쪽 위(외곽선 안쪽). 배 아랫줄 = y + 8 = 175. */
+export const DUCK_AT = [181, 167];
+const DUCK_SHAPES = {
+  // 왼쪽을 본다(세 사람이 오는 흙길 쪽이 아니라 연못 왼쪽 끝: 콕 쪼고 그쪽으로 헤엄쳐 떠난다).
+  rest: ['..BBB.........', '.Bbttb........', 'yybkdtb.......', 'yYbbbbb.......', '...bbB.....BB.', '...tbbbbbbBBdB', '..tbbbBpwBBdBB', '..bbbBBBBBBBB.', '...BdBBdBBdBB.'],
+  // 콕: 머리가 몸 앞 아래(x 181~184, y 172~175)로 내려가 부리가 물 높이에 닿는다. 장대 집게가 오는 쪽(상자 아래 끝)이다.
+  peck: ['...........BB.', '.........bBBdB', '......bbbbBBB.', '..BBbbbbBpwBB.', '.Bttbbbbbbbbb.', 'Bbkdb.BdBBdBB.', 'bbbb..........', 'yYb...........', '.Yy...........'],
+  // 퍼덕: 앞 날개 하나를 등 위로 세운다. 밑동 woodD 줄이 몸과 날개를 가른다(같은 갈색이라 줄이 없으면 한 덩어리로 묻혔다).
+  // 첫 시안의 작은 두 날개는 1배에서 "고양이 귀"로 읽혀서 버렸다.
+  flap: ['..........B...', '.........BbB..', '........Bbbp..', '..BBB..Bbbpw..', '.Bbttb.Bbbpw..', 'yybkdtbdBddBBB', 'yYbbbbbbBBBBdB', '...tbbbbBBBBB.', '...BdBBdBBdB..'],
+};
+/** 물빛 점선: 배 아래 외곽선 줄을 끊는다(떠 있음). 폭 14, 세 칸에 한 번 비운다. */
+const duckWaterline = (x) => (im) => { for (let i = 0; i < 14; i++) if ((x + i) % 3) im.set(x + i, 176, C.tealL); };
+/** 물방울(효과 픽셀). 콕 = 부리 끝 작은 튐, 퍼덕 = 양옆으로 튀는 물. */
+const DUCK_DROPS = {
+  peck: [[-2, 10, C.white], [2, 10, C.white], [-1, 11, C.aqua], [1, 11, C.aqua]],
+  flap: [[-3, 3, C.white], [-4, 1, C.aqua], [-5, 5, C.aqua], [-2, 7, C.white], [16, 2, C.white], [17, 0, C.aqua], [18, 4, C.aqua], [15, 7, C.white]],
+};
+/** 한 칸. `dx`만큼 옆에, `right`면 오른쪽을 본다(행 뒤집기, 폭이 같아 자리 보정 없음). 퍼덕은 3px 뜬다. */
+function duckPic(shape, { dx = 0, right = false } = {}) {
+  const x = DUCK_AT[0] + dx, y = DUCK_AT[1] + (shape === 'flap' ? -3 : 0);
+  const rows = right ? DUCK_SHAPES[shape].map((r) => [...r].reverse().join('')) : DUCK_SHAPES[shape];
+  const drops = DUCK_DROPS[shape] ?? [];
+  return pic((im) => stamp(im, x, y, rows, DUCK_LEGEND), (im) => {
+    duckWaterline(x)(im);
+    for (const [ddx, ddy, c] of drops) im.set(x + (right ? 13 - ddx : ddx), DUCK_AT[1] + ddy, c);
+  });
+}
+const duck = {
+  rest: duckPic('rest'),
+  peck: duckPic('peck'),
+  flap: duckPic('flap'),
+  restRight: duckPic('rest', { right: true }),
+};
+OBJECTS.duck = { draw: duck.rest };
+// duck × stretch(설계 4절): 집게를 콕, 한 번 더 콕. 쪼임 대사(`duck_peck`)는 콕 바로 뒤에 떠야 해서 헤엄은 따로 뺐다(`duck.lap`).
+ANIMS['duck.peck'] = { ms: [140, 160, 140, 200], frames: [duck.peck, duck.rest, duck.peck, duck.rest] };
+// 쪼고 나서 "연못을 한 바퀴 돌아 제자리로"(설계 4절): 왼쪽으로 12px 헤엄쳐 가다 돌아서 온다. 엔진 이동이 아니라 칸마다 자리(새 칸 0).
+ANIMS['duck.lap'] = {
+  ms: [220, 220, 260, 220, 220],
+  frames: [duckPic('rest', { dx: -6 }), duckPic('rest', { dx: -12 }), duckPic('rest', { dx: -12, right: true }), duckPic('rest', { dx: -6, right: true }), duck.rest],
+};
+// duck × stomp: 쿵에 놀라 퍼덕퍼덕. 날개 든 칸(뜸) ↔ 떠 있기(날개 내림)를 번갈아 친다. 물벼락은 화면 JSON의 `splash` fx가 ズッシー 머리에 맡는다.
+ANIMS['duck.flap'] = { ms: [110, 90, 110, 90, 110, 160], frames: [duck.flap, duck.rest, duck.flap, duck.rest, duck.flap, duck.rest] };
+// duck × squeak: 소리 난 쪽을 홱 돌아봤다가 다시 앞으로(제자리 한 바퀴), 그 뒤 クワッ(화면 JSON `quack_text`).
+ANIMS['duck.turn'] = { ms: [260, 160], frames: [duck.restRight, duck.rest] };
+
 // ═════════════ 그리는 순서 (설계 1-4절, 뒤 → 앞) ═════════════
-// back 목록은 OBJECTS 키 순서다(형식 6절). 재킷 → 물줄기(재킷 앞을 지나감) → 테두리 앞면 → 창(관리인·커튼) → 자명종 → 손님.
+// back 목록은 OBJECTS 키 순서다(형식 6절). 오리(연못 물 위, 동상보다 앞이지만 물줄기·테두리 뒤) → 재킷 → 물줄기(재킷 앞을 지나감) → 테두리 앞면 → 비둘기(흙길이라 테두리 앞, 날아오르면 흰 돌 앞) → 창(관리인·커튼) → 자명종 → 손님.
 // 손님이 맨 앞이어야 재회 자리(290,188)에서 테두리(y 180~198)가 손님 머리를 덮지 않는다. 파일에서 그린 순서와 달라서 여기서 다시 줄 세운다.
-for (const k of ['jacket', 'water', 'fountain', 'keeper', 'alarm_clock', 'guest']) {
+for (const k of ['duck', 'jacket', 'water', 'fountain', 'pigeons', 'keeper', 'alarm_clock', 'guest']) {
   const v = OBJECTS[k];
   delete OBJECTS[k];
   OBJECTS[k] = v;

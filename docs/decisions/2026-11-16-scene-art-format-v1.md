@@ -12,6 +12,7 @@
 - 개정 6 (2026-11-19): anim **칸별 기울기**(`anims[...].tilt`) — U6 튕김 동안 판 위 발이 그 칸의 판 높이를 따른다(12-5절). #397, 규격 PR #410(Luna, `magpie_nest.md` 1-5-4절 2026-11-19 개정)·Theo 리뷰에서 "메타 모양은 Theo가 정한다"
 - 개정 7 (2026-11-19): **쉬는 판** — `tilt.step` → `tilt.rest`, d = rest × 부호(무게 차), `draw`는 ±rest 두 장(12-6절). 판 위 히트 박스는 그린 자리를 따른다. #437, 규격 PR #444(Luna, `magpie_nest.md` 1-7절)에서 "키 이름은 Theo"
 - 개정 8 (2026-11-19): 물건 anim **`hold`** — 끝나도 대기열이 빌 때까지 마지막 칸(효과 anim은 연출 모드)을 붙들고, 핫스팟 화자 말풍선은 그 칸 그림 상자에 붙는다(13절). #450, `park_fountain` 재회 컷(PR #446 Theo 리뷰 (A), PR #449 Luna 동의)
+- 개정 9 (2026-11-20): 안 그리는 멈춘 모습 — `states[].draw: null` → 메타 `frame: null`(14절). `park_fountain` 클리어 뒤 동상 손 위 재킷. #551, `#goblin-dev` 11/20 Luna 제안·Theo 답(PR #550 리뷰)
 - 출처: 이슈 #157 본문·코멘트, #145 본문 "형식(배경 한 장 + 물건 시트, 상태별 그림)은 Theo와 정한다", ADR-0007 결정 2·3·8, `docs/design/screens/magpie_nest.md` 1-1~1-4절, [스프라이트 파이프라인 기록](2026-11-15-sprite-asset-pipeline.md)
 
 ## 배경
@@ -342,6 +343,34 @@ tilt: { rest: 12, weight: { jjuk: 1, ppik: 1, mukjik: 2 }, pivot: 247.5, run: 40
 - 1번 규칙처럼 대기열이 짧으면(anim이 마지막 이벤트) 붙드는 시간이 0이다. 그래서 같은 anim을 일반 규칙에서 `hold` 그대로 써도 된다(Luna 설계 12절 ④). 반대로 "컷이 끝난 뒤에도 남아야" 하는 모습은 `hold`가 아니라 멈춘 모습(`when`)이 맡는다(4절 원칙 그대로).
 - 붙든 칸은 상태가 아니라서 세이브·게이지 0 리셋 뒤에는 남지 않는다. 컷 도중 세이브는 busy라 없다.
 - 다시 볼 조건: 대기열이 빈 뒤에도 남아야 하는 연출이 생기면(예: 컷 다음 카드 위에 손님이 남음) 멈춘 모습 state로 옮기거나 `hold` 범위를 L1로 다시 정한다.
+
+## 14. 안 그리는 멈춘 모습 (`draw: null`) — 개정 9
+
+**배경**: `park_fountain` 클리어(`jacket_take`, 설계 `park_fountain.md` 7절 P6·8절)에서 재킷은 ノビー 머리(시트 칸) → 손님(만세 칸)으로 간다. 그런데 `jacket.on_hand` 멈춘 모습(동상 손 위 재킷)이 다시 그려져서 **재킷이 두 벌** 보였다. PR #550 리뷰에서 엔진으로 재 보니 머리에 덮인 칸과 겹치는 것이 약 1.0초이고, 만세부터는 클리어 뒤까지 계속 보였다. 4절에는 "안 그림"이 없고, 8절 빌드 검사는 빈 그림을 오류로 막는다. `hold`(13절)는 대기열이 비면 풀려서 이 문제를 못 푼다.
+
+**모양**: `states`에서만 `draw: null`. 메타는 `frame: null`이다. 시트 칸은 늘지 않는다.
+```js
+jacket: {
+  draw: jacket.top, loop: { ... },
+  states: [
+    { when: { flags: { 'jacket.taken': true } }, draw: null }, // 첫 일치라 on_hand보다 앞에 둔다
+    { when: { flags: { 'jacket.on_hand': true } }, draw: jacket.hand },
+  ],
+},
+```
+`-1` 대신 `null`을 쓴다. `-1`이면 `frames[-1]`이 `undefined`로 조용히 넘어간다. `null`이면 타입 검사(`ScenePicture.frame: number | null`)가 이 칸을 쓰는 곳을 다 잡는다.
+
+**엔진 규칙** (`src/core/sceneArt.ts` `sceneDraws`):
+- 멈춘 모습이 `frame: null`이면 그 물건은 아무것도 그리지 않는다. `byObject`가 빈 배열이라 **호버 외곽선이 안 켜진다**.
+- **히트 박스와 `coveredIds`는 그대로다.** `coveredIds`에서 빼면 엔진이 그 자리에 임시 상자를 그린다(9절 폴백). 히트 박스를 옮기거나 줄이는 건 화면 JSON `variants`의 몫이다(손님 재회 자리처럼).
+- anim(재생 중이거나 붙든 `hold`)은 지금처럼 멈춘 모습보다 앞선다. 안 그리는 물건에도 anim은 보인다.
+- 그림 전용이다. 퍼즐 플래그·BFS는 안 바뀐다. `src/core/puzzle/`는 건드리지 않는다.
+
+**빌드 검사**(8절에 더함): `default`·`overlay`·`tilt`·anim 칸에서 `draw: null`은 지금처럼 오류다. `draw: null`인 state에 `loop`도 오류다(그릴 첫 칸이 없다). 앞판(`overlay`)·기울기(`tilt`)가 있는 물건은 `draw: null` state를 둘 수 없다. 앞판만 남거나 판 위 발이 빈 판을 밟는 것을 막는다.
+
+**반대 의견·리스크**:
+- 히트 박스가 남는다. `park_fountain`은 그대로 둔다(PR #552 Luna 리뷰): `jacket.taken`부터는 컷 중 busy, 끝나면 `scene.cleared`라 호버 라벨·외곽선·클릭이 다 꺼져서 빈 동상 손 상자에 닿지 않는다. `variants`로 옮기면 아무도 못 보는 데이터만 는다. 클리어 뒤 둘러보기나 입력이 켜진 채 클리어 화면을 되살리는 세이브가 생기면 그때 `variants`를 넣는다.
+- 다시 볼 조건: "안 그림"이 물건 둘 이상에서 필요해지거나, 히트 박스까지 같이 꺼야 하는 경우가 생기면 화면 JSON 쪽에 "대상 숨김"을 L1로 올린다.
 
 ## 반대 의견
 - Luna(Q1): 수평 고정 널빤지는 "무게로 튕긴다"를 덜 알린다. → L24·L22 대사가 맡고, 그림으로 따로 보충하지 않는다.

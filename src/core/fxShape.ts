@@ -1,9 +1,10 @@
-// 글자 아닌 fx(`ability-feedback.md` 3절 끝, #485): 물건 그림을 옮기는 변환(`hop`·`nod`)과 물 입자(`splash`·`ripple`).
+// 글자 아닌 fx(`ability-feedback.md` 3절 끝, #485): 물건 그림을 옮기는 변환(`hop`·`nod`·`rattle`)과 물 입자(`splash`·`ripple`).
 // 순수 로직이다. 엔진(main.ts)은 여기서 받은 오프셋으로 그림을 옮겨 그리고, 입자 사각형을 팔레트 색으로 칠하기만 한다.
 // - 새 칸 0. 물 입자는 물줄기(`fountain_water`, core/sceneFx.ts)와 같은 물 4색, 1~2px 정수 사각형, 반투명 없음(ADR-0007).
 // - 결정적: 입자 위치는 (fx 시작 뒤 틱, 입자 번호) 해시로 고른다. 재생 도구 스크린샷이 흔들리지 않는다.
 // - `shake`는 화면 1(`hook`·`basket`)에도 쓰여서 진마씨 재플레이 답 전에는 켜지 않는다(#485). 켤 때는 `NUDGE_FX`에 한 줄.
-// - `pigeons_up`·`pigeons_turn`은 모양이 있어서 칸(Luna)이다. 여기 없다 → 칸이 오기 전까지 임시 별.
+//   그래서 화면 2의 "물건 그림 2px 좌우 흔들기"는 새 이름 `rattle`로 쓴다(#556). 화면 1 `shake`를 켤 때 `shake: rattle`로 합친다.
+// - 비둘기(`pigeons_up`·`pigeons_turn`)는 모양이 있어서 fx가 아니라 물건 anim `floor.pigeons_*`(시트 칸, #526)이다.
 
 import { FX_TICKS } from './fx';
 import { objectOf, type SceneArtMeta, type SceneDraws } from './sceneArt';
@@ -29,10 +30,22 @@ function hop(t: number): Nudge {
   return { dx: 0, dy: -Math.round(HOP_PX * 4 * u * (1 - u)) };
 }
 
-/** 물건 그림을 옮기는 fx(`ability-feedback.md` 3절 끝: 위로 포물선 / 1px 숙이기). 표에 없는 fx는 옮기지 않는다. */
+/**
+ * `rattle`: 물건 그림을 좌우 2px로 덜컹(`ability-feedback.md` 74줄 "흔들기 2px 좌우, 새 칸 없음", #556).
+ * 3틱마다 한 칸, 2px 두 번 → 1px 두 번으로 잦아든 뒤 제자리(0.4초). 위아래로는 안 움직인다:
+ * 쿵 화면 흔들림(`shakeOffset`, 세로)과 같은 틱에 겹쳐도 방향이 갈려서 따로 읽힌다.
+ */
+const RATTLE_X = [2, -2, 2, -2, 1, -1, 1, -1] as const;
+export const RATTLE_TICKS = RATTLE_X.length * 3;
+function rattle(t: number): Nudge {
+  return { dx: t < RATTLE_TICKS ? RATTLE_X[Math.floor(t / 3)]! : 0, dy: 0 };
+}
+
+/** 물건 그림을 옮기는 fx(`ability-feedback.md` 3절 끝: 위로 포물선 / 1px 숙이기 / 좌우 2px). 표에 없는 fx는 옮기지 않는다. */
 export const NUDGE_FX: Readonly<Record<string, (t: number) => Nudge>> = {
   hop,
   nod,
+  rattle,
 };
 
 /** fx 시작 뒤 t틱일 때 그 대상의 오프셋. 옮기는 fx가 아니거나 끝났으면 null. */
@@ -123,15 +136,94 @@ function ripple(at: { x: number; y: number }, t: number): FxParticle[] {
   return out;
 }
 
-/** 물 입자 fx. `anchor`는 엔진이 고를 기준점: `head` = 대상 머리 위끝 가운데, `foot` = 대상 상자 아래 끝 가운데. */
-export const WATER_FX: Readonly<Record<string, { anchor: 'head' | 'foot'; particles: (at: { x: number; y: number }, t: number) => FxParticle[] }>> = {
+/**
+ * 입자를 그리는 fx의 표 한 줄. `anchor`는 엔진이 고를 기준점: `head` = 대상 머리 위끝 가운데, `foot` = 대상 상자 아래 끝 가운데.
+ * 런타임 `foot`는 `layout.chars` 상자 가운데라 걷기 x와 다를 수 있다(묵직이는 hit 상자 `dx -22, width 39`라 약 2.5px 왼쪽, #548 리뷰).
+ */
+export interface ParticleFx {
+  anchor: 'head' | 'foot';
+  particles: (at: { x: number; y: number }, t: number) => FxParticle[];
+}
+
+/** 물 입자 fx(엔진 글자 없이 입자만). */
+export const WATER_FX: Readonly<Record<string, ParticleFx>> = {
   splash: { anchor: 'head', particles: splash },
   ripple: { anchor: 'foot', particles: ripple },
 };
 
-/** 물 입자 fx의 이번 프레임 입자. 물 fx가 아니거나 끝났으면 빈 목록. */
-export function waterParticles(effect: string, at: { x: number; y: number }, t: number): FxParticle[] {
-  const f = WATER_FX[effect];
+/**
+ * 흙 3색(bosong-32 번호): 흙먼지 13 `e8bd7e`, 흙덩이 그늘 11 `8e5c3b`, 흙덩이 10 `5a3a2e`. `park_fountain` 흙길 바탕은 12 `c48a52`라
+ * 바탕보다 밝은 먼지와 어두운 덩이만 쓴다. 바탕색 점은 안 보인다(#526 캡처에서 바탕 픽셀을 셌다).
+ */
+export const SOIL_COLORS = [13, 11, 10] as const;
+const [DUST, CLOD_SHADE, CLOD] = SOIL_COLORS;
+/**
+ * 흙먼지 덩이 수, 튀는 흙덩이 수. 먼지 덩이 하나는 입자 2~3개(그늘 몸 + 아래 진갈, 절반은 위 밝은 점 하나 더)다.
+ * 실제 합은 t=0~14에서 82개, 최악(모든 덩이 3개)이면 28×3 + 8 = 92개로 `FX_MAX_PARTICLES`(96) 안이다.
+ * 여유가 4개뿐이라 먼지 덩이를 2개만 늘려도 최악은 넘는다. 늘릴 때는 상한 테스트부터 본다(#548 리뷰).
+ */
+export const SOIL_DUST = 28;
+export const SOIL_CLODS = 8;
+/**
+ * 기준점(발 아래 끝 가운데)에서 가장 높이 오르는 높이(px), 좌우로 가장 멀리 퍼지는 거리(px), 먼지가 처음 나오는 거리(px).
+ * 낮고 넓게: 쿵 먼지(회색 2덩이, 2-1절)와 모양이 갈린다. 먼지는 기준점 ±`SOIL_FROM`px 밖에서 나온다.
+ * 묵직이 신발 끝은 약 ±16px라 처음 2~3틱(약 50ms)은 신발 가장자리 4px에 먼지가 겹친다. 미리보기에서 티가 안 나서 그대로 둔다(#548 리뷰).
+ */
+export const SOIL_HIGH = 9;
+export const SOIL_WIDE = 42;
+export const SOIL_FROM = 12;
+
+/**
+ * `poof_text`의 흙먼지(#526, `ability-feedback.md` 3-1절): 발 양옆에서 흙먼지가 땅을 따라 **옆으로** 낮게 번지고, 흙덩이 몇 개가 작게 튀었다 떨어진다.
+ * - 먼지 덩이: 2px 그늘 흙(11) 몸 + 바로 아래 2px 진갈(10), 절반은 몸 위에 1px 밝은 흙(13) 점. 바탕 흙에도 밝은 점(13)이 섞여 있어서
+ *   밝은 몸만 두면 1배에서 묻혔다(#526 첫 캡처). 어두운 두 색을 받쳐 덩이로 읽히게 한다. 처음에 빨리, 나중에 느리게 번지며 살짝 떴다 가라앉고, 하나씩 꺼진다.
+ * - 흙덩이: 진갈색(10), 포물선 한 번.
+ * 발 밑(±`SOIL_FROM`px 안)에서는 그리지 않는다. 묵직이 발을 덮지 않는다.
+ */
+function soilPuff(at: { x: number; y: number }, t: number): FxParticle[] {
+  const out: FxParticle[] = [];
+  const ease = 1 - (1 - t / FX_TICKS) ** 2;
+  for (let i = 0; i < SOIL_DUST; i++) {
+    const life = Math.round(FX_TICKS * (0.65 + 0.35 * fxHash(i, 21)));
+    if (t >= life) continue;
+    const side = i % 2 === 0 ? -1 : 1;
+    const reach = SOIL_FROM + 4 + (SOIL_WIDE - SOIL_FROM - 4) * fxHash(i, 22);
+    const dx = SOIL_FROM + (reach - SOIL_FROM) * ease;
+    const rise = Math.round((1 + (SOIL_HIGH - 3) * fxHash(i, 23)) * Math.sin(Math.PI * Math.min(1, t / life * 0.8 + 0.1)));
+    const x = Math.round(at.x + side * dx) - (side < 0 ? 1 : 0);
+    const y = at.y - 4 - rise;
+    out.push({ x, y, size: 2, color: CLOD_SHADE }, { x, y: y + 2, size: 2, color: CLOD });
+    if (fxHash(i, 24) < 0.5) out.push({ x, y: y - 1, size: 1, color: DUST });
+  }
+  for (let i = 0; i < SOIL_CLODS; i++) {
+    const side = i % 2 === 0 ? -1 : 1;
+    const flight = 14 + Math.round(8 * fxHash(i, 31));
+    if (t >= flight) continue;
+    const v = t / flight;
+    const dx = SOIL_FROM + (6 + 14 * fxHash(i, 32)) * v;
+    const lift = Math.round(SOIL_HIGH * (0.7 + 0.3 * fxHash(i, 33)) * 4 * v * (1 - v));
+    const size = fxHash(i, 34) < 0.5 ? 2 : 1;
+    out.push({ x: Math.round(at.x + side * dx) - (side < 0 ? size - 1 : 0), y: at.y - size - lift, size, color: CLOD });
+  }
+  return out;
+}
+
+/**
+ * 글자와 함께 입자를 그리는 fx. 물 입자 fx와 달리 글자 시트 글자도 그대로 그린다(`drawnByShape`에 안 넣는다).
+ * `ドスン` 묶음(2-1절)처럼 결과 글자 하나가 모양을 같이 나른다. 신호 하나 = fx 한 줄(5-2절)이라 둘을 따로 띄우면 시차가 생긴다.
+ */
+export const TEXT_PARTICLE_FX: Readonly<Record<string, ParticleFx>> = {
+  poof_text: { anchor: 'foot', particles: soilPuff },
+};
+
+/** 입자를 그리는 fx(물 입자 + 글자 곁 입자)의 표 한 줄. 없으면 undefined. */
+export function particleFx(effect: string): ParticleFx | undefined {
+  return WATER_FX[effect] ?? TEXT_PARTICLE_FX[effect];
+}
+
+/** 입자를 그리는 fx의 이번 프레임 입자. 그런 fx가 아니거나 끝났으면 빈 목록. */
+export function shapeParticles(effect: string, at: { x: number; y: number }, t: number): FxParticle[] {
+  const f = particleFx(effect);
   if (!f || t < 0 || t >= FX_TICKS) return [];
   return f.particles(at, t);
 }

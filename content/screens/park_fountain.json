@@ -30,7 +30,7 @@
     },
     "keeper": { "box": [36, 114, 44, 36], "hintAbility": "squeak", "reachPoint": [73, 140], "note": "창 전체. 조는 얼굴 그림 40,118,36×30. 말풍선 화자(ADR-0065 개정 #434). reachPoint(#507): 쭉이 x 73에 서서 왼쪽을 보고(상자 가운데 58이 왼쪽) reach_wobble 장대(기준점 −13~−17, short 10)가 창 아래쪽 유리 x 54..62, y 142..150을 톡 친다" },
     "alarm_clock": { "box": [80, 134, 24, 24], "hintAbility": "squeak", "reachPoint": [107, 147], "note": "창턱 닭 자명종 그림 84,140,12×12(시트 83,139,13×14). プピッ는 관리인과 같은 결과. reachPoint(#507): 쭉이 x 107에 서서 왼쪽을 보고 reach_wobble 장대 집게(x 86..98, y 149..157)가 자명종 아래 4px에 닿는다. 발 y 222 미만이면 칸 안 장대 끝이 이미 자명종 높이라 잇지 않는다" },
-    "duck": { "box": [175, 150, 24, 24], "note": "장난감. 연못 위 그림 180,158,14×12" },
+    "duck": { "box": [175, 156, 24, 24], "note": "장난감. 연못 물 위 그림 181,167,14×9(외곽선 포함 180,166,16×11, 퍼덕 칸은 3px 뜸). 처음 자리(y 158)는 뒤 덤불 앞이라 떠 보이지 않아 9px 내렸다. 상자 아래 끝 180 = 테두리 위 끝이라 테두리(fountain) 상자와 안 겹친다" },
     "guest": {
       "box": [438, 176, 24, 56],
       "variants": [{ "when": { "flags": { "jacket.taken": true } }, "box": [288, 188, 24, 56] }],
@@ -112,7 +112,7 @@
       "show": [
         { "anim": ["mukjik", "sit_corner"] },
         { "fx": ["gon_text", "fountain"] },
-        { "fx": ["shake", "fountain"] },
+        { "fx": ["rattle", "fountain"] },
         { "anim": ["jacket", "slide"] },
         { "say": ["mukjik", "park_fountain.drop"] }
       ],
@@ -167,7 +167,7 @@
         { "anim": ["mukjik", "common.stomp"] },
         { "fx": ["stomp_text", "mukjik"] },
         { "fx": ["poof_text", "mukjik"] },
-        { "fx": ["pigeons_up", "mukjik"] },
+        { "anim": ["floor", "pigeons_up"] },
         { "say": ["mukjik", ["park_fountain.soft", "park_fountain.soft_again"]] }
       ],
       "note": "#7 흙길 쿵은 안 울린다(단서 ②). 재킷 밑 흙길 x 224에서 발 구르기"
@@ -184,6 +184,7 @@
         { "anim": ["jacket", "cover"] },
         { "say": ["jjuk", "park_fountain.take"] },
         { "anim": ["guest", "run_in"] },
+        { "anim": ["jjuk", "take_off"] },
         { "anim": ["guest", "cheer"] },
         { "say": ["guest", "park_fountain.guest_thanks"] },
         { "fx": ["kokee_text", "alarm_clock"] },
@@ -223,10 +224,9 @@
         { "anim": ["jjuk", "common.stretch"] },
         { "fx": ["stretch_text", "jjuk"] },
         { "fx": ["clang_text", "fountain"] },
-        { "fx": ["shake", "jacket"] },
         { "say": ["jjuk", "park_fountain.tap_hand"] }
       ],
-      "note": "#10 폴백이 아니라 규칙: 폴백이면 힌트 ②(hint_stomp)가 이미 끝난 쿵을 가리킨다(설계 3절)"
+      "note": "#10 폴백이 아니라 규칙: 폴백이면 힌트 ②(hint_stomp)가 이미 끝난 쿵을 가리킨다(설계 3절). 재킷 rattle은 넣지 않는다: 동상 손은 배경이라 못 흔들고, 재킷만 덜컹하면 \"더 치면 떨어진다\"로 읽혀 대사(がっちり)와 반대 단서가 된다(PR #558 Luna 리뷰)"
     }
   ],
   "fallbacks": {
@@ -248,7 +248,7 @@
       "squeak": { "show": [
         { "anim": ["ppik", "common.squeeze_chicken"] },
         { "fx": ["squeak_text", "ppik"] },
-        { "fx": ["pigeons_turn", "jacket"] },
+        { "anim": ["floor", "pigeons_turn"] },
         { "say": ["ppik", "park_fountain.jacket_squeak"] }
       ] }
     },
@@ -263,7 +263,7 @@
       "stomp": { "show": [
         { "anim": ["mukjik", "common.stomp"] },
         { "fx": ["stomp_text", "mukjik"] },
-        { "fx": ["shake", "keeper"] },
+        { "fx": ["rattle", "keeper"] },
         { "say": ["mukjik", "park_fountain.keeper_rattle"] }
       ] }
     },
@@ -278,7 +278,8 @@
         { "anim": ["mukjik", "common.stomp"] },
         { "fx": ["stomp_text", "mukjik"] },
         { "anim": ["alarm_clock", "fall"] },
-        { "say": ["mukjik", "park_fountain.clock_fall"] }
+        { "say": ["mukjik", "park_fountain.clock_fall"] },
+        { "anim": ["alarm_clock", "reel_up"] }
       ] }
     },
     "duck": {
@@ -286,18 +287,21 @@
         { "anim": ["jjuk", "common.stretch"] },
         { "fx": ["stretch_text", "jjuk"] },
         { "anim": ["duck", "peck"] },
-        { "say": ["jjuk", "park_fountain.duck_peck"] }
+        { "say": ["jjuk", "park_fountain.duck_peck"] },
+        { "anim": ["duck", "lap"] }
       ] },
       "stomp": { "show": [
         { "anim": ["mukjik", "common.stomp"] },
         { "fx": ["stomp_text", "mukjik"] },
         { "anim": ["duck", "flap"] },
+        { "fx": ["splash", "mukjik"] },
         { "anim": ["mukjik", "common.wet"] },
         { "say": ["mukjik", "park_fountain.duck_splash"] }
       ] },
       "squeak": { "show": [
         { "anim": ["ppik", "common.squeeze_chicken"] },
         { "fx": ["squeak_text", "ppik"] },
+        { "anim": ["duck", "turn"] },
         { "fx": ["quack_text", "duck"] },
         { "say": ["ppik", "park_fountain.duck_reply"] }
       ] }
@@ -306,7 +310,7 @@
       "stretch": { "show": [
         { "anim": ["jjuk", "common.stretch"] },
         { "fx": ["stretch_text", "jjuk"] },
-        { "fx": ["shake", "guest"] },
+        { "fx": ["rattle", "guest"] },
         { "say": ["jjuk", "park_fountain.guest_shake"] }
       ] },
       "stomp": { "show": [
