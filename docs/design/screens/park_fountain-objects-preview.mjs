@@ -10,7 +10,7 @@
 //   park_fountain-objects-keeper-5x.png  관리인 P1·P2 7칸 + 2번 규칙 `swat`을 5배로, 창·창턱·자명종(구도 시안 그림)과 함께
 //     순서: 졸기 | 꾸벅(대기 loop) | wake(벌떡·탁·갸웃) | clean_time(벽시계·꾹·털썩) | swat(졸면서 탁)
 //   park_fountain-objects-clock-5x.png  커튼 P3 2칸 + 자명종 P7 3칸을 5배로, 판잣집 창 아래 흙길까지(배경 시안 위)
-//     순서: 커튼 확 | 커튼 닫힘 | 자명종 창턱 | ビヨーン | 출렁 | 흙길에 거꾸로
+//     순서: 커튼 확 | 커튼 닫힘 | 자명종 창턱 | ビヨーン | 출렁 | 흙길에 거꾸로 | 떨어지는 중 | 되감기 들림·벽·퐁(#542 끈)
 //   park_fountain-objects-jacket-4x.png  재킷 P5를 4배로, 동상·돌우산(배경 시안)과 함께
 //     순서: 꼭대기(멈춤) | 움찔 | 미끄러짐 | 떨어짐(위) | 떨어짐(아래) | 손에 턱(= on_hand 멈춘 모습)
 //   park_fountain-objects-pigeons-4x.png  비둘기 셋(#526)을 4배로, **완성 배경** 위에(테두리·연못 앞 대비를 보려고)
@@ -22,7 +22,9 @@
 //   제어판 빨간 단추는 꾹 칸에만(설계 7절 P2), 대기 꾸벅은 고개만 떨어진다(책상·포갠 팔 y ≥ 139는 졸기와 같고, 머리 맨 위가 2px 아래, #477).
 //   커튼(P3): 닫힘 칸은 창 안에 피부가 0픽셀, 확 칸은 얼굴 오른쪽만 보인다(피부 > 0, 왼쪽 절반은 0), 둘 다 창 밖으로 안 나간다.
 //   자명종(P7): 창턱 그림 = 구도 시안 그림(84,140) 그대로, 튄 칸의 몸통(y ≥ 145)은 창턱 그림과 같다(머리만 튄다),
-//   거꾸로 칸은 창 아래 흙길(아래 끝 ≥ 198)에 있고 창(관리인 히트)과 안 겹친다, 화면 JSON의 자명종·커튼 anim 이름이 시트에 다 있다.
+//   거꾸로 칸 몸통(끈·효과 점 뺌)은 창 아래 흙길(아래 끝 ≥ 198)에 있고 창(관리인 히트)과 안 겹친다, 화면 JSON의 자명종·커튼 anim 이름이 시트에 다 있다.
+//   끈(#542): fall·reel_up 칸마다 끈이 포갠 손(64,145)에서 한 줄로 이어진다, 되감기는 위로만 올라가고 마지막 칸은 창턱 그림 바로 위,
+//   들림·벽 칸 몸통은 창과 안 겹친다.
 //   재킷(P5): 꼭대기 그림 = 구도 시안 그림(213,32) 그대로(#530에서 앞판이 보이게 둘 다 고침), 대기 loop의 움찔 칸 = twitch anim 첫 칸(같은 그림 재사용),
 //   slide 마지막 칸 = 손 멈춘 모습(도착 순간 튀지 않음), slide가 오른쪽·아래로만 간다, 떨어지는 칸은 처마(y ≤ 52) 아래,
 //   손 칸 아래 끝 y 123~125(소매 끝 124)이고 집게 자리(x 252~270, y 116~124) 안에 4×4 불투명 덩어리가 있다(설계 1-3 집기 조건),
@@ -38,7 +40,7 @@ import { dirname, join } from 'node:path';
 import { C, PALETTE, EMPTY, Image, indexedPng } from '../../../art/lib/pixel.mjs';
 import { stamp } from '../../../art/lib/texture.mjs';
 import { buildScene } from '../../../art/scene-build.mjs';
-import { OBJECTS, ANIMS, GUEST_AT, GUEST_REUNION_AT, KEEPER_WINDOW, CLOCK_AT, JACKET_TOP_AT } from '../../../art/scenes/park_fountain.objects.mjs';
+import { OBJECTS, ANIMS, GUEST_AT, GUEST_REUNION_AT, KEEPER_WINDOW, CLOCK_AT, JACKET_TOP_AT, CORD_COLOR } from '../../../art/scenes/park_fountain.objects.mjs';
 import { bg, fg } from './park_fountain-bg-sketch.mjs';
 import { SCENE as PARK } from '../../../art/scenes/park_fountain.mjs';
 
@@ -134,8 +136,10 @@ const base = () => { const im = new Image(W, H); im.blit(bg, 0, 0); im.blit(fg, 
 const curtainFrames = A['keeper.curtain'].frames;
 const clockFrames = [KC.default.frame, A['alarm_clock.spring'].frames[0], A['alarm_clock.spring'].frames[1], A['alarm_clock.fall'].frames.at(-1)]; // 거꾸로 = fall 마지막(붙드는) 칸. 앞 칸은 굴러떨어지는 중(#539)
 {
-  const S = 5, cw = 84, ch = 98, x0 = 30, y0 = 108;
-  const shots = [...curtainFrames.map((f) => [f, null]), ...clockFrames.map((f) => [K.default.frame, f])];
+  // 흙길(y 236~248)까지 보이게 아래로 늘렸다(#542 전에는 거꾸로 칸이 잘려 빈 칸으로 찍혔다). 뒤에 떨어지는 중 + 되감기 3칸(#542)
+  const S = 5, cw = 84, ch = 146, x0 = 30, y0 = 108;
+  const shots = [...curtainFrames.map((f) => [f, null]), ...clockFrames.map((f) => [K.default.frame, f]),
+    [K.default.frame, A['alarm_clock.fall'].frames[0]], ...A['alarm_clock.reel_up'].frames.map((f) => [K.default.frame, f])];
   const out = new Image(cw * shots.length, ch);
   shots.forEach(([kf, cf], n) => {
     const im = new Image(W, H); im.blit(bg, 0, 0); put(im, kf);
@@ -291,10 +295,49 @@ for (const [name, k, at] of [['입구 대기', 'watch', GUEST_AT], ['재회 만�
     const { at: [, ay] } = meta.frames[f];
     check(body && ay < CLOCK.y - 5, `${name}: 몸통(y ≥ ${CLOCK.y + 5})은 창턱 그림과 같고 머리만 위로 튐(칸 위 끝 ${ay})`);
   }
+  // 몸통 상자: 끈(CORD_COLOR, #542)은 창 안 관리인 손까지 이어지니 빼고 센다
+  const bodyBox = (f) => {
+    const im = only3(f);
+    let x0 = W, y0 = H, x1 = -1, y1 = -1;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const c = im.get(x, y);
+      if (c === EMPTY || c === CORD_COLOR || c === C.white || c === C.wood) continue; // 효과 점(흰 선·흙 튐)도 뺀다
+      x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+    }
+    return { x0, y0, x1, y1, im };
+  };
+  const hitWin = (b) => b.x0 < wx + ww && b.x1 >= wx && b.y0 < wy + wh && b.y1 >= wy;
   {
-    const { at: [ax, ay], src: [, , sw, sh] } = meta.frames[clockFrames[3]];
-    const hitWin = ax < wx + ww && ax + sw > wx && ay < wy + wh && ay + sh > wy;
-    check(ay + sh - 1 >= 198 && !hitWin, `거꾸로: 칸 ${ax},${ay} ${sw}×${sh}, 아래 끝 ${ay + sh - 1} ≥ 198(흙길), 창과 안 겹침`);
+    const b = bodyBox(clockFrames[3]);
+    check(b.y1 >= 198 && !hitWin(b), `거꾸로: 몸통 ${b.x0}..${b.x1} × ${b.y0}..${b.y1}, 아래 끝 ${b.y1} ≥ 198(흙길), 창과 안 겹침`);
+  }
+  // #542 끈 되감기: 떨어진 칸부터 되감기 칸까지 끈 한쪽 끝이 포갠 손(64,145)에 있고, 이어진 한 줄이다(끊기면 "끈"이 아니라 점선)
+  {
+    const cordFrames = [...A['alarm_clock.fall'].frames, ...A['alarm_clock.reel_up'].frames];
+    for (const f of cordFrames) {
+      const im = only3(f);
+      const seen = new Set(), stack = [[64, 145]];
+      while (stack.length) {
+        const [x, y] = stack.pop();
+        const k = `${x},${y}`;
+        if (seen.has(k) || im.get(x, y) !== CORD_COLOR) continue;
+        seen.add(k);
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) stack.push([x + dx, y + dy]);
+      }
+      let total = 0;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (im.get(x, y) === CORD_COLOR) total++;
+      check(total > 0 && seen.size === total, `끈(칸 ${f}): 손(64,145)에서 이어진 끈 ${seen.size}/${total}픽셀`);
+    }
+    // 되감기 칸은 위로만 올라가고(몸통 위 끝이 줄어듦), 마지막 칸은 창턱 그림 바로 위(몸통 x가 같고 위 끝이 10px 안)
+    const boxes = A['alarm_clock.reel_up'].frames.map(bodyBox);
+    const fallen = bodyBox(clockFrames[3]);
+    const tops = [fallen.y0, ...boxes.map((b) => b.y0)];
+    const rest = bodyBox(KC.default.frame);
+    const last = boxes.at(-1);
+    check(tops.every((t, i) => i === 0 || t < tops[i - 1]), `되감기는 위로만: 몸통 위 끝 ${tops.join(' → ')} → 창턱 ${rest.y0}`);
+    check(last.x0 === rest.x0 && last.y0 < rest.y0 && rest.y0 - last.y0 <= 10, `되감기 마지막 칸은 창턱 그림 바로 위(x ${last.x0} = ${rest.x0}, 위 끝 ${last.y0} → ${rest.y0})`);
+    // 들림·벽 중간 칸은 창(관리인)을 가리지 않는다
+    check(boxes.slice(0, -1).every((b) => !hitWin(b)), '되감기 들림·벽 칸 몸통이 창과 안 겹친다');
   }
   // 화면 JSON의 모든 { anim: [물건, 이름] } 중 관리인·자명종 것
   const used = new Set();

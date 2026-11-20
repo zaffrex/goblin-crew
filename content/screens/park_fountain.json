@@ -278,7 +278,8 @@
         { "anim": ["mukjik", "common.stomp"] },
         { "fx": ["stomp_text", "mukjik"] },
         { "anim": ["alarm_clock", "fall"] },
-        { "say": ["mukjik", "park_fountain.clock_fall"] }
+        { "say": ["mukjik", "park_fountain.clock_fall"] },
+        { "anim": ["alarm_clock", "reel_up"] }
       ] }
     },
     "duck": {
