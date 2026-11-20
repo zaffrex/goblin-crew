@@ -41,11 +41,17 @@ token_of() { local v; v=$(field "$1" slack_token_env); if [ -n "$v" ]; then prin
 LEGACY=0
 ACTOR="${ROLE:-${AGENT_ROLE:-}}"
 TOKEN=""
-[ -n "$ACTOR" ] && TOKEN=$(token_of "$ACTOR")
-if [ -z "$TOKEN" ] && [ -z "$ROLE" ]; then
-  for r in "${ROLES[@]}"; do TOKEN=$(token_of "$r"); [ -n "$TOKEN" ] && { ACTOR="$r"; break; }; done
+if [ "${AGENT_ROLE:-}" = qa ]; then
+  # QA 실행은 qa 신원만 쓴다(#516). --as 우회, 다른 역할 토큰 대체, 구버전 토큰 대체를 모두 막는다.
+  [ -z "$ROLE" ] || [ "$ROLE" = qa ] || die "qa 실행은 --as qa만 쓸 수 있어요 (요청: $ROLE)"
+  ACTOR=qa; TOKEN=$(token_of qa)
+else
+  [ -n "$ACTOR" ] && TOKEN=$(token_of "$ACTOR")
+  if [ -z "$TOKEN" ] && [ -z "$ROLE" ]; then
+    for r in "${ROLES[@]}"; do TOKEN=$(token_of "$r"); [ -n "$TOKEN" ] && { ACTOR="$r"; break; }; done
+  fi
+  if [ -z "$TOKEN" ] && [ -n "${SLACK_BOT_TOKEN:-}" ]; then TOKEN="$SLACK_BOT_TOKEN"; LEGACY=1; fi
 fi
-if [ -z "$TOKEN" ] && [ -n "${SLACK_BOT_TOKEN:-}" ]; then TOKEN="$SLACK_BOT_TOKEN"; LEGACY=1; fi
 [ -n "$TOKEN" ] || [ "$CMD" = "join-all" ] || [ "$CMD" = "ids" ] || die "no Slack token for role '${ACTOR:-?}'"
 
 api() { # api <method> <json-body> [token]
