@@ -112,7 +112,7 @@
       "show": [
         { "anim": ["mukjik", "sit_corner"] },
         { "fx": ["gon_text", "fountain"] },
-        { "fx": ["shake", "fountain"] },
+        { "fx": ["rattle", "fountain"] },
         { "anim": ["jacket", "slide"] },
         { "say": ["mukjik", "park_fountain.drop"] }
       ],
@@ -224,7 +224,7 @@
         { "anim": ["jjuk", "common.stretch"] },
         { "fx": ["stretch_text", "jjuk"] },
         { "fx": ["clang_text", "fountain"] },
-        { "fx": ["shake", "jacket"] },
+        { "fx": ["rattle", "jacket"] },
         { "say": ["jjuk", "park_fountain.tap_hand"] }
       ],
       "note": "#10 폴백이 아니라 규칙: 폴백이면 힌트 ②(hint_stomp)가 이미 끝난 쿵을 가리킨다(설계 3절)"
@@ -264,7 +264,7 @@
       "stomp": { "show": [
         { "anim": ["mukjik", "common.stomp"] },
         { "fx": ["stomp_text", "mukjik"] },
-        { "fx": ["shake", "keeper"] },
+        { "fx": ["rattle", "keeper"] },
         { "say": ["mukjik", "park_fountain.keeper_rattle"] }
       ] }
     },
@@ -308,7 +308,7 @@
       "stretch": { "show": [
         { "anim": ["jjuk", "common.stretch"] },
         { "fx": ["stretch_text", "jjuk"] },
-        { "fx": ["shake", "guest"] },
+        { "fx": ["rattle", "guest"] },
         { "say": ["jjuk", "park_fountain.guest_shake"] }
       ] },
       "stomp": { "show": [

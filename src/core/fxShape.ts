@@ -1,8 +1,9 @@
-// 글자 아닌 fx(`ability-feedback.md` 3절 끝, #485): 물건 그림을 옮기는 변환(`hop`·`nod`)과 물 입자(`splash`·`ripple`).
+// 글자 아닌 fx(`ability-feedback.md` 3절 끝, #485): 물건 그림을 옮기는 변환(`hop`·`nod`·`rattle`)과 물 입자(`splash`·`ripple`).
 // 순수 로직이다. 엔진(main.ts)은 여기서 받은 오프셋으로 그림을 옮겨 그리고, 입자 사각형을 팔레트 색으로 칠하기만 한다.
 // - 새 칸 0. 물 입자는 물줄기(`fountain_water`, core/sceneFx.ts)와 같은 물 4색, 1~2px 정수 사각형, 반투명 없음(ADR-0007).
 // - 결정적: 입자 위치는 (fx 시작 뒤 틱, 입자 번호) 해시로 고른다. 재생 도구 스크린샷이 흔들리지 않는다.
 // - `shake`는 화면 1(`hook`·`basket`)에도 쓰여서 진마씨 재플레이 답 전에는 켜지 않는다(#485). 켤 때는 `NUDGE_FX`에 한 줄.
+//   그래서 화면 2의 "물건 그림 2px 좌우 흔들기"는 새 이름 `rattle`로 쓴다(#556). 화면 1 `shake`를 켤 때 `shake: rattle`로 합친다.
 // - 비둘기(`pigeons_up`·`pigeons_turn`)는 모양이 있어서 fx가 아니라 물건 anim `floor.pigeons_*`(시트 칸, #526)이다.
 
 import { FX_TICKS } from './fx';
@@ -29,10 +30,22 @@ function hop(t: number): Nudge {
   return { dx: 0, dy: -Math.round(HOP_PX * 4 * u * (1 - u)) };
 }
 
-/** 물건 그림을 옮기는 fx(`ability-feedback.md` 3절 끝: 위로 포물선 / 1px 숙이기). 표에 없는 fx는 옮기지 않는다. */
+/**
+ * `rattle`: 물건 그림을 좌우 2px로 덜컹(`ability-feedback.md` 74줄 "흔들기 2px 좌우, 새 칸 없음", #556).
+ * 3틱마다 한 칸, 2px 두 번 → 1px 두 번으로 잦아든 뒤 제자리(0.4초). 위아래로는 안 움직인다:
+ * 쿵 화면 흔들림(`shakeOffset`, 세로)과 같은 틱에 겹쳐도 방향이 갈려서 따로 읽힌다.
+ */
+const RATTLE_X = [2, -2, 2, -2, 1, -1, 1, -1] as const;
+export const RATTLE_TICKS = RATTLE_X.length * 3;
+function rattle(t: number): Nudge {
+  return { dx: t < RATTLE_TICKS ? RATTLE_X[Math.floor(t / 3)]! : 0, dy: 0 };
+}
+
+/** 물건 그림을 옮기는 fx(`ability-feedback.md` 3절 끝: 위로 포물선 / 1px 숙이기 / 좌우 2px). 표에 없는 fx는 옮기지 않는다. */
 export const NUDGE_FX: Readonly<Record<string, (t: number) => Nudge>> = {
   hop,
   nod,
+  rattle,
 };
 
 /** fx 시작 뒤 t틱일 때 그 대상의 오프셋. 옮기는 fx가 아니거나 끝났으면 null. */
