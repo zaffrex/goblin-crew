@@ -238,6 +238,7 @@ anims: {
 - 시계 둘: 입자 비행 위상은 **화면 시계**, 모드 진행은 **효과 자리 시계**(4절 `loopStarts`와 같은 규칙). 그래서 on → stop → off와 burst → on이 같은 틱에 끊김 없이 이어진다(테스트로 확인).
 - `burst`는 꺼진 물에서 시작한다(엔딩 ③ 순서: `fountain.off` 참 → burst). 켜진 물에서 burst를 보내면 잠깐 비었다가 솟는다. 그런 연출이 필요해지면 그때 고친다.
 - 모양 v1: 물줄기 7가닥 포물선, 물방울 하나 800ms 비행. on 꼭대기 = area 높이 ÷ 1.5, burst 꼭대기 = area 위 끝. 미리보기 `docs/design/screens/park_fountain-water-preview-2x.png`. 하늘 배경 위 대비·밀도는 배경이 붙은 뒤 Luna와 다시 본다(11-6절 "입자 모양 다듬기").
+- 모양 v2(#510·#512): 가닥 3개(가운데 28 + 양옆 34씩)를 고르게 띄운다. 비행 시간은 **1400ms**다. 800ms에서는 한 틱에 물방울 간격의 0.71배씩 가서 물이 거꾸로 빨려 들어가 보였다(바퀴살 착시). 그래서 비행 시간이 연출 길이(stop 900ms, burst 1200ms)보다 길다. stop·burst는 비행 시간이 아니라 **anim 길이 안에** 끝난다(보이는 경계가 `max(1, 비행 ÷ 길이)`배 빠르기로 훑고, burst 높이 배율은 효과 자리 시계로 한꺼번에 정한다). 그래서 anim `ms`·1500 상한은 그대로다.
 - 엔진 표는 `src/core/sceneFx.ts` `SCENE_FX`, 빌드 검사 표는 `art/scene-build.mjs` `FX_MODES`(빌드가 TS를 못 읽어서 둘). 두 표가 같은지는 `tests/art/scene-fx.test.ts`가 본다.
 
 ## 12. 멈춘 기울기 (`tilt`)와 판 밑 바닥 (`noFloor`) — 개정 5
