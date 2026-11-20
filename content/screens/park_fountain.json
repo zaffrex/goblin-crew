@@ -256,7 +256,8 @@
         { "anim": ["jjuk", "common.stretch"] },
         { "fx": ["stretch_text", "jjuk"] },
         { "anim": ["keeper", "curtain"] },
-        { "say": ["keeper", "park_fountain.keeper_poke"] }
+        { "say": ["keeper", "park_fountain.keeper_poke"] },
+        { "anim": ["keeper", "curtain_open"] }
       ] },
       "stomp": { "show": [
         { "anim": ["mukjik", "common.stomp"] },

@@ -8,7 +8,8 @@
 //   node docs/design/screens/park_fountain-objects-preview.mjs
 //
 // 뼈대 1: 손님 P8 4칸(설계 7절)과 멈춘 모습 2개, anim 4개(`guest.wait`·`run_in`·`cheer`·`soaked`).
-// 뼈대 2: 관리인 P1 4칸 + P2 3칸, anim 3개(`keeper.wake`·`clean_time`·`swat`), 대기 꾸벅 `loop`(#477). 커튼 P3·자명종 P7은 다음 판.
+// 뼈대 2: 관리인 P1 4칸 + P2 3칸, anim 3개(`keeper.wake`·`clean_time`·`swat`), 대기 꾸벅 `loop`(#477).
+// 뼈대 3: 커튼 P3 2칸(`keeper.curtain`·`curtain_open`) + 자명종 P7 3칸과 멈춘 모습(`alarm_clock.spring`·`fall`·`ring_late`).
 
 import { C, Image, EMPTY } from '../lib/pixel.mjs';
 import { stamp, outlined, line, fill, bay } from '../lib/texture.mjs';
@@ -429,14 +430,44 @@ function keeperPic(pose) {
         if (p.out || (x >= WIN.x && x < WIN.x + WIN.w && y >= WIN.y && y < WIN.y + WIN.h)) im.set(x, y, c);
       }
     }
-    // 커튼(맨 앞): 위는 넓게, 끈 묶은 곳(y 134)에서 좁게, 아래는 다시 퍼짐. pinkL/pink 세로 주름
-    fill(im, WIN.x, WIN.y, 13, WIN.h, (x, y) => {
-      const reach = y < 134 ? 13 - Math.round((y - 114) * 0.38) : 6 + Math.round((y - 134) * 0.3);
-      if (x - WIN.x >= reach) return undefined;
-      if (y === 134 || y === 135) return C.redL; // 묶은 끈
-      return (x - WIN.x) % 3 === 2 ? C.pink : C.pinkL;
-    });
+    // 커튼(맨 앞). p.curtain 없음 = 반쯤 묶음(기본), 'closing' = 끈이 풀려 2/3 덮음, 'closed' = 창 전체(설계 7절 P3)
+    curtain(im, p.curtain);
+    if (p.curtain === 'closing') {
+      // 커튼 앞 끝을 쥔 관리인 손(눈은 감은 채 끌어당긴다). 손만 보이고 팔은 커튼 뒤
+      const hnd = new Image(W, H);
+      fill(hnd, CURTAIN_EDGE - 1, 127, 3, 4, (x, y) => (x === CURTAIN_EDGE + 1 || y === 130 ? C.woodL : C.tan));
+      im.blit(outlined(hnd), 0, 0);
+    }
   }, p.fx);
+}
+
+/** 'closing' 칸에서 커튼 앞 끝 x(창 왼쪽에서 27px). 관리인 얼굴 왼쪽 절반이 가려진다 */
+const CURTAIN_EDGE = WIN.x + 27;
+/**
+ * 커튼. 기본: 위는 넓게, 끈 묶은 곳(y 134)에서 좁게, 아래는 다시 퍼짐. pinkL/pink 세로 주름.
+ * closing: 끈이 풀려 아래까지 곧게 내려오고 앞 끝이 살짝 물결친다(앞 끝 한 줄은 pink 그늘).
+ * closed: 창 전체. 위 2줄은 커튼봉에 모인 주름(pink), 끈은 왼쪽 아래에 늘어진다.
+ */
+function curtain(im, kind) {
+  const wave = (y) => [0, 1, 1, 0, -1, -1][(y >> 2) % 6];
+  fill(im, WIN.x, WIN.y, WIN.w, WIN.h, (x, y) => {
+    const dx = x - WIN.x;
+    if (!kind) {
+      const reach = y < 134 ? 13 - Math.round((y - 114) * 0.38) : 6 + Math.round((y - 134) * 0.3);
+      if (dx >= reach) return undefined;
+      if (y === 134 || y === 135) return C.redL; // 묶은 끈
+      return dx % 3 === 2 ? C.pink : C.pinkL;
+    }
+    if (kind === 'closing') {
+      const reach = CURTAIN_EDGE - WIN.x + wave(y);
+      if (dx >= reach) return undefined;
+      if (dx === reach - 1) return C.pink;
+      return dx % 3 === 2 ? C.pink : C.pinkL;
+    }
+    if (y < WIN.y + 2) return dx % 2 ? C.pink : C.pinkL; // 커튼봉에 모인 주름
+    if (dx < 2 && y >= 136 && y < 146) return C.redL; // 풀린 끈이 늘어짐
+    return dx % 3 === 2 ? C.pink : C.pinkL;
+  });
 }
 
 /** 효과 글자·선(외곽선 없음) */
@@ -471,6 +502,11 @@ const KEEPER_POSES = {
   // P2 2칸: 털썩. 몸째 3px 내려앉고 눈이 반쯤 감긴다. 어깨 옆으로 먼지 두 점. 끝나면 졸기로 돌아간다
   plop: { at: [54, 121], bodyDy: -1, head: { eyes: 'half', mouth: 'shut' }, arms: [], folded: true,
     fx: (im) => { for (const [x, y] of [[47, 140], [46, 141], [77, 140], [78, 141]]) im.set(x, y, C.lint); } },
+  // P3 0칸: 장대로 창을 톡톡 → 졸던 그대로 손만 뻗어 커튼을 확 끈다(얼굴 왼쪽 절반이 가려짐). 앞 끝 옆 바람선 2줄
+  curtainClosing: { at: [54, 120], bodyDy: -2, head: { eyes: 'closed', mouth: 'drool' }, arms: [], folded: true, curtain: 'closing',
+    fx: (im) => { zz(im); for (const [x, y] of [[CURTAIN_EDGE + 2, 121], [CURTAIN_EDGE + 3, 122], [CURTAIN_EDGE + 2, 139], [CURTAIN_EDGE + 3, 140]]) im.set(x, y, C.white); } },
+  // P3 1칸: 닫힘. 얼굴이 안 보이고 잠꼬대 말풍선(keeper_poke)만 이 칸 상자에 붙는다(hold). Zz도 커튼 뒤
+  curtainClosed: { at: [54, 120], bodyDy: -2, head: { eyes: 'closed', mouth: 'drool' }, arms: [], folded: true, curtain: 'closed' },
 };
 
 export const KEEPER_WINDOW = WIN;
@@ -487,3 +523,80 @@ ANIMS['keeper.wake'] = { ms: [260, 340, 600], frames: [keeper.jolt, keeper.swat,
 ANIMS['keeper.clean_time'] = { ms: [520, 420, 480], frames: [keeper.look, keeper.press, keeper.plop], hold: true };
 // 2번(이미 끔): 졸면서 손만 탁
 ANIMS['keeper.swat'] = { ms: [500], frames: [keeper.swatAsleep] };
+// P3 `keeper` × ノビー(단서 ③): 확 → 닫힘. 닫힌 칸을 붙든 채 잠꼬대 말풍선, 그 뒤 `curtain_open`이 거꾸로 연다
+ANIMS['keeper.curtain'] = { ms: [160, 300], frames: [keeper.curtainClosing, keeper.curtainClosed], hold: true };
+// P3 거꾸로(새 칸 0): 닫힘 → 확 → (대기열이 비면) 졸기. 설계 7절 "거꾸로 재생해서 다시 연다"
+ANIMS['keeper.curtain_open'] = { ms: [200, 160], frames: [keeper.curtainClosed, keeper.curtainClosing] };
+
+// ═════════════ 닭 자명종 (alarm_clock, 히트 80,134 24×24 / 그림 84,140 12×12) ═════════════
+// 창턱(y 150) 위 하얀 닭. 몸통이 시계판(redL 테두리 + plum 바늘), 노란 부리·발, 빨간 볏. 구도 시안 그림을 그대로 옮겼다.
+// 고장의 정체(설계 7절 P7): 머리가 용수철에 달린 장난감 같은 시계라, 태엽을 감으면 머리가 "ビヨーン" 튀어 올라 출렁인다.
+// 같은 두 칸을 번갈아 8절 ③ "이제야 コケーッ 하고 덜덜 우는" 그림으로 다시 쓴다(`ring_late`, 새 칸 0).
+const CLOCK_LEGEND = { r: C.red, w: C.white, k: C.plum, y: C.yel, c: C.redL, m: C.lint, M: C.lav };
+const CLOCK_REST = [
+  '....rr......',
+  '...rrr......',
+  '..wwww......',
+  '.wwkwwww....',
+  'yywwwwwwww..',
+  '.wwwccccwww.',
+  '.wwcwwwwcww.',
+  '.wwcwwkwcww.',
+  '.wwcwwwwcww.',
+  '..wwccccww..',
+  '...ww..ww...',
+  '...yy..yy...',
+];
+// 튀어나온 머리(볏·눈·부리 + 목 아랫단)와 머리가 빠진 몸통(위가 뚫린 시계판)
+const CLOCK_HEAD = ['....rr..', '...rrr..', '..wwww..', '.wwkwwww', 'yywwwwww', '..wwwww.'];
+const CLOCK_HEAD_SHOCK = ['.r..rr.r', '...rrr..', '..wwww..', '.wkwkwww', 'yywwwwww', 'yy.wwww.']; // 놀라 벌린 부리·두 눈(출렁)
+const CLOCK_BODY = ['..wwMMwwww..', ...CLOCK_REST.slice(5)];
+/** 창턱 위 몸통 왼쪽 위(쉬는 그림 84,140의 5줄 아래 = 몸통 윗단 144) */
+export const CLOCK_AT = [84, 140];
+const [CX, CY] = CLOCK_AT;
+
+/** 용수철: from(목 아래) → to(몸통 구멍) 사이를 2px 폭 지그재그로. 밝은 lint와 그늘 lav가 번갈아 감긴 철사로 보인다 */
+function spring(t, x0, y0, x1, y1) {
+  const n = y1 - y0;
+  for (let i = 0; i <= n; i++) {
+    const y = y0 + i, x = Math.round(x0 + ((x1 - x0) * i) / n) + (i % 2 ? 1 : 0);
+    t.set(x, y, i % 2 ? C.lint : C.lav);
+    t.set(x + 1, y, i % 2 ? C.lav : C.lint);
+  }
+}
+
+/** pose: 'rest' 창턱 / 'boing' 머리가 왼쪽 위로 튐 / 'sway' 오른쪽으로 출렁(놀란 얼굴) / 'fallen' 땅에 거꾸로 처박힘 */
+function clockPic(pose) {
+  if (pose === 'rest') return pic((t) => stamp(t, CX, CY, CLOCK_REST, CLOCK_LEGEND));
+  if (pose === 'fallen') {
+    // 판잣집 벽 아래 흙길 가장자리(y 198~)에 거꾸로: 다리·발이 위로, 볏은 흙에 묻혀 안 보인다. 몸통 위 끝 y 189.
+    // 굴러가는 길은 그리지 않는다(엔진 이동 없이 0.3초 안에 툭 바뀜, 설계 7절 P7). 흙 튄 자국 3점은 효과
+    const FX = 96, FY = 189;
+    return pic(
+      (t) => stamp(t, FX, FY, [...CLOCK_REST.slice(2)].reverse(), CLOCK_LEGEND),
+      (im) => { for (const [x, y] of [[94, 198], [93, 196], [109, 197], [110, 195], [92, 199]]) im.set(x, y, C.wood); },
+    );
+  }
+  const boing = pose === 'boing';
+  // 머리 자리: boing = 원래 자리에서 왼쪽 2·위 10 / sway = 오른쪽 3·위 7(용수철이 눌리며 기운다)
+  const [hx, hy] = boing ? [CX - 2, CY - 10] : [CX + 3, CY - 7];
+  return pic((t) => {
+    stamp(t, CX, CY + 4, CLOCK_BODY, CLOCK_LEGEND);
+    spring(t, hx + 3, hy + 6, CX + 4, CY + 4);
+    stamp(t, hx, hy, boing ? CLOCK_HEAD : CLOCK_HEAD_SHOCK, CLOCK_LEGEND);
+  }, (im) => {
+    // 튄 방향 반대쪽 떨림선(효과): boing은 머리 오른쪽, sway는 머리 왼쪽
+    const pts = boing ? [[hx + 10, hy + 1], [hx + 11, hy + 2], [hx + 10, hy + 5], [hx + 11, hy + 6]]
+      : [[hx - 3, hy + 1], [hx - 4, hy + 2], [hx - 3, hy + 5], [hx - 4, hy + 6]];
+    for (const [x, y] of pts) im.set(x, y, C.white);
+  });
+}
+const clock = Object.fromEntries(['rest', 'boing', 'sway', 'fallen'].map((k) => [k, clockPic(k)]));
+
+OBJECTS.alarm_clock = { draw: clock.rest };
+// P7 0·1칸, `alarm_clock` × ノビー(단서 ①): ビヨーン → 출렁 → 다시 튐. 마지막 칸을 붙든 채 `clock_broken` 대사
+ANIMS['alarm_clock.spring'] = { ms: [220, 200, 260], frames: [clock.boing, clock.sway, clock.boing], hold: true };
+// P7 2칸, `alarm_clock` × ズッシー(단서 ②): 툭 → 흙길에 거꾸로. 붙든 채 `clock_fall` 대사, 대기열이 비면 창턱(장난감, 13절 Q4)
+ANIMS['alarm_clock.fall'] = { ms: [700], frames: [clock.fallen], hold: true };
+// 8절 ③ (새 칸 0): 늦게 우는 자명종. 0·1칸을 빠르게 번갈아 덜덜. 끝나면 창턱 그림으로 돌아가 관리인이 탁 친다
+ANIMS['alarm_clock.ring_late'] = { ms: [120, 120, 120, 120, 120, 120], frames: [clock.boing, clock.sway, clock.boing, clock.sway, clock.boing, clock.sway] };
