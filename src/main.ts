@@ -10,7 +10,7 @@ import { bubbleFontPx, bubbleMaxWidth, bubbleTailInset, placeBubble, type Bubble
 import { CHARACTERS, type CharacterId } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
-import { dustPush, FX_COLORS, FX_STYLE, FX_TEXT_SPOT, SHAKE_FX, shakeOffset } from './core/fx';
+import { actorEdgeAt, dustPush, FX_COLORS, FX_STYLE, fxTextSpot, SHAKE_FX, shakeOffset } from './core/fx';
 import { drawnByShape, frameNudges, fxNudges, WATER_FX, waterParticles, type Nudge } from './core/fxShape';
 import type { HitBox } from './core/hit';
 import { cardFacePx, cardInput, cardPointer, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
@@ -31,7 +31,7 @@ import { drawHud } from './engine/hud';
 import { drawActiveMarker, drawCharacter, drawOutline, drawRoom, drawSpark, drawStompDust, drawTarget, drawTargets } from './engine/placeholder';
 import { drawParticles, drawSceneBg, drawSceneFrame, drawSceneFx, loadSceneArt, sceneArtMeta } from './engine/sceneArt';
 import { drawHead, drawSprite, spriteMetas, spriteState, type SpriteTop } from './engine/sprites';
-import { drawFxText, fxTextState } from './engine/fxText';
+import { drawFxText, fxTextState, fxTextWidth } from './engine/fxText';
 import { hudIconState, paintHudIcon } from './engine/hudIcons';
 
 function need<T extends HTMLElement>(selector: string): T {
@@ -248,6 +248,18 @@ function anchorOf(target: string, layout: ReturnType<typeof sceneLayout>): Point
   const box: HitBox | undefined = layout.chars[target as CharacterId] ?? layout.hotspots[target] ?? layout.spots[target];
   if (!box) return null;
   return { x: box.left + box.width / 2, y: headY(box, spriteTops[target as CharacterId]) };
+}
+
+/**
+ * 소리 글자 자리 예외(`fx.ts` `FX_TEXT_SPOT`)의 기준점. 고정 점은 그대로, `'actor'`는 그 효과를 낸 캐릭터 쪽 대상 끝(#530).
+ * 예외가 없거나, `'actor'`인데 캐릭터·대상 상자를 모르면(입장 연출 등) null → 대상 위 끝 가운데.
+ */
+function fxTextSpotAt(f: { effect: string; target: string; by?: CharacterId }, layout: ReturnType<typeof sceneLayout>): Point | null {
+  const spot = fxTextSpot(f.effect, f.target);
+  if (spot !== 'actor') return spot;
+  const box: HitBox | undefined = layout.hotspots[f.target] ?? layout.spots[f.target];
+  const actor = f.by === undefined ? undefined : scene.walkers[f.by];
+  return box && actor ? actorEdgeAt(box, actor.x, fxTextWidth(f.effect)) : null;
 }
 
 /** 대상 상자 아래 끝 가운데(내부 좌표). 물결(`ripple`)처럼 물에 닿은 자리에 띄우는 fx 기준점. */
@@ -517,8 +529,8 @@ function render(): void {
     }
     if (drawnByShape(f.effect)) continue;
     const style = FX_STYLE[f.effect];
-    // 소리 글자는 자리 예외(둥지)가 있으면 그 자리, 아니면 대상 그림 위 끝 가운데.
-    const at = (style && FX_TEXT_SPOT[f.target]) || anchorOf(f.target, layout);
+    // 소리 글자는 자리 예외(`fxTextSpot`)가 있으면 그 자리, 아니면 대상 그림 위 끝 가운데.
+    const at = (style && fxTextSpotAt(f, layout)) || anchorOf(f.target, layout);
     // 소리 글자(3절 표에 있는 fx)는 글자 시트로. 시트가 아직이거나 표 밖의 fx(물건 그림, P1 #286)는 임시 별.
     const drawn = at !== null && style !== undefined && drawFxText(ctx, f.effect, at, f.t, internal.width);
     if (at && !drawn) drawSpark(ctx, at, f.t, style ? FX_COLORS[style.color] : undefined);

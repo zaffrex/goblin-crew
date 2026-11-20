@@ -55,16 +55,48 @@ export const FX_STYLE: Readonly<Record<string, { color: FxColor; height: number 
   shaa_text: { color: 'aqua', height: 8 },
 };
 
+/** 소리 글자 자리 예외의 값: 고정 기준점(내부 px, `fxTextAt`의 `at`) 또는 `'actor'`(행동한 캐릭터 쪽 대상 끝, `actorEdgeAt`). */
+export type FxTextSpot = { x: number; y: number } | 'actor';
+
 /**
- * 소리 글자 자리 예외: 대상 ID → 글자 기준점(내부 px, `fxTextAt`의 `at`). 표에 없는 대상은 그림 위 끝 가운데다.
- * 둥지 하나만 둔다(#289 리스크 "위치 예외는 둥지 하나"). 둥지 위 끝 기준이면 글자가 까치 몸에 얹혀
- * "까치에게 삑 했는데 반응 없음"으로 읽혀 정답 #4를 가린다(PR #299 Luna 리뷰). 그래서 둥지 오른쪽 옆, 사발 높이:
- * 칸 왼쪽 x 173(상자 오른쪽 164 + 잔가지 7(그림 끝 x 170) + 틈 2), 칸 아래 y 42 → `squeak_text` 폭 31·`TEXT_LIFT` 4로 at = (188, 46).
- * 까치가 바닥에 내려온 뒤에도 같은 자리다. 데이터로 옮기는 건 #206(`{ do: "here" }`).
+ * 소리 글자 자리 예외. 키는 `대상 ID`(그 대상에 뜨는 글자 전부) 또는 `효과@대상 ID`(그 글자만, 먼저 본다).
+ * 표에 없으면 대상 그림 위 끝 가운데다.
+ *
+ * - `nest`: 둥지 위 끝 기준이면 글자가 까치 몸에 얹혀 "까치에게 삑 했는데 반응 없음"으로 읽혀 정답 #4를 가린다(PR #299 Luna 리뷰).
+ *   그래서 둥지 오른쪽 옆, 사발 높이: 칸 왼쪽 x 173(상자 오른쪽 164 + 잔가지 7(그림 끝 x 170) + 틈 2), 칸 아래 y 42
+ *   → `squeak_text` 폭 31·`TEXT_LIFT` 4로 at = (188, 46). 까치가 바닥에 내려온 뒤에도 같은 자리다.
+ * - `clang_text@fountain`(#530 할 일 3, #528): 테두리는 192px로 넓어서 가운데(x 224)에 띄우면 장대가 친 모서리에서 약 90px 떨어져
+ *   "효과가 있었는지 모르겠다"로 읽혔다. ノビー가 선 쪽 테두리 끝, 장대 집게 바로 옆에 띄운다. 같은 `fountain`의 `シャー`(물소리)는 그대로다.
+ * - `gon_text@fountain`(#528 실패 1·2, Luna 결정 2안): 위 끝 가운데(224, 180)면 글자 칸(y 약 166~176)이 앉은 ズッシー(`fountain_seat` x 220)
+ *   가슴에 얹히고, `lav`가 어두운 동상 돌색과 섞여 "돌 덩어리"로 읽혔다. 단서 ②(흙은 `ぼふっ`)와 짝이 되게 엉덩이 오른쪽 테두리 흰 돌 위:
+ *   `gon_text` 33×12·`TEXT_LIFT` 4로 시작 칸 x 250~283, y 182~194(테두리 앞면 y 180~198 안). 앉은 몸 오른쪽 끝(약 x 242)과 8px 띄운다.
  */
-export const FX_TEXT_SPOT: Readonly<Record<string, { x: number; y: number }>> = {
+export const FX_TEXT_SPOT: Readonly<Record<string, FxTextSpot>> = {
   nest: { x: 188, y: 46 },
+  'clang_text@fountain': 'actor',
+  'gon_text@fountain': { x: 266, y: 198 },
 };
+
+/** 이 글자(효과·대상)의 자리 예외. `효과@대상`이 `대상`보다 먼저다. 없으면 null. */
+export function fxTextSpot(effect: string, target: string): FxTextSpot | null {
+  return FX_TEXT_SPOT[`${effect}@${target}`] ?? FX_TEXT_SPOT[target] ?? null;
+}
+
+/** `'actor'` 자리에서 글자 칸과 대상 상자 끝 사이 틈(px). 캐릭터 머리 위 글자(`ニューッ` 등)와 붙지 않게 한다. */
+export const ACTOR_EDGE_GAP = 2;
+
+/**
+ * `'actor'` 자리의 기준점(`fxTextAt`의 `at`): 대상 상자 위 끝 높이, x는 캐릭터 x에 가장 가까운 곳.
+ * 단 글자 칸(폭 `w`)이 상자 안에 `ACTOR_EDGE_GAP`만큼 들어오게 붙잡는다. 캐릭터가 상자 밖 오른쪽에 서면 칸 오른쪽 끝이
+ * 상자 오른쪽 끝 − 틈이다(바닥 대상은 가장자리 옆에 서서 친다, ui-interaction 3절). 상자가 칸보다 좁으면 상자 가운데.
+ */
+export function actorEdgeAt(box: { left: number; top: number; width: number }, actorX: number, w: number): { x: number; y: number } {
+  const half = w / 2 + ACTOR_EDGE_GAP;
+  const lo = box.left + half;
+  const hi = box.left + box.width - half;
+  const x = lo > hi ? box.left + box.width / 2 : Math.min(Math.max(actorX, lo), hi);
+  return { x, y: box.top };
+}
 
 const SIGNATURE_FX = new Set(Object.values(SIGNATURES).map((s) => s.fx));
 

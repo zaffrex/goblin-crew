@@ -43,6 +43,11 @@ function cellOf(id: string): FxCell | null {
   return c;
 }
 
+/** 글자 칸 폭(px). 시트가 아직이거나 표에 없으면 0(임시 별은 점 하나라 폭이 없다). */
+export function fxTextWidth(id: string): number {
+  return cellOf(id)?.[2] ?? 0;
+}
+
 function blit(ctx: CanvasRenderingContext2D, c: FxCell, at: { x: number; y: number }): void {
   ctx.drawImage(SHEET!.image, c[0], c[1], c[2], c[3], at.x, at.y, c[2], c[3]);
 }

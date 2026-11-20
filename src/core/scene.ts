@@ -126,11 +126,13 @@ export type WalkLeg = { kind: 'walk'; to: Point } | { kind: 'hop'; to: Point; up
  * `walk.face`는 엔진이 넣은 "대상 앞까지 걷기"(설계 5-1절)에만 있다: 도착하면 그 방향(대상 쪽)을 본다.
  */
 export type PlayEvent =
-  | Exclude<PuzzleEvent, { type: 'say' } | { type: 'walk' } | { type: 'anim' }>
+  | Exclude<PuzzleEvent, { type: 'say' } | { type: 'walk' } | { type: 'anim' } | { type: 'fx' }>
   /** `stay`: 그리지 않는 걷기(제자리 쿵 전에 퍼즐이 먼저 내려서게 한 것, 1-6-2절 "제자리"). 내려서기는 쿵 뒤 ⑦로 미룬다. */
   | (Extract<PuzzleEvent, { type: 'walk' }> & { face?: Facing; stay?: true })
   /** `onto`: 이 캐릭터 연출이 시트 `air` 칸을 따라 그 `board` 자리(판 끝)에 뛰어오른다(#414). */
   | (Extract<PuzzleEvent, { type: 'anim' }> & { onto?: string })
+  /** `by`: 이 효과를 낸 행동의 캐릭터(#530). 소리 글자 자리 `'actor'`(`fx.ts` `fxTextSpot`)가 쓴다. 입장 연출은 없다. */
+  | (Extract<PuzzleEvent, { type: 'fx' }> & { by?: CharacterId })
   | { type: 'say'; speaker: string; text: string };
 
 export interface Playing {
@@ -664,6 +666,7 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
   const n = bump(s, variantKey(r.source, r.ruleId, action));
   for (const ev of events) {
     if (ev.type === 'say') s.queue.push({ ...ev, text: pickText(ev.text, n) });
+    else if (ev.type === 'fx') s.queue.push({ ...ev, by: action.char });
     else if (ev === stay) s.queue.push({ ...ev, stay: true });
     else if (ev === jump && ev.type === 'anim') s.queue.push({ ...ev, onto: action.target });
     else s.queue.push(ev === leaving?.walk && downFace !== null ? { ...ev, face: downFace } : ev);
@@ -1237,9 +1240,12 @@ function tickOverlays(s: SceneState): void {
 }
 
 /** 지금 화면에 뜬 효과(fx)들: 대기열 차례로 도는 것 + 칸 신호로 겹쳐 뜬 것. 엔진은 이것만 그린다. */
-export function activeFx(s: SceneState): { effect: string; target: string; t: number }[] {
-  const out: { effect: string; target: string; t: number }[] = [];
-  for (const p of [...s.overlays, s.current]) if (p?.ev.type === 'fx') out.push({ effect: p.ev.effect, target: p.ev.target, t: p.t });
+export function activeFx(s: SceneState): { effect: string; target: string; t: number; by?: CharacterId }[] {
+  const out: { effect: string; target: string; t: number; by?: CharacterId }[] = [];
+  for (const p of [...s.overlays, s.current]) {
+    if (p?.ev.type !== 'fx') continue;
+    out.push(p.ev.by === undefined ? { effect: p.ev.effect, target: p.ev.target, t: p.t } : { effect: p.ev.effect, target: p.ev.target, t: p.t, by: p.ev.by });
+  }
   return out;
 }
 

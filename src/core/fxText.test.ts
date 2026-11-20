@@ -115,13 +115,15 @@ describe('FX_TEXT_SPOT (둥지 글자 자리 예외, PR #299 리뷰)', () => {
   const boxesOf = (id: string): Box[] => [hs[id]!.box, ...(hs[id]!.variants ?? []).map((v) => v.box)] as Box[];
   const overlaps = (a: Box, b: Box): boolean => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
 
-  it('예외는 둥지 하나뿐이다(#289 리스크)', () => {
-    expect(Object.keys(FX_TEXT_SPOT)).toEqual(['nest']);
+  const NEST = FX_TEXT_SPOT.nest as { x: number; y: number };
+
+  it('대상 전체 예외는 둥지 하나뿐이다(#289 리스크). 나머지는 `효과@대상` 한 글자 예외다(#530)', () => {
+    expect(Object.keys(FX_TEXT_SPOT).filter((k) => !k.includes('@'))).toEqual(['nest']);
   });
 
   it('둥지 プピッ！ 칸은 왼쪽 x 173·아래 y 42에서 시작하고, 화면 끝에 붙잡히지 않는다', () => {
     const c = meta.cells.squeak_text!;
-    const p = fxTextAt('squeak_text', c, FX_TEXT_SPOT.nest!, 0, W)!;
+    const p = fxTextAt('squeak_text', c, NEST, 0, W)!;
     expect(p.x).toBe(173);
     expect(p.y + c[3]).toBe(42);
   });
@@ -141,7 +143,7 @@ describe('FX_TEXT_SPOT (둥지 글자 자리 예외, PR #299 리뷰)', () => {
     for (const fx of shown) {
       const c = meta.cells[fx]!;
       for (let t = 0; t < SIGNATURE_TICKS; t++) {
-        const p = fxTextAt(fx, c, FX_TEXT_SPOT.nest!, t, W)!;
+        const p = fxTextAt(fx, c, NEST, t, W)!;
         const cellBox: Box = [p.x, p.y, c[2], c[3]];
         for (const b of [...boxesOf('magpie'), ...boxesOf('nest')]) expect(overlaps(cellBox, b), `${fx} t=${t} vs ${b.join(',')}`).toBe(false);
       }
