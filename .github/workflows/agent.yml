@@ -151,7 +151,7 @@ jobs:
           AGENT_ROLE: ""
           RUN_ID: ${{ github.run_id }}
         run: |
-          scripts/slack.sh --as infra post dev "QA 스크린샷(7일 보관): \`gh run download $RUN_ID -n qa-shots\` 후 Read로 열어요." || true
+          scripts/slack.sh --as infra post dev "QA 스크린샷(7일 보관): \`gh run download $RUN_ID -n qa-shots -D /tmp/qa-shots\` 후 /tmp/qa-shots/*.png를 Read로 열어요." || true
 
       - name: Report failure to Slack
         if: failure()
