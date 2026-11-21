@@ -33,8 +33,16 @@ export function isDoHere(item: RuleShowItem): item is DoHere {
   return 'do' in item;
 }
 
-/** `approach`: 서는 자리 ID 하나, 또는 동사별 맵(`default` 키 가능). `stay`는 걷지 않음. */
-export type Approach = string | Partial<Record<Verb | 'default', string>>;
+/** 동사별 맵(`default` 키 가능). 값은 서는 자리 ID 또는 `stay`. */
+export type ApproachByVerb = Partial<Record<Verb | 'default', string>>;
+
+/**
+ * `approach`: 서는 자리 ID 하나, 또는 동사별 맵(`default` 키 가능). `stay`는 걷지 않음.
+ * 맵에는 선택으로 `from`(행동하는 사람이 **지금 선 자리**별 예외, #688)을 둔다. 값은 자리 ID·`stay` 또는 동사별 맵이다.
+ * 지금 선 자리가 `from`에 있으면 그 값을 먼저 보고(동사 → `default`), 거기 없는 동사는 바깥 맵으로 내려간다.
+ * 예: 시소 끝에 선 사람이 둥지에 `stretch`를 쓰면 그 자리에서 뻗는다 `{ "default": "floor", "from": { "seesaw_left": { "stretch": "stay" } } }`.
+ */
+export type Approach = string | (ApproachByVerb & { from?: Record<string, string | ApproachByVerb> });
 
 export interface SpotDef {
   x: number;

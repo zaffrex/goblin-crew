@@ -442,13 +442,31 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
     if (v === STAY) return;
     if (spotRef(v, path) && isHold(v)) c.err(path, 'approach-hold', `approach가 hold 자리를 가리킨다(걸어서 못 감): ${v}`);
   };
-  const approach = (v: unknown, path: string): void => {
+  /** `allowFrom`: 바깥 맵만 `from`(지금 선 자리별 예외, #688)을 가질 수 있다. `from` 안은 자리 ID·`stay` 또는 동사별 맵. */
+  const approach = (v: unknown, path: string, allowFrom = true): void => {
     if (v === undefined) return;
     if (typeof v === 'string') return approachDest(v, path);
     if (!isObj(v)) return c.err(path, 'schema', 'approach는 자리 ID 또는 동사별 맵');
     for (const [k, x] of Object.entries(v)) {
       const kp = keyPath(path, k);
-      if (k !== 'default' && !(VERBS as readonly string[]).includes(k)) c.err(kp, 'approach-verb', `approach 맵의 키는 동사나 default: ${k}`);
+      if (k === 'from' && allowFrom) {
+        if (!isObj(x)) {
+          c.err(kp, 'schema', 'approach.from은 {지금 선 자리: 자리 ID·stay 또는 동사별 맵}');
+          continue;
+        }
+        for (const [at, y] of Object.entries(x)) {
+          const ap = keyPath(kp, at);
+          if (!spotRef(at, ap)) continue;
+          // `hold` 자리에서 하는 행동은 손 놓기가 먼저라(5절 1단계) approach까지 안 온다.
+          if (isHold(at)) c.warn(ap, 'approach-unused', `hold 자리(${at})에 선 사람의 행동은 approach를 쓰지 않는다(ADR-0065 5절 1단계)`);
+          approach(y, ap, false);
+        }
+        continue;
+      }
+      if (k !== 'default' && !(VERBS as readonly string[]).includes(k)) {
+        c.err(kp, 'approach-verb', `approach 맵의 키는 동사나 default${allowFrom ? '·from' : ''}: ${k}`);
+        continue;
+      }
       if (k === 'move' || k === 'look') c.warn(kp, 'approach-unused', `${k}는 approach를 쓰지 않는다(ADR-0065 5절 2단계)`);
       approachDest(x, kp);
     }

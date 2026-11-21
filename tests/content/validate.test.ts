@@ -173,6 +173,21 @@ describe('validateScreen', () => {
     expect(w.warnings.map((x) => x.code)).toEqual(['approach-unused']);
   });
 
+  it('checks approach.from: known standing spots, dest per spot, no nested from (#688)', () => {
+    const ok = mutate((s) => (s.hotspots.nest.approach = { default: 'floor', from: { seesaw_left: { stretch: 'stay' }, seesaw_right: 'stay' } }));
+    expect(ok.errors).toEqual([]);
+    expect(ok.warnings).toEqual([]);
+    expect(codes(mutate((s) => (s.hotspots.nest.approach = { from: { roof: 'stay' } })))).toEqual(['ref-spot']);
+    expect(codes(mutate((s) => (s.hotspots.nest.approach = { from: { seesaw_left: 'hook' } })))).toEqual(['approach-hold']);
+    expect(codes(mutate((s) => (s.hotspots.nest.approach = { from: { seesaw_left: { jump: 'stay' } } })))).toEqual(['approach-verb']);
+    expect(codes(mutate((s) => (s.hotspots.nest.approach = { from: { seesaw_left: { from: { floor: 'stay' } } } })))).toEqual(['approach-verb']);
+    expect(codes(mutate((s) => (s.hotspots.nest.approach = { from: 'stay' } as never)))).toEqual(['schema']);
+    // hold 자리에서 하는 행동은 손 놓기가 먼저라 approach까지 안 온다.
+    const hold = mutate((s) => (s.hotspots.nest.approach = { from: { hook: 'stay' } }));
+    expect(hold.errors).toEqual([]);
+    expect(hold.warnings.map((x) => x.code)).toEqual(['approach-unused']);
+  });
+
   it('checks variants flags and hintAbility on hotspots and spots', () => {
     expect(codes(mutate((s) => (s.hotspots.magpie.variants[0].when.flags = { 'magpie.gone': true })))).toEqual(['ref-flag']);
     expect(codes(mutate((s) => (s.hotspots.nest.hintAbility = 'hand')))).toEqual(['hint-ability']);

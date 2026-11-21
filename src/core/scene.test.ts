@@ -1228,7 +1228,9 @@ describe('대상 앞까지 걷기 (설계 5-1절, #219)', () => {
     expect(approachPoint(data, s.puzzle, { char: 'jjuk', verb: 'move', target: 'seesaw_left' }, { x: 360, y: 244 })).toBeNull();
     expect(approachPoint(data, s.puzzle, { char: 'jjuk', verb: 'hand', target: 'mukjik' }, { x: 360, y: 244 })).toBeNull(); // 캐릭터 대상: 상자 없음
     const onSeesaw = { ...s.puzzle, at: { ...s.puzzle.at, jjuk: 'seesaw_left' } };
-    expect(approachPoint(data, onSeesaw, { char: 'jjuk', verb: 'stretch', target: 'nest' }, { x: 220, y: 214 })).toBeNull();
+    // 판 끝에서 둥지 `stretch`는 화면 1 `approach.from`이 stay라 그 자리에서 둥지 쪽으로 돌아서기만 한다(#688). `hand`는 바닥으로 내려간다.
+    expect(approachPoint(data, onSeesaw, { char: 'jjuk', verb: 'stretch', target: 'nest' }, { x: 220, y: 214 })).toEqual({ x: 220, y: 214, face: -1 });
+    expect(approachPoint(data, onSeesaw, { char: 'jjuk', verb: 'hand', target: 'nest' }, { x: 220, y: 214 })).toBeNull();
   });
 
   it('대상 approach가 그 동사에 stay면 걷지 않는다(화면 설계 우선)', () => {

@@ -57,8 +57,11 @@ function occupants(s: PuzzleState, spotId: string): CharacterId[] {
   return CHAR_ORDER.filter((c) => s.at[c] === spotId);
 }
 
-/** 대상의 `approach`를 풀어 걸어갈 자리 ID(또는 `stay`)를 돌려준다. 핫스팟은 `variants`를 먼저 본다. */
-export function approachFor(screen: ScreenData, state: PuzzleState, target: string, verb: Verb): string {
+/**
+ * `actor`가 대상에 `verb`를 쓰기 전에 걸어갈 자리 ID(또는 `stay`)를 돌려준다. 핫스팟은 `variants`를 먼저 본다.
+ * 맵의 `from`에 `actor`가 지금 선 자리가 있으면 그 값(동사 → `default`)을 먼저 쓴다(#688).
+ */
+export function approachFor(screen: ScreenData, state: PuzzleState, actor: CharacterId, target: string, verb: Verb): string {
   const hs = screen.hotspots[target];
   let approach = hs ? hs.approach : screen.spots[target]?.approach;
   if (hs?.variants) {
@@ -67,7 +70,10 @@ export function approachFor(screen: ScreenData, state: PuzzleState, target: stri
   }
   if (approach === undefined) return FLOOR;
   if (typeof approach === 'string') return approach;
-  return approach[verb] ?? approach.default ?? FLOOR;
+  const here = state.at[actor];
+  const from = here === undefined ? undefined : approach.from?.[here];
+  if (typeof from === 'string') return from;
+  return from?.[verb] ?? from?.default ?? approach[verb] ?? approach.default ?? FLOOR;
 }
 
 function flagsMatch(s: PuzzleState, flags: Record<string, boolean>): boolean {
@@ -287,7 +293,7 @@ export function step(screen: ScreenData, state: PuzzleState, action: Action, cha
     return { state: g.kind === 'invalid' ? cloneState(state) : s, events, source: g.kind };
   }
   if (verb !== 'look') {
-    const dest = approachFor(screen, s, target, verb);
+    const dest = approachFor(screen, s, actor, target, verb);
     if (dest !== STAY && s.at[actor] !== dest) {
       const g = goTo(screen, s, action, dest, events);
       if (g.kind === 'rule') return applyRule(g.rule);

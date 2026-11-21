@@ -560,7 +560,7 @@ export function approachPoint(data: SceneData, puzzle: PuzzleState, action: Acti
   const walks = APPROACH_VERBS.has(action.verb);
   if (!walks && !TURN_VERBS.has(action.verb)) return null;
   const at = puzzle.at[action.char] ?? '';
-  const stays = !walks || approachFor(data.screen, puzzle, action.target, action.verb) === 'stay';
+  const stays = !walks || approachFor(data.screen, puzzle, action.char, action.target, action.verb) === 'stay';
   // 판 끝(`board` 자리)에서 걷지 않는 행동은 그 자리에서 돌아서기만 한다(#419, 1-5-2절 "판 위에서 `squeak`·`look`").
   if (!isFree(data, at) && !(stays && data.screen.spots[at]?.board)) return null;
   const box = targetBox(data.screen, puzzle, action.target);

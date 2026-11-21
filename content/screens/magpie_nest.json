@@ -156,7 +156,15 @@
       ],
       "approach": {
         "default": "floor",
-        "squeak": "stay"
+        "squeak": "stay",
+        "from": {
+          "seesaw_left": {
+            "stretch": "stay"
+          },
+          "seesaw_right": {
+            "stretch": "stay"
+          }
+        }
       },
       "hintAbility": "stretch",
       "reachPoint": [
