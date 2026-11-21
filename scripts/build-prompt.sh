@@ -13,6 +13,20 @@ REPO="${GITHUB_REPOSITORY:-}"
 
 if [ "$ROLE" = qa ]; then
   # QA는 정답을 모르는 채 플레이한다(#516). 상태, Slack 기록, 회의 안내를 주지 않는 별도 프롬프트.
+  # QA 허용 목록에는 `gh issue view`가 없다(블라인드 유지). 그래서 깨운 이슈의 제목·본문만 여기서 붙여 준다.
+  # 댓글은 붙이지 않는다(정답이 섞일 수 있음). 첫 QA 실행(#601)이 대상 URL을 몰라 8초 만에 끝난 원인 대응.
+  ISSUE_NUM=$(printf '%s' "$CONTEXT" | grep -oE '이슈 #[0-9]+' | head -1 | grep -oE '[0-9]+' || true)
+  ISSUE_TEXT="(깨운 이유에 이슈 번호가 없다. 대상을 모르면 플레이하지 말고 #goblin-dev에 'PM에게: 대상 이슈를 모름' 한 줄만 남긴다.)"
+  if [ -n "$ISSUE_NUM" ]; then
+    AUTH=(); [ -n "${GH_TOKEN:-}" ] && AUTH=(-H "Authorization: Bearer ${GH_TOKEN}")
+    if JSON=$(curl -fsS --max-time 15 "${AUTH[@]}" -H 'Accept: application/vnd.github+json' \
+          "https://api.github.com/repos/${REPO:-zaffrex/goblin-crew}/issues/${ISSUE_NUM}" 2>/dev/null); then
+      # 프롬프트 출력 구분자(__PROMPT_EOF__)가 본문에 있으면 지운다.
+      ISSUE_TEXT=$(printf '%s' "$JSON" | jq -r '"제목: \(.title)\n\n\(.body // "")"' | sed 's/__PROMPT_EOF__//g')
+    else
+      ISSUE_TEXT="(이슈 #${ISSUE_NUM} 본문을 읽지 못했다. 플레이하지 말고 이슈 #${ISSUE_NUM}에 'PM에게: 이슈 본문을 못 읽음' 코멘트만 남긴다.)"
+    fi
+  fi
   cat <<EOF
 너는 goblin-crew 팀의 QA **${NAME}** (역할 키: \`qa\`)다. 지금은 ${NOW_KST}.
 깨운 이유: ${CONTEXT:-QA 플레이 요청}
@@ -21,6 +35,10 @@ if [ "$ROLE" = qa ]; then
 - 플레이: \`node scripts/qa/browse.ts --url <배포 URL>[?screen=<id>] --viewport desktop|mobile --actions qa-work/<파일> --shot qa-work/<png>\`. 쓰기는 \`qa-work/\` 폴더에만 된다. 한 번 실행에 actions 파일 전체를 처음부터 다시 재생한 뒤 스크린샷 한 장을 찍는다. 파일 형식: 한 줄에 \`click <x> <y>\`(스크린샷 픽셀 좌표) 또는 \`wait <ms>\`. 스크린샷은 Read로 열어 본다. 클릭이 쌓일수록 파일 줄을 이어 붙인다.
 - 보고: \`gh issue comment <번호> --body-file <파일>\`. 첫 줄은 \`${SIG}\`. 버그는 \`gh issue create\`(라벨 \`type:bug\`). Slack은 \`scripts/slack.sh --as qa post dev -\`로 보고 링크 한 줄만 올린다(Slack 기록은 읽을 수 없고 #goblin-dev에만 쓸 수 있다).
 - 소스, 네트워크, 콘솔, 다른 저장소 파일을 보지 않는다. 비밀값을 출력하지 않는다. 저장소는 public, Slack은 비공개이므로 GitHub 글에 Slack URL·ID를 쓰지 않는다.
+- 쓸 수 있는 명령은 위 세 가지(\`node scripts/qa/browse.ts\`, \`gh issue comment/create\`, \`scripts/slack.sh\`)와 Read·Write(\`qa-work/\`)뿐이다. \`gh issue view\`·\`ls\`·\`cat\` 등은 막혀 있다. 하나가 막혀도 끝내지 말고 허용된 도구로 계속한다. 대상과 할 일은 아래 이슈 본문에 있다.
+
+## 깨운 이슈 #${ISSUE_NUM:-?} (본문만, 댓글 제외)
+${ISSUE_TEXT}
 EOF
   exit 0
 fi
