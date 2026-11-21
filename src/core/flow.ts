@@ -6,6 +6,8 @@
 // 플레이 순서는 id 목록이고 같은 id가 두 번 나올 수 있다(playtest `order=magpie_nest,magpie_nest`, 11-6절).
 // 그래서 "다음 화면"은 id가 아니라 순서 안의 위치(index)로 찾는다.
 
+import { DEFAULT_SCREEN } from "./screenPick";
+
 /** 11-1절 표. 단위는 틱(60Hz). */
 export const FLOW_TIMING = {
   /** 카드가 뜬 뒤 탭을 무시하는 시간(0.6초). 끝나면 `ui.next`가 보인다. */
@@ -83,6 +85,18 @@ export function enterCharacter(
   const first = characterOrder.find((id) => Object.hasOwn(startAt, id));
   if (first === undefined) throw new Error("start.at에 아는 캐릭터가 없다");
   return first;
+}
+
+/**
+ * 순서 없이(`ORDER` null) 화면 하나만 연 판의 클리어 카드 글 키(#597).
+ * 배포 첫 화면(`DEFAULT_SCREEN`)은 지금 배포본 그대로 `ui.clear`다(진마씨 재플레이 대기 판, 글자 하나 안 바꾼다).
+ * 그 밖의 화면(`?screen=<id>`)은 그 판이 거기서 끝나므로 `<id>.clear_card`가 있으면 그것, 없으면 끝 카드 `ui.end`.
+ * `ui.clear`는 화면 1 문장이라(店のカギ… ステージ1) 다른 화면에 띄우면 틀린 글이 된다.
+ */
+export function soloCardKey(screenId: string, hasText: (key: string) => boolean): string {
+  if (screenId === DEFAULT_SCREEN) return "ui.clear";
+  const key = `${screenId}.clear_card`;
+  return hasText(key) ? key : "ui.end";
 }
 
 /** 클리어 카드 글 키(11-2절). 마지막 화면은 끝 카드(`ui.end`). 결과 줄 키가 없으면 그 줄을 숨긴다(빈 화면 id 폴백). */

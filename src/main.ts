@@ -19,7 +19,7 @@ import { abilityText, cutFontPx, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, g
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { pickScreen, screenTextKey } from './core/screenPick';
-import { cardLines, enterCharacter, flowTap, flowTick, flowView, nextIndex, PLAYING, playtestOrder, showCard, type Flow } from './core/flow';
+import { cardLines, enterCharacter, flowTap, flowTick, flowView, nextIndex, PLAYING, playtestOrder, showCard, soloCardKey, type Flow } from './core/flow';
 import { activeFx, activeMarkerVisible, boardDrop, charPose, createScene, cuedArtView, currentBubble, drawOrder, gaugeDrop, heldArtView, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, tiltOf, type SceneData, type SceneState } from './core/scene';
 import { animFrameBox, coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
@@ -713,13 +713,14 @@ function render(): void {
 }
 
 /**
- * 클리어 카드 `#clear`. ORDER가 없으면 지금 배포본 그대로 `ui.clear`(클리어 컷이 끝나면 뜬다).
+ * 클리어 카드 `#clear`. ORDER가 없으면 클리어 컷이 끝난 뒤 `soloCardKey`(#597): 화면 1은 지금 배포본 그대로 `ui.clear`,
+ * `?screen=<id>`로 연 다른 화면은 `<id>.clear_card` 또는 끝 카드 `ui.end`.
  * ORDER가 있으면 결과 줄 `<id>.clear_card` + 0.6초 뒤 `ui.next`(11-2절), 마지막 화면은 끝 카드 `ui.end`(11-5절).
  * 다음 화면 그림을 0.5초 넘게 기다리면 같은 자리에 `…`(11-1절). 재생 도구는 `data-next`를 보고 카드를 누른다(11-6절 5번).
  */
 function placeClearCut(fv: ReturnType<typeof flowView>, scene: SceneState): void {
   let text: string | null;
-  if (!ORDER) text = scene.cleared && !isBusy(scene) ? t('ui.clear') : null;
+  if (!ORDER) text = scene.cleared && !isBusy(scene) ? t(soloCardKey(session.data.screen.id, (k) => k in TEXT)) : null;
   else if (fv.dots) text = '…';
   else if (fv.card && flow.phase === 'card') {
     const lines = cardLines(session.data.screen.id, flow.last, (k) => k in TEXT);

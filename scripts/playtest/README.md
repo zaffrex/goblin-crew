@@ -18,7 +18,7 @@ npm run build && npx vite preview --port 4173 &   # 로컬 빌드로 먼저 볼 
 node --import ./scripts/playtest/register.mjs scripts/playtest/replay.ts --url http://localhost:4173/ --out /tmp/pt --no-sandbox
 ```
 
-화면 정답 풀기(#466): 아무 화면이나 `?screen=<id>`로 열고 화면 JSON의 `solution`을 실제 클릭(`--touch`면 탭)으로 끝까지 누른 뒤 `cleared`를 본다. 클리어 못 하거나 콘솔 에러가 있으면 종료 코드 1.
+화면 정답 풀기(#466): 아무 화면이나 `?screen=<id>`로 열고 화면 JSON의 `solution`을 실제 클릭(`--touch`면 탭)으로 끝까지 누른 뒤 `cleared`를 본다. 클리어 뒤 클리어 카드 글이 `soloCardKey` 규칙(화면 1은 `ui.clear`, 다른 화면은 `<id>.clear_card` 또는 `ui.end`, #597)과 같은지도 본다. 클리어 못 하거나 카드 글이 틀리거나 콘솔 에러가 있으면 종료 코드 1.
 
 ```bash
 node --import ./scripts/playtest/register.mjs scripts/playtest/solve.ts --screen park_fountain --url http://localhost:4173/ --out /tmp/solve --no-sandbox

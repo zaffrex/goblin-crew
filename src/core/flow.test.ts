@@ -3,6 +3,7 @@ import {
   FLOW_TIMING,
   PLAYING,
   cardLines,
+  soloCardKey,
   enterCharacter,
   flowTap,
   flowTick,
@@ -121,6 +122,19 @@ describe("cardLines (11-2절)", () => {
       body: "ui.end",
       next: null,
     });
+  });
+});
+
+describe("soloCardKey (#597, 순서 없이 화면 하나)", () => {
+  const has = (k: string) => k === "magpie_nest.clear_card" || k === "laundromat.clear_card";
+  it("배포 첫 화면은 지금 배포본 그대로 ui.clear", () => {
+    expect(soloCardKey("magpie_nest", has)).toBe("ui.clear");
+  });
+  it("결과 줄이 없는 화면(park_fountain, 1장 마지막)은 끝 카드 ui.end", () => {
+    expect(soloCardKey("park_fountain", has)).toBe("ui.end");
+  });
+  it("결과 줄이 있는 화면은 그 줄(다음 화면이 없으니 ui.next는 안 붙는다)", () => {
+    expect(soloCardKey("laundromat", has)).toBe("laundromat.clear_card");
   });
 });
 
