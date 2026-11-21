@@ -506,7 +506,7 @@ const hudTagEls = new Map<string, HTMLElement>();
 function placeHudTags(): void {
   const scale = display.rect().width / INTERNAL_WIDTH;
   const size = `${hudTagFontPx(scale)}px`;
-  // 1.2배 미만(667×375 @2 등)은 `palt` + padding 0. CSS는 index.html `#hudtags[data-tight]`.
+  // 1.2배 미만(640×300 @2 등, #714. 667×375 @2는 #713 뒤 1.39배)은 `palt` + padding 0. CSS는 index.html `#hudtags[data-tight]`.
   hudTagLayer.toggleAttribute('data-tight', hudTagTight(scale));
   for (const tag of hudTags(t)) {
     let el = hudTagEls.get(tag.id);
@@ -813,7 +813,7 @@ function placeClearCut(fv: ReturnType<typeof flowView>, scene: SceneState): void
 
 /**
  * 카드 글자 = 내부 8px × 화면 배율, 최소 13 CSS px. 폭은 캔버스의 80%, 높이는 85% 이하(6-2-1절).
- * 배율 1.2 미만(667×375 @2 등)은 압축 카드(#335): 폭 90%, 얼굴 작게, 줄 간격 1.25(CSS `#card[data-tight]`).
+ * 배율 1.2 미만(640×300 @2 등, #714)은 압축 카드(#335): 폭 90%, 얼굴 작게, 줄 간격 1.25(CSS `#card[data-tight]`).
  * 13px 글자가 1.0배에서 내부 13px이라 80% 폭에 게이지 줄이 한 줄로 안 들어가고, 높이도 상한을 넘었다.
  */
 const CARD_PX = 8;
