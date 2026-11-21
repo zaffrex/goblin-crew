@@ -96,6 +96,11 @@ jobs:
           echo "args=$args" >> "$GITHUB_OUTPUT"
           echo "role=$ROLE $args"
 
+      # 게임은 시스템 글꼴을 쓴다(ADR-0007 9절). 러너에는 일본어 글꼴이 없어 QA 스크린샷의 글자가 전부 □로 나왔다(#603).
+      - name: Install Japanese fonts for QA
+        if: inputs.role == 'qa'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk >/dev/null && fc-list :lang=ja | wc -l
+
       - name: Build prompt
         id: prompt
         env:
@@ -121,7 +126,7 @@ jobs:
           claude_args: >-
             ${{ steps.model.outputs.args }}
             --max-turns ${{ inputs.role == 'qa' && 100 || inputs.mode == 'meeting' && 200 || 120 }}
-            ${{ inputs.role == 'qa' && '--permission-mode dontAsk --tools "Read,Write,Bash" --allowedTools "Read,Write(qa-work/**),Bash(scripts/slack.sh:*),Bash(node scripts/qa/browse.ts:*),Bash(gh issue comment:*),Bash(gh issue create:*)"' || '--permission-mode auto' }}
+            ${{ inputs.role == 'qa' && '--permission-mode dontAsk --tools "Read,Write,Bash" --allowedTools "Read,Write(qa-work/**),Edit(./qa-work/**),Bash(scripts/slack.sh:*),Bash(node scripts/qa/browse.ts:*),Bash(gh issue comment:*),Bash(gh issue create:*)"' || '--permission-mode auto' }}
             --append-system-prompt-file .claude/agents/${{ inputs.role }}.md
           bot_id: "209825114"
           # QA 실행이 2턴 만에 끝난 원인(거부된 명령)이 로그에 안 남는다(#601, #603). QA 실행에서만 전체 출력을 켠다.
