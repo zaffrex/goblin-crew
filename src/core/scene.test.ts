@@ -6,7 +6,7 @@ import jjukJson from '../../public/sprites/jjuk-base.json';
 import mukjikJson from '../../public/sprites/mukjik-base.json';
 import ppikJson from '../../public/sprites/ppik-base.json';
 import { hitTest, type HitBox } from './hit';
-import { CHAR_SLOTS, GAUGE_BAND, GAUGE_SEGS, HUD_AREA } from './hud';
+import { CHAR_SLOTS, GAUGE_BAND, GAUGE_SEGS, HUD_AREA, switchText } from './hud';
 import { labelText, worldTargets } from './interact';
 import { selectLabelText } from './firstNotes';
 import { seenSayKey } from './sayText';
@@ -1495,8 +1495,11 @@ describe('터치 시소 끝 3탭: 전환 → 선택(꼬리) → 실행 (#603 7�
     expect(s.ui.active).toBe('jjuk');
     const t = (id: string): string => (jaJson as Record<string, string>)[id] ?? id;
 
-    // A: 묵직이 몸이 끝을 덮고 있어서 전환이다.
-    expect(sceneTap(data, s, SEESAW_LEFT, 8, true)).toMatchObject({ kind: 'intent', intent: { kind: 'switch', char: 'mukjik' } });
+    // A: 묵직이 몸이 끝을 덮고 있어서 전환이다. 라벨 자리에 `ズッシーに交代`(#692, 8회차는 이 전환을 못 알아채 멈췄다).
+    const a = sceneTap(data, s, SEESAW_LEFT, 8, true);
+    if (a.kind !== 'intent' || a.intent.kind !== 'switch') throw new Error(`전환이 아님: ${JSON.stringify(a)}`);
+    expect(a.intent.char).toBe('mukjik');
+    expect(switchText(a.intent.char, t)).toBe('ズッシーに交代');
     // B: 선택만. 터치 라벨에는 실행 여부와 상관없이 꼬리가 붙는다.
     const b = sceneTap(data, s, SEESAW_LEFT, 8, true);
     if (b.kind !== 'intent' || b.intent.kind !== 'select') throw new Error(`선택이 아님: ${JSON.stringify(b)}`);

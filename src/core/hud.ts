@@ -169,10 +169,23 @@ export function hudTags(t: Text): HudTag[] {
   return tags;
 }
 
-/** 특기 설명 `{name}: {desc}`(설계 6-4-3절). 데스크톱 얼굴 칸 호버와 터치 첫 전환 안내가 같은 글을 쓴다. */
+/** 특기 설명 `{name}: {desc}`(설계 6-4-3절). 데스크톱 얼굴 칸 호버 글이다(호버 때는 아직 안 바뀌었으니 `交代`가 없다). */
 export function abilityText(char: CharacterId, t: Text): string {
   const ability = characterDef(char).ability;
   return fill(t('ui.hud.char_hover'), { name: t(`char.${char}.name`), verb: t(`ui.verb.${ability}`), desc: t(`ui.ability.${ability}`) });
+}
+
+/** 전환 알림 `{name}に交代`(#692). 몸 탭·얼굴 탭 전환 뒤 대상 라벨 자리에 뜬다. */
+export function switchText(char: CharacterId, t: Text): string {
+  return fill(t('ui.switch'), { name: t(`char.${char}.name`) });
+}
+
+/**
+ * 터치 첫 전환 안내 `{name}に交代（{desc}）`(#692 Luna 리뷰, 설계 6-4-3절). 그 판에서 처음 바꾼 사람에게만 뜬다.
+ * 호버 글(`abilityText`)을 그대로 쓰면 "설명이 떴다"로 읽혀 "바뀌었다"가 안 보인다. 괄호는 터치 꼬리 `（もう一度タップで決定）`와 같은 덧붙임 결이다.
+ */
+export function firstSwitchText(char: CharacterId, t: Text): string {
+  return fill(t('ui.switch_first'), { name: t(`char.${char}.name`), desc: t(`ui.ability.${characterDef(char).ability}`) });
 }
 
 /** 데스크톱 호버 설명(대상 라벨 자리). 얼굴 칸 = 그 사람 특기 설명, `gauge` = 게이지 설명. */

@@ -6,6 +6,8 @@ import { CHARACTERS } from './characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, WALK_AREA } from './config';
 import {
   abilityText,
+  firstSwitchText,
+  switchText,
   GAUGE_BAND,
   GAUGE_CHIP_HOLD_TICKS,
   GAUGE_CHIP_SHRINK_TICKS,
@@ -114,12 +116,33 @@ describe('hudHoverText (데스크톱 호버 설명, 6-4-3절)', () => {
     expect(hudHoverText('char.ppik', t)).toBe('プピ: ニワトリを鳴らして相手の気を引く');
   });
 
-  it('터치 첫 전환 안내(abilityText)는 호버와 같은 글이고, 자리표시가 남지 않고 20자 이하다', () => {
+  it('얼굴 칸 호버 글(abilityText)은 hudHoverText와 같고, 자리표시가 남지 않고 20자 이하다', () => {
     for (const c of CHARACTERS) {
       const text = abilityText(c.id, t);
       expect(text).toBe(hudHoverText(`char.${c.id}`, t));
       expect(text).not.toMatch(/[{}]/);
       expect([...text].length).toBeLessThanOrEqual(20);
+    }
+  });
+
+  it('전환 알림(switchText, #692)은 `{name}に交代`이고 이름표와 같은 이름을 쓴다', () => {
+    expect(switchText('jjuk', t)).toBe('ノビーに交代');
+    expect(switchText('mukjik', t)).toBe('ズッシーに交代');
+    expect(switchText('ppik', t)).toBe('プピに交代');
+    for (const c of CHARACTERS) expect(switchText(c.id, t)).not.toMatch(/[{}]/);
+  });
+
+  it('터치 첫 전환 안내(firstSwitchText, #692 Luna 리뷰)는 `{name}に交代（{desc}）`이고 23자 이하다', () => {
+    expect(firstSwitchText('jjuk', t)).toBe('ノビーに交代（サオを伸ばして高い所に届く）');
+    expect(firstSwitchText('mukjik', t)).toBe('ズッシーに交代（全体重で踏みつける）');
+    expect(firstSwitchText('ppik', t)).toBe('プピに交代（ニワトリを鳴らして相手の気を引く）');
+    for (const c of CHARACTERS) {
+      const text = firstSwitchText(c.id, t);
+      expect(text.startsWith(`${switchText(c.id, t)}（`)).toBe(true);
+      expect(text).not.toMatch(/[{}]/);
+      expect([...text].length).toBeLessThanOrEqual(23);
+      // 호버 글(아직 안 바뀐 때)에는 `交代`가 없다.
+      expect(hudHoverText(`char.${c.id}`, t)).not.toContain('交代');
     }
   });
 

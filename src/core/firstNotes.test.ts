@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import texts from '../../content/text/ja.json';
 import magpie from '../../content/screens/magpie_nest.json';
 import fountain from '../../content/screens/park_fountain.json';
-import { createFirstNotes, currentNote, GAUGE_NOTE_TICKS, noteAction, noteGauge, noteStood, noteSwitch, noteTap, selectLabelText, standLabel } from './firstNotes';
+import { createFirstNotes, currentNote, GAUGE_NOTE_TICKS, labelKey, noteAction, noteGauge, noteHover, noteStood, noteSwitch, noteSwitched, noteTap, selectLabelText, standLabel, SWITCH_NOTE_TICKS } from './firstNotes';
 import { labelText } from './interact';
 import { initialState, step } from './puzzle/step';
 import type { Action, PuzzleState, ScreenData } from './puzzle/types';
@@ -192,5 +192,63 @@ describe('터치 첫 탭 라벨의 "한 번 더 탭" 줄 (#661 → #680, 설계 
     expect(s).toBe(HINT.replace('{label}', BASE));
     expect(s).toContain(BASE);
     expect(s).not.toContain('\n');
+  });
+});
+
+describe('전환 알림 `{name}に交代` (#692, #603 7·8회차)', () => {
+  const SW = 'ズッシーに交代';
+  const MUK = 'ズッシーに交代（全体重で踏みつける）';
+  const STAND = labelKey({ verb: 'stomp', target: 'seesaw_left' });
+
+  it('터치: 다음 탭까지 남는다(시간으로는 안 지운다)', () => {
+    const n = createFirstNotes(5, 'jjuk');
+    n.introduced.add('mukjik');
+    noteTap(n);
+    noteSwitch(n, 'mukjik', MUK);
+    noteSwitched(n, SW, 100, true, '');
+    expect(currentNote(n, 100)).toBe(SW);
+    expect(currentNote(n, 100_000)).toBe(SW);
+    noteTap(n);
+    expect(currentNote(n, 100_000)).toBeNull();
+  });
+
+  it('그 판 처음 바꾼 캐릭터(터치)는 첫 전환 안내 `{name}に交代（{desc}）`가 먼저다. 다시 바꾸면 그때부터 짧은 交代', () => {
+    const n = createFirstNotes(5, 'jjuk');
+    noteSwitch(n, 'mukjik', MUK);
+    noteSwitched(n, SW, 0, true, '');
+    expect(currentNote(n, 0)).toBe(MUK);
+    noteTap(n);
+    noteSwitch(n, 'jjuk', 'ノビーに交代（…）');
+    noteSwitched(n, 'ノビーに交代', 0, true, '');
+    expect(currentNote(n, 0)).toBe('ノビーに交代');
+  });
+
+  it('마우스: 0.8초 뒤 지운다', () => {
+    const n = createFirstNotes(5, 'jjuk');
+    noteSwitched(n, SW, 100, false, STAND);
+    expect(currentNote(n, 100 + SWITCH_NOTE_TICKS - 1)).toBe(SW);
+    expect(currentNote(n, 100 + SWITCH_NOTE_TICKS)).toBeNull();
+  });
+
+  it('마우스: 같은 대상 위에서 움직이면 그대로, 다른 대상으로 가면 바로 호버 라벨에 자리를 내준다', () => {
+    const n = createFirstNotes(5, 'jjuk');
+    noteSwitched(n, SW, 0, false, STAND);
+    noteHover(n, STAND);
+    expect(currentNote(n, 1)).toBe(SW);
+    noteHover(n, labelKey({ verb: 'stomp', target: 'seesaw_right' }));
+    expect(currentNote(n, 1)).toBeNull();
+  });
+
+  it('호버로는 다른 안내(특기 설명·첫 감소)를 안 지운다', () => {
+    const n = createFirstNotes(5, 'jjuk');
+    noteSwitch(n, 'mukjik', MUK);
+    noteHover(n, STAND);
+    expect(currentNote(n, 0)).toBe(MUK);
+  });
+
+  it('labelKey: 라벨이 없으면 빈 글, 동사·대상·물건이 다르면 다른 키', () => {
+    expect(labelKey(null)).toBe('');
+    expect(labelKey({ verb: null, target: 'mukjik' })).not.toBe(labelKey({ verb: null, target: 'ppik' }));
+    expect(labelKey({ verb: 'item', target: 'nest', item: 'a' })).not.toBe(labelKey({ verb: 'item', target: 'nest', item: 'b' }));
   });
 });
