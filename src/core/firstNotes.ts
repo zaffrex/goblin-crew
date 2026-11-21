@@ -28,7 +28,7 @@ export interface FirstNotes {
    * `touch`: 올라서기를 실행한 탭이 터치였나. 터치면 안내 글 대신 그 자리 특기를 고른 상태로 만든다(6-4-1a-1절, #710).
    */
   climbing: { char: CharacterId; spot: string; touch: boolean } | null;
-  /** 서 있는 자리에 특기를 한 번이라도 쓴 캐릭터. 그 판에서 올라선 뒤 라벨을 다시 안 띄운다(6-4-1a절). */
+  /** 서 있는 자리에 특기를 한 번이라도 쓴 캐릭터. 그 판에서 올라선 뒤 라벨을 다시 안 띄운다(6-4-1a절). 터치 선택(6-4-1a-1절)은 이걸 안 본다. */
   usedHere: Set<CharacterId>;
 }
 
@@ -134,12 +134,15 @@ export function standSelect(ctx: PuzzleView, rules: readonly RuleDef[], char: Ch
  * busy가 풀린 첫 프레임에 부른다. 방금 서는 자리로 간 사람이 지금 고른 사람이고(조건 ①), 아직 그 자리 특기를 안 써 봤고,
  * 다른 처음 한 번 안내가 떠 있지 않으면 2.5초(또는 다음 탭까지) 그 라벨을 띄운다. `text`가 null이면(조건 ②·③) 안 띄운다.
  * 올라서기가 터치였으면 글을 띄우지 않고 `{ char, spot }`을 돌려준다. 부른 쪽이 `standSelect`로 그 자리 특기를 고른다(6-4-1a-1절, #710).
+ * 터치는 "아직 안 써 봤고"를 보지 않아 올라설 때마다 돌려준다(두 번째 발사도 탭 3번, PR #719). 조건 ①과 겹침 건너뜀은 같다.
  */
 export function noteStood(n: FirstNotes, active: CharacterId, tick: number, text: (c: { char: CharacterId; spot: string }) => string | null): { char: CharacterId; spot: string } | null {
   const c = n.climbing;
   n.climbing = null;
-  if (!c || c.char !== active || n.usedHere.has(c.char) || currentNote(n, tick) !== null) return null;
+  if (!c || c.char !== active || currentNote(n, tick) !== null) return null;
+  // 터치는 `usedHere`를 보지 않는다: 글이 아니라 할 일 없는 탭을 없애는 상태라 올라설 때마다 고른다(6-4-1a-1절, PR #719).
   if (c.touch) return { char: c.char, spot: c.spot };
+  if (n.usedHere.has(c.char)) return null;
   const s = text(c);
   if (s) n.note = { text: s, until: tick + GAUGE_NOTE_TICKS };
   return null;

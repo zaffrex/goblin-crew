@@ -169,7 +169,7 @@ describe('올라선 뒤 그 자리 라벨 (ui-interaction.md 6-4-1a절, #630)', 
     expect(currentNote(n, 1000)).toBeNull();
   });
 
-  it('터치로 올라서면 글 대신 그 자리를 돌려준다(6-4-1a-1절, #710). 조건 ①·횟수·겹침은 같다', () => {
+  it('터치로 올라서면 글 대신 그 자리를 돌려준다(6-4-1a-1절, #710). 조건 ①·겹침은 같고 횟수는 안 본다', () => {
     const n = createFirstNotes(5, 'jjuk');
     noteAction(n, climb, 'floor', true);
     expect(noteStood(n, 'mukjik', 100, text(stood))).toEqual({ char: 'mukjik', spot: 'seesaw_right' });
@@ -183,10 +183,28 @@ describe('올라선 뒤 그 자리 라벨 (ui-interaction.md 6-4-1a절, #630)', 
     noteAction(n, climb, 'floor', true);
     expect(noteStood(n, 'mukjik', 300, text(stood))).toBeNull();
     noteTap(n);
-    // 그 자리 특기를 한 번 썼으면 그 판에서 다시 안 고른다(6-4-1a 표 "몇 번"과 같다).
+    // 그 자리 특기를 한 번 써도 다시 올라서면 또 고른다(두 번째 발사도 탭 3번, PR #719 "몇 번").
     noteAction(n, { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, 'seesaw_right', true);
+    expect(n.usedHere.has('mukjik')).toBe(true);
+    noteAction(n, { char: 'mukjik', verb: 'move', target: 'floor' }, 'seesaw_right', true);
     noteAction(n, climb, 'floor', true);
-    expect(noteStood(n, 'mukjik', 400, text(stood))).toBeNull();
+    expect(noteStood(n, 'mukjik', 400, text(stood))).toEqual({ char: 'mukjik', spot: 'seesaw_right' });
+    expect(currentNote(n, 400)).toBeNull();
+  });
+
+  it('두 입력이 갈리는 지점: 특기를 쓴 뒤 다시 올라서면 터치는 고르고 마우스는 글을 안 띄운다', () => {
+    for (const touch of [true, false]) {
+      const n = createFirstNotes(5, 'jjuk');
+      noteAction(n, climb, 'floor', touch);
+      noteStood(n, 'mukjik', 100, text(stood));
+      noteTap(n);
+      noteAction(n, { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, 'seesaw_right', touch);
+      noteAction(n, { char: 'mukjik', verb: 'move', target: 'floor' }, 'seesaw_right', touch);
+      noteAction(n, climb, 'floor', touch);
+      const r = noteStood(n, 'mukjik', 400, text(stood));
+      expect(r).toEqual(touch ? { char: 'mukjik', spot: 'seesaw_right' } : null);
+      expect(currentNote(n, 400)).toBeNull();
+    }
   });
 
   it('마우스로 올라서면 지금처럼 글을 띄우고 아무것도 안 돌려준다', () => {
