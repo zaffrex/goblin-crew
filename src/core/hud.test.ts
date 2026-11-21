@@ -111,7 +111,7 @@ describe('hudHoverText (데스크톱 호버 설명, 6-4-3절)', () => {
   });
 
   it('게이지는 고정 설명', () => {
-    expect(hudHoverText('gauge', t)).toBe('ふわふわゲージ: ミスで1マス減る。0でみんなスタートへ');
+    expect(hudHoverText('gauge', t)).toBe('ふわふわゲージ: ミスで1マス減る。0で全員スタートに戻る');
   });
 
   it('없앤 버튼 설명 키(능력·손·보기)는 텍스트에 없다', () => {
