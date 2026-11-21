@@ -97,6 +97,17 @@ describe('scene build (format v1)', () => {
     it('hint(31)를 잡는다', () => {
       expect(problemsOf((s) => (s.bg = (img) => { plainBg(img); img.set(5, 5, HINT); }))).toEqual([expect.stringContaining('31번 hint')]);
     });
+    it('물건 그림의 ink가 화면 가장자리 1px 줄에 닿으면 잡는다(개정 10, #653)', () => {
+      /** 까치 그림(히트 박스 안) + 점 하나 */
+      const withDot = (x: number, y: number, col = INK) => (s: SceneSrc) => (s.objects!.magpie!.draw = (img: Img) => { box(138, 10, 16, 18, INK)(img); img.set(x, y, col); });
+      for (const [x, y] of [[0, 15], [140, 0], [140, 269], [479, 15]] as const) {
+        expect(problemsOf(withDot(x, y)), `${x},${y}`).toEqual([expect.stringContaining('가장자리 1px')]);
+      }
+      // 1px 안이면 통과, 가장자리에 닿아도 ink가 아니면 통과(그 변은 외곽선 없이 끝낸 그림)
+      expect(problemsOf(withDot(1, 15))).toEqual([]);
+      expect(problemsOf(withDot(478, 268))).toEqual([]);
+      expect(problemsOf(withDot(0, 15, WOOD))).toEqual([]);
+    });
     it('투명 칸을 잡는다', () => {
       expect(problemsOf((s) => (s.bg = (img) => img.rect(0, 0, 479, 270, LINT)))).toEqual([expect.stringContaining('투명')]);
     });

@@ -64,6 +64,14 @@ function hasColor(img, col) {
   return img.c.includes(col);
 }
 
+/** 화면 가장자리 1px 줄(맨 위·아래 행, 맨 왼쪽·오른쪽 열)에 그 색 픽셀이 있나 */
+function colorOnEdge(img, col) {
+  const { w, h, c } = img;
+  for (let x = 0; x < w; x++) if (c[x] === col || c[(h - 1) * w + x] === col) return true;
+  for (let y = 0; y < h; y++) if (c[y * w] === col || c[y * w + w - 1] === col) return true;
+  return false;
+}
+
 /** `when` 플래그를 적용했을 때 그 대상의 히트 박스(hotspot `variants`는 첫 일치, src/core/interact.ts hotspotBox와 같은 규칙) */
 function boxFor(screen, id, flags) {
   const hs = screen.hotspots?.[id];
@@ -129,6 +137,8 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
       return -1;
     }
     if (hasColor(full, C.hint)) problems.push(`${where}: 31번 hint 픽셀이 있다(호버 외곽선은 엔진이 만든다)`);
+    // 레터박스가 0번 ink라(ADR-0007 결정 1, #650) 가장자리의 ink 외곽선은 레터박스에 묻혀 "화면 밖으로 이어진다"처럼 보인다(형식 기록 8절, 개정 10, #653)
+    if (colorOnEdge(full, C.ink)) problems.push(`${where}: 0번 ink가 화면 가장자리 1px 줄에 닿는다(레터박스와 붙는다. 1px 안으로 들이거나 그 변은 외곽선 없이 끝낸다, 8절 개정 10)`);
     if (boxes?.length && !boxes.some((box) => box && overlaps(b, box)))
       problems.push(`${where}: 그림 [${b.x},${b.y},${b.w},${b.h}]이 히트 박스 ${boxes.map((x) => `[${x}]`).join(' / ')}와 겹치지 않는다`);
     const img = crop(full, b);
