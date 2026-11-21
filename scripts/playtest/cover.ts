@@ -2,6 +2,9 @@
 // 말풍선이 떠 있는 동안 50ms마다 `#bubble` DOM 상자와 화면의 핫스팟(화자 자신 제외)을 교차해 **핫스팟별 최대 가림 비율**을 적는다.
 // 핫스팟마다 가장 많이 가린 순간의 스크린샷을 남긴다(가림이 0이면 말풍선이 처음 뜬 순간 한 장).
 // 비율은 히트 박스 기준이라 "가림 상한"이다. 장난감(`hintAbility` 없음)은 ⚠️만, 단서 물건을 가리면 ❌.
+// 게이지 띠(#611)는 `gauge` 한 줄로 센다: 칸 5개(`GAUGE_SEGS`)와 이름표 DOM 가운데 가장 많이 가린 비율. 덮으면 ⚠️(장난감과 같다).
+// 칸이 터지는 순간(`gauge` 이벤트)에는 말풍선이 없다(장면은 이벤트를 하나씩 재생하고, 감소는 첫 say 앞, #285). 말풍선이 덮는 건
+// 이미 줄어든 채 멈춘 칸이라 단서만큼 비싸지 않다. 그 전제는 scene.test.ts "칸이 터지는 동안 말풍선이 없다"가 지킨다.
 //
 // 사용: node --import ./scripts/playtest/register.mjs scripts/playtest/cover.ts --screen park_fountain --url http://localhost:4173/ --no-sandbox [--only aha] [--out <폴더>]
 // 결과: <out>/report.md, <out>/<사례>-<화면 크기>.png. <out> 기본값은 `playtest-out/cover/<화면 ID>`.
@@ -9,6 +12,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
+import { GAUGE_SEGS } from '../../src/core/hud.ts';
 import type { ScreenData } from '../../src/core/puzzle/types.ts';
 import { CARD_TAP, closeStartCard } from './card.ts';
 import { CASES_BY_SCREEN, type FrameCase } from './cases/index.ts';
@@ -39,17 +43,21 @@ const SCREEN_ID = args.screen!;
 const CASES: readonly FrameCase[] = (CASES_BY_SCREEN[SCREEN_ID] ?? []).filter((c) => c.action && c.id.includes(args.only!));
 if (!/^[a-z0-9_]+$/.test(SCREEN_ID) || CASES.length === 0) throw new Error(`--screen ${SCREEN_ID}: 사례가 없음`);
 const screen = JSON.parse(readFileSync(`content/screens/${SCREEN_ID}.json`, 'utf8')) as ScreenData;
-const TOYS = new Set(Object.entries(screen.hotspots).filter(([, h]) => !h.hintAbility).map(([id]) => id));
+/** ⚠️로만 치는 것: 장난감(`hintAbility` 없음)과 게이지 띠(#611). */
+const TOYS = new Set([...Object.entries(screen.hotspots).filter(([, h]) => !h.hintAbility).map(([id]) => id), 'gauge']);
 
 const layoutOf = (page: Page) => page.evaluate<Layout>('window.__gcLayout()');
 const canvasRect = (page: Page) =>
   page.evaluate<Rect>(`(() => { const b = document.querySelector('#game').getBoundingClientRect(); return { left: b.left, top: b.top, width: b.width, height: b.height }; })()`);
 const bubbleState = (page: Page) =>
-  page.evaluate<{ text: string; speaker: string; rect: Rect } | null>(`(() => {
+  page.evaluate<{ text: string; speaker: string; rect: Rect; gaugeTag: Rect | null } | null>(`(() => {
     const b = document.querySelector('#bubble');
     if (!b || b.hidden || !b.textContent) return null;
     const r = b.getBoundingClientRect();
-    return { text: b.textContent, speaker: b.dataset.speaker || '', rect: { left: r.left, top: r.top, width: r.width, height: r.height } };
+    const g = document.querySelector('.hudtag[data-id="gauge"]');
+    const gr = g && !g.hidden ? g.getBoundingClientRect() : null;
+    return { text: b.textContent, speaker: b.dataset.speaker || '', rect: { left: r.left, top: r.top, width: r.width, height: r.height },
+      gaugeTag: gr && gr.width > 0 ? { left: gr.left, top: gr.top, width: gr.width, height: gr.height } : null };
   })()`);
 
 async function waitBusy(page: Page, busy: boolean, timeoutMs = 60_000): Promise<void> {
@@ -119,10 +127,16 @@ async function runCase(browser: Browser, c: FrameCase, vp: Viewport, outDir: str
       if (b) {
         if (!r.texts.includes(b.text)) r.texts.push(b.text);
         const scale = rect.width / INTERNAL.width;
-        for (const [id, box] of Object.entries(layout.hotspots)) {
-          if (id === b.speaker) continue;
+        const toPage = (box: Rect): Rect => {
           const tl = internalToPage({ x: box.left, y: box.top }, rect);
-          const ratio = covered(b.rect, { left: tl.x, top: tl.y, width: box.width * scale, height: box.height * scale });
+          return { left: tl.x, top: tl.y, width: box.width * scale, height: box.height * scale };
+        };
+        const gauge = Math.max(0, ...GAUGE_SEGS.map((s) => covered(b.rect, toPage(s))), b.gaugeTag ? covered(b.rect, b.gaugeTag) : 0);
+        const targets: Array<[string, number]> = [
+          ...Object.entries(layout.hotspots).filter(([id]) => id !== b.speaker).map(([id, box]): [string, number] => [id, covered(b.rect, toPage(box))]),
+          ['gauge', gauge],
+        ];
+        for (const [id, ratio] of targets) {
           const prev = r.worst[id]?.ratio ?? 0;
           if (ratio > prev + 0.005 || (first && !r.worst[id])) {
             const file = `${c.id}-${vp.name}${ratio > 0 ? `-${id}` : ''}.png`;
@@ -144,7 +158,7 @@ async function main(): Promise<number> {
   const outDir = args.out || join('playtest-out', 'cover', SCREEN_ID);
   mkdirSync(outDir, { recursive: true });
   const browser = await Browser.launch({ noSandbox: args['no-sandbox'] });
-  const L = [`# 말풍선 가림 \`${SCREEN_ID}\` (${new Date().toISOString()})`, '', `- URL: ${args.url}`, '- 핫스팟별 최대 가림 비율(히트 박스 기준, 화자 제외). 단서 물건 > 0 → ❌, 장난감 > 0 → ⚠️', '', `| 사례 | ${VIEWPORTS.map((v) => v.name).join(' | ')} |`, `|---|${VIEWPORTS.map(() => '---').join('|')}|`];
+  const L = [`# 말풍선 가림 \`${SCREEN_ID}\` (${new Date().toISOString()})`, '', `- URL: ${args.url}`, '- 핫스팟별 최대 가림 비율(히트 박스 기준, 화자 제외). 단서 물건 > 0 → ❌, 장난감·`gauge`(게이지 칸·이름표) > 0 → ⚠️', '', `| 사례 | ${VIEWPORTS.map((v) => v.name).join(' | ')} |`, `|---|${VIEWPORTS.map(() => '---').join('|')}|`];
   let failed = false;
   try {
     for (const c of CASES) {
