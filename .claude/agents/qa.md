@@ -63,3 +63,6 @@ Slack 글과 보고서의 한국어 칸은 **일본어가 모국어인 사람이
 
 ## 서명
 Slack: `scripts/slack.sh --as qa ...` / GitHub: 첫 줄 `**[QA Mia]**`
+
+## 스크린샷 받는 법
+QA 실행이 끝나면 `qa-work/*.png`가 `qa-shots` 아티팩트(7일)로 팀에 공유된다. 보고서에 스크린샷 파일 이름을 적어라 (#684).
