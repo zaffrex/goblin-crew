@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import texts from '../../content/text/ja.json';
 import magpie from '../../content/screens/magpie_nest.json';
 import fountain from '../../content/screens/park_fountain.json';
-import { createFirstNotes, currentNote, GAUGE_NOTE_TICKS, noteAction, noteGauge, noteStood, noteSwitch, noteTap, noteTouchAct, selectLabelText, standLabel } from './firstNotes';
+import { createFirstNotes, currentNote, GAUGE_NOTE_TICKS, noteAction, noteGauge, noteStood, noteSwitch, noteTap, selectLabelText, standLabel } from './firstNotes';
 import { labelText } from './interact';
 import { initialState, step } from './puzzle/step';
 import type { Action, PuzzleState, ScreenData } from './puzzle/types';
@@ -179,7 +179,7 @@ describe('올라선 뒤 그 자리 라벨 (ui-interaction.md 6-4-1a절, #630)', 
   });
 });
 
-describe('터치 첫 탭 라벨의 "한 번 더 탭" 줄 (#661, 설계 4절)', () => {
+describe('터치 첫 탭 라벨의 "한 번 더 탭" 줄 (#661 → #680, 설계 4절)', () => {
   const HINT = TEXT['ui.touch.tap_again']!;
   const BASE = 'のる: シーソーの左端';
 
@@ -187,25 +187,10 @@ describe('터치 첫 탭 라벨의 "한 번 더 탭" 줄 (#661, 설계 4절)', (
     expect(HINT.split('{label}')).toHaveLength(2);
   });
 
-  it('둘째 탭으로 실행해 보기 전에는 첫 탭 라벨과 같은 줄에 붙는다(줄바꿈 없음)', () => {
-    const n = createFirstNotes(5, 'jjuk');
-    const s = selectLabelText(n, BASE, HINT);
+  it('첫 탭 라벨과 같은 줄에 붙는다(줄바꿈 없음)', () => {
+    const s = selectLabelText(BASE, HINT);
     expect(s).toBe(HINT.replace('{label}', BASE));
     expect(s).toContain(BASE);
     expect(s).not.toContain('\n');
-  });
-
-  it('터치로 한 번 실행하면 그 판에서는 다시 안 붙는다(다음 탭·다른 안내로 되살아나지 않는다)', () => {
-    const n = createFirstNotes(5, 'jjuk');
-    noteTouchAct(n);
-    noteTap(n);
-    noteSwitch(n, 'mukjik', 'x');
-    expect(selectLabelText(n, BASE, HINT)).toBe(BASE);
-  });
-
-  it('마우스 실행(noteAction만)은 배운 것으로 치지 않는다', () => {
-    const n = createFirstNotes(5, 'jjuk');
-    noteAction(n, { char: 'jjuk', verb: 'move', target: 'seesaw_left' }, 'floor');
-    expect(n.tapAgainLearned).toBe(false);
   });
 });
