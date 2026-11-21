@@ -19,6 +19,7 @@ import {
   GOAL_AT,
   GOAL_RIGHT,
   GOAL_ZONE,
+  CHAR_SLOT_STEP,
   CHAR_SLOTS,
   CHAR_TAG_TOP,
   HUD_AREA,
@@ -39,14 +40,14 @@ const TEXT: Record<string, string> = texts;
 const t = (id: string): string => TEXT[id] ?? id;
 
 describe('hudTags (늘 보이는 이름표, 설계 6-4-2절)', () => {
-  it('얼굴 아래 특기 이름표 = 그 사람 능력 동사. 지금 캐릭터와 상관없이 셋 다 늘 보인다', () => {
+  it('얼굴 아래 이름표 = 그 사람 이름(#676). 지금 캐릭터와 상관없이 셋 다 늘 보인다', () => {
     const tags = Object.fromEntries(hudTags(t).map((x) => [x.id, x.text]));
-    expect(tags).toEqual({ 'char.jjuk': 'のばす', 'char.mukjik': 'ドスン', 'char.ppik': 'プピッ', gauge: 'ふわふわゲージ' });
-    // 대상 라벨 동사(7절)와 같은 낱말: 얼굴 아래 `ドスン`을 본 사람이 `ドスン: シーソーの右はし`를 잇는다.
-    for (const c of CHARACTERS) expect(tags[`char.${c.id}`]).toBe(TEXT[`ui.verb.${c.ability}`]);
+    expect(tags).toEqual({ 'char.jjuk': 'ノビー', 'char.mukjik': 'ズッシー', 'char.ppik': 'プピ', gauge: 'ふわふわゲージ' });
+    // 시작 카드 이름 칸·힌트 대사(`ズッシー先輩`)와 같은 낱말: "이 얼굴 = 이 사람"이 늘 보인다.
+    for (const c of CHARACTERS) expect(tags[`char.${c.id}`]).toBe(TEXT[`char.${c.id}.name`]);
   });
 
-  it('특기 이름표는 칸 가운데 아래, 위끝 y 36(막대 33–34 아래 1px). 게이지 이름표는 띠 왼쪽 x 4·세로 가운데 y 263', () => {
+  it('얼굴 이름표는 칸 가운데 아래, 위끝 y 36(막대 33–34 아래 1px). 게이지 이름표는 띠 왼쪽 x 4·세로 가운데 y 263', () => {
     const tags = hudTags(t);
     expect(CHAR_TAG_TOP).toBe(36);
     for (const c of CHARACTERS) {
@@ -60,25 +61,36 @@ describe('hudTags (늘 보이는 이름표, 설계 6-4-2절)', () => {
     expect(GAUGE_TAG_AT.x).toBeLessThan(GAUGE_TRACK.left);
   });
 
+  it('칸은 x 300 / 337 / 374, 37 간격(#676)', () => {
+    expect(CHARACTERS.map((c) => CHAR_SLOTS[c.id].left)).toEqual([300, 337, 374]);
+    expect(CHAR_SLOT_STEP).toBe(37);
+  });
+
   it('이름표 폭(6-4-2절 표): 실제로 나오는 CSS 배율에서 이웃 이름표와 붙지 않고, 아래끝이 HUD 영역 안이다', () => {
-    // index.html: 얼굴 이름표 padding 1px 2px, line-height 1. 1.2배 미만은 padding 0(#325). 전각 3자 폭 = 글자 × 3(palt 전 상한).
+    // index.html: 얼굴 이름표 padding 1px 2px, line-height 1. 1.2배 미만은 palt + padding 0(#325).
+    // 1.2배 이상은 palt가 없어 가나 1자 = 글자 크기(상한). 1.0배는 palt 실측(#676 Theo, Noto Sans CJK JP)을 쓴다.
+    const names = CHARACTERS.map((c) => TEXT[`char.${c.id}.name`]!);
     const pad = (scale: number) => (hudTagTight(scale) ? { x: 0, y: 0 } : { x: 2, y: 1 });
-    const box = (scale: number) => {
-      const font = hudTagFontPx(scale);
-      return { w: (font * 3 + 2 * pad(scale).x) / scale, h: (font + 2 * pad(scale).y) / scale };
-    };
-    const gap = CHAR_SLOTS.mukjik.left - CHAR_SLOTS.jjuk.left;
-    // 1280×720 @1, 915×412 @2.625, 844×390 @3 (computeScale: 장치 정수 배율 ÷ dpr)
-    expect(gap - box(2).w).toBeGreaterThanOrEqual(9);
-    expect(gap - box(1.524).w).toBeGreaterThan(7);
-    expect(gap - box(1.333).w).toBeGreaterThan(4);
+    const w = (name: string, scale: number) => (hudTagFontPx(scale) * [...name].length + 2 * pad(scale).x) / scale;
+    const h = (scale: number) => (hudTagFontPx(scale) + 2 * pad(scale).y) / scale;
+    const gaps = (widths: number[]) => widths.slice(1).map((x, i) => CHAR_SLOT_STEP - (widths[i]! + x) / 2);
+    // 틈은 설계 표처럼 CSS px로 비교한다(내부 px × 배율).
+    const minGap = (scale: number) => Math.min(...gaps(names.map((n) => w(n, scale)))) * scale;
+    // 1280×720 @1, 915×412 @2.625, 844×390 @3 (computeScale: 장치 정수 배율 ÷ dpr). 표: 21 / 13.9 / 6.8
+    expect(minGap(2)).toBeCloseTo(21);
+    expect(minGap(1.524)).toBeGreaterThan(13);
+    expect(minGap(1.333)).toBeCloseTo(6.8, 0);
     // 1.2배 이상에서 지금 padding으로 가장 빡빡한 경계
-    expect(gap - box(1.2).w).toBeGreaterThan(1);
-    // 667×375 @2 = 1.0: palt 없이도 padding 0이면 33 CSS → 1px 겹침. palt 실측(31.6/28.4/29)이면 틈 2 / 3.3(설계 표).
+    expect(minGap(1.2)).toBeGreaterThan(1);
+    // 667×375 @2 = 1.0: palt 실측 29.6 / 39.9 / 20.4 → 틈 2.3 / 6.9(설계 표). palt 없이 글자 수로 세면 겹친다.
     expect(hudTagTight(1)).toBe(true);
-    expect(gap - (31.6 + 28.4) / 2).toBeCloseTo(2);
+    expect(names).toEqual(['ノビー', 'ズッシー', 'プピ']);
+    const g1 = gaps([29.6, 39.9, 20.4]);
+    expect(g1[0]).toBeCloseTo(2.25);
+    expect(g1[1]).toBeCloseTo(6.85);
+    expect(minGap(1)).toBeLessThan(0);
     for (const s of [1, 1.09, 1.2, 1.333, 1.524, 2]) {
-      expect(CHAR_TAG_TOP + box(s).h).toBeLessThanOrEqual(HUD_AREA.top + HUD_AREA.height);
+      expect(CHAR_TAG_TOP + h(s)).toBeLessThanOrEqual(HUD_AREA.top + HUD_AREA.height);
     }
   });
 
@@ -88,9 +100,10 @@ describe('hudTags (늘 보이는 이름표, 설계 6-4-2절)', () => {
   });
 
   it('키가 없으면 키 이름이 보인다(빠진 번역을 숨기지 않는다)', () => {
-    const tags = hudTags((id) => ({ 'ui.verb.stretch': 'のばす' })[id] ?? id);
+    const tags = hudTags((id) => ({ 'char.jjuk.name': 'ノビー' })[id] ?? id);
     expect(tags.find((x) => x.id === 'gauge')!.text).toBe('ui.hud.gauge');
-    expect(tags.find((x) => x.id === 'char.mukjik')!.text).toBe('ui.verb.stomp');
+    expect(tags.find((x) => x.id === 'char.jjuk')!.text).toBe('ノビー');
+    expect(tags.find((x) => x.id === 'char.mukjik')!.text).toBe('char.mukjik.name');
   });
 });
 
@@ -120,12 +133,12 @@ describe('hudHoverText (데스크톱 호버 설명, 6-4-3절)', () => {
 });
 
 describe('HUD 영역 (6-4-2절)', () => {
-  it('얼굴 3칸 + 이름표 띠 = (300,4)–(392,48). 오른쪽 하늘(x 392–)은 월드다', () => {
-    expect(HUD_AREA).toEqual({ left: 300, top: 4, width: 92, height: 44 });
+  it('얼굴 3칸 + 이름표 띠 = (300,4)–(402,48). 오른쪽 하늘(x 402–)은 월드다', () => {
+    expect(HUD_AREA).toEqual({ left: 300, top: 4, width: 102, height: 44 });
     const last = CHAR_SLOTS.ppik;
-    expect(last.left + last.width).toBeLessThanOrEqual(HUD_AREA.left + HUD_AREA.width);
-    expect(inHudZone({ x: 390, y: 46 })).toBe(true);
-    expect(inHudZone({ x: 400, y: 20 })).toBe(false);
+    expect(last.left + last.width).toBe(HUD_AREA.left + HUD_AREA.width);
+    expect(inHudZone({ x: 400, y: 46 })).toBe(true);
+    expect(inHudZone({ x: 403, y: 20 })).toBe(false);
     expect(inHudZone({ x: 340, y: 60 })).toBe(false);
   });
 });

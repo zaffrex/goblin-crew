@@ -123,6 +123,20 @@ const GOAL_FIT = `(() => {
   return out;
 })()`;
 
+/**
+ * 얼굴 이름표 틈 검사(#675, 설계 6-4-2절): 이웃 얼굴 이름표(`.hudtag[data-anchor="top-center"]`) 사이가 CSS 1px 이상 떨어져 있다.
+ * 이름 4자 규칙(ja-text 2절)은 글자 수로만 세서, 작은 가나 없는 전각 4자 이름은 통과해도 1.0배에서 겹칠 수 있다. 실폭은 여기서 본다.
+ * 틈은 결과에 같이 적는다(PR에 실측값을 남기기 위해).
+ */
+const FACE_TAG_MIN_GAP = 1;
+const FACE_TAG_GAPS = `(() => {
+  const tags = [...document.querySelectorAll('.hudtag[data-anchor="top-center"]')]
+    .filter((el) => !el.hidden && getComputedStyle(el).display !== 'none')
+    .map((el) => ({ text: el.textContent, b: el.getBoundingClientRect() }))
+    .sort((a, b) => a.b.left - b.b.left);
+  return tags.slice(1).map((t, i) => ({ pair: tags[i].text + '–' + t.text, gap: Math.round((t.b.left - tags[i].b.right) * 10) / 10 }));
+})()`;
+
 /** 바닥 한가운데쯤. 지금 빌드(#43)에서 바닥을 누르면 걷고 안내(#hud)가 사라진다. */
 const FLOOR_POINT = { x: 240, y: 236 };
 
@@ -135,6 +149,8 @@ interface Result {
   shots: string[];
   problems: string[];
   warnings: string[];
+  /** 얼굴 이름표 이웃 틈(CSS px, #675). */
+  faceTagGaps?: { pair: string; gap: number }[];
 }
 
 async function runViewport(browser: Browser, v: Viewport, outDir: string): Promise<Result> {
@@ -198,6 +214,12 @@ async function runViewport(browser: Browser, v: Viewport, outDir: string): Promi
     await shot('card-closed');
     await page.evaluate('window.__ptPointers.length = 0');
   } else r.warnings.push('시작 카드(#285)가 없음');
+  const tagGaps = await page.evaluate<{ pair: string; gap: number }[]>(FACE_TAG_GAPS);
+  if (tagGaps.length !== 2) r.problems.push(`얼굴 이름표: 이웃 쌍이 ${tagGaps.length}개 (2개여야 함)`);
+  for (const g of tagGaps) {
+    if (g.gap < FACE_TAG_MIN_GAP) r.problems.push(`얼굴 이름표: ${g.pair} 틈 ${g.gap}px < ${FACE_TAG_MIN_GAP}px`);
+  }
+  r.faceTagGaps = tagGaps;
   const p = internalToPage(FLOOR_POINT, r.canvas);
   if (v.mobile) await page.tap(p);
   else await page.click(p);
@@ -239,6 +261,10 @@ function toMarkdown(results: Result[], url: string): string {
     for (const p of r.problems) lines.push(`- ❌ ${r.viewport.name}: ${p}`);
     for (const w of r.warnings) lines.push(`- ⚠️ ${r.viewport.name}: ${w}`);
     for (const e of r.errors) lines.push(`- 콘솔(${e.source}) ${r.viewport.name}: ${e.text}`);
+  }
+  const gaps = results.filter((r) => r.faceTagGaps?.length);
+  if (gaps.length > 0) {
+    lines.push('', '얼굴 이름표 틈(CSS px, #675): ' + gaps.map((r) => `${r.viewport.name} ${r.faceTagGaps!.map((g) => `${g.pair} ${g.gap}`).join(' / ')}`).join(', '));
   }
   lines.push('', '스크린샷: ' + results.flatMap((r) => r.shots).join(', '), '');
   return lines.join('\n');
