@@ -77,9 +77,9 @@ describe('기본 탭 동사 (설계 2절)', () => {
     const ctx = ctxFor(puzzleWith({}));
     const hook = { x: 162, y: 96 }; // 고리 box [150, 84, 24, 24] 중심
     const cases = [
-      ['jjuk', 'stretch', 'のばす: 柱のフック'],
-      ['mukjik', 'stomp', 'ドスン: 柱のフック'],
-      ['ppik', 'squeak', 'プピッ: 柱のフック'],
+      ['jjuk', 'stretch', '柱のフックまでのばす'],
+      ['mukjik', 'stomp', '柱のフックをドスン'],
+      ['ppik', 'squeak', '柱のフックにプピッ'],
     ] as const;
     for (const [char, verb, text] of cases) {
       const r = resolveTap(ctx, ui(char), hook, 0);
@@ -377,11 +377,11 @@ describe('서 있는 내 몸 = 내가 선 자리 (설계 6-4-1b절, #630 2단계
     }
   });
 
-  it('호버 라벨도 그 자리 라벨 그대로: ドスン: シーソーの右端', () => {
+  it('호버 라벨도 그 자리 라벨 그대로: シーソーの右端をドスン', () => {
     const tt = (id: string): string => (texts as Record<string, string>)[id] ?? id;
     const ctx = ctxFor(onRight);
     const r = resolveTap(ctx, ui('mukjik'), { x: center(ctx.bodies.mukjik).x, y: ctx.bodies.mukjik.top + 8 }, 0);
-    expect(r.kind === 'act' && labelText(r.label, 'magpie_nest', tt)).toBe(`${tt('ui.verb.stomp')}: ${tt('magpie_nest.name.seesaw_right')}`);
+    expect(r.kind === 'act' && labelText(r.label, 'magpie_nest', tt)).toBe(tt('ui.label.stomp').replace('{target}', tt('magpie_nest.name.seesaw_right')));
   });
 
   it('남의 몸이 겹치면 남이 이긴다(전환 우선). 그리는 순서와 무관', () => {
@@ -470,11 +470,27 @@ describe('원칙 1: 규칙 데이터를 읽지 않는다', () => {
 describe('라벨 문구 (설계 7절)', () => {
   const t = (id: string): string => (texts as Record<string, string>)[id] ?? id;
   it('동사: 대상 / 이름만 / 대상 없는 동사', () => {
-    expect(labelText({ verb: 'climb', target: 'seesaw_right' }, 'magpie_nest', t)).toBe('のる: シーソーの右端');
-    expect(labelText({ verb: 'stretch', target: 'nest' }, 'magpie_nest', t)).toBe('のばす: カササギの巣');
+    expect(labelText({ verb: 'climb', target: 'seesaw_right' }, 'magpie_nest', t)).toBe('シーソーの右端にのる');
+    expect(labelText({ verb: 'stretch', target: 'nest' }, 'magpie_nest', t)).toBe('カササギの巣までのばす');
     expect(labelText({ verb: null, target: 'mukjik' }, 'magpie_nest', t)).toBe('ズッシー');
     expect(labelText({ verb: 'release', target: null }, 'magpie_nest', t)).toBe('手をはなす');
-    expect(labelText({ verb: 'item', target: 'basket', item: 'item.shop_key' }, 'magpie_nest', t)).toBe('店のカギを使う: 洗濯かご');
+    expect(labelText({ verb: 'item', target: 'basket', item: 'item.shop_key' }, 'magpie_nest', t)).toBe('洗濯かごに店のカギを使う');
+  });
+
+  it('대상이 있는 동사는 전부 `<이름><조사><동사>` 패턴이 있다(#703, `: ` 없음)', () => {
+    const tx = texts as Record<string, string>;
+    for (const verb of ['climb', 'stretch', 'stomp', 'squeak', 'hand', 'look', 'item'] as const) {
+      const p = tx[`ui.label.${verb}`];
+      expect(p, verb).toBeDefined();
+      expect(p!.startsWith('{target}'), `${verb} ${p}`).toBe(true);
+      expect(p!.split('{target}'), verb).toHaveLength(2);
+      expect(p!.includes('{item}'), verb).toBe(verb === 'item');
+      expect(p, verb).not.toContain(':');
+      // 끝말은 동사 이름표와 같다: 선 뒤 のる → ドスン 바뀜이 끝말로 보인다(6-4-1절).
+      if (verb !== 'item') expect(p!.endsWith(tx[`ui.verb.${verb}`]!), `${verb} ${p}`).toBe(true);
+    }
+    expect(labelText({ verb: 'hand', target: 'basket' }, 'magpie_nest', t)).toBe('洗濯かごにさわる');
+    expect(labelText({ verb: 'squeak', target: 'magpie' }, 'magpie_nest', t)).toBe('カササギにプピッ');
   });
 
   it('화면 1의 모든 대상에 이름이 있다', () => {

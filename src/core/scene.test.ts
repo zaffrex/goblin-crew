@@ -1508,7 +1508,7 @@ describe('터치 시소 끝 3탭: 전환 → 선택(꼬리) → 실행 (#603 7�
     // B: 선택만. 터치 라벨에는 실행 여부와 상관없이 꼬리가 붙는다.
     const b = sceneTap(data, s, SEESAW_LEFT, 8, true);
     if (b.kind !== 'intent' || b.intent.kind !== 'select') throw new Error(`선택이 아님: ${JSON.stringify(b)}`);
-    expect(selectLabelText(labelText(b.intent.label, data.screen.id, t), t('ui.touch.tap_again'))).toBe('ドスン: シーソーの左端（もう一度タップで決定）');
+    expect(selectLabelText(labelText(b.intent.label, data.screen.id, t), t('ui.touch.tap_again'))).toBe('シーソーの左端をドスン（もう一度タップで決定）');
     // C: 실행.
     expect(sceneTap(data, s, SEESAW_LEFT, 8, true)).toMatchObject({ kind: 'intent', intent: { kind: 'act', action: { char: 'mukjik', target: 'seesaw_left' } } });
   });
