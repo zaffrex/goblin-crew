@@ -1,5 +1,5 @@
 // M1 재생 도구 1부: 배포본 스모크 (#101).
-// 뷰포트 여러 개(데스크톱 2, 휴대폰 가로 2, 세로 1)에서 열고, 실제 마우스 클릭/터치 탭이 게임까지 가는지, 콘솔 에러(A4), 첫 화면 시간(A5)을 본다.
+// 뷰포트 여러 개(데스크톱 2, 휴대폰 가로 2, 휴대폰 세로 1, 세로 모니터 1)에서 열고, 실제 마우스 클릭/터치 탭이 게임까지 가는지, 콘솔 에러(A4), 첫 화면 시간(A5)을 본다.
 // 사용: node scripts/playtest/smoke.ts [--url <배포 URL>] [--out <폴더>] [--no-sandbox]
 // 종료 코드: A4 콘솔 에러나 입력 경로 실패면 1. A5·A6는 판정 절차대로 경고만 한다.
 
@@ -53,7 +53,40 @@ const VIEWPORTS: Viewport[] = [
   // 작은 폰 가로(iPhone SE급). CSS 배율 1.0이라 카드·HUD 이름표가 압축 모양이 된다(#335, #325).
   { name: 'mobile-667x375', width: 667, height: 375, dpr: 2, mobile: true },
   { name: 'portrait-390x844', width: 390, height: 844, dpr: 3, mobile: true },
+  // 세로 모니터(마우스). 너비 667 이상이라 세로 안내가 **안** 뜨고 그대로 플레이된다(설계 9-1절 경계, #624).
+  { name: 'portrait-1080x1920', width: 1080, height: 1920, dpr: 1, mobile: false },
 ];
+
+/** 세로 안내가 떠야 하는 뷰포트(설계 9-1절: 세로이고 너비 667 미만). `core/rotate.ts` ROTATE_QUERY와 같은 경계. */
+const wantsRotate = (v: Viewport): boolean => v.width < v.height && v.width < 667;
+
+/**
+ * 세로 안내 검사(#624, 설계 9-6절). 안내가 떠야 하면: 창 전체를 덮고, 창 가운데·시작 카드 자리·목표 줄 자리에서
+ * 맨 위 요소가 `#rotate`(또는 자식)이고, 보이는 글이 입력 방식과 맞다. 안 떠야 하면: 숨어 있다(회귀 없음).
+ */
+const ROTATE_CHECK = (want: boolean, touch: boolean) => `(() => {
+  const r = document.querySelector('#rotate');
+  if (!r) return ['#rotate 없음'];
+  const shown = getComputedStyle(r).display !== 'none';
+  if (!${want}) return shown ? ['떠서는 안 되는데 보임'] : [];
+  if (!shown) return ['안 보임'];
+  const out = [];
+  const b = r.getBoundingClientRect();
+  if (b.left > 0.5 || b.top > 0.5 || b.right < innerWidth - 0.5 || b.bottom < innerHeight - 0.5) out.push('창 전체를 덮지 않음');
+  const spot = (name, el) => {
+    if (!el || el.hidden) return;
+    const e = el.getBoundingClientRect();
+    const top = document.elementFromPoint(e.left + e.width / 2, e.top + e.height / 2);
+    if (!top || !r.contains(top)) out.push(name + ' 자리 맨 위가 #rotate가 아님(' + (top ? top.id || top.tagName : 'null') + ')');
+  };
+  spot('창 가운데', { getBoundingClientRect: () => ({ left: innerWidth / 2, top: innerHeight / 2, width: 0, height: 0 }) });
+  spot('시작 카드', document.querySelector('#card'));
+  spot('목표 줄', document.querySelector('#hud'));
+  const visible = [...r.querySelectorAll('span')].filter((s) => getComputedStyle(s).display !== 'none').map((s) => s.textContent);
+  const want = ${touch} ? 'スマホを横にして遊ぼう！' : 'ウィンドウを横に広げて遊ぼう！';
+  if (visible.length !== 1 || visible[0] !== want) out.push('글 [' + visible.join(', ') + '] ≠ ' + want);
+  return out;
+})()`;
 
 /** 시작 카드 맞춤 검사(#335). 카드가 없으면 빈 목록(카드 없음은 아래 경고가 잡는다). */
 const CARD_FIT = `(() => {
@@ -138,9 +171,11 @@ async function runViewport(browser: Browser, v: Viewport, outDir: string): Promi
     return r;
   }
 
-  if (v.width < v.height) {
-    // A6①: 세로 회전 안내는 #68에서 생긴다. 그 전에는 스크린샷만 남기고 사람이 본다.
-    r.warnings.push('A6① 세로 회전 안내: 자동 판정 없음, 스크린샷으로 확인');
+  // A6①: 세로 회전 안내(#624). 작은 세로 화면은 안내만 보고 끝낸다(게임 입력은 안내가 삼킨다). 카드 맞춤 검사도 안내 뒤라 안 한다.
+  const rotate = wantsRotate(v);
+  for (const p of await page.evaluate<string[]>(ROTATE_CHECK(rotate, v.mobile))) r.problems.push(`세로 안내: ${p}`);
+  if (rotate) {
+    if (page.errors.length > 0) r.problems.push(`A4 콘솔 에러 ${page.errors.length}개`);
     return r;
   }
 

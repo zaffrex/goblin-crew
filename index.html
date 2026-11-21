@@ -123,6 +123,30 @@
         position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; pointer-events: none;
         font: 16px/1.4 system-ui, sans-serif; color: #fffdf5; opacity: 0.8;
       }
+      /* 세로 화면 안내(#624, 설계 9절). 쿼리는 `core/rotate.ts` ROTATE_QUERY와 같은 문자열이다(rotate.test.ts가 본다).
+         창 전체를 0번 ink로 불투명하게 덮어 밑의 카드·목표 줄·이름표가 비치지 않게 하고, 맨 위에 둔다(로딩 위도).
+         포인터를 받아 삼킨다(밑의 게임으로 안 샌다). 게임 시계·입력 정지는 main.ts가 같은 쿼리로 한다.
+         글은 JS 전에 보여야 해서 여기 직접 쓴다(ja.json 밖, 6-7-5·9-4절). 장치 구분은 시작 카드 시작 줄과 같은 쿼리. */
+      #rotate {
+        display: none; position: fixed; inset: 0; z-index: 10; margin: 0;
+        flex-direction: column; align-items: center; justify-content: center; gap: 1em;
+        background: #1b1720; pointer-events: auto; touch-action: none; user-select: none;
+        font: 600 18px/1.4 system-ui, sans-serif; color: #fff8ee; white-space: nowrap;
+      }
+      @media (orientation: portrait) and (max-width: 666px) { #rotate { display: flex; } }
+      #rotate svg { display: block; }
+      #rotate p { margin: 0; }
+      #rotate .touch { display: none; }
+      @media (hover: none) and (pointer: coarse) { #rotate .touch { display: inline; } #rotate .mouse { display: none; } }
+      /* 아이콘: 장면 A(세로) 0.8초 → 장면 B(90° 돌림) 1.2초 반복. 중간 각도 없음(step-end). 움직임 줄이기면 B만. */
+      #rotate .rot-a { animation: rot-a 2s step-end infinite; }
+      #rotate .rot-b { animation: rot-b 2s step-end infinite; }
+      @keyframes rot-a { 0% { opacity: 1; } 40% { opacity: 0; } }
+      @keyframes rot-b { 0% { opacity: 0; } 40% { opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) {
+        #rotate .rot-a { animation: none; opacity: 0; }
+        #rotate .rot-b { animation: none; opacity: 1; }
+      }
     </style>
   </head>
   <body>
@@ -141,6 +165,10 @@
       <ul></ul>
       <p class="gauge"></p>
       <p class="foot"><span class="build"></span><span class="start"></span></p>
+    </div>
+    <div id="rotate">
+      <svg viewBox="0 0 30 22" width="120" height="88" shape-rendering="crispEdges" aria-hidden="true"><g class="rot-a"><path fill="#b9adb5" d="M5 2h10v1h-10zM4 3h1v18h-1zM9 3h2v1h-2zM15 3h1v18h-1zM9 19h2v1h-2zM5 21h10v1h-10z"/><path fill="#5e5068" d="M5 3h4v1h-4zM11 3h4v1h-4zM5 4h10v1h-10zM5 5h1v13h-1zM14 5h1v13h-1zM5 18h10v1h-10zM5 19h4v1h-4zM11 19h4v1h-4zM5 20h10v1h-10z"/><path fill="#5a93a8" d="M6 5h8v1h-8zM6 6h1v1h-1zM9 6h5v1h-5zM7 7h7v1h-7zM6 8h8v10h-8z"/><path fill="#d8f0ee" d="M7 6h2v1h-2zM6 7h1v1h-1z"/></g><g class="rot-b"><path fill="#b9adb5" d="M1 6h18v1h-18zM0 7h1v10h-1zM19 7h1v4h-1zM2 11h1v2h-1zM18 11h2v2h-2zM19 13h1v4h-1zM1 17h18v1h-18z"/><path fill="#5e5068" d="M1 7h18v1h-18zM1 8h3v3h-3zM17 8h2v3h-2zM1 11h1v2h-1zM3 11h1v2h-1zM17 11h1v2h-1zM1 13h3v3h-3zM17 13h2v3h-2zM1 16h18v1h-18z"/><path fill="#5a93a8" d="M4 8h10v1h-10zM15 8h2v1h-2zM4 9h11v2h-11zM16 9h1v2h-1zM4 11h13v5h-13z"/><path fill="#d8f0ee" d="M14 8h1v1h-1zM15 9h1v2h-1z"/></g><g><path fill="#f2d65c" d="M19 0h6v1h-6zM18 1h8v1h-8zM24 2h3v1h-3zM25 3h2v3h-2zM22 6h8v1h-8zM23 7h6v1h-6zM24 8h4v1h-4z"/><path fill="#b8953a" d="M18 2h2v1h-2zM25 9h2v1h-2z"/></g></svg>
+      <p><span class="touch">スマホを横にして遊ぼう！</span><span class="mouse">ウィンドウを横に広げて遊ぼう！</span></p>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

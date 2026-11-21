@@ -25,6 +25,7 @@ import { animFrameBox, coveredIds, litFrames, loopStarts, sceneDraws, type LoopS
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
 import { isTapKey } from './core/keys';
 import { createRestartButton, loadingDone, RESTART_BOX, restartArmed, restartPress } from './core/restart';
+import { createPauseClock, gameNow, ROTATE_QUERY, setPaused } from './core/rotate';
 import { createDisplay } from './engine/display';
 import { onPointerTap } from './engine/input';
 import { startLoop } from './engine/loop';
@@ -156,6 +157,17 @@ function buildTag(sha: string | undefined): string {
 
 /** 시작 카드(설계 6-2-1절). 떠 있는 동안 장면은 멈추고(진입 연출 포함) 입력은 카드만 받는다. */
 const startCard = createStartCard();
+
+/**
+ * 세로 화면 안내(설계 9절, #624). 안내 자체는 index.html CSS가 같은 쿼리로 띄운다(JS 전부터 보인다).
+ * 여기서는 떠 있는 동안 게임을 멈춘다(9-5절): 고정 틱을 건너뛰고(카드 잠금·연출·말풍선·걷기·게이지), 입력을 버리고,
+ * 처음부터 버튼 3초(벽시계)도 멈춘 시간만큼 미룬다. 그림 읽기는 멈추지 않는다.
+ */
+const rotateMq = window.matchMedia?.(ROTATE_QUERY);
+const rotating = (): boolean => rotateMq?.matches ?? false;
+const pause = createPauseClock();
+/** 처음부터 버튼이 쓰는 시각. 안내가 떠 있던 시간은 빠진다. */
+const playNow = (): number => gameNow(pause, performance.now());
 /** 카드 특기 줄의 얼굴 칸. 얼굴 시트가 늦게 오면 다 그릴 때까지 프레임마다 다시 그린다. */
 const cardFaces = buildCard();
 
@@ -188,14 +200,15 @@ function buildCard(): { id: CharacterId; el: HTMLCanvasElement; ctx: CanvasRende
 // 카드 닫기: 카드 위·캔버스 밖·키보드 어디서든. 캔버스 탭은 캔버스 핸들러가 먼저 받아 버리고(카드가 떠 있으면 무시) 여기로 올라온다.
 // 버블 단계라 닫는 탭이 같은 이벤트로 게임에 다시 들어가지 않는다.
 // 클리어 카드도 같은 자리에서 받는다(11-1절: 화면 어디든 탭·클릭, Enter·Space). 시작 카드를 닫는 탭은 그 뒤 흐름이 `play`라 아무것도 안 한다.
+// 안내(#rotate) 위 탭도 여기로 올라온다. 떠 있으면 버린다(9-5절: 돌리자마자 카드가 닫히거나 클리어 카드가 넘어가면 안 된다).
 window.addEventListener('pointerdown', (e) => {
-  if (!loaded || !e.isPrimary || e.button !== 0) return;
+  if (!loaded || rotating() || !e.isPrimary || e.button !== 0) return;
   cardInput(startCard);
   tapFlow();
 });
 // 키는 "탭"으로 셀 수 있는 것만(반복·수정 키·브라우저 단축키 제외, PR #306 리뷰).
 window.addEventListener('keydown', (e) => {
-  if (!loaded || !isTapKey(e)) return;
+  if (!loaded || rotating() || !isTapKey(e)) return;
   cardInput(startCard);
   tapFlow();
 });
@@ -245,7 +258,7 @@ const inBox = (p: Point, b: HitBox): boolean => p.x >= b.left && p.x < b.left + 
 
 window.addEventListener('resize', () => display.resize());
 onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
-  if (!loaded || startCard.open || flow.phase !== 'play') return; // 로딩 중이거나 카드 몫(window 핸들러가 닫는다)
+  if (!loaded || rotating() || startCard.open || flow.phase !== 'play') return; // 로딩·세로 안내 중이거나 카드 몫(window 핸들러가 닫는다)
   noteTap(notes);
   if (slop > 0) lastMouse = null;
   const before = { ...session.scene.puzzle.at };
@@ -272,8 +285,9 @@ restartIcon.className = 'icon';
 restartIcon.setAttribute('aria-hidden', 'true');
 restartEl.append(restartIcon);
 restartEl.addEventListener('click', () => {
-  if (!loaded || startCard.open || flow.phase !== 'play') return;
-  if (!restartPress(restart, performance.now())) return;
+  // 안내 밑에 숨은 버튼에 초점이 남아 Enter·Space가 올 수 있다.
+  if (!loaded || rotating() || startCard.open || flow.phase !== 'play') return;
+  if (!restartPress(restart, playNow())) return;
   // 누른 뒤 초점이 남으면 Space 한 번에 다시 눌려서(두 번째 누름) 판이 또 날아간다.
   restartEl.blur();
   session.scene = createScene(session.data);
@@ -702,7 +716,7 @@ function render(): void {
   // 처음 한 번 안내가 떠 있으면 그게 먼저다(첫 감소는 busy 중에 뜬다). 다음 탭이나 2.5초 뒤 지운다.
   const note = scene.cleared ? null : currentNote(notes, scene.tick);
   // 처음부터 버튼 첫 누름 뒤에는 확인 글이 무엇보다 먼저다(두 번째 누름을 기다린다는 걸 알려야 한다, #387).
-  const armed = restartArmed(restart, performance.now());
+  const armed = restartArmed(restart, playNow());
   const restartText = armed ? t('ui.restart_confirm') : restartHover ? t('ui.restart_hover') : null;
   const labelString = restartText ?? note ?? (shown ? labelText(shown, data.screen.id, t) : (hudHover ?? ''));
   label.hidden = labelString === '';
@@ -804,6 +818,9 @@ startLoop({
     // 로딩이 끝나야 카드 잠금·장면 시간이 흐른다(#387). 한 번 끝나면 다시 보지 않는다.
     loaded ||= loadingDone(loadStates(session.art), performance.now() - loadStart);
     if (!loaded) return;
+    // 안내가 떠 있으면 판 시간을 멈춘다. 뜨는 순간 카드가 떠 있으면 잠금 1초를 처음부터 다시 센다(9-5절: 안내가 사라진 뒤부터).
+    if (setPaused(pause, rotating(), performance.now()) && pause.since !== null && startCard.open) startCard.ticks = 0;
+    if (pause.since !== null) return;
     cardTick(startCard);
     if (startCard.open) return;
     // 어두워지는 동안까지는 지난 판이 움직이고, 다 검어진 뒤(기다림·밝아짐)는 멈춘다. 새 판 진입 연출은 밝아진 뒤에 시작한다(11-1절).
