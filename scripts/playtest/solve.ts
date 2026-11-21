@@ -2,8 +2,13 @@
 // `?screen=<id>&playtest=1`로 열고, 정답 행동마다 plan.ts로 누를 곳을 고르고, 연출이 끝나길 기다린다. 끝에 `cleared`인지 본다.
 // 게임 함수로 게임을 움직이지 않는다. 읽는 것은 읽기 전용 훅 `window.__gcLayout()`뿐이다.
 //
+// `--order a,b`(#230 여러 화면 연결, ui-interaction 11-6절)면 `?playtest=1&order=a,b`로 열어 화면을 차례로 푼다.
+// 화면 사이에서는 11-6절 5번대로 `ui.next`가 보일 때(`#clear[data-next]`)까지 기다렸다가 가운데를 1번 누르고, 다음 화면이 `play`가 되길 기다린다.
+// 마지막 화면 뒤에는 끝 카드가 떠 있는지 본다.
+//
 // 사용: node --import ./scripts/playtest/register.mjs scripts/playtest/solve.ts --screen park_fountain [--url <URL>] [--out <폴더>] [--touch] [--no-sandbox]
-// 종료 코드: 클리어 못 했거나, 콘솔 에러가 있거나, 누를 곳을 못 찾으면 1.
+//       node --import ./scripts/playtest/register.mjs scripts/playtest/solve.ts --order magpie_nest,magpie_nest [...]
+// 종료 코드: 클리어 못 했거나, 콘솔 에러가 있거나, 누를 곳을 못 찾거나, 화면 전환·끝 카드가 기대와 다르면 1.
 
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -17,6 +22,7 @@ import { planAction, type Input, type Layout } from './plan.ts';
 const { values: args } = parseArgs({
   options: {
     screen: { type: 'string', default: 'magpie_nest' },
+    order: { type: 'string' },
     url: { type: 'string', default: 'http://localhost:4173/' },
     out: { type: 'string', default: 'playtest-out/solve' },
     touch: { type: 'boolean', default: false },
@@ -24,11 +30,14 @@ const { values: args } = parseArgs({
   },
 });
 
-const id = args.screen!;
-if (!/^[a-z0-9_]+$/.test(id)) throw new Error(`--screen ${id}: 화면 ID 형식이 아님`);
-const screen = JSON.parse(readFileSync(`content/screens/${id}.json`, 'utf8')) as ScreenData;
-const solution = screen.solution ?? [];
-if (!solution.length) throw new Error(`${id}: 화면 JSON에 solution이 없음`);
+const ids = args.order ? args.order.split(',') : [args.screen!];
+const screens = ids.map((id) => {
+  if (!/^[a-z0-9_]+$/.test(id)) throw new Error(`화면 ID 형식이 아님: ${id}`);
+  const screen = JSON.parse(readFileSync(`content/screens/${id}.json`, 'utf8')) as ScreenData;
+  if (!screen.solution?.length) throw new Error(`${id}: 화면 JSON에 solution이 없음`);
+  return screen;
+});
+const texts = JSON.parse(readFileSync('content/text/ja.json', 'utf8')) as Record<string, string>;
 const input: Input = args.touch ? 'touch' : 'mouse';
 const viewport = args.touch ? { width: 844, height: 390, dpr: 3, mobile: true } : { width: 1280, height: 720, dpr: 1, mobile: false };
 
@@ -52,11 +61,84 @@ async function waitIdle(page: Page, timeoutMs = 60_000): Promise<Layout> {
   }
 }
 
+interface FlowState { order: string[] | null; index: number; screen: string; phase: string }
+const flowOf = (page: Page) => page.evaluate<FlowState | null>(`typeof window.__gcFlow === 'function' ? window.__gcFlow() : null`);
+const clearCard = (page: Page) =>
+  page.evaluate<{ shown: boolean; next: boolean; text: string }>(`(() => { const c = document.querySelector('#clear'); return { shown: !c.hidden, next: c.hasAttribute('data-next'), text: c.textContent }; })()`);
+
+async function waitFor<T>(what: string, read: () => Promise<T>, ok: (v: T) => boolean, timeoutMs = 10_000): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const v = await read();
+    if (ok(v)) return v;
+    if (Date.now() > deadline) throw new Error(`${timeoutMs}ms 지나도 ${what}: ${JSON.stringify(v)}`);
+    await sleep(30);
+  }
+}
+
+/** 화면 하나의 정답을 누른다. 끝에 cleared가 아니면 problems에 적는다. */
+async function solveScreen(page: Page, screen: ScreenData, k: number, problems: string[]): Promise<void> {
+  const tag = ids.length > 1 ? `${k + 1}-${screen.id}` : screen.id;
+  await page.screenshot(join(args.out!, `${tag}-0-start.png`));
+  for (const [i, action] of screen.solution!.entries()) {
+    const plan = planAction(screen, await layoutOf(page), action, input);
+    for (const w of plan.warnings) console.log(`  ⚠️ ${w}`);
+    for (const t of plan.taps) {
+      await send(page, t.at);
+      await sleep(80);
+      await waitIdle(page);
+    }
+    const l = await layoutOf(page);
+    console.log(`${tag} ${i + 1}. ${action.char} ${action.verb} ${action.target} → 게이지 ${l.gauge}, cleared ${l.cleared}`);
+    await page.screenshot(join(args.out!, `${tag}-${i + 1}.png`));
+  }
+  if (!(await layoutOf(page)).cleared) problems.push(`${tag}: 정답을 다 눌렀는데 cleared가 아님`);
+}
+
+/**
+ * 클리어 뒤 화면 사이(11-1·11-6절). 마지막이 아니면 카드 결과 줄·`ui.next`를 보고 가운데를 눌러 다음 화면 `play`까지 기다린다.
+ * 마지막이면 끝 카드 `ui.end`가 떠 있고 `ui.next`가 없는지(타이틀 전, 11-5절) 본다.
+ */
+async function crossCard(page: Page, k: number, problems: string[]): Promise<void> {
+  const id = ids[k]!;
+  const last = k === ids.length - 1;
+  const tag = `${k + 1}-${id}`;
+  if (last) {
+    const c = await waitFor('끝 카드가 안 뜸', () => clearCard(page), (c) => c.shown);
+    await sleep(800); // 0.6초 무시가 지나도 ui.next가 안 생겨야 한다
+    const after = await clearCard(page);
+    await page.screenshot(join(args.out!, `${tag}-end-card.png`));
+    if (c.text !== texts['ui.end']) problems.push(`${tag}: 끝 카드 글이 ui.end가 아님: ${JSON.stringify(c.text)}`);
+    if (after.next) problems.push(`${tag}: 타이틀이 없는데 끝 카드에 ui.next가 보임`);
+    console.log(`${tag} 끝 카드 ✅ ${JSON.stringify(c.text)}`);
+    return;
+  }
+  const shownAt = Date.now();
+  const c = await waitFor('ui.next가 안 보임', () => clearCard(page), (c) => c.next);
+  const waited = Date.now() - shownAt;
+  await page.screenshot(join(args.out!, `${tag}-card.png`));
+  const body = texts[`${id}.clear_card`];
+  if (body !== undefined && !c.text.startsWith(body)) problems.push(`${tag}: 카드 결과 줄이 ${id}.clear_card가 아님: ${JSON.stringify(c.text)}`);
+  const before = await flowOf(page);
+  const prevActive = (await layoutOf(page)).active;
+  const tapAt = Date.now();
+  await send(page, CARD_TAP);
+  const f = (await waitFor('다음 화면이 play가 안 됨', () => flowOf(page), (f) => f !== null && f.index === k + 1 && f.phase === 'play'))!;
+  const took = Date.now() - tapAt;
+  const now = await layoutOf(page);
+  if (f.screen !== ids[k + 1]) problems.push(`${tag}: 다음 화면이 ${ids[k + 1]}가 아니라 ${f.screen}`);
+  if (now.gauge !== 5) problems.push(`${tag}: 다음 화면 게이지가 가득이 아님(${now.gauge})`);
+  if (now.cleared) problems.push(`${tag}: 다음 화면이 이미 cleared(이전 판이 샘)`);
+  console.log(`${tag} 카드 ✅ ${JSON.stringify(c.text)} (ui.next까지 ${waited}ms) → 탭 → ${f.screen} play (${took}ms, 이전 ${before?.screen}, 캐릭터 ${prevActive} → ${now.active})`);
+  await waitIdle(page);
+}
+
 async function main(): Promise<number> {
   mkdirSync(args.out!, { recursive: true });
   const u = new URL(args.url!);
   u.searchParams.set('playtest', '1');
-  u.searchParams.set('screen', id);
+  if (args.order) u.searchParams.set('order', ids.join(','));
+  else u.searchParams.set('screen', ids[0]!);
   const browser = await Browser.launch({ noSandbox: args['no-sandbox'] });
   const problems: string[] = [];
   try {
@@ -69,27 +151,22 @@ async function main(): Promise<number> {
     }
     await closeStartCard(page, () => send(page, CARD_TAP));
     await waitIdle(page);
-    await page.screenshot(join(args.out!, `${id}-0-start.png`));
-    for (const [i, action] of solution.entries()) {
-      const plan = planAction(screen, await layoutOf(page), action, input);
-      for (const w of plan.warnings) console.log(`  ⚠️ ${w}`);
-      for (const t of plan.taps) {
-        await send(page, t.at);
-        await sleep(80);
-        await waitIdle(page);
-      }
-      const l = await layoutOf(page);
-      console.log(`${i + 1}. ${action.char} ${action.verb} ${action.target} → 게이지 ${l.gauge}, cleared ${l.cleared}`);
-      await page.screenshot(join(args.out!, `${id}-${i + 1}.png`));
+    if (args.order) {
+      const f = await flowOf(page);
+      if (!f?.order) throw new Error(`?order=가 안 먹음(훅 __gcFlow: ${JSON.stringify(f)}). 연결 2단계 이전 빌드인가?`);
     }
-    const end = await layoutOf(page);
-    if (!end.cleared) problems.push('정답을 다 눌렀는데 cleared가 아님');
+    for (const [k, screen] of screens.entries()) {
+      await solveScreen(page, screen, k, problems);
+      if (problems.length) break;
+      if (args.order) await crossCard(page, k, problems);
+    }
     for (const e of page.errors) problems.push(`콘솔(${e.source}): ${e.text}`);
   } finally {
     await browser.close();
   }
   console.log(`URL: ${u.href}`);
-  console.log(problems.length ? problems.map((p) => `❌ ${p}`).join('\n') : `✅ ${id} 클리어 (${solution.length}행동, ${input})`);
+  const acts = screens.reduce((n, s) => n + s.solution!.length, 0);
+  console.log(problems.length ? problems.map((p) => `❌ ${p}`).join('\n') : `✅ ${ids.join(' → ')} 클리어 (${acts}행동, ${input})`);
   return problems.length ? 1 : 0;
 }
 

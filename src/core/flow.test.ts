@@ -103,10 +103,10 @@ describe("enterCharacter (11-3절)", () => {
 });
 
 describe("cardLines (11-2절)", () => {
-  const has = (k: string) => k === "magpie_nest.clearCard";
+  const has = (k: string) => k === "magpie_nest.clear_card";
   it("결과 줄 + ui.next", () => {
     expect(cardLines("magpie_nest", false, has)).toEqual({
-      body: "magpie_nest.clearCard",
+      body: "magpie_nest.clear_card",
       next: "ui.next",
     });
   });
@@ -116,7 +116,7 @@ describe("cardLines (11-2절)", () => {
       next: "ui.next",
     });
   });
-  it("마지막 화면은 끝 카드, clearCard를 요구하지 않는다", () => {
+  it("마지막 화면은 끝 카드, clear_card를 요구하지 않는다", () => {
     expect(cardLines("park_fountain", true, has)).toEqual({
       body: "ui.end",
       next: null,
