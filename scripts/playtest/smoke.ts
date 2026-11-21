@@ -1,5 +1,5 @@
 // M1 재생 도구 1부: 배포본 스모크 (#101).
-// 뷰포트 여러 개(데스크톱 2, 휴대폰 가로 2, 휴대폰 세로 1, 세로 모니터 1)에서 열고, 실제 마우스 클릭/터치 탭이 게임까지 가는지, 콘솔 에러(A4), 첫 화면 시간(A5)을 본다.
+// 뷰포트 여러 개(데스크톱 2, 휴대폰 가로 3, 휴대폰 세로 1, 세로 모니터 1)에서 열고, 실제 마우스 클릭/터치 탭이 게임까지 가는지, 콘솔 에러(A4), 첫 화면 시간(A5)을 본다.
 // 사용: node scripts/playtest/smoke.ts [--url <배포 URL>] [--out <폴더>] [--no-sandbox]
 // 종료 코드: A4 콘솔 에러나 입력 경로 실패면 1. A5·A6는 판정 절차대로 경고만 한다.
 
@@ -43,6 +43,8 @@ interface Viewport {
   /** 모바일은 실제 기기에 가깝게 3배. 게임 배율 계산이 장치 픽셀 기준이라 dpr에 따라 CSS 크기가 달라진다. */
   dpr: number;
   mobile: boolean;
+  /** CSS 배율 1.2 미만이라 압축 모양(`#card[data-tight]`, `#hudtags[data-tight]`)이어야 하는 뷰포트. 아래 TIGHT_STATE가 맞는지 본다. */
+  tight?: true;
 }
 
 const VIEWPORTS: Viewport[] = [
@@ -50,8 +52,11 @@ const VIEWPORTS: Viewport[] = [
   // 큰 데스크톱(CSS 배율 4). 고정 px 글자가 작게 뜨는 것(#336·#337)은 여기서만 보인다.
   { name: 'desktop-1920x1080', width: 1920, height: 1080, dpr: 1, mobile: false },
   { name: 'mobile-844x390', width: 844, height: 390, dpr: 3, mobile: true },
-  // 작은 폰 가로(iPhone SE급). CSS 배율 1.0이라 카드·HUD 이름표가 압축 모양이 된다(#335, #325).
+  // 작은 폰 가로(iPhone SE급). #713 뒤 CSS 배율 1.39라 압축 모양이 **아니다**(흔한 폰 회귀용).
   { name: 'mobile-667x375', width: 667, height: 375, dpr: 2, mobile: true },
+  // 1.2배 미만이 실제로 나오는 화면(#714): 640×360 안드로이드 가로에서 주소창이 높이를 줄인 경우. CSS 배율 1.11이라
+  // 카드·HUD 이름표가 압축 모양이 된다(#335, #325). ui-detail-checklist M1과 같은 크기.
+  { name: 'mobile-640x300', width: 640, height: 300, dpr: 2, mobile: true, tight: true },
   { name: 'portrait-390x844', width: 390, height: 844, dpr: 3, mobile: true },
   // 세로 모니터(마우스). 너비 667 이상이라 세로 안내가 **안** 뜨고 그대로 플레이된다(설계 9-1절 경계, #624).
   { name: 'portrait-1080x1920', width: 1080, height: 1920, dpr: 1, mobile: false },
@@ -102,6 +107,12 @@ const CARD_FIT = `(() => {
   if (b.top < 0 || b.left < 0 || b.right > innerWidth || b.bottom > innerHeight) out.push('카드가 창 밖으로 나감');
   return out;
 })()`;
+
+/** 압축 모양 여부(#714): 시작 카드와 HUD 이름표 층의 `data-tight`. 카드가 없으면 null. */
+const TIGHT_STATE = `({
+  card: document.querySelector('#card:not([hidden])')?.hasAttribute('data-tight') ?? null,
+  tags: document.querySelector('#hudtags')?.hasAttribute('data-tight') ?? null,
+})`;
 
 /**
  * 목표 줄 맞춤 검사(#336, 설계 6-2-2절): 캔버스 안, 오른쪽 끝이 내부 x 118(`core/hud.ts` `GOAL_RIGHT`, 둥지 그림 앞) 이하,
@@ -199,6 +210,11 @@ async function runViewport(browser: Browser, v: Viewport, outDir: string): Promi
   const sent = v.mobile ? 'touch' : 'mouse';
   // 시작 카드가 스크롤 없이 다 보이나(#335): 카드 안 스크롤이 없고, 시작 줄이 카드·창 안에 있고, 글 줄이 카드 폭을 넘지 않는다.
   for (const p of await page.evaluate<string[]>(CARD_FIT)) r.problems.push(`시작 카드: ${p}`);
+  // 압축 모양이 기대와 같은가(#714): 1.2배 미만 뷰포트가 압축 경로를 실제로 지나야 위 맞춤 검사가 그 경로를 잰다.
+  const tight = await page.evaluate<{ card: boolean | null; tags: boolean | null }>(TIGHT_STATE);
+  const wantTight = v.tight === true;
+  if (tight.card !== null && tight.card !== wantTight) r.problems.push(`시작 카드: data-tight ${tight.card} ≠ 기대 ${wantTight}`);
+  if (tight.tags !== null && tight.tags !== wantTight) r.problems.push(`얼굴 이름표: data-tight ${tight.tags} ≠ 기대 ${wantTight}`);
   // 시작 줄 문구가 입력 방식과 맞나(#364): 터치 에뮬레이션이면 タップ, 마우스면 クリック.
   const start = await page.evaluate<string | null>(`document.querySelector('#card:not([hidden]) .start')?.textContent ?? null`);
   const want = v.mobile ? 'タップ' : 'クリック';
