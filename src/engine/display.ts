@@ -36,7 +36,7 @@ export function createDisplay(screen: HTMLCanvasElement, internal: Size): Displa
       width: Math.floor(window.innerWidth * dpr),
       height: Math.floor(window.innerHeight * dpr),
     };
-    const scale = computeScale(available, internal);
+    const scale = computeScale(available, internal, dpr);
     const deviceW = Math.max(1, Math.round(internal.width * scale));
     const deviceH = Math.max(1, Math.round(internal.height * scale));
     screen.width = deviceW;
