@@ -31,8 +31,8 @@ const SCREENS = ['magpie_nest', 'park_fountain'] as const;
 const NO_POLE: Record<(typeof SCREENS)[number], string[]> = {
   // 화면 1: 까치·내복은 C2(`common.reach_wobble`), 바닥 3곳은 안 A. 진마씨 재플레이 답 전에는 안 바꾼다.
   magpie_nest: ['basket hotspotFallback', 'long_johns hotspotFallback', 'magpie hotspotFallback', 'seesaw_left hotspotFallback', 'seesaw_right hotspotFallback'],
-  // 화면 2: 셋 다 안 A(바닥이거나 tip보다 낮음). 오리는 `reach_wobble`로 바꿔도 늘어날 길이가 0이다(PR 본문 측정).
-  park_fountain: ['duck hotspotFallback', 'fountain fountain_tap', 'fountain fountain_tap_hand', 'guest hotspotFallback'],
+  // 화면 2: 분수·오리·손님은 안 A로 글자를 뺐다(바닥이거나 tip보다 낮음, 오리는 `reach_wobble`이어도 0px). 남은 줄 없음.
+  park_fountain: [],
 };
 
 function sceneData(id: string): SceneData {
