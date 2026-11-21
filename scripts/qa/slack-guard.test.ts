@@ -19,6 +19,18 @@ describe('slack.sh qa guard', () => {
     expect(r.code).not.toBe(0);
     expect(r.err).toContain('qa는 이 채널을 쓸 수 없어요');
   });
+  it('blocks general history and thread for qa (#579: qa reads no Slack history)', () => {
+    for (const args of [['history', 'general'], ['thread', 'general', '1.0']]) {
+      const r = run(ALL, ...args);
+      expect(r.code).not.toBe(0);
+      expect(r.err).toContain('qa는 이 채널을 쓸 수 없어요');
+    }
+  });
+  it('blocks general post for qa', () => {
+    const r = run(ALL, '--as', 'qa', 'post', 'general', 'hi');
+    expect(r.code).not.toBe(0);
+    expect(r.err).toContain('qa는 이 채널을 쓸 수 없어요');
+  });
   it('blocks --as pm in a qa run', () => {
     const r = run(ALL, '--as', 'pm', 'history', 'dev');
     expect(r.code).not.toBe(0);
