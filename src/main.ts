@@ -21,7 +21,7 @@ import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { pickScreen, screenTextKey } from './core/screenPick';
 import { cardLines, enterCharacter, flowTap, flowTick, flowView, nextIndex, PLAYING, playtestOrder, showCard, soloCardKey, type Flow } from './core/flow';
-import { activeFx, activeMarkerVisible, boardDrop, charPose, createScene, cuedArtView, currentBubble, drawOrder, gaugeDrop, heldArtView, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, tiltOf, type SceneData, type SceneState } from './core/scene';
+import { activeFx, activeMarkerVisible, boardDrop, charPose, createScene, cuedArtView, currentBubble, drawOrder, gaugeDrop, heldArtView, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, selectsDuringSay, shownFlags, tapContext, tiltOf, type SceneData, type SceneState } from './core/scene';
 import { animFrameBox, coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
 import { isTapKey } from './core/keys';
@@ -587,7 +587,9 @@ function render(): void {
   const { data, scene, art, spriteTops } = s;
   const layout = sceneLayout(data, scene);
   // 라벨과 호버 외곽선(형식 기록 10-1절)은 같은 대상: 마우스 호버 또는 터치 첫 탭. busy·클리어 중에는 끈다.
-  const shown = isBusy(scene) || scene.cleared ? null : (touchLabel ?? hoverLabel);
+  // 예외: 행동 뒤 마지막 말풍선 중 터치로 고른 대상(예외 넷 2, #700)은 말풍선과 함께 보인다. 안 그러면 첫 탭이 먹혔는지 안 보인다(#704).
+  const busyShown = scene.ui.selected !== null && selectsDuringSay(scene) ? touchLabel : null;
+  const shown = scene.cleared ? null : isBusy(scene) ? busyShown : (touchLabel ?? hoverLabel);
   const litTarget = shown?.target ?? null;
   // 쿵 흔들림(`ability-feedback.md` 2-1절 2): 장면 층(배경·물건·캐릭터·fx)만 세로로 민다. HUD·DOM 글자는 그대로.
   const fxNow = activeFx(scene);

@@ -12,7 +12,7 @@ import { selectLabelText } from './firstNotes';
 import { seenSayKey } from './sayText';
 import { parseSpriteMeta, spriteBox, spriteFrame } from './sprite';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { activeFx, activeMarkerVisible, sayChars, sayDuration, approachPoint, bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, gaugeBeforeSay, gaugeDrop, isBusy, runAction, sceneLayout, sceneTap, sceneTick, tapContext, RELEASE_SPREAD, TIMING, type SceneData, type SceneState } from './scene';
+import { activeFx, activeMarkerVisible, sayChars, sayDuration, approachPoint, bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, gaugeBeforeSay, gaugeDrop, isBusy, runAction, sceneLayout, sceneTap, sceneTick, selectsDuringSay, tapContext, RELEASE_SPREAD, TIMING, type SceneData, type SceneState } from './scene';
 import type { Point } from './viewport';
 
 const data: SceneData = { screen: screenJson as unknown as ScreenData, characters: charactersJson as CharactersData };
@@ -275,18 +275,20 @@ describe('busy 중 HUD 칸 탭 (설계 5절 예외 셋, #266)', () => {
   });
 
   it('말풍선 1.0초 전·후 HUD 탭은 말풍선을 넘기지 않는다. 같은 때 월드 탭은 지금처럼 skipSay', () => {
-    const s = createScene(data);
-    untilSay(s);
+    // 시작 연출 말풍선은 월드 탭이 연출째 끝낸다(예외 넷 1, #700). 여기서는 행동 뒤 말풍선(마우스)을 쓴다.
+    const s = ready();
+    sceneTap(data, s, NEST, 0, false);
+    const text = untilSay(s);
     expect(sceneTap(data, s, center(CHAR_SLOTS.ppik), 0, false).kind).toBe('intent');
     for (let i = 0; i < TIMING.saySkipAfter; i++) sceneTick(data, s);
     const before = playback(s);
     expect(sceneTap(data, s, center(CHAR_SLOTS.mukjik), 0, false)).toMatchObject({ kind: 'intent', intent: { kind: 'switch', char: 'mukjik' } });
     expect(sceneTap(data, s, center(CHAR_SLOTS.jjuk), 0, false)).toMatchObject({ kind: 'intent', intent: { kind: 'switch', char: 'jjuk' } });
     expect(playback(s)).toBe(before);
-    expect(currentBubble(s)?.text).toBe('magpie_nest.enter');
+    expect(currentBubble(s)?.text).toBe(text);
     expect(sceneTap(data, s, NEST, 0, false).kind).toBe('skipSay');
     sceneTick(data, s);
-    expect(currentBubble(s)).toBeNull();
+    expect(currentBubble(s)?.text).not.toBe(text);
   });
 
   it('자동 걷기 중 HUD 탭은 걷기를 건너뛰지 않는다', () => {
@@ -309,8 +311,9 @@ describe('busy 중 HUD 칸 탭 (설계 5절 예외 셋, #266)', () => {
   });
 
   it('busy 중 게이지·HUD 빈 띠 탭은 무시한다(말풍선도 안 넘긴다)', () => {
-    const s = createScene(data);
-    untilSay(s);
+    const s = ready();
+    sceneTap(data, s, NEST, 0, false);
+    const text = untilSay(s);
     for (let i = 0; i < TIMING.saySkipAfter; i++) sceneTick(data, s);
     const blank = { x: HUD_AREA.left + 14, y: HUD_AREA.top + HUD_AREA.height - 4 }; // 얼굴 아래 특기 이름표 띠(6-4-2절)
     expect(Object.values(sceneLayout(data, s).hud).some((b) => hitTest([{ id: 'b', box: b, z: 0 }], blank, 0))).toBe(false);
@@ -318,7 +321,7 @@ describe('busy 중 HUD 칸 탭 (설계 5절 예외 셋, #266)', () => {
     expect(sceneTap(data, s, center(GAUGE_SEGS[2]!), 0, false).kind).toBe('ignored');
     expect(sceneTap(data, s, blank, 0, false).kind).toBe('ignored');
     expect(JSON.stringify(s)).toBe(before);
-    expect(currentBubble(s)?.text).toBe('magpie_nest.enter');
+    expect(currentBubble(s)?.text).toBe(text);
     // 띠 왼쪽 이름표 자리, 띠 맨 윗줄, 얼굴 칸 사이 틈도 같다(6-3-5절·6-4-2절).
     for (const p of [{ x: 20, y: 263 }, { x: 240, y: GAUGE_BAND.top }, { x: 330, y: 18 }]) expect(sceneTap(data, s, p, 0, false).kind).toBe('ignored');
     expect(JSON.stringify(s)).toBe(before);
@@ -1508,5 +1511,149 @@ describe('터치 시소 끝 3탭: 전환 → 선택(꼬리) → 실행 (#603 7�
     expect(selectLabelText(labelText(b.intent.label, data.screen.id, t), t('ui.touch.tap_again'))).toBe('ドスン: シーソーの左端（もう一度タップで決定）');
     // C: 실행.
     expect(sceneTap(data, s, SEESAW_LEFT, 8, true)).toMatchObject({ kind: 'intent', intent: { kind: 'act', action: { char: 'mukjik', target: 'seesaw_left' } } });
+  });
+});
+
+describe('첫 탭이 버려지지 않게 (ui-interaction.md 5절 예외 넷, #700)', () => {
+  const TOUCH = 8;
+  /** 물건 anim·말풍선 등 뒤에 남은 게 없다(대기열·겹친 fx·깡충). */
+  const lastEvent = (s: SceneState): boolean => s.queue.length === 0 && s.overlays.length === 0 && Object.keys(s.hops).length === 0;
+  /** 쭉이로 둥지를 뻗어(높이 부족) 그 말풍선이 뜬 순간. 말풍선이 마지막 이벤트다. */
+  function nestSay(): SceneState {
+    const s = ready();
+    sceneTap(data, s, NEST, 0, false);
+    expect(untilSay(s)).toBe('magpie_nest.nest_too_short');
+    expect(lastEvent(s)).toBe(true);
+    return s;
+  }
+  const ticks = (s: SceneState, n: number): void => {
+    for (let i = 0; i < n; i++) sceneTick(data, s);
+  };
+
+  it('① 시작 연출 첫 틱에 둥지 터치 탭: 시작 연출이 끝나고 선택된다. 마우스 클릭은 바로 행동이다', () => {
+    const touch = createScene(data);
+    sceneTick(data, touch);
+    expect(touch.intro).toBe(true);
+    expect(sceneTap(data, touch, NEST, TOUCH, true)).toMatchObject({ kind: 'intent', intent: { kind: 'select', label: { target: 'nest' } } });
+    expect(isBusy(touch)).toBe(false);
+    expect(touch.intro).toBe(false);
+    expect(touch.ui.selected).not.toBeNull();
+    expect(currentBubble(touch)).toBeNull();
+    // 끝까지 안 본 시작 대사는 본 대사가 아니다.
+    expect(touch.seenSay).toEqual({});
+
+    const mouse = createScene(data);
+    sceneTick(data, mouse);
+    expect(sceneTap(data, mouse, NEST, 0, false)).toMatchObject({ kind: 'intent', intent: { kind: 'act', action: { char: 'jjuk', target: 'nest' } } });
+    expect(sayTexts(mouse)).toEqual(['magpie_nest.nest_too_short']);
+  });
+
+  it('① 시작 말풍선이 떠 있을 때(1.0초 전)도 월드 탭은 연출을 끝내고 처리한다. 바닥이면 걷는다', () => {
+    const s = createScene(data);
+    expect(untilSay(s)).toBe('magpie_nest.enter');
+    const r = sceneTap(data, s, { x: 300, y: 250 }, TOUCH, true);
+    expect(r).toMatchObject({ kind: 'intent', intent: { kind: 'walk' } });
+    expect(currentBubble(s)).toBeNull();
+    expect(s.walkers.jjuk.target).toEqual({ x: 300, y: 250 });
+    // 시작 연출이 끝난 뒤에는 표시가 꺼져 있다: 다음 행동의 말풍선은 예전 규칙을 따른다.
+    const t = ready();
+    expect(t.intro).toBe(false);
+  });
+
+  it('② 행동 뒤 처음 보는 말풍선 0.5초에 터치 물건 탭: 말풍선은 그대로, 선택만 한다', () => {
+    const s = nestSay();
+    ticks(s, 30);
+    const before = JSON.stringify({ current: s.current, queue: s.queue, puzzle: s.puzzle });
+    expect(sceneTap(data, s, MAGPIE, TOUCH, true)).toMatchObject({ kind: 'intent', intent: { kind: 'select', label: { target: 'magpie' } } });
+    expect(JSON.stringify({ current: s.current, queue: s.queue, puzzle: s.puzzle })).toBe(before);
+    expect(currentBubble(s)?.text).toBe('magpie_nest.nest_too_short');
+    // 잠금 전 같은 대상을 다시 탭해도 실행하지 않고 선택을 그대로 둔다.
+    const selected = s.ui.selected;
+    expect(sceneTap(data, s, MAGPIE, TOUCH, true).kind).toBe('ignored');
+    expect(s.ui.selected).toBe(selected);
+    expect(currentBubble(s)?.text).toBe('magpie_nest.nest_too_short');
+  });
+
+  it('③ 이어서 잠금(1.0초) 뒤 같은 물건 탭: 말풍선이 닫히고 바로 실행된다', () => {
+    const s = nestSay();
+    ticks(s, 30);
+    sceneTap(data, s, MAGPIE, TOUCH, true); // 선택
+    ticks(s, TIMING.saySkipAfter - 30);
+    expect(sceneTap(data, s, MAGPIE, TOUCH, true)).toMatchObject({ kind: 'intent', intent: { kind: 'act', action: { char: 'jjuk', target: 'magpie' } } });
+    expect(s.seenSay[seenSayKey('jjuk', 'magpie_nest.nest_too_short')]).toBe(true);
+    expect(s.ui.selected).toBeNull();
+    expect(sayTexts(s)).toEqual(['magpie_nest.magpie_high_five']);
+  });
+
+  it('③ 잠금 뒤 처음 선택하는 물건이면 닫고 선택한다(터치 2탭 = 실행이 말풍선 유무와 같다)', () => {
+    const s = nestSay();
+    ticks(s, TIMING.saySkipAfter);
+    expect(sceneTap(data, s, MAGPIE, TOUCH, true)).toMatchObject({ kind: 'intent', intent: { kind: 'select' } });
+    expect(isBusy(s)).toBe(false);
+    expect(sceneTap(data, s, MAGPIE, TOUCH, true)).toMatchObject({ kind: 'intent', intent: { kind: 'act' } });
+  });
+
+  it('④ 마우스는 잠금 뒤 물건 클릭이 닫기만 한다(같은 행동이 또 나가지 않게)', () => {
+    const s = nestSay();
+    ticks(s, TIMING.saySkipAfter);
+    const puzzle = JSON.stringify(s.puzzle);
+    expect(sceneTap(data, s, NEST, 0, false).kind).toBe('skipSay');
+    idle(s);
+    expect(JSON.stringify(s.puzzle)).toBe(puzzle);
+  });
+
+  it('⑤ 말풍선 뒤에 이벤트가 남았으면 터치 물건 탭은 닫기만 한다(잠금 전엔 버림)', () => {
+    const s = ready();
+    sceneTap(data, s, center(CHAR_SLOTS.ppik), 0, false);
+    sceneTap(data, s, MAGPIE, 0, false); // 삑삑이 꽥: 까치가 바닥으로
+    idle(s);
+    sceneTap(data, s, center(CHAR_SLOTS.jjuk), 0, false);
+    s.puzzle.gauge = 1;
+    s.shownGauge = 1;
+    const ground = data.screen.hotspots.magpie!.variants![0]!.box!;
+    sceneTap(data, s, center({ left: ground[0], top: ground[1], width: ground[2], height: ground[3] }), 0, false); // 쪼임 → 기절
+    untilSay(s);
+    expect(lastEvent(s)).toBe(false);
+    expect(selectsDuringSay(s)).toBe(false);
+    expect(sceneTap(data, s, NEST, TOUCH, true).kind).toBe('ignored');
+    expect(s.ui.selected).toBeNull();
+    ticks(s, TIMING.saySkipAfter);
+    expect(sceneTap(data, s, NEST, TOUCH, true).kind).toBe('skipSay');
+    expect(s.ui.selected).toBeNull();
+  });
+
+  it('⑥ 잠금 전 터치 바닥 탭은 버린다(걷지 않고 선택도 안 풀린다)', () => {
+    const s = nestSay();
+    sceneTap(data, s, MAGPIE, TOUCH, true); // 선택
+    const selected = s.ui.selected;
+    expect(sceneTap(data, s, { x: 300, y: 250 }, TOUCH, true).kind).toBe('ignored');
+    expect(s.walkers.jjuk.target).toBeNull();
+    expect(s.ui.selected).toBe(selected);
+    // 잠금 전 다른 사람 몸 탭(전환)도 버린다.
+    expect(sceneTap(data, s, center(bodies(data, s).ppik), TOUCH, true).kind).toBe('ignored');
+    expect(s.ui.active).toBe('jjuk');
+  });
+
+  it('② 고르기를 받는 말풍선(라벨을 말풍선과 함께 보일 때)은 행동 뒤 마지막 말풍선뿐이다(#704)', () => {
+    const intro = createScene(data);
+    expect(untilSay(intro)).toBe('magpie_nest.enter');
+    expect(selectsDuringSay(intro)).toBe(false);
+    const s = nestSay();
+    expect(selectsDuringSay(s)).toBe(true);
+    ticks(s, TIMING.saySkipAfter);
+    expect(selectsDuringSay(s)).toBe(true);
+    idle(s);
+    expect(selectsDuringSay(s)).toBe(false);
+  });
+
+  it('⑦ 잠금 뒤 닫고 실행하면 쉴 때와 같은 상태에서 시작한다(앞 연출의 마지막 장이 남지 않는다)', () => {
+    const s = nestSay();
+    s.held.ppik = { name: 'common.zap', ms: 500 }; // 앞 연출에서 남은 마지막 장이 있다고 치자
+    ticks(s, TIMING.saySkipAfter);
+    sceneTap(data, s, MAGPIE, TOUCH, true);
+    expect(s.held).toEqual({});
+    expect(s.current).toBeNull();
+    expect(sceneTap(data, s, MAGPIE, TOUCH, true)).toMatchObject({ kind: 'intent', intent: { kind: 'act' } });
+    expect(s.held).toEqual({});
   });
 });
