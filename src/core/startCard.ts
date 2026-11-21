@@ -78,7 +78,7 @@ export function cardRowGapPx(fontPx: number, dpr = 1): number {
 export interface CardRow {
   id: CharacterId;
   name: string;
-  /** `ui.verb.<능력>: ui.ability.<능력>` */
+  /** `ui.card.ability_row` = `特技「{verb}」{desc}`. 동사를 「」로 묶어 이름(`ノビー`)과 다른 것으로 읽히게 한다(#603 Mia 2·3·4회차, 6-2-1절). */
   ability: string;
 }
 
@@ -101,12 +101,18 @@ export function cardPointer(mq: ((query: string) => { matches: boolean }) | unde
   return mq?.('(hover: none) and (pointer: coarse)').matches ? 'touch' : 'mouse';
 }
 
+/** 특기 줄 글. `{verb}`는 HUD 얼굴 이름표·대상 라벨과 같은 낱말이라, 카드에서 본 「のばす」를 게임 속 이름표에서 바로 잇는다. */
+function abilityRow(t: (id: string) => string, ability: string): string {
+  const vars: Record<string, string> = { verb: t(`ui.verb.${ability}`), desc: t(`ui.ability.${ability}`) };
+  return t('ui.card.ability_row').replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m);
+}
+
 /** 카드 글(6-2-6절 키). 특기 줄은 캐릭터 정의 순서(HUD 칸 순서와 같다). 마지막 줄만 입력 방식에 따라 다르다(#364). */
 export function cardText(t: (id: string) => string, pointer: CardPointer = 'mouse'): CardText {
   return {
     goal: t('ui.card.goal'),
     why: t('ui.card.why'),
-    rows: CHARACTERS.map((c) => ({ id: c.id, name: t(`char.${c.id}.name`), ability: `${t(`ui.verb.${c.ability}`)}: ${t(`ui.ability.${c.ability}`)}` })),
+    rows: CHARACTERS.map((c) => ({ id: c.id, name: t(`char.${c.id}.name`), ability: abilityRow(t, c.ability) })),
     gauge: t('ui.card.gauge'),
     start: t(pointer === 'touch' ? 'ui.card.start' : 'ui.card.start_click'),
   };
