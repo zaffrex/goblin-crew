@@ -751,9 +751,11 @@ function render(): void {
     if (el.style.maxWidth !== cutMax) el.style.maxWidth = cutMax;
   }
   // 클리어 컷(L32)과 화면 하나 클리어 카드는 캐릭터 머리 위로(#662). 열쇠를 든 사람이 보여야 왜 클리어인지 안다.
-  // 게이지 0 컷(`ui.faint`)과 연결 순서(ORDER)의 카드는 예전대로 CSS 창 가운데다.
-  placeCutAbove(faintCut, cut !== null && cut !== 'ui.faint', layout.chars, scale);
-  placeCutAbove(clearCut, !ORDER, layout.chars, scale);
+  // 게이지 0 컷(`ui.faint`)과 연결 순서(ORDER)의 카드는 캐릭터를 피하지 않고 게임 화면 가운데다(#683, 설계 6-6절).
+  // CSS 기본(창 가운데)은 667×375에서 캔버스가 위로 치우쳐 26 CSS px 아래로 떴다.
+  const cast = Object.values(layout.chars);
+  placeCut(faintCut, cut === 'ui.faint' ? [] : cast, scale);
+  placeCut(clearCut, ORDER ? [] : cast, scale);
 
   // DOM 말풍선(ADR-0004 결정 3). 화자 머리 위. 카드가 떠 있으면 진입 대사는 아직이다.
   // 폭은 글로만 정하고(화자 위치와 무관), 게임 화면 안으로 민다(#329). 목표 줄·이름표를 피하므로(#351) 그것들을 놓은 뒤에 둔다.
@@ -768,15 +770,15 @@ function render(): void {
   }
 }
 
-/** 컷 상자를 `cutCenter` 자리에 둔다. `above`가 거짓이면 인라인 자리를 지워 CSS 기본(창 가운데)으로 돌린다. */
-function placeCutAbove(el: HTMLElement, above: boolean, chars: Readonly<Record<CharacterId, HitBox>>, scale: number): void {
-  if (el.hidden || !above) {
+/** 컷 상자를 `cutCenter(size, cast)` 자리에 둔다. `cast`가 비면 게임 화면 가운데다. 숨으면 인라인 자리를 지운다. */
+function placeCut(el: HTMLElement, cast: readonly HitBox[], scale: number): void {
+  if (el.hidden) {
     el.style.left = el.style.top = '';
     return;
   }
   // offset 크기는 transform(translate -50%) 전 CSS px다. 글·글자 크기를 넣은 뒤에 잰다.
   const size = { width: el.offsetWidth / scale, height: el.offsetHeight / scale };
-  placeDom(el, cutCenter(size, Object.values(chars)));
+  placeDom(el, cutCenter(size, cast));
 }
 
 /**
