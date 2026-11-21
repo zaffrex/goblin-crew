@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import texts from '../../content/text/ja.json';
 import { screenTextKey } from './screenPick';
+import { INTERNAL_WIDTH } from './config';
 import { CARD_LOCK_TICKS, cardFacePx, cardPointer, cardRowGapPx, cardTight, cardInput, cardReady, cardText, cardTick, createStartCard } from './startCard';
 
 const TEXT: Readonly<Record<string, string>> = texts;
@@ -48,6 +49,23 @@ describe('시작 카드 (ui-interaction.md 6-2-1절, #285)', () => {
         const lines = [card.goal, card.why, card.gauge, card.start, ...card.rows.map((r) => r.ability)];
         expect(lines.filter((s) => [...s].length > 30), `${screen} ${pointer}`).toEqual([]);
       }
+    }
+  });
+
+  it('특기 줄은 667×375 압축 카드 한 줄에 들어간다: 얼굴·이름 칸을 빼면 전각 23자까지(#669)', () => {
+    // `#card li`는 nowrap, 카드는 overflow: auto라 넘치면 접히지 않고 카드 전체가 가로 스크롤된다.
+    // 값은 index.html `#card[data-tight]`와 main.ts renderCard: 글자 13px, 상한 floor(480 × 0.9), 테두리 2px,
+    // padding 0.8em, 얼굴 36px(cardFacePx(1, 2)), 칸 사이 0.4em 두 번, 이름 칸 min-width 4.5em.
+    // 실측(PR #667, Chrome + Noto Sans CJK JP): `プピ` 줄 23자 = 줄 403.5px, 카드 428.3 / 432px.
+    const FONT = 13;
+    const content = Math.floor(INTERNAL_WIDTH * 0.9) - 2 * 2 - 2 * 0.8 * FONT;
+    const fixed = cardFacePx(1, 2) + 2 * 0.4 * FONT + 4.5 * FONT;
+    const maxEm = Math.floor((content - fixed) / FONT);
+    expect(maxEm).toBe(23);
+    // 전각 1em으로 센다(ASCII도 1em으로 잡아 넉넉하게). 이름이 4.5em을 넘으면 칸이 늘어나 예산이 줄어든다.
+    for (const r of cardText(t).rows) {
+      expect([...r.name].length, r.name).toBeLessThanOrEqual(4);
+      expect([...r.ability].length, r.ability).toBeLessThanOrEqual(maxEm);
     }
   });
 
