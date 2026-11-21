@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { Browser, sleep } from '../playtest/cdp.ts';
+import { assertPlayableUrl } from './url-guard.ts';
 
 const { values: args } = parseArgs({
   options: {
@@ -18,8 +19,7 @@ const { values: args } = parseArgs({
 if (!args.shot) throw new Error('--shot <png> 필요');
 const mobile = args.viewport === 'mobile';
 if (args.viewport !== 'desktop' && !mobile) throw new Error('--viewport는 desktop 또는 mobile');
-const url = new URL(args.url);
-if (url.origin !== 'https://zaffrex.github.io' && url.hostname !== 'localhost') throw new Error('배포본 URL만 열 수 있어요');
+const url = assertPlayableUrl(args.url);
 
 const steps = args.actions
   ? readFileSync(args.actions, 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
