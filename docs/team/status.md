@@ -1,6 +1,6 @@
 # 현재 상태 (PM Noah가 관리)
 
-마지막 갱신: 2026-11-21 12:50 KST
+마지막 갱신: 2026-11-21 13:45 KST
 
 이 문서는 **지금 상태 요약**이다. 150줄·16KB를 넘으면 테스트(`tests/status-size.test.ts`)가 막는다. 점검 기록은 여기 쌓지 않고, 마일스톤이 끝나거나 상한에 가까워지면 [status-log/](status-log/)로 옮긴다. 이슈·PR 상태의 진실은 GitHub다. 진행은 시각 마감이 아니라 **조건**으로 한다(운영 매뉴얼 "진행은 조건으로").
 
@@ -24,6 +24,7 @@
 - 조작은 "얼굴 고르기 → 물건 누르기" 한 번, 게이지는 아래 가로 막대([기록](../decisions/2026-11-18-one-click-interaction-bottom-gauge.md)).
 - 진마씨께 플레이를 부탁하기 전에 보이는 모양 체크리스트를 통과한다([playtest-visual-gate](../decisions/2026-11-18-playtest-visual-gate.md)).
 - 진마씨께는 **거의 완성된 판만** 올린다: 그림 완성 + Mia QA 통과(p0·p1 고친 뒤 재확인) + 체크리스트 + 대사 감수([기록](../decisions/2026-11-21-near-final-only-to-ceo.md), 11/21).
+- Mia는 일본어가 모국어인 첫 플레이어. 진행 기록은 일본어, 보고서에 "어색한 대사" 칸. 고치는 건 Luna([기록](../decisions/2026-11-21-qa-japanese-first-player.md), 11/21 #608).
 - 호칭은 "진마씨", Slack 멘션은 `{CEO}`.
 
 ## M1 남은 조건
