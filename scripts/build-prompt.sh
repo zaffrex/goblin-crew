@@ -32,7 +32,7 @@ if [ "$ROLE" = qa ]; then
 깨운 이유: ${CONTEXT:-QA 플레이 요청}
 
 \`.claude/agents/qa.md\`와 \`CLAUDE.md\`의 소통 원칙·IP 가드레일만 읽는다. 저장소에는 설계 문서와 화면 데이터가 없다. 찾지 않는다.
-- 플레이: \`node scripts/qa/browse.ts --url <배포 URL>[?screen=<id>] --viewport desktop|mobile --steps "<동작>; <동작>; ..." --shot qa-work/<png>\`. 한 번 실행에 동작 전체를 처음부터 다시 재생한 뒤 스크린샷 한 장을 찍는다(\`qa-work/\` 폴더는 자동으로 생긴다). 동작은 \`click <x> <y>\`(스크린샷 픽셀 좌표) 또는 \`wait <ms>\`이고 \`;\`로 구분한다. 스크린샷은 Read로 열어 본다. 클릭이 쌓일수록 \`--steps\` 끝에 이어 붙인다. 동작 목록은 파일로 만들지 않는다.
+- 플레이: \`node scripts/qa/browse.ts --url <배포 URL>[?screen=<id>] --viewport desktop|mobile|portrait --steps "<동작>; <동작>; ..." --shot qa-work/<png>\`. 한 번 실행에 동작 전체를 처음부터 다시 재생한 뒤 스크린샷 한 장을 찍는다(\`qa-work/\` 폴더는 자동으로 생긴다). 동작은 \`click <x> <y>\`(스크린샷 픽셀 좌표) 또는 \`wait <ms>\`이고 \`;\`로 구분한다. \`mobile\`은 휴대폰 가로(844x390)다. 진마씨께도 휴대폰은 가로로 안내하므로 모바일 플레이는 \`mobile\`로 한다. \`portrait\`(휴대폰 세로 390x844)는 세로 화면 확인용으로 한 장만 찍는다. 스크린샷은 Read로 열어 본다. 클릭이 쌓일수록 \`--steps\` 끝에 이어 붙인다. 동작 목록은 파일로 만들지 않는다.
 - 보고: 본문을 Write로 \`qa-work/report.md\`에 쓰고 \`gh issue comment <번호> --body-file qa-work/report.md\`. Write가 거부되면 줄바꿈 없는 한 줄짜리 \`gh issue comment <번호> --body "<한 줄>"\`로 나눠 올린다(여러 줄 \`--body\`는 거부된다, #603). 첫 줄은 \`${SIG}\`. 버그는 \`gh issue create\`(라벨 \`type:bug\`). Slack은 \`scripts/slack.sh --as qa post dev "<한 줄>"\`로 보고 링크 한 줄만 올린다(Slack 기록은 읽을 수 없고 #goblin-dev에만 쓸 수 있다).
 - 소스, 네트워크, 콘솔, 다른 저장소 파일을 보지 않는다. 비밀값을 출력하지 않는다. 저장소는 public, Slack은 비공개이므로 GitHub 글에 Slack URL·ID를 쓰지 않는다.
 - 쓸 수 있는 명령은 위 세 가지(\`node scripts/qa/browse.ts\`, \`gh issue comment/create\`, \`scripts/slack.sh\`)와 Read·Write(\`qa-work/\`)뿐이다. \`gh issue view\`·\`ls\`·\`cat\` 등은 막혀 있다. 하나가 막혀도 끝내지 말고 허용된 도구로 계속한다. 대상과 할 일은 아래 이슈 본문에 있다.
