@@ -7,7 +7,8 @@ import mukjikJson from '../../public/sprites/mukjik-base.json';
 import ppikJson from '../../public/sprites/ppik-base.json';
 import { hitTest, type HitBox } from './hit';
 import { CHAR_SLOTS, GAUGE_BAND, GAUGE_SEGS, HUD_AREA } from './hud';
-import { worldTargets } from './interact';
+import { labelText, worldTargets } from './interact';
+import { selectLabelText } from './firstNotes';
 import { seenSayKey } from './sayText';
 import { parseSpriteMeta, spriteBox, spriteFrame } from './sprite';
 import type { CharactersData, ScreenData } from './puzzle/types';
@@ -1477,5 +1478,30 @@ describe('같은 발 y면 연출 중·조작 중인 사람이 앞 (#506)', () =>
     const s = overlapped();
     s.ui.active = 'mukjik';
     expect(tapContext(data, s).order).toEqual(drawOrder(data, s));
+  });
+});
+
+describe('터치 시소 끝 3탭: 전환 → 선택(꼬리) → 실행 (#603 7회차, #680)', () => {
+  it('노비를 고른 채 묵직이가 선 왼쪽 끝을 탭하면 둘째 탭이 선택이고, 그 라벨에 "한 번 더 탭" 꼬리가 붙는다', () => {
+    const s = ready();
+    // 묵직이 → 왼쪽 끝, 노비 → 오른쪽 끝 (마우스로 셋업).
+    sceneTap(data, s, center(CHAR_SLOTS.mukjik), 0, false);
+    sceneTap(data, s, SEESAW_LEFT, 0, false);
+    idle(s);
+    sceneTap(data, s, center(CHAR_SLOTS.jjuk), 0, false);
+    sceneTap(data, s, SEESAW_RIGHT, 0, false);
+    idle(s);
+    expect(s.puzzle.at).toMatchObject({ mukjik: 'seesaw_left', jjuk: 'seesaw_right' });
+    expect(s.ui.active).toBe('jjuk');
+    const t = (id: string): string => (jaJson as Record<string, string>)[id] ?? id;
+
+    // A: 묵직이 몸이 끝을 덮고 있어서 전환이다.
+    expect(sceneTap(data, s, SEESAW_LEFT, 8, true)).toMatchObject({ kind: 'intent', intent: { kind: 'switch', char: 'mukjik' } });
+    // B: 선택만. 터치 라벨에는 실행 여부와 상관없이 꼬리가 붙는다.
+    const b = sceneTap(data, s, SEESAW_LEFT, 8, true);
+    if (b.kind !== 'intent' || b.intent.kind !== 'select') throw new Error(`선택이 아님: ${JSON.stringify(b)}`);
+    expect(selectLabelText(labelText(b.intent.label, data.screen.id, t), t('ui.touch.tap_again'))).toBe('ドスン: シーソーの左端（もう一度タップで決定）');
+    // C: 실행.
+    expect(sceneTap(data, s, SEESAW_LEFT, 8, true)).toMatchObject({ kind: 'intent', intent: { kind: 'act', action: { char: 'mukjik', target: 'seesaw_left' } } });
   });
 });
