@@ -19,11 +19,14 @@ if [ "$ROLE" = qa ]; then
   ISSUE_TEXT="(깨운 이유에 이슈 번호가 없다. 대상을 모르면 플레이하지 말고 #goblin-dev에 'PM에게: 대상 이슈를 모름' 한 줄만 남긴다.)"
   if [ -n "$ISSUE_NUM" ]; then
     AUTH=(); [ -n "${GH_TOKEN:-}" ] && AUTH=(-H "Authorization: Bearer ${GH_TOKEN}")
-    if JSON=$(curl -fsS --max-time 15 "${AUTH[@]}" -H 'Accept: application/vnd.github+json' \
-          "https://api.github.com/repos/${REPO:-zaffrex/goblin-crew}/issues/${ISSUE_NUM}" 2>/dev/null); then
+    # 상태 코드는 stderr로 남긴다(토큰 값은 출력하지 않는다). 일시 오류는 재시도한다.
+    if JSON=$(curl -sS --retry 2 --retry-delay 2 --max-time 15 "${AUTH[@]}" -H 'Accept: application/vnd.github+json' \
+          -w '\n%{http_code}' "https://api.github.com/repos/${REPO:-zaffrex/goblin-crew}/issues/${ISSUE_NUM}" 2>/dev/null) \
+       && CODE=${JSON##*$'\n'} && JSON=${JSON%$'\n'*} && [ "$CODE" = 200 ]; then
       # 프롬프트 출력 구분자(__PROMPT_EOF__)가 본문에 있으면 지운다.
       ISSUE_TEXT=$(printf '%s' "$JSON" | jq -r '"제목: \(.title)\n\n\(.body // "")"' | sed 's/__PROMPT_EOF__//g')
     else
+      echo "build-prompt: issue #${ISSUE_NUM} fetch failed (http=${CODE:-none}, auth=$([ -n "${GH_TOKEN:-}" ] && echo yes || echo no))" >&2
       ISSUE_TEXT="(이슈 #${ISSUE_NUM} 본문을 읽지 못했다. 플레이하지 말고 이슈 #${ISSUE_NUM}에 'PM에게: 이슈 본문을 못 읽음' 코멘트만 남긴다.)"
     fi
   fi
