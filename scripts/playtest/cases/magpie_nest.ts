@@ -67,6 +67,14 @@ const CASES: FrameCase[] = [
     action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' },
     why: '15번 거울: 왼쪽 끝 → (238, 244)로 튕겨 냄',
   },
+  // #664 3번: 고리에 매달린 쭉이가 까치 있는 둥지를 누르면 쪼이고 게이지 −1. 이유(쪼기)가 그림으로 읽히는지 본다.
+  {
+    id: 'hook-jjuk-pecked',
+    pre: [{ char: 'jjuk', verb: 'move', target: 'seesaw_left' }, { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }],
+    action: { char: 'jjuk', verb: 'stretch', target: 'nest' },
+    says: 'magpie_nest.hook_pecked',
+    why: '#664 3번(다치는 실패 #2): 까치 쪼기 → 쭉이 찌릿 → 바구니로 떨어짐 → 게이지 −1. 쪼는 까치와 「まずカササギやな」가 게이지 깎임과 같은 순간에 읽히나',
+  },
   // #419: 꽥은 원거리라 판 끝에서 내려오지 않고 돌아서기만 한다(대상 `approach`의 `squeak: stay`).
   {
     id: 'ppik-squeak-from-seesaw',

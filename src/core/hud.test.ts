@@ -98,7 +98,7 @@ describe('hudHoverText (데스크톱 호버 설명, 6-4-3절)', () => {
   it('얼굴 칸은 `{name}: {desc}` — 누구로 바꾸는지와 그 사람 특기를 말한다(#311)', () => {
     expect(hudHoverText('char.jjuk', t)).toBe('ノビー: サオを伸ばして高い所に届く');
     expect(hudHoverText('char.mukjik', t)).toBe('ズッシー: 全体重で踏みつける');
-    expect(hudHoverText('char.ppik', t)).toBe('プピ: ニワトリを鳴らして気を引く');
+    expect(hudHoverText('char.ppik', t)).toBe('プピ: ニワトリを鳴らして相手の気を引く');
   });
 
   it('터치 첫 전환 안내(abilityText)는 호버와 같은 글이고, 자리표시가 남지 않고 20자 이하다', () => {
