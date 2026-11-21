@@ -39,6 +39,12 @@ node --import ./scripts/playtest/register.mjs scripts/playtest/solve.ts --screen
 
 **C-7 말풍선 가림(#356)**: 새 말풍선이 뜰 때마다 `#bubble` DOM 상자를 `__gcLayout().hotspots`(화자 자신은 `#bubble[data-speaker]`로 뺌)와 교차한다. 둥지·까치를 1px이라도 덮으면 그 행동이 ❌, 장난감(바구니·내복)은 ⚠️만. 게임은 위·아래 자리가 물건을 덮으면 화자 옆으로 옮기므로(`core/bubble.ts` `placeBubble`) 정상이면 ❌가 없다. 화자 표시가 없는 옛 빌드는 화자 자신도 세어서 더 엄격하게 나온다.
 
+화면별 사례를 화면 크기 4개(D1·D4·M3·M1, #330)로 돌려 가림만 보려면 `cover.ts`(#598). 사례마다 핫스팟별 최대 가림 비율을 적고, 가장 많이 가린 순간을 찍는다. 다 막혔을 때 게임은 단서 → 다른 사람 몸 → 장난감 순으로 가장 덜 덮는 자리를 고른다(`placeBubble` `coverCost`).
+
+```bash
+node --import ./scripts/playtest/register.mjs scripts/playtest/cover.ts --screen park_fountain --url http://localhost:4173/ --no-sandbox --only=aux
+```
+
 | 파일 | 내용 |
 |---|---|
 | `coords.ts` | 화면 JSON 대상(핫스팟 `variants`, 서는 자리 `box`) → 내부 좌표 → CSS px. 게임 입력과 같은 `viewport.ts` 변환을 쓴다 |
@@ -49,6 +55,7 @@ node --import ./scripts/playtest/register.mjs scripts/playtest/solve.ts --screen
 | `smoke.ts` | 1부: 데스크톱 1280×720·1920×1080(마우스, dpr 1), 모바일 844×390(터치, dpr 3), 작은 폰 667×375(터치, dpr 2), 세로 390×844(스크린샷). 가로 화면마다 시작 카드가 스크롤 없이 다 보이는지 검사(#335), 목표 줄이 게임 화면 안·둥지 앞(내부 x 118)에서 끝나는지 검사(#336) |
 | `pace.ts` | 느린 PC 게임 시간(#286 4번 (b)): CPU 감속(`Emulation.setCPUThrottlingRate`, 기본 ×1·4·8·16·32)마다 바닥을 실제 클릭해 화면을 가로지르는 걷기를 재서, 벽시계 대비 px/s와 rAF 간격을 `pace.md`에 적는다. 측정 간격을 `consumeFrame`에 넣은 예상값도 같이 적어 원인이 프레임당 틱 상한인지 본다. 자동 판정 없음 |
 | `frames.ts` | 특기 연출 프레임(#284, 판정 2 시작 조건 8번): 사례마다 실제 클릭으로 특기를 쓰고, 마지막 탭부터 120ms마다 찍어 사례별 모음 PNG를 만든다. 자동 판정 없음, 사람이 본다. `--mobile`이면 휴대폰 가로. `--screen <id>`(기본 `magpie_nest`)로 화면을 고르고 `?screen=<id>`로 연다. 배포본에 없는 화면은 로컬 빌드 `--url`로. 결과는 `playtest-out/frames/<id>/` |
+| `cover.ts` | 말풍선 가림(#598): `cases/<id>.ts` 사례 × 화면 크기 4개, 말풍선이 떠 있는 동안 50ms마다 핫스팟별 가림 비율(히트 박스 기준, 화자 제외). 단서 > 0 ❌, 장난감 > 0 ⚠️. 결과는 `playtest-out/cover/<id>/report.md`와 PNG |
 | `cases/<id>.ts` | `frames.ts` 화면별 사례(#466). `magpie_nest`는 특기 연출, `park_fountain`은 설계 문서 0절 단서 표 + 9절 진입·대기 + 아하 결과(#468 단서 대조용). 화면을 늘리면 `cases/index.ts`에 한 줄. `cases.test.ts`가 Chrome 없이 `scene.ts`로 사례마다 누를 수 있는지, 기대 대사(`says`)가 뜨는지, 화면 파일 이름 = JSON id인지 본다 |
 
 재생은 말풍선 넘기기를 쓰지 않는다(ui-interaction 5절). 그래서 "걷는 중 누른 탭이 씹힌다" 같은 문제는 판정 1에서 안 보이고 판정 2(사람)에서 본다. A5(첫 화면)·A6①(세로 안내)은 `smoke.ts`가 본다.

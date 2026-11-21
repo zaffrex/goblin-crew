@@ -98,6 +98,7 @@ function overlaps(a: Rect, b: Rect): boolean {
  * 옆 배치(#356, 설계 6-5절): 말풍선 세로 변을 몸 상자 옆 `gap`에 붙이고, 위끝은 머리 위끝에 맞춘다(꼬리가 머리를 가리킨다).
  * 아래가 넘치면 화면 안으로 올리되 꼬리가 몸 높이를 벗어나면(화자를 못 가리키면) 포기한다. 화면 좌우를 넘거나 피할 상자·
  * `blockers`(물건 + 다른 사람 몸)와 겹쳐도 null. 옆에서는 밀지 않는다: 밀면 꼬리가 화자에서 떨어진다.
+ * `blockers`를 비워 부르면 놓을 수 있는 자리인지만 본다(#598 가장 덜 덮는 자리 후보).
  */
 function sideBubble(side: 'left' | 'right', anchor: BubbleAnchor, size: Size, bounds: Rect, opts: BubbleOptions, avoid: readonly Rect[], blockers: readonly Rect[]): BubblePlacement | null {
   const edge = side === 'right' ? anchor.right : anchor.left;
@@ -114,22 +115,92 @@ function sideBubble(side: 'left' | 'right', anchor: BubbleAnchor, size: Size, bo
 }
 
 /**
+ * 말풍선이 가리면 안 되는 물건(#356). `toy`면 장난감(화면 JSON에 `hintAbility`가 없는 핫스팟, #598 Luna):
+ * 반응 그림이 대사보다 먼저 끝나서 말풍선이 덮어도 잃는 게 적다. 다 막혔을 때 고르는 순서에서 가장 뒤로 간다.
+ */
+export interface KeepBox extends Rect {
+  toy?: boolean;
+}
+
+/** 상자 `k`가 말풍선에 가려진 비율(0~1). 넓이가 아니라 비율이라 작은 물건을 통째로 덮는 자리가 가장 비싸다(#598). */
+function coveredRatio(box: Rect, k: Rect): number {
+  const w = Math.min(box.left + box.width, k.left + k.width) - Math.max(box.left, k.left);
+  const h = Math.min(box.top + box.height, k.top + k.height) - Math.max(box.top, k.top);
+  const area = k.width * k.height;
+  return w <= 0 || h <= 0 || area <= 0 ? 0 : (w * h) / area;
+}
+
+/**
+ * 자리의 값(#598). [단서 물건, 다른 사람 몸, 장난감] 순으로 가려진 비율의 합. 앞 칸부터 비교한다.
+ * 단서를 조금이라도 덜 덮는 자리가 이기고, 단서가 같으면 동료 얼굴, 그다음 장난감이다.
+ */
+function coverCost(p: BubblePlacement, size: Size, keep: readonly KeepBox[], bodies: readonly Rect[]): [number, number, number] {
+  const box = { left: p.left, top: p.top, width: size.width, height: size.height };
+  const sum = (list: readonly Rect[]): number => list.reduce((acc, k) => acc + coveredRatio(box, k), 0);
+  return [sum(keep.filter((k) => !k.toy)), sum(bodies), sum(keep.filter((k) => k.toy))];
+}
+
+/**
+ * 물건 하나의 10% 미만 차이는 같다고 본다(같으면 앞 후보 = 처음 자리). 둘 다 비슷하게 덮을 때 머리 위 자리를 버리고
+ * 발 아래로 가 봐야 얻는 게 없고, 걷는 중 1px 차이로 자리가 프레임마다 뒤바뀌지도 않게 한다.
+ */
+const COST_EPS = 0.1;
+
+function cheaper(a: readonly number[], b: readonly number[]): boolean {
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]! < b[i]! - COST_EPS) return true;
+    if (a[i]! > b[i]! + COST_EPS) return false;
+  }
+  return false;
+}
+
+/**
  * 화자 머리 위 가운데에 놓고, 좌우는 게임 화면 안으로 민다.
  * 피할 상자(`avoid`, 목표 줄·HUD 이름표)와 `avoidGap`보다 가까우면 오른쪽으로 밀고, 못 밀면 발 아래로 뒤집는다(#351).
  * 위가 넘쳐도 발 아래로 뒤집고, 아래도 넘치면(화면보다 키 큰 화자는 없지만) 화면 안으로 끌어온다.
  * 그렇게 놓은 자리가 가리면 안 되는 물건(`keep`, 화면의 다른 핫스팟)과 겹치면 화자 오른쪽 → 왼쪽 옆에 둔다(#356).
  * 옆 자리는 물건에 더해 다른 사람 몸(`bodies`)과도 겹치면 안 된다. 바닥에서는 옆에 동료가 서 있어서, 물건 대신 동료 얼굴을
- * 가리게 된다. 옆에도 자리가 없으면 위·아래 자리 그대로(예전과 같음).
+ * 가리게 된다.
+ * 옆에도 빈자리가 없고 처음 자리가 단서 물건(`toy`가 아닌 것)을 덮으면(#598) 처음 자리·오른쪽 옆·왼쪽 옆·위아래 뒤집은
+ * 자리 가운데 **가장 덜 덮는 자리**를 고른다(`coverCost`: 단서 → 동료 몸 → 장난감 순, 같으면 앞 후보).
+ * 예전에는 처음 자리로 돌아가서 휴대폰에서 아하 결과를 덮었다. 장난감만 덮으면 예전처럼 처음 자리다.
  */
-export function placeBubble(anchor: BubbleAnchor, size: Size, bounds: Rect, opts: BubbleOptions, avoid: readonly Rect[] = [], keep: readonly Rect[] = [], bodies: readonly Rect[] = []): BubblePlacement {
+export function placeBubble(anchor: BubbleAnchor, size: Size, bounds: Rect, opts: BubbleOptions, avoid: readonly Rect[] = [], keep: readonly KeepBox[] = [], bodies: readonly Rect[] = []): BubblePlacement {
   const base = placeAboveOrBelow(anchor, size, bounds, opts, avoid);
   const box = { left: base.left, top: base.top, width: size.width, height: size.height };
   if (!keep.some((k) => overlaps(box, k))) return base;
   const blockers = [...keep, ...bodies];
-  return sideBubble('right', anchor, size, bounds, opts, avoid, blockers) ?? sideBubble('left', anchor, size, bounds, opts, avoid, blockers) ?? base;
+  const side = sideBubble('right', anchor, size, bounds, opts, avoid, blockers) ?? sideBubble('left', anchor, size, bounds, opts, avoid, blockers);
+  if (side) return side;
+  // 장난감만 덮으면 예전처럼 처음 자리(#598). 장난감은 반응이 대사보다 먼저 끝나고, 화면 1 배포 판(진마씨 재플레이)의
+  // 바닥 장면 자리를 바꾸지 않는다.
+  if (!keep.some((k) => !k.toy && overlaps(box, k))) return base;
+
+  const candidates = [
+    sideBubble('right', anchor, size, bounds, opts, avoid, []),
+    sideBubble('left', anchor, size, bounds, opts, avoid, []),
+    placeAboveOrBelow(anchor, size, bounds, opts, avoid, !base.below),
+  ];
+  let best = base;
+  let bestCost = coverCost(base, size, keep, bodies);
+  for (const c of candidates) {
+    if (!c) continue;
+    const cost = coverCost(c, size, keep, bodies);
+    if (cheaper(cost, bestCost)) {
+      best = c;
+      bestCost = cost;
+    }
+  }
+  return best;
 }
 
-function placeAboveOrBelow(anchor: BubbleAnchor, size: Size, bounds: Rect, opts: BubbleOptions, avoid: readonly Rect[]): BubblePlacement {
+/**
+ * 위·아래 자리. `forceBelow`를 주면(#598 뒤집은 자리 후보) 위가 비어도 아래로(true), 또는 위로(false) 둔다.
+ * 위로 강제했는데 위가 화면 밖이거나 피할 상자를 못 피하면 null. 주지 않으면 예전 규칙(위 → 못 두면 아래).
+ */
+function placeAboveOrBelow(anchor: BubbleAnchor, size: Size, bounds: Rect, opts: BubbleOptions, avoid: readonly Rect[]): BubblePlacement;
+function placeAboveOrBelow(anchor: BubbleAnchor, size: Size, bounds: Rect, opts: BubbleOptions, avoid: readonly Rect[], forceBelow: boolean): BubblePlacement | null;
+function placeAboveOrBelow(anchor: BubbleAnchor, size: Size, bounds: Rect, opts: BubbleOptions, avoid: readonly Rect[], forceBelow?: boolean): BubblePlacement | null {
   const gap = opts.avoidGap ?? 0;
   const minLeft = bounds.left + opts.margin;
   const maxLeft = bounds.left + bounds.width - opts.margin - size.width;
@@ -138,8 +209,11 @@ function placeAboveOrBelow(anchor: BubbleAnchor, size: Size, bounds: Rect, opts:
   const minTop = bounds.top + opts.margin;
   const maxTop = bounds.top + bounds.height - opts.margin - size.height;
   const aboveTop = anchor.top - opts.gap - size.height;
-  const aboveLeft = aboveTop < minTop ? null : pushRight(centred, aboveTop, anchor.x, size, maxLeft, avoid, gap, opts.tailInset);
-  const below = aboveLeft === null;
+  if (forceBelow === false && aboveTop < minTop) return null;
+  const aboveLeft = aboveTop < minTop || forceBelow === true ? null : pushRight(centred, aboveTop, anchor.x, size, maxLeft, avoid, gap, opts.tailInset);
+  // 위로 강제했는데 피할 상자를 못 피하면 후보가 아니다(목표 줄·이름표는 덮지 않는다).
+  if (forceBelow === false && aboveLeft === null) return null;
+  const below = forceBelow ?? aboveLeft === null;
   let left = aboveLeft ?? centred;
   const top = clamp(below ? anchor.bottom + opts.gap : aboveTop, minTop, maxTop);
   // 뒤집은 자리에서도 피해 본다. 거기서도 못 피하면 가운데 그대로 둔다(더 갈 곳이 없다).

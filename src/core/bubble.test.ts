@@ -146,8 +146,9 @@ describe('placeBubble side placement (#356, 6-5절)', () => {
   const TAGS = [g(298.7, 35.8, 31.6, 11), g(334.7, 35.8, 21.7, 11), g(366.7, 35.8, 21.7, 11)];
   const NEST = g(128, 30, 36, 24);
   const MAGPIE = g(134, 6, 24, 24);
-  const BASKET = g(144, 212, 32, 24);
-  const LONG_JOHNS = g(372, 112, 32, 40);
+  // 바구니·내복은 장난감(`hintAbility` 없음, #598): main.ts `bubbleKeepBoxes`가 `toy`로 넘긴다.
+  const BASKET = { ...g(144, 212, 32, 24), toy: true };
+  const LONG_JOHNS = { ...g(372, 112, 32, 40), toy: true };
   const KEEP = [NEST, MAGPIE, BASKET, LONG_JOHNS];
   const HOOK = { x: PHONE.left + 160, top: PHONE.top + 96, bottom: PHONE.top + 150, left: PHONE.left + 148, right: PHONE.left + 172 };
   const O: BubbleOptions = { margin: 4, gap: 9, tailInset: 14, avoidGap: 4 };
@@ -183,11 +184,48 @@ describe('placeBubble side placement (#356, 6-5절)', () => {
     expect(p.left + size.width).toBe(Math.floor(near.left - O.gap));
   });
 
-  it('keeps the old place when neither side fits (no worse than before)', () => {
+  it('keeps the old place when neither side fits and it covers only a toy (#598)', () => {
+    // 300px는 목표 줄 때문에 위에 못 둬서 발 아래로 뒤집혀 바구니(장난감)만 덮는다. 장난감만이면 예전 자리 그대로.
     const wide = { width: 300, height: 59 };
     const p = placeBubble(HOOK, wide, PHONE, O, [GOAL, ...TAGS], KEEP);
     expect(p.side).toBeUndefined();
     expect(p).toEqual(placeBubble(HOOK, wide, PHONE, O, [GOAL, ...TAGS]));
+    expect(hit(boxOf(p, wide), BASKET)).toBe(true);
+  });
+
+  it('keeps the old place when every candidate covers clues equally (ties go to the first place)', () => {
+    const wide = { width: 300, height: 59 };
+    const everywhere = g(0, 0, 480, 270);
+    expect(placeBubble(HOOK, wide, PHONE, O, [GOAL, ...TAGS], [everywhere])).toEqual(placeBubble(HOOK, wide, PHONE, O, [GOAL, ...TAGS]));
+  });
+
+  it('keeps the old place when it covers only toys, even if the flipped place is free (#598, screen 1 floor)', () => {
+    const floor = { x: PHONE.left + 160, top: PHONE.top + 150, bottom: PHONE.top + 190 };
+    const size = { width: 120, height: 59 };
+    const toy = { ...g(100, 80, 120, 40), toy: true };
+    const base = placeBubble(floor, size, PHONE, O, []);
+    expect(hit(boxOf(base, size), toy)).toBe(true);
+    expect(placeBubble(floor, size, PHONE, O, [], [toy])).toEqual(base);
+    // 같은 상자가 단서면 뒤집는다.
+    const clue = { ...toy, toy: false };
+    const p = placeBubble(floor, size, PHONE, O, [], [clue]);
+    expect(p.below).toBe(true);
+    expect(hit(boxOf(p, size), clue)).toBe(false);
+  });
+
+  it('prefers covering a teammate over a clue when every place covers something (#598 order: clue → body → toy)', () => {
+    // 왼쪽 끝 화자: 왼쪽 옆은 화면 밖, 위·아래는 단서, 오른쪽 옆은 동료 몸을 덮는다.
+    const edge = { x: PHONE.left + 60, top: PHONE.top + 120, bottom: PHONE.top + 160, left: PHONE.left + 48, right: PHONE.left + 72 };
+    const size = { width: 100, height: 40 };
+    const clues = [g(20, 75, 40, 30), g(20, 175, 40, 30)];
+    const mate = g(90, 120, 24, 40);
+    const p = placeBubble(edge, size, PHONE, O, [], clues, [mate]);
+    expect(p.side).toBe('right');
+    for (const k of clues) expect(hit(boxOf(p, size), k)).toBe(false);
+    expect(hit(boxOf(p, size), mate)).toBe(true);
+    // 동료 대신 장난감이면 마찬가지로 옆이지만, 위 자리가 장난감만 덮으면 예전 자리다.
+    const toys = clues.map((k) => ({ ...k, toy: true }));
+    expect(placeBubble(edge, size, PHONE, O, [], toys, [mate])).toEqual(placeBubble(edge, size, PHONE, O, []));
   });
 
   it('does not move when nothing is covered (same as before #356)', () => {
@@ -232,6 +270,7 @@ describe('placeBubble side placement (#356, 6-5절)', () => {
     expect(p.top + p.tailY!).toBe(low.top + O.tailInset);
     // 머리가 화면 맨 아래라 꼬리가 말풍선 아래 모서리를 넘으면 포기한다.
     const lower = { ...HOOK, top: PHONE.top + 262, bottom: PHONE.top + 269 };
+    // 뒤집은 자리(화면 맨 아래로 끌어온 발 아래)도 물건을 거의 같게(53% vs 59%) 덮으므로 처음 자리 그대로다(#598 COST_EPS).
     const q = placeBubble(lower, size, PHONE, O, [], keep);
     expect(q.side).toBeUndefined();
     expect(q).toEqual(placeBubble(lower, size, PHONE, O, []));
