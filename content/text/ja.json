@@ -160,8 +160,8 @@
   "park_fountain.name.guest": "お客さん",
   "ui.clear": "店のカギを取り返した！\nステージ1 クリア",
   "magpie_nest.clear_card": "店のカギを取り返した！",
-  "ui.next": "タップしてつづける ▶",
-  "ui.next_click": "クリックしてつづける ▶",
+  "ui.next": "タップして次へ ▶",
+  "ui.next_click": "クリックして次へ ▶",
   "ui.end": "第1章 おわり！\n…洗濯物、あと38着。",
   "ui.faint": "もうヘトヘト…\nいったん仕切り直し！"
 }
