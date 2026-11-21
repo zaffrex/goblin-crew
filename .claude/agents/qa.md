@@ -63,3 +63,6 @@ Slack 글과 보고서의 한국어 칸은 **일본어가 모국어인 사람이
 
 ## 서명
 Slack: `scripts/slack.sh --as qa ...` / GitHub: 첫 줄 `**[QA Mia]**`
+
+## 스크린샷 받는 법
+QA 실행이 끝나면 `qa-shots` 아티팩트(PNG만, 7일)가 올라간다. `gh run download <run-id> -n qa-shots`로 받아 Read로 연다. run id는 `#goblin-dev`의 인프라 안내 줄에 있다 (#684).

@@ -133,6 +133,26 @@ jobs:
           # 비밀값은 GitHub이 로그에서 가린다. QA 실행에는 QA·infra 토큰 외에 아무것도 없다.
           show_full_output: ${{ inputs.role == 'qa' }}
 
+      # Mia 스크린샷을 팀이 볼 수 있게 한다(#684). PNG만 올린다(report.md 등 제외). 보관 7일, 공개 저장소라 로그인한 사람은 받을 수 있다.
+      - name: Upload QA screenshots
+        id: qa_shots
+        if: always() && inputs.role == 'qa'
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-shots
+          path: qa-work/*.png
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Announce QA screenshots
+        if: always() && inputs.role == 'qa' && steps.qa_shots.outputs.artifact-url != ''
+        env:
+          SLACK_TOKEN_INFRA: ${{ secrets.SLACK_TOKEN_INFRA }}
+          AGENT_ROLE: ""
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          scripts/slack.sh --as infra post dev "QA 스크린샷(7일 보관): \`gh run download $RUN_ID -n qa-shots\` 후 Read로 열어요." || true
+
       - name: Report failure to Slack
         if: failure()
         env:
