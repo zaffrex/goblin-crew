@@ -258,11 +258,17 @@ export function tap(ctx: TapContext, ui: UiState, p: Point, slop: number, touch:
 
 const characterNames: Readonly<Record<string, true>> = Object.fromEntries(CHARACTERS.map((c) => [c.id, true]));
 
-/** 라벨 문구(설계 7절). t는 텍스트 ID → 문자열(없으면 ID를 그대로 돌려줘도 된다). */
+/**
+ * 라벨 문구(설계 7절). t는 텍스트 ID → 문자열(없으면 ID를 그대로 돌려줘도 된다).
+ * 대상이 있으면 `ui.label.<verb>` 패턴(`{target}にのる`, `{target}に{item}を使う`)으로 `<이름><조사><동사>`를 만든다(#703).
+ * 대상이 없으면(`walk`·`release`) 동사 이름표 `ui.verb.<verb>`만, 동사가 없으면(캐릭터) 이름만.
+ */
 export function labelText(label: Label, screenId: string, t: (id: string) => string): string {
   const name = (id: string): string =>
     id in characterNames ? t(`char.${id}.name`) : t(`${screenId}.name.${id}`);
   if (label.verb === null) return label.target === null ? '' : name(label.target);
-  const verb = label.verb === 'item' ? t('ui.verb.item').replace('{item}', t(`${label.item ?? ''}.name`)) : t(`ui.verb.${label.verb}`);
-  return label.target === null ? verb : `${verb}: ${name(label.target)}`;
+  const item = label.verb === 'item' ? t(`${label.item ?? ''}.name`) : '';
+  if (label.target === null) return t(`ui.verb.${label.verb}`).replace('{item}', item);
+  const vars: Record<string, string> = { target: name(label.target), item };
+  return t(`ui.label.${label.verb}`).replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m);
 }

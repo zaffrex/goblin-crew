@@ -87,15 +87,15 @@ describe('올라선 뒤 그 자리 라벨 (ui-interaction.md 6-4-1a절, #630)', 
     expect(got).toEqual({
       'jjuk>seesaw_left': null,
       'jjuk>seesaw_right': null,
-      'mukjik>seesaw_left': 'ドスン: シーソーの左端',
-      'mukjik>seesaw_right': 'ドスン: シーソーの右端',
+      'mukjik>seesaw_left': 'シーソーの左端をドスン',
+      'mukjik>seesaw_right': 'シーソーの右端をドスン',
       'ppik>seesaw_left': null,
       'ppik>seesaw_right': null,
     });
   });
 
   it('호버 라벨과 같은 글이다(새 글 없음)', () => {
-    expect(TEXT['ui.verb.stomp']).toBe('ドスン');
+    expect(TEXT['ui.label.stomp']).toBe('{target}をドスン');
     expect(TEXT['magpie_nest.name.seesaw_right']).toBe('シーソーの右端');
   });
 
@@ -114,7 +114,7 @@ describe('올라선 뒤 그 자리 라벨 (ui-interaction.md 6-4-1a절, #630)', 
     }
   });
 
-  const RIGHT = 'ドスン: シーソーの右端';
+  const RIGHT = 'シーソーの右端をドスン';
   const climb: Action = { char: 'mukjik', verb: 'move', target: 'seesaw_right' };
   const stood = standing('mukjik', 'seesaw_right');
 
@@ -181,7 +181,7 @@ describe('올라선 뒤 그 자리 라벨 (ui-interaction.md 6-4-1a절, #630)', 
 
 describe('터치 첫 탭 라벨의 "한 번 더 탭" 줄 (#661 → #680, 설계 4절)', () => {
   const HINT = TEXT['ui.touch.tap_again']!;
-  const BASE = 'のる: シーソーの左端';
+  const BASE = 'シーソーの左端にのる';
 
   it('문구가 ja.json에 있고 원래 라벨 자리({label})가 하나다', () => {
     expect(HINT.split('{label}')).toHaveLength(2);
