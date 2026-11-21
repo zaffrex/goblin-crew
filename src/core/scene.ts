@@ -288,6 +288,14 @@ function nothingAfterCurrent(s: SceneState): boolean {
 }
 
 /**
+ * busy 중에도 터치 고르기(select)를 받는 때: 행동 뒤 말풍선이 마지막 이벤트로 떠 있다(`ui-interaction.md` 5절 예외 넷 2, #700).
+ * 엔진은 이때 터치 라벨·외곽선을 말풍선과 함께 보여 준다(#704 Luna 리뷰). 다른 busy(연출 중간·시작 연출)에는 고르기가 없다.
+ */
+export function selectsDuringSay(s: SceneState): boolean {
+  return s.current?.ev.type === 'say' && !s.intro && nothingAfterCurrent(s);
+}
+
+/**
  * ▼ 조작 표시를 그릴지(#46). 행동 중·클리어 뒤에는 숨긴다.
  * 말풍선(`currentBubble`)은 `current`가 있을 때만 뜨니 busy이고, 그래서 ▼와 같은 순간에 나오지 않는다.
  */

@@ -12,7 +12,7 @@ import { selectLabelText } from './firstNotes';
 import { seenSayKey } from './sayText';
 import { parseSpriteMeta, spriteBox, spriteFrame } from './sprite';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { activeFx, activeMarkerVisible, sayChars, sayDuration, approachPoint, bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, gaugeBeforeSay, gaugeDrop, isBusy, runAction, sceneLayout, sceneTap, sceneTick, tapContext, RELEASE_SPREAD, TIMING, type SceneData, type SceneState } from './scene';
+import { activeFx, activeMarkerVisible, sayChars, sayDuration, approachPoint, bodies, charFacing, charPose, createScene, currentBubble, currentCut, drawOrder, gaugeBeforeSay, gaugeDrop, isBusy, runAction, sceneLayout, sceneTap, sceneTick, selectsDuringSay, tapContext, RELEASE_SPREAD, TIMING, type SceneData, type SceneState } from './scene';
 import type { Point } from './viewport';
 
 const data: SceneData = { screen: screenJson as unknown as ScreenData, characters: charactersJson as CharactersData };
@@ -1614,6 +1614,7 @@ describe('첫 탭이 버려지지 않게 (ui-interaction.md 5절 예외 넷, #70
     sceneTap(data, s, center({ left: ground[0], top: ground[1], width: ground[2], height: ground[3] }), 0, false); // 쪼임 → 기절
     untilSay(s);
     expect(lastEvent(s)).toBe(false);
+    expect(selectsDuringSay(s)).toBe(false);
     expect(sceneTap(data, s, NEST, TOUCH, true).kind).toBe('ignored');
     expect(s.ui.selected).toBeNull();
     ticks(s, TIMING.saySkipAfter);
@@ -1631,6 +1632,18 @@ describe('첫 탭이 버려지지 않게 (ui-interaction.md 5절 예외 넷, #70
     // 잠금 전 다른 사람 몸 탭(전환)도 버린다.
     expect(sceneTap(data, s, center(bodies(data, s).ppik), TOUCH, true).kind).toBe('ignored');
     expect(s.ui.active).toBe('jjuk');
+  });
+
+  it('② 고르기를 받는 말풍선(라벨을 말풍선과 함께 보일 때)은 행동 뒤 마지막 말풍선뿐이다(#704)', () => {
+    const intro = createScene(data);
+    expect(untilSay(intro)).toBe('magpie_nest.enter');
+    expect(selectsDuringSay(intro)).toBe(false);
+    const s = nestSay();
+    expect(selectsDuringSay(s)).toBe(true);
+    ticks(s, TIMING.saySkipAfter);
+    expect(selectsDuringSay(s)).toBe(true);
+    idle(s);
+    expect(selectsDuringSay(s)).toBe(false);
   });
 
   it('⑦ 잠금 뒤 닫고 실행하면 쉴 때와 같은 상태에서 시작한다(앞 연출의 마지막 장이 남지 않는다)', () => {
