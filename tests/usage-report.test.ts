@@ -48,7 +48,7 @@ describe('usage-report.sh loop detection', () => {
 });
 
 describe('usage-daily.sh', () => {
-  function stubs(historyOut: string): NodeJS.ProcessEnv {
+  function stubs(historyOut: string): NodeJS.ProcessEnv & { ARGS_FILE: string } {
     const bin = mkdtempSync(join(tmpdir(), 'bin-'));
     // fake gh: total_count 5 but only 2 runs returned -> truncation WARN
     writeFileSync(
@@ -71,7 +71,7 @@ describe('usage-daily.sh', () => {
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/WARN: truncated/);
     expect(r.stdout).toMatch(/^\[사용량 기록 2026-11-21\]/);
-    expect(readFileSync(env.ARGS_FILE as string, 'utf8').trim()).toBe(`--as infra history dev 999 ${OLDEST}`);
+    expect(readFileSync(env.ARGS_FILE, 'utf8').trim()).toBe(`--as infra history dev 999 ${OLDEST}`);
   });
   it('skips when the marker is already in the window', () => {
     const r = spawnSync('bash', [daily, '--dry'], { env: { ...stubs('--- ts=1 | x\n[사용량 기록 2026-11-21] ...'), USAGE_NOW: NOW }, encoding: 'utf8' });
