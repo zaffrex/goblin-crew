@@ -199,6 +199,7 @@ async function runScenarios(browser: Browser, v: Viewport, outDir: string, error
           r.warnings.push(...plan.warnings);
           const from = await saidCount(page);
           for (const t of plan.taps) {
+            if (t.skipIfSelected && (await layoutOf(page)).selected === t.skipIfSelected) continue; // 이미 골라져 있음(#710)
             r.taps.push(`${t.id}(${t.at.x},${t.at.y})`);
             await send(page, v, t.at);
             await sleep(80); // 한두 프레임: 탭이 처리되고 연출이 시작될 시간

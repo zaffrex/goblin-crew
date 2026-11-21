@@ -23,8 +23,11 @@ export interface FirstNotes {
    * `hover`가 있으면 마우스 전환 알림이다(#692): 마우스가 다른 대상으로 옮겨 가면(`noteHover`) 호버 라벨에 자리를 내준다.
    */
   note: { text: string; until: number | null; hover?: string } | null;
-  /** 서는 자리로 가는 중인 사람(6-4-1a절). busy가 풀리면 `noteStood`가 본다. */
-  climbing: { char: CharacterId; spot: string } | null;
+  /**
+   * 서는 자리로 가는 중인 사람(6-4-1a절). busy가 풀리면 `noteStood`가 본다.
+   * `touch`: 올라서기를 실행한 탭이 터치였나. 터치면 안내 글 대신 그 자리 특기를 고른 상태로 만든다(6-4-1a-1절, #710).
+   */
+  climbing: { char: CharacterId; spot: string; touch: boolean } | null;
   /** 서 있는 자리에 특기를 한 번이라도 쓴 캐릭터. 그 판에서 올라선 뒤 라벨을 다시 안 띄운다(6-4-1a절). */
   usedHere: Set<CharacterId>;
 }
@@ -97,9 +100,9 @@ export function currentNote(n: FirstNotes, tick: number): string | null {
  * 실행된 행동 하나(마우스 클릭, 터치 둘째 탭). `before`는 탭 **전** 그 사람 자리(`puzzle.at`, `step`이 바꾸기 전).
  * 서는 자리로 `move`면 올라서기 시작, 선 자리에 자기 특기면 "써 봤다"로 센다(6-4-1a절).
  */
-export function noteAction(n: FirstNotes, action: Action, before: string): void {
+export function noteAction(n: FirstNotes, action: Action, before: string, touch = false): void {
   if (action.verb === 'move') {
-    n.climbing = action.target === FLOOR ? null : { char: action.char, spot: action.target };
+    n.climbing = action.target === FLOOR ? null : { char: action.char, spot: action.target, touch };
     return;
   }
   n.climbing = null;
@@ -112,21 +115,32 @@ export function noteAction(n: FirstNotes, action: Action, before: string): void 
  * 이 함수는 rules를 읽는다. 라벨 판정(`interact.ts` 원칙 1)은 그대로 rules를 안 읽고, 이건 안내를 띄울지만 정한다.
  */
 export function standLabel(ctx: PuzzleView, rules: readonly RuleDef[], char: CharacterId, spot: string): Label | null {
+  return standSelect(ctx, rules, char, spot)?.label ?? null;
+}
+
+/**
+ * 터치로 올라선 뒤 엔진이 대신 고를 것(6-4-1a-1절, #710). `standLabel`과 같은 조건이고, 4절 "첫 탭 = 선택"과 같은 상태가 되도록
+ * 그 자리를 다시 눌렀을 때 나오는 행동 키(`ui.selected`)와 라벨(터치 선택 라벨)을 준다. 다음 탭이 같은 끝이나 서 있는 내 몸이면 바로 실행된다.
+ */
+export function standSelect(ctx: PuzzleView, rules: readonly RuleDef[], char: CharacterId, spot: string): { key: string; label: Label } | null {
   if (ctx.puzzle.at[char] !== spot) return null;
   const r = targetIntent(ctx, char, { kind: 'spot', ref: spot }, { x: 0, y: 0 });
   const ability = characterDef(char).ability;
   if (r.kind !== 'act' || r.label.verb !== ability) return null;
-  return rules.some((rule) => rule.target === spot && rule.verb === ability) ? r.label : null;
+  return rules.some((rule) => rule.target === spot && rule.verb === ability) ? { key: r.key, label: r.label } : null;
 }
 
 /**
  * busy가 풀린 첫 프레임에 부른다. 방금 서는 자리로 간 사람이 지금 고른 사람이고(조건 ①), 아직 그 자리 특기를 안 써 봤고,
  * 다른 처음 한 번 안내가 떠 있지 않으면 2.5초(또는 다음 탭까지) 그 라벨을 띄운다. `text`가 null이면(조건 ②·③) 안 띄운다.
+ * 올라서기가 터치였으면 글을 띄우지 않고 `{ char, spot }`을 돌려준다. 부른 쪽이 `standSelect`로 그 자리 특기를 고른다(6-4-1a-1절, #710).
  */
-export function noteStood(n: FirstNotes, active: CharacterId, tick: number, text: (c: { char: CharacterId; spot: string }) => string | null): void {
+export function noteStood(n: FirstNotes, active: CharacterId, tick: number, text: (c: { char: CharacterId; spot: string }) => string | null): { char: CharacterId; spot: string } | null {
   const c = n.climbing;
   n.climbing = null;
-  if (!c || c.char !== active || n.usedHere.has(c.char) || currentNote(n, tick) !== null) return;
+  if (!c || c.char !== active || n.usedHere.has(c.char) || currentNote(n, tick) !== null) return null;
+  if (c.touch) return { char: c.char, spot: c.spot };
   const s = text(c);
   if (s) n.note = { text: s, until: tick + GAUGE_NOTE_TICKS };
+  return null;
 }

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { characterDef, characterFaceBox, characterHitBox, CHARACTERS, type CharacterId } from '../../src/core/characters';
 import type { HitBox } from '../../src/core/hit';
+import { createFirstNotes, noteAction, noteStood, standSelect } from '../../src/core/firstNotes';
 import { CHAR_SLOTS } from '../../src/core/hud';
 import { actionKey, resolveTap, tap, type TapContext, type UiState } from '../../src/core/interact';
 import { initialState, step } from '../../src/core/puzzle/step';
@@ -47,6 +48,8 @@ function replay(touch: boolean): { taps: string[]; final: PuzzleState } {
   let puzzle = initialState(screen);
   let ui: UiState = { active: 'jjuk', selected: null };
   const taps: string[] = [];
+  // main.ts와 같은 순서로 올라선 뒤를 흉내 낸다: 실행한 행동을 적고(noteAction), busy가 풀리면(step 뒤) noteStood → 터치면 standSelect(6-4-1a-1절, #710).
+  const notes = createFirstNotes(puzzle.gauge, ui.active);
   const press = (p: Point, what: string): ReturnType<typeof tap>['intent'] => {
     const r = tap(ctxFor(puzzle), ui, p, slop, touch);
     ui = r.ui;
@@ -54,16 +57,17 @@ function replay(touch: boolean): { taps: string[]; final: PuzzleState } {
     return r.intent;
   };
 
-  /** 대상을 눌러 행동 하나를 실행한다(터치는 선택 + 실행). */
+  /** 대상을 눌러 행동 하나를 실행한다(터치는 선택 + 실행. 이미 골라져 있으면 실행만). */
   const run = (p: Point, target: string, expected: Action): void => {
     let intent = press(p, target);
-    if (touch) {
-      expect(intent.kind).toBe('select');
-      intent = press(p, target);
-    }
+    if (touch && intent.kind === 'select') intent = press(p, target);
     expect(intent).toMatchObject({ kind: 'act', action: expected });
     if (intent.kind !== 'act') throw new Error('unreachable');
+    noteAction(notes, intent.action, puzzle.at[intent.action.char]!, touch);
     puzzle = step(screen, puzzle, intent.action).state;
+    const stood = noteStood(notes, ui.active, 0, () => null);
+    const sel = stood && ui.selected === null ? standSelect({ screen, puzzle }, screen.rules, stood.char, stood.spot) : null;
+    if (sel) ui = { ...ui, selected: sel.key };
   };
 
   for (const a of screen.solution ?? []) {
@@ -93,10 +97,10 @@ describe('magpie_nest solution by taps (ui-interaction.md 6-4-1·6-4-7절)', () 
     expect(final.flags[screen.exitFlag]).toBe(true);
   });
 
-  it('터치: step 행동만 탭 2번. 3번은 탭 4번(선택·올라섬·선택·쿵)', () => {
+  it('터치: step 행동만 탭 2번. 3번은 탭 3번(선택·올라섬·쿵, 올라선 순간 쿵이 골라져 있다, 6-4-1a-1절 #710)', () => {
     const { taps, final } = replay(true);
     expect(taps.filter((t) => !t.includes(':'))).toEqual([
-      'magpie', 'magpie', 'seesaw_left', 'seesaw_left', 'seesaw_right', 'seesaw_right', 'seesaw_right', 'seesaw_right', 'nest', 'nest',
+      'magpie', 'magpie', 'seesaw_left', 'seesaw_left', 'seesaw_right', 'seesaw_right', 'seesaw_right', 'nest', 'nest',
     ]);
     expect(final.flags[screen.exitFlag]).toBe(true);
   });
