@@ -71,6 +71,14 @@ describe("ja.json 줄 규칙 (ja-text.md 2절, #280)", () => {
     }
   });
 
+  it("HUD 얼굴 이름표(캐릭터 이름)는 4자 이하 (칸 간격 37, #676)", () => {
+    const keys = ["jjuk", "mukjik", "ppik"].map((id) => `char.${id}.name`);
+    for (const k of keys) {
+      expect(texts[k], k).toBeDefined();
+      expect(len(texts[k]!), `${k} ${texts[k]}`).toBeLessThanOrEqual(4);
+    }
+  });
+
   it("게이지 이름표는 8자 이하, 클리어 카드는 줄당 12자 이하", () => {
     expect(len(texts["ui.hud.gauge"]!)).toBeLessThanOrEqual(8);
     for (const line of texts["ui.clear"]!.split("\n"))
