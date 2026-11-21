@@ -103,7 +103,7 @@
   "ui.card.start": "タップしてスタート",
   "ui.card.start_click": "クリックしてスタート",
   "ui.ability.stretch": "サオを伸ばして高い所に届く",
-  "ui.ability.stomp": "全体重で踏んで揺らす",
+  "ui.ability.stomp": "全体重で踏みつける",
   "ui.ability.squeak": "ニワトリを鳴らして気を引く",
   "ui.hud.gauge_first_drop": "ゲージが1マス減った！0で全員スタートに戻る",
   "ui.restart": "最初から",

@@ -97,7 +97,7 @@ describe('hudTags (늘 보이는 이름표, 설계 6-4-2절)', () => {
 describe('hudHoverText (데스크톱 호버 설명, 6-4-3절)', () => {
   it('얼굴 칸은 `{name}: {desc}` — 누구로 바꾸는지와 그 사람 특기를 말한다(#311)', () => {
     expect(hudHoverText('char.jjuk', t)).toBe('ノビー: サオを伸ばして高い所に届く');
-    expect(hudHoverText('char.mukjik', t)).toBe('ズッシー: 全体重で踏んで揺らす');
+    expect(hudHoverText('char.mukjik', t)).toBe('ズッシー: 全体重で踏みつける');
     expect(hudHoverText('char.ppik', t)).toBe('プピ: ニワトリを鳴らして気を引く');
   });
 
