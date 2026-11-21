@@ -169,7 +169,7 @@ export function hudTags(t: Text): HudTag[] {
   return tags;
 }
 
-/** 특기 설명 `{name}: {desc}`(설계 6-4-3절). 데스크톱 얼굴 칸 호버 글이다(호버 때는 아직 안 바뀌었으니 `交代`가 없다). */
+/** 특기 설명 `{name}：{desc}`(설계 6-4-3절). 데스크톱 얼굴 칸 호버 글이다(호버 때는 아직 안 바뀌었으니 `交代`가 없다). */
 export function abilityText(char: CharacterId, t: Text): string {
   const ability = characterDef(char).ability;
   return fill(t('ui.hud.char_hover'), { name: t(`char.${char}.name`), verb: t(`ui.verb.${ability}`), desc: t(`ui.ability.${ability}`) });

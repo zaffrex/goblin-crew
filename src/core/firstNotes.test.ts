@@ -11,8 +11,8 @@ const TEXT: Record<string, string> = texts;
 const DROP = TEXT['ui.hud.gauge_first_drop']!;
 
 describe('첫 전환 특기 설명 (ui-interaction.md 6-4-3절, #311)', () => {
-  const MUK = 'ズッシー: 全体重で踏みつける';
-  const PPIK = 'プピ: ニワトリを鳴らして相手の気を引く';
+  const MUK = 'ズッシー：全体重で踏みつける';
+  const PPIK = 'プピ：ニワトリを鳴らして相手の気を引く';
 
   it('캐릭터마다 처음 바꿀 때 한 번만 뜨고, 다음 탭에서 지운다(시간으로는 안 지운다)', () => {
     const n = createFirstNotes(5, 'jjuk');
@@ -29,11 +29,11 @@ describe('첫 전환 특기 설명 (ui-interaction.md 6-4-3절, #311)', () => {
 
   it('처음 캐릭터는 시작 카드가 말했으니 다시 돌아와도 안 띄운다', () => {
     const n = createFirstNotes(5, 'jjuk');
-    noteSwitch(n, 'jjuk', 'ノビー: …');
+    noteSwitch(n, 'jjuk', 'ノビー：…');
     expect(currentNote(n, 0)).toBeNull();
     noteSwitch(n, 'mukjik', MUK);
     noteTap(n);
-    noteSwitch(n, 'jjuk', 'ノビー: …');
+    noteSwitch(n, 'jjuk', 'ノビー：…');
     expect(currentNote(n, 0)).toBeNull();
   });
 });
