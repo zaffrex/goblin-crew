@@ -13,6 +13,7 @@
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
+import { soloCardKey } from '../../src/core/flow.ts';
 import type { ScreenData } from '../../src/core/puzzle/types.ts';
 import { CARD_TAP, closeStartCard } from './card.ts';
 import { Browser, sleep, type Page } from './cdp.ts';
@@ -99,6 +100,17 @@ async function solveScreen(page: Page, screen: ScreenData, k: number, problems: 
  * 클리어 뒤 화면 사이(11-1·11-6절). 마지막이 아니면 카드 결과 줄·`ui.next`를 보고 가운데를 눌러 다음 화면 `play`까지 기다린다.
  * 마지막이면 끝 카드 `ui.end`가 떠 있고 `ui.next`가 없는지(타이틀 전, 11-5절) 본다.
  */
+/** 순서 없이 화면 하나(#597): 클리어 컷 뒤 카드 글이 `soloCardKey` 규칙과 같은가. ui.next는 없다(다음 화면이 없다). */
+async function soloCard(page: Page, problems: string[]): Promise<void> {
+  const id = ids[0]!;
+  const key = soloCardKey(id, (k) => k in texts);
+  const c = await waitFor('클리어 카드가 안 뜸', () => clearCard(page), (c) => c.shown);
+  await page.screenshot(join(args.out!, `1-${id}-clear-card.png`));
+  if (c.text !== texts[key]) problems.push(`1-${id}: 클리어 카드 글이 ${key}가 아님: ${JSON.stringify(c.text)}`);
+  if (c.next) problems.push(`1-${id}: 화면 하나인데 클리어 카드에 ui.next가 보임`);
+  console.log(`1-${id} 클리어 카드 ✅ ${key} ${JSON.stringify(c.text)}`);
+}
+
 async function crossCard(page: Page, k: number, problems: string[]): Promise<void> {
   const id = ids[k]!;
   const last = k === ids.length - 1;
@@ -159,6 +171,7 @@ async function main(): Promise<number> {
       await solveScreen(page, screen, k, problems);
       if (problems.length) break;
       if (args.order) await crossCard(page, k, problems);
+      else await soloCard(page, problems);
     }
     for (const e of page.errors) problems.push(`콘솔(${e.source}): ${e.text}`);
   } finally {
