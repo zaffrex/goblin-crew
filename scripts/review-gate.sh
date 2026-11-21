@@ -17,7 +17,7 @@ role_of() { jq -r --arg f "$1" '.roles | to_entries[] | select(.value.signature 
 
 [ "$(jq -r '.state' <<<"$pr")" = open ] || { echo "PR not open"; exit 0; }
 pr_user=$(jq -r '.user.login' <<<"$pr")
-if [ "$pr_user" = "$CEO" ]; then state success "사장님 PR"; exit 0; fi
+if [ "$pr_user" = "$CEO" ]; then state success "진마씨 PR"; exit 0; fi
 
 files=$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename')
 if ! grep -qvE '^(docs/meetings/|docs/decisions/|docs/team/status\.md$)' <<<"$files"; then

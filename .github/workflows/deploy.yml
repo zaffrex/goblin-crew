@@ -43,3 +43,19 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v5
+
+  notify:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Notify #goblin-github with the build hash
+        env:
+          SLACK_TOKEN_INFRA: ${{ secrets.SLACK_TOKEN_INFRA }}
+          SHA: ${{ github.sha }}
+        run: |
+          # 화면 구석 빌드 번호는 VITE_BUILD_SHA 앞 7자리와 같다 (A3, #460).
+          # #goblin-dev는 모든 역할이 매 실행마다 읽으므로 하루 70건 알림은 #goblin-github로 보낸다.
+          # 알림 실패가 배포 결과를 바꾸지 않도록 || true.
+          SUBJECT=$(git log -1 --format=%s)
+          scripts/slack.sh --as infra post github "배포 완료: \`${SHA:0:7}\` ${SUBJECT} (화면 구석 빌드 번호와 같아요) https://zaffrex.github.io/goblin-crew/" || true
