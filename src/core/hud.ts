@@ -12,9 +12,13 @@ export type HudId = `char.${CharacterId}`;
 const SLOT = 28;
 const slot = (left: number, top: number): HitBox => ({ left, top, width: SLOT, height: SLOT });
 
-/** 캐릭터 칸: 쭉이 / 묵직이 / 삑삑이, (300,4)부터 32px 간격. 동사 버튼·아이템 칸은 없다(설계 6-4-2절, #311). */
+/**
+ * 캐릭터 칸: 쭉이 / 묵직이 / 삑삑이, (300,4)부터 37px 간격(x 300 / 337 / 374, 끝 402). 동사 버튼·아이템 칸은 없다(설계 6-4-2절, #311).
+ * 간격은 얼굴 이름표가 사람 이름(`ズッシー` 4자)이 되면서 32 → 37(#676). 32면 1.0배에서 `ノビー`–`ズッシー`가 겹친다.
+ */
+export const CHAR_SLOT_STEP = 37;
 export const CHAR_SLOTS: Readonly<Record<CharacterId, HitBox>> = Object.fromEntries(
-  CHARACTERS.map((c, i) => [c.id, slot(300 + 32 * i, 4)]),
+  CHARACTERS.map((c, i) => [c.id, slot(300 + CHAR_SLOT_STEP * i, 4)]),
 ) as Record<CharacterId, HitBox>;
 
 /**
@@ -77,11 +81,11 @@ export function goalMaxWidthPx(scale: number): number {
 export const GOAL_ZONE: HitBox = { left: GOAL_AT.x, top: GOAL_AT.y, width: GOAL_RIGHT - GOAL_AT.x, height: 34 };
 
 /**
- * HUD 영역 (300,4)–(392,48): 얼굴 3칸 + 아래 특기 이름표 띠(y 36–48, 설계 6-4-2절). 이 안의 탭은 칸에 맞지 않아도
+ * HUD 영역 (300,4)–(402,48): 얼굴 3칸 + 아래 얼굴(이름) 이름표 띠(y 36–48, 설계 6-4-2절). 이 안의 탭은 칸에 맞지 않아도
  * 월드(바닥 걷기 등)로 넘기지 않는다. 칸 사이 틈이나 이름표를 눌러 캐릭터가 화면 위로 걸어가지 않게 한다.
  * 화면 설계 규칙의 `validate.ts` `HUD_BOX`(300,4,176,72)는 이보다 넓게 그대로 둔다(코어, 6-4-2절). 이 영역은 그 안에 있어야 한다.
  */
-export const HUD_AREA: HitBox = { left: 300, top: 4, width: 92, height: 44 };
+export const HUD_AREA: HitBox = { left: 300, top: 4, width: 102, height: 44 };
 
 /** 탭이 월드(걷기·대사 넘기기)로 가지 않는 곳: 오른쪽 위 HUD 영역과 맨 아래 게이지 띠(6-3-5절). */
 export function inHudZone(p: Point): boolean {
@@ -104,7 +108,7 @@ export interface HudTag {
   text: string;
 }
 
-/** 특기 이름표 위끝: 지금 캐릭터 막대(y 33–34) 아래 1px(6-4-2절). */
+/** 얼굴 이름표 위끝: 지금 캐릭터 막대(y 33–34) 아래 1px(6-4-2절). */
 export const CHAR_TAG_TOP = 36;
 
 /** HUD 이름표 글자 크기(CSS px): 내부 7px × 화면 CSS 배율, 최소 11(6-1-2절). */
@@ -152,11 +156,14 @@ type Text = (id: string) => string;
 
 const fill = (s: string, vars: Record<string, string>): string => s.replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m);
 
-/** 얼굴 아래 특기 이름표 = 그 사람 능력 동사(`ui.verb.stretch` 등, 라벨 동사와 같은 말), 게이지는 `ui.hud.gauge`. 지금 캐릭터와 무관하다. */
+/**
+ * 얼굴 아래 이름표 = 그 사람 이름(`char.<id>.name`, 시작 카드 이름 칸·힌트 대사와 같은 말, #676), 게이지는 `ui.hud.gauge`.
+ * 지금 캐릭터와 무관하다. 처음엔 특기 동사(`ui.verb.<능력>`)였는데 플레이어가 동사를 이름으로 읽었다(6-4-2절).
+ */
 export function hudTags(t: Text): HudTag[] {
   const tags: HudTag[] = CHARACTERS.map((c) => {
     const b = CHAR_SLOTS[c.id];
-    return { id: `char.${c.id}` as const, x: b.left + b.width / 2, y: CHAR_TAG_TOP, anchor: 'top-center' as const, text: t(`ui.verb.${c.ability}`) };
+    return { id: `char.${c.id}` as const, x: b.left + b.width / 2, y: CHAR_TAG_TOP, anchor: 'top-center' as const, text: t(`char.${c.id}.name`) };
   });
   tags.push({ id: 'gauge', ...GAUGE_TAG_AT, anchor: 'middle-left', text: t('ui.hud.gauge') });
   return tags;
