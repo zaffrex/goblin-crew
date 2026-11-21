@@ -103,6 +103,17 @@ export function isOnFloor(ctx: TapContext, char: CharacterId): boolean {
 }
 
 /**
+ * 캐릭터가 지금 선 "누를 수 있는 서는 자리"의 ID. `box`가 있고 `free`·`hold`가 아닌 자리(화면 1 시소 끝)만이다. 아니면 null.
+ * 여기 선 지금 캐릭터의 몸을 누르면 그 자리를 누른 것과 같다(설계 6-4-1b절, #630 2단계).
+ * `box` 없는 자리(화면 2 `fountain_seat`)는 원래 누를 수 없는 자리라 몸으로도 새 행동을 열지 않는다.
+ */
+export function standSpot(ctx: PuzzleView, char: CharacterId): string | null {
+  const here = ctx.puzzle.at[char];
+  const spot = ctx.screen.spots[here];
+  return spot?.box && !spot.free && !spot.hold ? here : null;
+}
+
+/**
  * 몸 대신 얼굴 상자로 전환을 받는 자리에 있나(설계 2-1절 #427). 바닥(`free`)과, 바닥 앞에 놓인 고정 점(상자·`hold`·`board`가 없는
  * 자리, 화면 2 `fountain_seat` #517)이다. 판 끝·고리에 있는 사람은 몸 전체가 대상이다.
  */
@@ -114,18 +125,21 @@ export function usesFaceBox(ctx: TapContext, char: CharacterId): boolean {
 
 /**
  * 월드 히트 대상. 엔진 그리기·재생 도구 훅(`?playtest=1`)도 이 배열을 그대로 쓴다.
- * 지금 캐릭터 몸은 뺀다. 단 `hold` 자리에 있으면 넣는다(설계 2절).
+ * 지금 캐릭터 몸은 뺀다. 단 `hold` 자리(설계 2절)나 누를 수 있는 서는 자리(`standSpot`, 6-4-1b절)에 있으면 넣는다.
+ * 서는 자리 위 내 몸은 다른 사람 몸·얼굴과 겹치면 늘 진다(전환 우선, 6-4-1b절).
  * 바닥(또는 바닥 앞 고정 점, `usesFaceBox`)에 선 다른 캐릭터는 몸 대신 얼굴 상자다(설계 2-1절, #427). 몸통·다리를 누르면 그 사람이 없는 것처럼
  * 뒤의 대상이나 바닥으로 판정한다. 겹친 순서(z)는 그대로 몸 기준이다.
  */
 export function worldTargets(ctx: TapContext, ui: UiState): WorldTarget[] {
   const out: WorldTarget[] = [];
   for (const c of CHARACTERS) {
-    if (c.id === ui.active && !isHolding(ctx, c.id)) continue;
+    if (c.id === ui.active && !isHolding(ctx, c.id) && !standSpot(ctx, c.id)) continue;
     const body = ctx.bodies[c.id];
     const box = c.id !== ui.active && usesFaceBox(ctx, c.id) ? ctx.faces[c.id] : body;
     const rank = ctx.order?.indexOf(c.id) ?? -1;
-    const z = CHAR_Z_BASE + (rank >= 0 ? rank : body.top + body.height);
+    // 서는 자리 위 내 몸은 다른 사람 몸·얼굴 아래(전환 우선), 핫스팟·자리 위다(6-4-1b절 히트 순서).
+    const own = c.id === ui.active && !isHolding(ctx, c.id);
+    const z = own ? CHAR_Z_BASE - 1 : CHAR_Z_BASE + (rank >= 0 ? rank : body.top + body.height);
     out.push({ id: `char:${c.id}`, kind: 'char', ref: c.id, box, z });
   }
   for (const [id, spot] of Object.entries(ctx.screen.spots)) {
@@ -209,8 +223,13 @@ export function resolveTap(ctx: TapContext, ui: UiState, p: Point, slop: number)
   if (!hit) return targetIntent(ctx, me, null, p);
   if (hit.kind === 'char') {
     const id = hit.ref as CharacterId;
-    // 매달린 내 몸(설계 2절 hold 예외): 아무 일 없음.
-    if (id === me) return { kind: 'none', label: { verb: null, target: id } };
+    if (id === me) {
+      // 서는 자리 위 내 몸 = 그 자리(6-4-1b절, #630 2단계). 묵직이 머리를 눌러도 쿵이다. 걸어 내려가지 않는다.
+      const spot = standSpot(ctx, me);
+      if (spot) return targetIntent(ctx, me, { kind: 'spot', ref: spot }, p);
+      // 매달린 내 몸(설계 2절 hold 예외): 아무 일 없음.
+      return { kind: 'none', label: { verb: null, target: id } };
+    }
     return { kind: 'switch', char: id, label: { verb: null, target: id } };
   }
   return targetIntent(ctx, me, { kind: hit.kind, ref: hit.ref }, p);
