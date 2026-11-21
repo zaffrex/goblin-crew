@@ -14,7 +14,7 @@ import { actorEdgeAt, besideFeetAt, dustPush, FX_COLORS, FX_STYLE, fxTextSpot, S
 import { drawnByShape, frameNudges, fxNudges, particleFx, shapeParticles, type Nudge } from './core/fxShape';
 import type { HitBox } from './core/hit';
 import { cardFacePx, cardInput, cardPointer, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
-import { createFirstNotes, currentNote, noteGauge, noteSwitch, noteTap } from './core/firstNotes';
+import { createFirstNotes, currentNote, noteAction, noteGauge, noteStood, noteSwitch, noteTap, standLabel } from './core/firstNotes';
 import { abilityText, cutFontPx, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
@@ -143,8 +143,12 @@ let touchLabel: Label | null = null;
 let hoverLabel: Label | null = null;
 /** 데스크톱 호버 중인 HUD 칸(설명은 대상 라벨 자리에, 설계 6-1-3절). */
 let hoverHud: HudId | 'gauge' | null = null;
-/** 처음 한 번 안내(첫 전환 특기 설명, 첫 감소 게이지 뜻, 설계 6-4-3·6-2-5절). */
+/** 처음 한 번 안내(첫 전환 특기 설명, 첫 감소 게이지 뜻, 올라선 뒤 그 자리 라벨, 설계 6-4-3·6-2-5·6-4-1a절). */
 const notes = createFirstNotes(session.scene.shownGauge, session.scene.ui.active);
+/** 마지막 마우스 자리(내부 좌표). busy가 풀리면 여기로 호버 라벨을 다시 잰다(6-4-1a절). 터치 탭이 오면 지운다. */
+let lastMouse: Point | null = null;
+/** 지난 틱에 busy였나. busy가 풀린 첫 틱을 알아본다. */
+let wasBusy = false;
 /** 배포 빌드의 커밋 앞 7자리(#460). 로컬 빌드는 `dev`. */
 function buildTag(sha: string | undefined): string {
   return sha ? sha.slice(0, 7) : 'dev';
@@ -234,6 +238,7 @@ function stepFlow(): void {
   hoverHud = null;
   noteTap(notes);
   notes.lastGauge = session.scene.shownGauge;
+  notes.climbing = null;
 }
 
 const inBox = (p: Point, b: HitBox): boolean => p.x >= b.left && p.x < b.left + b.width && p.y >= b.top && p.y < b.top + b.height;
@@ -242,9 +247,12 @@ window.addEventListener('resize', () => display.resize());
 onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
   if (!loaded || startCard.open || flow.phase !== 'play') return; // 로딩 중이거나 카드 몫(window 핸들러가 닫는다)
   noteTap(notes);
+  if (slop > 0) lastMouse = null;
+  const before = { ...session.scene.puzzle.at };
   const r = sceneTap(session.data, session.scene, p, slop, slop > 0);
   if (r.kind !== 'intent') return;
   touchLabel = r.intent.kind === 'select' ? r.intent.label : null;
+  if (r.intent.kind === 'act') noteAction(notes, r.intent.action, before[r.intent.action.char]);
   // 첫 전환 안내는 터치만(설계 6-4-3절, PR #295 리뷰). 마우스는 얼굴 호버로 같은 글을 이미 봤고, 안내가 대상 호버 라벨을 가린다.
   // 얼굴 탭·몸 탭 둘 다 전환이다. 처음 캐릭터는 시작 카드가 말했으니 띄우지 않는다(createFirstNotes).
   if (slop > 0 && r.intent.kind === 'switch') noteSwitch(notes, r.intent.char, abilityText(r.intent.char, t));
@@ -275,6 +283,7 @@ restartEl.addEventListener('click', () => {
   hoverHud = null;
   noteTap(notes);
   notes.lastGauge = session.scene.shownGauge;
+  notes.climbing = null;
 });
 restartEl.addEventListener('pointerenter', (e) => {
   if (e.pointerType === 'mouse') restartHover = true;
@@ -289,6 +298,15 @@ restartEl.addEventListener('pointerleave', () => {
 canvas.addEventListener('pointermove', (e) => {
   if (e.pointerType !== 'mouse') return;
   const p = screenToInternal({ x: e.clientX, y: e.clientY }, display.rect(), display.internal);
+  lastMouse = p;
+  updateHover(p);
+});
+canvas.addEventListener('pointerleave', (e) => {
+  if (e.pointerType === 'mouse') lastMouse = null;
+});
+
+/** 마우스 자리(내부 좌표, 캔버스 밖이면 null)로 호버 라벨·HUD 칸 설명·커서를 정한다. */
+function updateHover(p: Point | null): void {
   hoverLabel = null;
   hoverHud = null;
   canvas.style.cursor = 'default';
@@ -310,7 +328,20 @@ canvas.addEventListener('pointermove', (e) => {
   const r = resolveTap(tapContext(data, scene), scene.ui, p, 0);
   hoverLabel = 'label' in r ? r.label : null;
   canvas.style.cursor = r.kind === 'act' ? 'pointer' : 'default';
-});
+}
+
+/**
+ * busy가 풀린 첫 틱(6-4-1a절). 방금 서는 자리에 선 사람이 지금 고른 사람이면 그 자리 특기 라벨을 2.5초 띄우고,
+ * 마우스가 캔버스 위에 있으면 그 자리로 호버 라벨을 다시 잰다(탭 때 지운 라벨이 마우스를 움직여야만 돌아오던 것).
+ */
+function onSettled(): void {
+  const { data, scene } = session;
+  noteStood(notes, scene.ui.active, scene.tick, ({ char, spot }) => {
+    const l = standLabel({ screen: data.screen, puzzle: scene.puzzle }, data.screen.rules, char, spot);
+    return l ? labelText(l, data.screen.id, t) : null;
+  });
+  if (lastMouse) updateHover(lastMouse);
+}
 
 /**
  * 상자 위끝과 그림 앵커 중 머리 위 높이(내부 y). 보통은 둘 중 위쪽(매달린 자세는 자세 `hit` 상자가 더 위).
@@ -777,6 +808,9 @@ startLoop({
     if (startCard.open) return;
     // 어두워지는 동안까지는 지난 판이 움직이고, 다 검어진 뒤(기다림·밝아짐)는 멈춘다. 새 판 진입 연출은 밝아진 뒤에 시작한다(11-1절).
     if (flow.phase === 'play' || flow.phase === 'card' || flow.phase === 'fadeOut') sceneTick(session.data, session.scene);
+    const busy = isBusy(session.scene);
+    if (wasBusy && !busy && flow.phase === 'play' && !session.scene.cleared) onSettled();
+    wasBusy = busy;
     stepFlow();
   },
   render,

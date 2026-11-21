@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import texts from '../../content/text/ja.json';
-import { createFirstNotes, currentNote, GAUGE_NOTE_TICKS, noteGauge, noteSwitch, noteTap } from './firstNotes';
+import magpie from '../../content/screens/magpie_nest.json';
+import fountain from '../../content/screens/park_fountain.json';
+import { createFirstNotes, currentNote, GAUGE_NOTE_TICKS, noteAction, noteGauge, noteStood, noteSwitch, noteTap, standLabel } from './firstNotes';
+import { labelText } from './interact';
+import { initialState, step } from './puzzle/step';
+import type { Action, PuzzleState, ScreenData } from './puzzle/types';
 
 const TEXT: Record<string, string> = texts;
 const DROP = TEXT['ui.hud.gauge_first_drop']!;
@@ -60,5 +65,116 @@ describe('첫 감소 게이지 뜻 (6-2-5절, #285)', () => {
     expect(currentNote(n, 0)).toBeNull();
     noteGauge(n, 4, 10, DROP);
     expect(currentNote(n, 10)).toBe(DROP);
+  });
+});
+
+describe('올라선 뒤 그 자리 라벨 (ui-interaction.md 6-4-1a절, #630)', () => {
+  const screen = magpie as unknown as ScreenData;
+  const t = (id: string): string => TEXT[id] ?? id;
+  const run = (state: PuzzleState, a: Action): PuzzleState => step(screen, state, a).state;
+  /** 그 사람이 그 자리에 선 판(정답과 상관없이 move만). */
+  const standing = (char: Action['char'], spot: string): PuzzleState => run(initialState(screen), { char, verb: 'move', target: spot });
+  const text = (s: PuzzleState, sc: ScreenData = screen) => ({ char, spot }: { char: Action['char']; spot: string }): string | null => {
+    const l = standLabel({ screen: sc, puzzle: s }, sc.rules, char, spot);
+    return l ? labelText(l, sc.id, t) : null;
+  };
+
+  it('조건 ②·③: 화면 1 표 그대로(묵직이 × 양끝만, 쭉이·삑삑이는 안 띄움)', () => {
+    const got: Record<string, string | null> = {};
+    for (const char of ['jjuk', 'mukjik', 'ppik'] as const) {
+      for (const spot of ['seesaw_left', 'seesaw_right']) got[`${char}>${spot}`] = text(standing(char, spot))({ char, spot });
+    }
+    expect(got).toEqual({
+      'jjuk>seesaw_left': null,
+      'jjuk>seesaw_right': null,
+      'mukjik>seesaw_left': 'ドスン: シーソーの左端',
+      'mukjik>seesaw_right': 'ドスン: シーソーの右端',
+      'ppik>seesaw_left': null,
+      'ppik>seesaw_right': null,
+    });
+  });
+
+  it('호버 라벨과 같은 글이다(새 글 없음)', () => {
+    expect(TEXT['ui.verb.stomp']).toBe('ドスン');
+    expect(TEXT['magpie_nest.name.seesaw_right']).toBe('シーソーの右端');
+  });
+
+  it('그 자리에 실제로 서 있지 않으면(자리가 차서 못 감 등) 안 띄운다', () => {
+    expect(text(initialState(screen))({ char: 'mukjik', spot: 'seesaw_right' })).toBeNull();
+  });
+
+  it('화면 2 park_fountain: 서는 자리를 대상으로 한 규칙이 없어 아무 데서도 안 뜬다', () => {
+    const sc = fountain as unknown as ScreenData;
+    for (const [spot, def] of Object.entries(sc.spots)) {
+      if (def.free || def.hold) continue;
+      for (const char of ['jjuk', 'mukjik', 'ppik'] as const) {
+        const s = step(sc, initialState(sc), { char, verb: 'move', target: spot }).state;
+        expect(text(s, sc)({ char, spot }), `${char}>${spot}`).toBeNull();
+      }
+    }
+  });
+
+  const RIGHT = 'ドスン: シーソーの右端';
+  const climb: Action = { char: 'mukjik', verb: 'move', target: 'seesaw_right' };
+  const stood = standing('mukjik', 'seesaw_right');
+
+  it('올라선 순간 2.5초 뜨고, 다음 탭이나 시간이 지나면 지운다', () => {
+    const n = createFirstNotes(5, 'jjuk');
+    noteAction(n, climb, 'floor');
+    noteStood(n, 'mukjik', 100, text(stood));
+    expect(currentNote(n, 100)).toBe(RIGHT);
+    expect(currentNote(n, 100 + GAUGE_NOTE_TICKS - 1)).toBe(RIGHT);
+    expect(currentNote(n, 100 + GAUGE_NOTE_TICKS)).toBeNull();
+    noteAction(n, climb, 'floor');
+    noteStood(n, 'mukjik', 500, text(stood));
+    noteTap(n);
+    expect(currentNote(n, 501)).toBeNull();
+  });
+
+  it('조건 ①: 걷는 동안 다른 얼굴로 바꿨으면 안 띄운다', () => {
+    const n = createFirstNotes(5, 'jjuk');
+    noteAction(n, climb, 'floor');
+    noteStood(n, 'jjuk', 100, text(stood));
+    expect(currentNote(n, 100)).toBeNull();
+  });
+
+  it('busy가 풀릴 때 한 번만 본다(올라서기 없는 busy 끝에는 안 뜬다)', () => {
+    const n = createFirstNotes(5, 'jjuk');
+    noteAction(n, climb, 'floor');
+    noteStood(n, 'mukjik', 100, text(stood));
+    noteTap(n);
+    noteStood(n, 'mukjik', 200, text(stood));
+    expect(currentNote(n, 200)).toBeNull();
+  });
+
+  it('선 자리에 특기를 한 번 쓰면 그 판에서 다시 안 띄운다. 그 전에는 설 때마다 띄운다', () => {
+    const n = createFirstNotes(5, 'jjuk');
+    for (const tick of [100, 400]) {
+      noteAction(n, climb, 'floor');
+      noteStood(n, 'mukjik', tick, text(stood));
+      expect(currentNote(n, tick)).toBe(RIGHT);
+      noteTap(n);
+      noteAction(n, { char: 'mukjik', verb: 'move', target: 'floor' }, 'seesaw_right');
+    }
+    // 바닥에서 시소 끝을 쿵(자리가 다름)은 "써 봤다"가 아니다.
+    noteAction(n, { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' }, 'floor');
+    noteAction(n, climb, 'floor');
+    noteStood(n, 'mukjik', 700, text(stood));
+    expect(currentNote(n, 700)).toBe(RIGHT);
+    noteTap(n);
+    noteAction(n, { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, 'seesaw_right');
+    noteAction(n, { char: 'mukjik', verb: 'move', target: 'floor' }, 'seesaw_right');
+    noteAction(n, climb, 'floor');
+    noteStood(n, 'mukjik', 1000, text(stood));
+    expect(currentNote(n, 1000)).toBeNull();
+  });
+
+  it('다른 처음 한 번 안내가 떠 있으면 덮지 않고 건너뛴다', () => {
+    const n = createFirstNotes(5, 'jjuk');
+    noteGauge(n, 4, 90, DROP);
+    noteAction(n, climb, 'floor');
+    noteStood(n, 'mukjik', 100, text(stood));
+    expect(currentNote(n, 100)).toBe(DROP);
+    expect(n.climbing).toBeNull();
   });
 });
