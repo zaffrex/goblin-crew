@@ -197,7 +197,7 @@ describe('터치 첫 탭 라벨의 "한 번 더 탭" 줄 (#661 → #680, 설계 
 
 describe('전환 알림 `{name}に交代` (#692, #603 7·8회차)', () => {
   const SW = 'ズッシーに交代';
-  const MUK = 'ズッシー: 全体重で踏みつける';
+  const MUK = 'ズッシーに交代（全体重で踏みつける）';
   const STAND = labelKey({ verb: 'stomp', target: 'seesaw_left' });
 
   it('터치: 다음 탭까지 남는다(시간으로는 안 지운다)', () => {
@@ -212,13 +212,13 @@ describe('전환 알림 `{name}に交代` (#692, #603 7·8회차)', () => {
     expect(currentNote(n, 100_000)).toBeNull();
   });
 
-  it('그 판 처음 바꾼 캐릭터(터치)는 특기 설명이 먼저다. 다시 바꾸면 그때부터 交代', () => {
+  it('그 판 처음 바꾼 캐릭터(터치)는 첫 전환 안내 `{name}に交代（{desc}）`가 먼저다. 다시 바꾸면 그때부터 짧은 交代', () => {
     const n = createFirstNotes(5, 'jjuk');
     noteSwitch(n, 'mukjik', MUK);
     noteSwitched(n, SW, 0, true, '');
     expect(currentNote(n, 0)).toBe(MUK);
     noteTap(n);
-    noteSwitch(n, 'jjuk', 'ノビー: …');
+    noteSwitch(n, 'jjuk', 'ノビーに交代（…）');
     noteSwitched(n, 'ノビーに交代', 0, true, '');
     expect(currentNote(n, 0)).toBe('ノビーに交代');
   });

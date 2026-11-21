@@ -16,7 +16,7 @@ import type { HitBox } from './core/hit';
 import { cutCenter } from './core/cutPlace';
 import { cardFacePx, cardInput, cardPointer, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
 import { createFirstNotes, currentNote, labelKey, noteAction, noteGauge, noteHover, noteStood, noteSwitch, noteSwitched, noteTap, selectLabelText, standLabel } from './core/firstNotes';
-import { abilityText, cutFontPx, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, switchText, type HudId } from './core/hud';
+import { cutFontPx, firstSwitchText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, switchText, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { pickScreen, screenTextKey } from './core/screenPick';
@@ -267,10 +267,11 @@ onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
   if (r.kind !== 'intent') return;
   touchLabel = r.intent.kind === 'select' ? r.intent.label : null;
   if (r.intent.kind === 'act') noteAction(notes, r.intent.action, before[r.intent.action.char]);
-  // 첫 전환 안내는 터치만(설계 6-4-3절, PR #295 리뷰). 마우스는 얼굴 호버로 같은 글을 이미 봤고, 안내가 대상 호버 라벨을 가린다.
+  // 첫 전환 안내는 터치만(설계 6-4-3절, PR #295 리뷰). 마우스는 얼굴 호버로 특기 설명을 이미 봤고, 안내가 대상 호버 라벨을 가린다.
+  // 글은 `{name}に交代（{desc}）`(#692 Luna 리뷰): 호버 글과 같으면 "바뀌었다"가 안 읽힌다.
   // 얼굴 탭·몸 탭 둘 다 전환이다. 처음 캐릭터는 시작 카드가 말했으니 띄우지 않는다(createFirstNotes).
-  if (slop > 0 && r.intent.kind === 'switch') noteSwitch(notes, r.intent.char, abilityText(r.intent.char, t));
-  // 전환 알림 `{name}に交代`(#692): 마우스·터치, 몸 탭·얼굴 탭 모두. 위 특기 설명이 떴으면 그게 먼저다.
+  if (slop > 0 && r.intent.kind === 'switch') noteSwitch(notes, r.intent.char, firstSwitchText(r.intent.char, t));
+  // 전환 알림 `{name}に交代`(#692): 마우스·터치, 몸 탭·얼굴 탭 모두. 위 첫 전환 안내가 떴으면 그게 먼저다(그 글도 `交代`로 시작한다).
   if (r.intent.kind === 'switch') {
     // 마우스는 바뀐 사람 기준으로 호버를 다시 잰다. 안 그러면 1px만 움직여도 "다른 대상"으로 읽혀 알림이 바로 꺼진다.
     if (slop === 0) updateHover(p);
