@@ -12,7 +12,7 @@ const DROP = TEXT['ui.hud.gauge_first_drop']!;
 
 describe('첫 전환 특기 설명 (ui-interaction.md 6-4-3절, #311)', () => {
   const MUK = 'ズッシー: 全体重で踏みつける';
-  const PPIK = 'プピ: ニワトリを鳴らして気を引く';
+  const PPIK = 'プピ: ニワトリを鳴らして相手の気を引く';
 
   it('캐릭터마다 처음 바꿀 때 한 번만 뜨고, 다음 탭에서 지운다(시간으로는 안 지운다)', () => {
     const n = createFirstNotes(5, 'jjuk');
