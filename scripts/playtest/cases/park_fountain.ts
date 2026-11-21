@@ -57,6 +57,14 @@ const CASES: FrameCase[] = [
     says: 'park_fountain.duck_splash',
     why: '#575: 위쪽 바닥(발 y 205)에서 쿵 → x 187에서 발 y 242까지 앞으로 내려선 뒤 퍼덕. 오리가 ズッシー 몸 뒤에 가리지 않고, 머리와 오리 사이에 틈이 남는다(CLEAR_GAP)',
   },
+  {
+    id: 'toy-duck-flap-mid',
+    pre: [{ char: 'mukjik', verb: 'move', target: 'floor' }],
+    floor: [400, 236],
+    action: { char: 'mukjik', verb: 'stomp', target: 'duck' },
+    says: 'park_fountain.duck_splash',
+    why: '#585: 바닥 가운데(발 y 236, 재판정 4 ❌ 자리)에서 쿵 → 반만 안 가려도 머리가 오리에 붙으니 발 y 242까지 내려선 뒤 퍼덕. 머리와 오리 사이에 틈이 남는다',
+  },
   { id: 'toy-duck-turn', action: { char: 'ppik', verb: 'squeak', target: 'duck' }, says: 'park_fountain.duck_reply', why: '4절 오리 × プピ: 홱 돌아봄 → クワッ 대답' },
 ];
 

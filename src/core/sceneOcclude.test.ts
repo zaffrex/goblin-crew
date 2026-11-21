@@ -5,7 +5,7 @@ import nestScreen from '../../content/screens/magpie_nest.json';
 import parkScreen from '../../content/screens/park_fountain.json';
 import nestArt from '../../public/scenes/magpie_nest-objects.json';
 import parkArt from '../../public/scenes/park_fountain-objects.json';
-import { CHARACTERS, characterDef, characterHitBox, type CharacterId } from './characters';
+import { CHARACTERS, characterDef, characterFaceBox, characterHitBox, type CharacterId } from './characters';
 import { WALK_AREA } from './config';
 import type { HitBox } from './hit';
 import { parseSceneArt, restingBox } from './sceneArt';
@@ -103,6 +103,47 @@ describe('높은 대상 앞 내려서기 (#575)', () => {
     expect(s.queue[0]).toMatchObject({ type: 'walk', char: 'mukjik' });
     settle(park, s);
     expect([s.walkers.mukjik.x, s.walkers.mukjik.y]).toEqual([187, 242]);
+  });
+
+  it('화면 2 작은 높은 대상(오리·자명종·재킷): 발 y 200~252 어디서 와도 얼굴 그림 위 끝이 그림 아래 끝에서 3px 넘게 떨어진다 (#585)', () => {
+    const s = createScene(park);
+    const small = highTargets(park).filter((t) => (restingBox(park.art!, t, s.puzzle.flags)?.height ?? 99) <= 24);
+    expect(small.sort()).toEqual(['alarm_clock', 'duck', 'jacket']);
+    for (const target of small) {
+      const art = restingBox(park.art!, target, s.puzzle.flags)!;
+      for (const char of CHARS)
+        for (const verb of VERBS)
+          for (let fromY = WALK_AREA.top; fromY <= WALK_AREA.bottom; fromY++) {
+            const ap = approachPoint(park, s.puzzle, { char, verb, target }, { x: 400, y: fromY });
+            if (!ap) continue;
+            for (const f of ap.face === null ? ([1, -1] as Facing[]) : [ap.face]) {
+              const head = characterFaceBox(characterDef(char), ap.x, ap.y, f);
+              const w = Math.min(art.left + art.width, head.left + head.width) - Math.max(art.left, head.left);
+              if (w <= 0) continue;
+              expect(head.top - (art.top + art.height), `${target} ${char} ${verb} 발 y ${fromY} → (${ap.x}, ${ap.y})`).toBeGreaterThanOrEqual(3);
+            }
+          }
+    }
+  });
+
+  it('오리: 바닥 가운데(발 y 236, 재판정 4 ❌ 자리)에서 누른 묵직이도 242로 내려서고, 쭉의 시작 자리 244는 그대로다 (#585)', () => {
+    const s = createScene(park);
+    const at = (char: CharacterId, verb: Verb, y: number) => approachPoint(park, s.puzzle, { char, verb, target: 'duck' }, { x: 400, y })?.y;
+    // 얼굴 상자 위 끝(발 y − 62)은 실제 머리 그림(발 y − 59)보다 3px 위라서 240·241도 2px 내려선다.
+    for (const y of [233, 234, 236, 237, 238, 239, 240, 241]) expect(at('mukjik', 'stomp', y), `발 y ${y}`).toBe(242);
+    for (const y of [242, 244, 252]) expect(at('mukjik', 'stomp', y), `발 y ${y}`).toBe(y);
+    expect(at('jjuk', 'stretch', 241)).toBe(245);
+    expect(at('jjuk', 'stretch', 244)).toBe(244);
+  });
+
+  it('화면 2 관리인(46×38)은 큰 그림이라 #585 규칙을 안 탄다: 몸이 반 넘게 가리지 않으면 지금 y', () => {
+    const s = createScene(park);
+    for (const char of CHARS)
+      for (const verb of VERBS)
+        for (let fromY = WALK_AREA.top; fromY <= WALK_AREA.bottom; fromY++) {
+          const ap = approachPoint(park, s.puzzle, { char, verb, target: 'keeper' }, { x: 400, y: fromY });
+          if (ap) expect(ap.y, `keeper ${char} ${verb} ${fromY}`).toBe(fromY);
+        }
   });
 
   it('내려선 자리에서는 얼굴 그림(몸 상자보다 1px 위로 나온 묵직이 포함)도 대상 그림 아래 끝에서 3px 넘게 떨어진다 (PR #577 Luna 리뷰)', () => {

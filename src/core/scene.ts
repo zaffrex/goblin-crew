@@ -513,6 +513,20 @@ const HIDE_MAX = 0.5;
  * 상자보다 낮다). 0이면 머리 외곽선이 물가 테두리 선에 붙어 "머리에 올라탄 오리"로 읽힌다.
  */
 const CLEAR_GAP = 4;
+/**
+ * 머리(얼굴 상자 24px)보다 작은 높은 대상 그림(#585). 화면 2 오리(16×11)·자명종(20×18). 이런 그림은 반만 가려도,
+ * 머리 위 끝에 붙기만 해도 "머리에 올라탄 것"으로 읽혀서 `HIDE_MAX`와 상관없이 내려선다. 큰 그림(화면 1 `long_johns` 34×44,
+ * 화면 2 관리인 46×38)은 몸이 앞에 선 것으로 읽혀서 그대로 둔다.
+ */
+const SMALL_ART = 24;
+/** 작은 그림 아래 끝과 얼굴 그림 위 끝 사이가 이보다 좁으면 붙어 보인다(#585 완료 조건, PR #577 Luna 리뷰의 3px). */
+const TOUCH_GAP = 3;
+
+/** 얼굴 상자가 그림과 가로로 겹치고, 그림 아래 끝에서 `TOUCH_GAP`보다 가깝거나 그림 위로 올라와 있다(#585). */
+function headTouches(art: HitBox, head: HitBox): boolean {
+  const w = Math.min(art.left + art.width, head.left + head.width) - Math.max(art.left, head.left);
+  return w > 0 && head.top - (art.top + art.height) < TOUCH_GAP;
+}
 
 /** 그림 상자 넓이 중 몸 상자에 덮인 비율(0~1). */
 function hiddenShare(art: HitBox, body: HitBox): number {
@@ -538,7 +552,8 @@ function targetBox(screen: ScreenData, puzzle: PuzzleState, id: string): HitBox 
  * - `stretch`: 높은 대상이면 `reachPoint` x, 없으면 상자 가운데 x. 바닥 대상이면 아래 줄과 같다(땅의 까치에 겹쳐 서지 않게, PR #221 Luna).
  * - `stomp`·`hand`·`item`: 높은 대상(상자 아래쪽이 `WALK_AREA.top` 위)은 상자 가운데 x, 바닥 대상은 가까운 쪽 가장자리 옆
  *   (대상을 바라본 몸 상자 `characterHitBox`가 대상 상자와 가로로 2px 떨어지는 가장 가까운 x).
- * - 높은 대상의 발 y는 지금 y다. 그 자리에서 몸이 대상 그림을 반 넘게 가리면 앞(아래)으로 내려선다(#575, `clearOf`). 바닥 대상은 지금 y.
+ * - 높은 대상의 발 y는 지금 y다. 그 자리에서 몸이 대상 그림을 반 넘게 가리거나 작은 그림에 머리가 붙으면 앞(아래)으로 내려선다
+ *   (#575·#585, `clearOf`). 바닥 대상은 지금 y.
  * 설 곳은 걷기 영역 안으로 자른다. `step`·BFS와 무관한 연출 계산이다(퍼즐 상태를 바꾸지 않는다).
  */
 export function approachPoint(data: SceneData, puzzle: PuzzleState, action: Action, from: Point): { x: number; y: number; face: Facing | null } | null {
@@ -569,8 +584,9 @@ export function approachPoint(data: SceneData, puzzle: PuzzleState, action: Acti
 }
 
 /**
- * 높은 대상 앞 발 y(#575). 대상 지금 그림(시트 없으면 핫스팟 상자)을 몸 상자가 `HIDE_MAX`보다 많이 가리면
- * 몸 위 끝이 그림 아래 끝보다 `CLEAR_GAP` 아래가 되는 y까지 앞(아래)으로 내려선다. 걷기 영역 아래 끝에서 멈춘다. 위로는 가지 않는다.
+ * 높은 대상 앞 발 y(#575). 대상 지금 그림(시트 없으면 핫스팟 상자)을 몸 상자가 `HIDE_MAX`보다 많이 가리거나,
+ * 작은 그림(`SMALL_ART`)에 얼굴이 붙으면(`headTouches`, #585) 몸 위 끝이 그림 아래 끝보다 `CLEAR_GAP` 아래가 되는 y까지
+ * 앞(아래)으로 내려선다. 걷기 영역 아래 끝에서 멈춘다. 위로는 가지 않는다.
  * 방향이 정해지지 않았으면(가운데에 섬) 두 방향 중 더 가리는 쪽으로 본다.
  */
 function clearOf(data: SceneData, puzzle: PuzzleState, action: Action, box: HitBox, x: number, y: number, face: Facing | null): number {
@@ -578,7 +594,8 @@ function clearOf(data: SceneData, puzzle: PuzzleState, action: Action, box: HitB
   const def = characterDef(action.char);
   const faces: Facing[] = face === null ? [1, -1] : [face];
   const hidden = Math.max(...faces.map((f) => hiddenShare(art, characterHitBox(def, x, y, f))));
-  if (hidden <= HIDE_MAX) return y;
+  const touches = art.height <= SMALL_ART && faces.some((f) => headTouches(art, characterFaceBox(def, x, y, f)));
+  if (hidden <= HIDE_MAX && !touches) return y;
   return Math.max(y, Math.min(WALK_AREA.bottom, art.top + art.height - def.hit.dy + CLEAR_GAP));
 }
 
