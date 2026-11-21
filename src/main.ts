@@ -19,6 +19,7 @@ import { abilityText, cutFontPx, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, g
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { pickScreen, screenTextKey } from './core/screenPick';
+import { cardLines, enterCharacter, flowTap, flowTick, flowView, nextIndex, PLAYING, playtestOrder, showCard, type Flow } from './core/flow';
 import { activeFx, activeMarkerVisible, boardDrop, charPose, createScene, cuedArtView, currentBubble, drawOrder, gaugeDrop, heldArtView, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, shownFlags, tapContext, tiltOf, type SceneData, type SceneState } from './core/scene';
 import { animFrameBox, coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
@@ -54,9 +55,17 @@ const restartEl = need<HTMLButtonElement>('#restart');
 const SCREENS = new Map(
   Object.entries(import.meta.glob<ScreenData>('../content/screens/*.json', { eager: true, import: 'default' })).map(([path, s]) => [path.replace(/^.*\/|\.json$/g, ''), s]),
 );
-const picked = pickScreen(new URLSearchParams(location.search).get('screen'), [...SCREENS.keys()]);
+const query = (key: string): string | null => new URLSearchParams(location.search).get(key);
+const picked = pickScreen(query('screen'), [...SCREENS.keys()]);
 if (picked.unknown) console.warn(`?screen=${picked.unknown}: 없는 화면이라 ${picked.id}로 엽니다`);
 const TEXT: Readonly<Record<string, string>> = texts;
+/**
+ * 플레이 순서(#230 여러 화면 연결 2단계). 지금은 `?playtest=1&order=a,b`일 때만 있다(L1 기록 `2026-11-21-multi-screen-link-before-planning`).
+ * null이면 배포본 그대로다: 화면 하나, 클리어 뒤 `ui.clear` 카드에서 끝나고 연결 경로(카드 탭·전환)를 아예 타지 않는다.
+ * 배포 순서 `content/screens/order.json`과 세이브는 플래닝 결론 뒤에 붙인다(같은 기록 2·3번).
+ */
+const ORDER = playtestOrder(query, new Set(SCREENS.keys()));
+if (query('order') !== null && !ORDER) console.warn('?order=: playtest=1이 아니거나 모르는 화면 id가 있어 화면 하나로 엽니다');
 
 /**
  * 한 화면 판(#230 여러 화면 연결 1단계, 설계 `ui-interaction.md` 11절). 화면에 묶인 상태는 전부 여기 있다.
@@ -92,7 +101,13 @@ function enterScreen(id: string): Session {
   return { data, art, covered: art ? coveredIds(art.meta) : new Set<string>(), scene: createScene(data), loopClock: {}, spriteTops: {} };
 }
 
-const session = enterScreen(picked.id);
+let session = enterScreen(ORDER ? ORDER[0]! : picked.id);
+/** 순서 안 지금 위치. 같은 id가 두 번 나와도 위치로 센다(`flow.ts` nextIndex). */
+let orderIndex = 0;
+/** 화면 사이 흐름(ui-interaction 11-1절). `ORDER`가 없으면 늘 `play`다. */
+let flow: Flow = PLAYING;
+/** 클리어 카드가 뜰 때 미리 만든 다음 화면 판. 그림을 카드 보는 동안 받는다(11-1절 "다음 화면 그림 기다림 0초가 목표"). */
+let pending: { index: number; session: Session } | null = null;
 /** 글 ID → 지금 화면의 글(`<화면 ID>.card.goal` 등이 있으면 그것, #380). */
 const t = (id: string): string => TEXT[screenTextKey(TEXT, session.data.screen.id, id)] ?? id;
 
@@ -104,8 +119,7 @@ const display = createDisplay(canvas, { width: INTERNAL_WIDTH, height: INTERNAL_
  */
 const loadStart = performance.now();
 let loaded = false;
-function loadStates(): Loaded[] {
-  const { art } = session;
+function loadStates(art: SceneArt | null): Loaded[] {
   const bg: Loaded = !art?.bg ? 'none' : art.bgReady ? 'ready' : 'loading';
   const objects: Loaded = !art ? 'none' : art.objectsReady ? 'ready' : 'loading';
   return [bg, objects, ...CHARACTERS.map((c) => spriteState(c.id)), fxTextState(), hudIconState()];
@@ -116,9 +130,11 @@ const PLAYTEST = new URLSearchParams(location.search).get('playtest') === '1';
 /** 그림이 다 읽힌 뒤에도 임시 그림으로 그린 것(#142, 판정 2 시작 조건). `?playtest=1`일 때만 모은다. */
 const fallbacks = new Set<string>();
 if (PLAYTEST) {
-  const w = window as unknown as { __gcLayout: () => unknown; __gcFallbacks: () => string[] };
+  const w = window as unknown as { __gcLayout: () => unknown; __gcFallbacks: () => string[]; __gcFlow: () => unknown };
   w.__gcLayout = () => sceneLayout(session.data, session.scene);
   w.__gcFallbacks = () => [...fallbacks].sort();
+  // 여러 화면 연결(11-6절): 재생 도구가 지금 화면·순서 위치·흐름 단계를 읽는다. `order`가 null이면 연결을 안 타는 판이다.
+  w.__gcFlow = () => ({ order: ORDER, index: orderIndex, screen: session.data.screen.id, phase: flow.phase });
 }
 
 /** 터치 첫 탭으로 고른 대상의 라벨. 실행하거나 다른 걸 누르면 지운다. */
@@ -167,19 +183,64 @@ function buildCard(): { id: CharacterId; el: HTMLCanvasElement; ctx: CanvasRende
 
 // 카드 닫기: 카드 위·캔버스 밖·키보드 어디서든. 캔버스 탭은 캔버스 핸들러가 먼저 받아 버리고(카드가 떠 있으면 무시) 여기로 올라온다.
 // 버블 단계라 닫는 탭이 같은 이벤트로 게임에 다시 들어가지 않는다.
+// 클리어 카드도 같은 자리에서 받는다(11-1절: 화면 어디든 탭·클릭, Enter·Space). 시작 카드를 닫는 탭은 그 뒤 흐름이 `play`라 아무것도 안 한다.
 window.addEventListener('pointerdown', (e) => {
-  if (loaded && e.isPrimary && e.button === 0) cardInput(startCard);
+  if (!loaded || !e.isPrimary || e.button !== 0) return;
+  cardInput(startCard);
+  tapFlow();
 });
 // 키는 "탭"으로 셀 수 있는 것만(반복·수정 키·브라우저 단축키 제외, PR #306 리뷰).
 window.addEventListener('keydown', (e) => {
-  if (loaded && isTapKey(e)) cardInput(startCard);
+  if (!loaded || !isTapKey(e)) return;
+  cardInput(startCard);
+  tapFlow();
 });
+
+/** 클리어 카드 탭(0.6초 안은 무시). 타이틀이 아직 없어서 끝 카드에서는 머문다(11-5절). */
+function tapFlow(): void {
+  if (!ORDER || startCard.open) return;
+  flow = flowTap(flow, false).flow;
+}
+
+/** 다음 화면 그림이 다 왔나. 없는 그림('none')은 기다리지 않는다. 캐릭터·글자 시트는 화면과 상관없이 이미 읽혔다. */
+function artReady(art: SceneArt | null): boolean {
+  return !art || ((!art.bg || art.bgReady) && art.objectsReady);
+}
+
+/**
+ * 1틱 흐름(ORDER가 있을 때만). 클리어 컷이 끝나면 카드를 띄우고 다음 화면 판을 미리 만든다.
+ * 덮개가 다 검은 틱(`swap`)에 판을 바꾼다. 다음 화면 규칙은 11-3절: 게이지 가득·무장 풀림·아이템 비움은 새 판이 원래 그렇고,
+ * 지금 캐릭터만 이어 간다.
+ */
+function stepFlow(): void {
+  if (!ORDER) return;
+  if (flow.phase === 'play') {
+    if (!session.scene.cleared || isBusy(session.scene)) return;
+    const next = nextIndex(ORDER, orderIndex);
+    flow = showCard(next === null);
+    pending = next === null ? null : { index: next, session: enterScreen(ORDER[next]!) };
+    return;
+  }
+  const r = flowTick(flow, pending !== null && artReady(pending.session.art));
+  flow = r.flow;
+  if (!r.swap || !pending) return;
+  const prev = session.scene.ui.active;
+  session = pending.session;
+  orderIndex = pending.index;
+  pending = null;
+  session.scene.ui.active = enterCharacter(prev, session.data.screen.start.at, CHARACTERS.map((c) => c.id)) as CharacterId;
+  touchLabel = null;
+  hoverLabel = null;
+  hoverHud = null;
+  noteTap(notes);
+  notes.lastGauge = session.scene.shownGauge;
+}
 
 const inBox = (p: Point, b: HitBox): boolean => p.x >= b.left && p.x < b.left + b.width && p.y >= b.top && p.y < b.top + b.height;
 
 window.addEventListener('resize', () => display.resize());
 onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
-  if (!loaded || startCard.open) return; // 로딩 중이거나 카드 몫(window 핸들러가 닫는다)
+  if (!loaded || startCard.open || flow.phase !== 'play') return; // 로딩 중이거나 카드 몫(window 핸들러가 닫는다)
   noteTap(notes);
   const r = sceneTap(session.data, session.scene, p, slop, slop > 0);
   if (r.kind !== 'intent') return;
@@ -203,7 +264,7 @@ restartIcon.className = 'icon';
 restartIcon.setAttribute('aria-hidden', 'true');
 restartEl.append(restartIcon);
 restartEl.addEventListener('click', () => {
-  if (!loaded || startCard.open) return;
+  if (!loaded || startCard.open || flow.phase !== 'play') return;
   if (!restartPress(restart, performance.now())) return;
   // 누른 뒤 초점이 남으면 Space 한 번에 다시 눌려서(두 번째 누름) 판이 또 날아간다.
   restartEl.blur();
@@ -223,7 +284,7 @@ restartEl.addEventListener('pointerleave', () => {
 });
 
 // 목표 줄(설계 6-2-2절): 첫 행동 뒤에도 늘 보인다. 클리어 뒤에만 숨긴다. 글·줄바꿈은 render의 placeGoal이 넣는다.
-clearCut.textContent = t('ui.clear');
+// 클리어 카드 글은 render의 placeClearCut이 넣는다(여러 화면 연결 때 화면마다 바뀐다).
 
 canvas.addEventListener('pointermove', (e) => {
   if (e.pointerType !== 'mouse') return;
@@ -232,7 +293,7 @@ canvas.addEventListener('pointermove', (e) => {
   hoverHud = null;
   canvas.style.cursor = 'default';
   const { data, scene } = session;
-  if (!p || scene.cleared || startCard.open) return;
+  if (!p || scene.cleared || startCard.open || flow.phase !== 'play') return;
   // HUD 칸 설명은 busy 중에도 띄운다(칸은 busy 중에도 눌린다, #266). 월드 호버는 busy 중에는 끈다.
   // 게이지 띠(6-3-5절): 어디든 올리면 게이지 설명. 누를 수 없으니 기본 화살표.
   if (inBox(p, GAUGE_BAND)) {
@@ -589,6 +650,14 @@ function render(): void {
   }
   ctx.restore();
   drawHud(ctx, layout.hud, { band: GAUGE_BAND, track: GAUGE_TRACK, segs: GAUGE_SEGS }, { active: layout.active, gauge: layout.gauge, gaugeDrop: gaugeDrop(scene) }, drawHead);
+  // 화면 전환 덮개(11-1절): 0번 ink로 HUD까지 덮는다. ORDER가 없으면 늘 0이다.
+  const fv = flowView(flow, false);
+  if (fv.cover > 0) {
+    ctx.globalAlpha = Math.min(1, fv.cover);
+    ctx.fillStyle = FX_COLORS.ink;
+    ctx.fillRect(0, 0, internal.width, internal.height);
+    ctx.globalAlpha = 1;
+  }
   display.present();
 
   renderCard();
@@ -611,8 +680,12 @@ function render(): void {
   if (label.style.fontSize !== labelSize) label.style.fontSize = labelSize;
   placeDom(label, { x: INTERNAL_WIDTH / 2, y: LABEL_BOTTOM });
 
-  clearCut.hidden = !(scene.cleared && !isBusy(scene));
-  hud.hidden = scene.cleared;
+  placeClearCut(fv, scene);
+  // 덮개가 있는 동안은 캔버스 위 DOM(목표 줄·이름표·라벨·말풍선·처음부터)도 숨긴다. 안 그러면 검은 화면 위에 글자만 떠 있다.
+  const covered = fv.cover > 0;
+  hudTagLayer.hidden = covered;
+  if (flow.phase !== 'play') label.hidden = restartEl.hidden = true;
+  hud.hidden = scene.cleared || covered;
   if (!hud.hidden) placeGoal(scale);
   // 게이지 0 컷(#129, L33)과 클리어 컷(L32). 그림 없는 M1 임시 연출: 클리어 카드와 같은 DOM 글 한 줄.
   const cut = layout.cut;
@@ -628,7 +701,7 @@ function render(): void {
 
   // DOM 말풍선(ADR-0004 결정 3). 화자 머리 위. 카드가 떠 있으면 진입 대사는 아직이다.
   // 폭은 글로만 정하고(화자 위치와 무관), 게임 화면 안으로 민다(#329). 목표 줄·이름표를 피하므로(#351) 그것들을 놓은 뒤에 둔다.
-  const b = startCard.open ? null : currentBubble(scene);
+  const b = startCard.open || covered ? null : currentBubble(scene);
   bubble.hidden = !b;
   if (b) {
     // 재생 도구(#356 C-7 가림 검사)가 화자 자신의 핫스팟을 빼려고 읽는다.
@@ -637,6 +710,25 @@ function render(): void {
     const frameBox = art && artView ? animFrameBox(art.meta, artView, b.speaker) : null;
     placeBubbleDom(sayText(TEXT, b.text, b.speaker), speakerBox(b.speaker, layout, frameBox), bubbleKeepBoxes(b.speaker, layout), bubbleBodyBoxes(b.speaker, layout));
   }
+}
+
+/**
+ * 클리어 카드 `#clear`. ORDER가 없으면 지금 배포본 그대로 `ui.clear`(클리어 컷이 끝나면 뜬다).
+ * ORDER가 있으면 결과 줄 `<id>.clear_card` + 0.6초 뒤 `ui.next`(11-2절), 마지막 화면은 끝 카드 `ui.end`(11-5절).
+ * 다음 화면 그림을 0.5초 넘게 기다리면 같은 자리에 `…`(11-1절). 재생 도구는 `data-next`를 보고 카드를 누른다(11-6절 5번).
+ */
+function placeClearCut(fv: ReturnType<typeof flowView>, scene: SceneState): void {
+  let text: string | null;
+  if (!ORDER) text = scene.cleared && !isBusy(scene) ? t('ui.clear') : null;
+  else if (fv.dots) text = '…';
+  else if (fv.card && flow.phase === 'card') {
+    const lines = cardLines(session.data.screen.id, flow.last, (k) => k in TEXT);
+    const next = fv.next && lines.next ? t(cardPointer(window.matchMedia?.bind(window)) === 'mouse' ? `${lines.next}_click` : lines.next) : null;
+    text = [lines.body && t(lines.body), next].filter(Boolean).join('\n') || null;
+  } else text = null;
+  clearCut.hidden = text === null;
+  clearCut.toggleAttribute('data-next', fv.next);
+  if (text !== null && clearCut.textContent !== text) clearCut.textContent = text;
 }
 
 /**
@@ -675,10 +767,13 @@ function renderCard(): void {
 startLoop({
   step: () => {
     // 로딩이 끝나야 카드 잠금·장면 시간이 흐른다(#387). 한 번 끝나면 다시 보지 않는다.
-    loaded ||= loadingDone(loadStates(), performance.now() - loadStart);
+    loaded ||= loadingDone(loadStates(session.art), performance.now() - loadStart);
     if (!loaded) return;
     cardTick(startCard);
-    if (!startCard.open) sceneTick(session.data, session.scene);
+    if (startCard.open) return;
+    // 어두워지는 동안까지는 지난 판이 움직이고, 다 검어진 뒤(기다림·밝아짐)는 멈춘다. 새 판 진입 연출은 밝아진 뒤에 시작한다(11-1절).
+    if (flow.phase === 'play' || flow.phase === 'card' || flow.phase === 'fadeOut') sceneTick(session.data, session.scene);
+    stepFlow();
   },
   render,
 });

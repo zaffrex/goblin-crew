@@ -218,7 +218,7 @@
   - `keeper_poke` `コケ…`: 8절 ③ 자명종 소리 `コケーッ`와 같은 소리를 잠꼬대에 섞어, 자명종 = 깨우는 소리를 잇는다.
 - 5번(줄 길이·금칙): `ja.json`에 들어가기 전이라 `ja-text-rules`와 같은 규칙(14자 × 2줄, 줄 머리 금칙, 예외 2)을 임시 스크립트로 돌렸다. 32줄 모두 통과, 가장 긴 줄 12자(`fountain_off`·`high_again`·`guest_thanks`).
 - 관리인·손님은 새 화자다. `ja-text.md` 3절 말투표에 줄을 더했다(이 PR).
-- 마지막 화면이라 클리어 카드 결과 줄(`park_fountain.clearCard`)은 두지 않는다(ui-interaction 11-1 마지막 화면 갈래. 키가 없으면 결과 줄을 숨기는 폴백은 [screen-transition-ui](../../decisions/2026-11-17-screen-transition-ui.md) 구현 메모). 끝 카드(`ui.end`, ui-interaction 11-5)가 대신한다. `ui.end` 둘째 줄은 "서른일곱 벌"에서 **"서른여덟 벌"**로 바꾼다(8절 ④, 13절 Q6).
+- 마지막 화면이라 클리어 카드 결과 줄(`park_fountain.clear_card`)은 두지 않는다(ui-interaction 11-1 마지막 화면 갈래. 키가 없으면 결과 줄을 숨기는 폴백은 [screen-transition-ui](../../decisions/2026-11-17-screen-transition-ui.md) 구현 메모). 끝 카드(`ui.end`, ui-interaction 11-5)가 대신한다. `ui.end` 둘째 줄은 "서른일곱 벌"에서 **"서른여덟 벌"**로 바꾼다(8절 ④, 13절 Q6).
 
 ### 5-6. 목표 줄·시작 카드 (ui-interaction 6-2-1·6-2-2, `screenPick.ts` 화면 키)
 
@@ -288,7 +288,7 @@
 
 ## 8. 클리어 컷과 엔딩 (C9, P8, 재회)
 
-매트릭스 90행 "재회 컷 → 끝 카드"를 여기서 정한다. ui-interaction 11-1 흐름의 **마지막 화면 갈래**("재회 컷 → 끝 카드")가 이 컷이다. 클리어 카드(`clearCard`)는 마지막 화면에서 띄우지 않고 끝 카드가 대신한다(11-5).
+매트릭스 90행 "재회 컷 → 끝 카드"를 여기서 정한다. ui-interaction 11-1 흐름의 **마지막 화면 갈래**("재회 컷 → 끝 카드")가 이 컷이다. 클리어 카드(`clear_card`)는 마지막 화면에서 띄우지 않고 끝 카드가 대신한다(11-5).
 
 | 박자 | 보이는 것 | 대사 | 길이 |
 |---|---|---|---|

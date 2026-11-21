@@ -92,7 +92,7 @@ export function cardLines(
   hasText: (key: string) => boolean,
 ): { body: string | null; next: string | null } {
   if (last) return { body: "ui.end", next: null };
-  const key = `${screenId}.clearCard`;
+  const key = `${screenId}.clear_card`;
   return { body: hasText(key) ? key : null, next: "ui.next" };
 }
 
