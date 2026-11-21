@@ -22,10 +22,12 @@ export interface FirstNotes {
   climbing: { char: CharacterId; spot: string } | null;
   /** 서 있는 자리에 특기를 한 번이라도 쓴 캐릭터. 그 판에서 올라선 뒤 라벨을 다시 안 띄운다(6-4-1a절). */
   usedHere: Set<CharacterId>;
+  /** 터치 둘째 탭으로 한 번이라도 실행했나. 그 전까지 첫 탭 라벨에 "한 번 더 탭" 줄을 붙인다(#661). */
+  tapAgainLearned: boolean;
 }
 
 export function createFirstNotes(gauge: number, first: CharacterId): FirstNotes {
-  return { introduced: new Set([first]), dropShown: false, lastGauge: gauge, note: null, climbing: null, usedHere: new Set() };
+  return { introduced: new Set([first]), dropShown: false, lastGauge: gauge, note: null, climbing: null, usedHere: new Set(), tapAgainLearned: false };
 }
 
 /** 탭 하나가 왔다. 떠 있는 글은 무엇이든 지운다(다음 탭에서 지움, 6-4-3·6-2-5절). 탭 결과를 반영하기 **전에** 부른다. */
@@ -38,6 +40,20 @@ export function noteSwitch(n: FirstNotes, char: CharacterId, text: string): void
   if (n.introduced.has(char)) return;
   n.introduced.add(char);
   n.note = { text, until: null };
+}
+
+/** 터치 둘째 탭으로 행동이 실행됐다. 그 판에서 다시는 "한 번 더 탭" 줄을 안 붙인다(#661). 마우스 클릭은 부르지 않는다. */
+export function noteTouchAct(n: FirstNotes): void {
+  n.tapAgainLearned = true;
+}
+
+/**
+ * 터치 첫 탭(선택) 라벨 글. 아직 둘째 탭으로 실행해 본 적이 없으면 `template`(`{label}` 자리에 원래 라벨)로 감싼다(#661, 설계 4절).
+ * 첫 탭 라벨은 데스크톱 호버 라벨과 똑같이 생겨서, 이 말이 없으면 "눌렀는데 반응 없음"으로 읽힌다(#603 5회차 휴대폰).
+ * 한 줄로 붙인다. 둘째 줄로 내리면 라벨이 위로 자라 휴대폰에서 방금 고른 시소 판 끝을 덮는다(다시 탭할 바로 그 대상).
+ */
+export function selectLabelText(n: FirstNotes, base: string, template: string): string {
+  return n.tapAgainLearned ? base : template.replace('{label}', base);
 }
 
 /** 매 프레임 보이는 게이지를 넘긴다. 그 판에서 처음 줄면 2.5초 안내(6-2-5절). 기절 뒤 다시 차는 건 감소가 아니다. */

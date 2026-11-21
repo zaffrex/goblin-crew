@@ -14,7 +14,7 @@ import { actorEdgeAt, besideFeetAt, dustPush, FX_COLORS, FX_STYLE, fxTextSpot, S
 import { drawnByShape, frameNudges, fxNudges, particleFx, shapeParticles, type Nudge } from './core/fxShape';
 import type { HitBox } from './core/hit';
 import { cardFacePx, cardInput, cardPointer, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
-import { createFirstNotes, currentNote, noteAction, noteGauge, noteStood, noteSwitch, noteTap, standLabel } from './core/firstNotes';
+import { createFirstNotes, currentNote, noteAction, noteGauge, noteStood, noteSwitch, noteTap, noteTouchAct, selectLabelText, standLabel } from './core/firstNotes';
 import { abilityText, cutFontPx, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
@@ -266,6 +266,7 @@ onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
   if (r.kind !== 'intent') return;
   touchLabel = r.intent.kind === 'select' ? r.intent.label : null;
   if (r.intent.kind === 'act') noteAction(notes, r.intent.action, before[r.intent.action.char]);
+  if (slop > 0 && r.intent.kind === 'act') noteTouchAct(notes);
   // 첫 전환 안내는 터치만(설계 6-4-3절, PR #295 리뷰). 마우스는 얼굴 호버로 같은 글을 이미 봤고, 안내가 대상 호버 라벨을 가린다.
   // 얼굴 탭·몸 탭 둘 다 전환이다. 처음 캐릭터는 시작 카드가 말했으니 띄우지 않는다(createFirstNotes).
   if (slop > 0 && r.intent.kind === 'switch') noteSwitch(notes, r.intent.char, abilityText(r.intent.char, t));
@@ -718,7 +719,10 @@ function render(): void {
   // 처음부터 버튼 첫 누름 뒤에는 확인 글이 무엇보다 먼저다(두 번째 누름을 기다린다는 걸 알려야 한다, #387).
   const armed = restartArmed(restart, playNow());
   const restartText = armed ? t('ui.restart_confirm') : restartHover ? t('ui.restart_hover') : null;
-  const labelString = restartText ?? note ?? (shown ? labelText(shown, data.screen.id, t) : (hudHover ?? ''));
+  // 터치 첫 탭 라벨에는 둘째 탭으로 처음 실행할 때까지 "한 번 더 탭" 줄을 붙인다(#661). 호버 라벨(마우스)에는 안 붙는다.
+  const shownText = shown ? labelText(shown, data.screen.id, t) : null;
+  const targetText = shownText !== null && shown === touchLabel ? selectLabelText(notes, shownText, t('ui.touch.tap_again')) : shownText;
+  const labelString = restartText ?? note ?? targetText ?? hudHover ?? '';
   label.hidden = labelString === '';
   if (label.textContent !== labelString) label.textContent = labelString;
   // 글자 = 내부 7px × 배율, 최소 14(#337). 아래끝은 게이지 띠 위 2px(6-3-5절). 띠 위에 두면 막대를 덮는다.
