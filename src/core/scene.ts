@@ -242,6 +242,11 @@ export interface SceneState {
    */
   pinDrop: Partial<Record<CharacterId, { x: number; y: number; drop: number }>>;
   cleared: boolean;
+  /**
+   * 남은 이벤트가 모두 시작 연출(`onEnter`)인가(`ui-interaction.md` 5절 예외 넷 1, #700). 월드 탭이 오면 남은 시작 연출을 끝내고 그 탭을 평소대로 처리한다.
+   * 시작 연출 중에는 행동이 대기열에 들어갈 수 없어서(HUD 칸은 이벤트를 안 넣는다) 이 표시 하나로 "남은 게 다 시작 연출"이 된다. 대기열이 다 비면 끈다.
+   */
+  intro: boolean;
 }
 
 export interface SceneData {
@@ -271,7 +276,15 @@ export interface SceneData {
  * 걷기 구간의 깡충은 그 `walk`가 `current`라 원래 busy다.
  */
 export function isBusy(s: SceneState): boolean {
-  return s.current !== null || s.queue.length > 0 || s.overlays.length > 0 || Object.keys(s.hops).length > 0;
+  return s.current !== null || nothingAfterCurrent(s) === false;
+}
+
+/**
+ * `current` 뒤에 재생할 것이 없다: 대기열·겹친 fx/물건 anim·깡충이 다 비었다. `isBusy`에서 `current`만 뺀 것이다.
+ * 말풍선이 마지막 이벤트인지(`ui-interaction.md` 5절 예외 넷 2, #700) 이걸로 본다. 엔진 걷기(바닥→바닥)는 원래 busy가 아니라 안 센다.
+ */
+function nothingAfterCurrent(s: SceneState): boolean {
+  return s.queue.length === 0 && s.overlays.length === 0 && Object.keys(s.hops).length === 0;
 }
 
 /**
@@ -345,6 +358,7 @@ export function createScene(data: SceneData): SceneState {
     riding,
     pinDrop: {},
     cleared: false,
+    intro: false,
   };
   // onEnter는 상태를 바꾸지 않는 연출이다(ADR-0065 5절). say 화자는 캐릭터 ID만 온다.
   for (const item of data.screen.onEnter ?? []) {
@@ -352,6 +366,7 @@ export function createScene(data: SceneData): SceneState {
     else if ('fx' in item) s.queue.push({ type: 'fx', effect: item.fx[0], target: item.fx[1] });
     else s.queue.push({ type: 'say', speaker: item.say[0], text: pickText(item.say[1], 1) });
   }
+  s.intro = s.queue.length > 0;
   return s;
 }
 
@@ -1319,10 +1334,7 @@ export function sceneTick(data: SceneData, s: SceneState): void {
     if (s.current === null) {
       const next = s.queue.shift();
       if (!next) {
-        if (s.overlays.length === 0) {
-          s.held = {};
-          s.heldArt = {};
-        }
+        settle(s);
         return;
       }
       s.current = start(data, s, next);
@@ -1332,13 +1344,39 @@ export function sceneTick(data: SceneData, s: SceneState): void {
     fireCue(data, s, s.current);
     nextLeg(data, s, s.current);
     if (!finished(s, s.current)) return;
-    if (s.current.ev.type === 'faint') s.shownGauge = GAUGE_MAX;
-    if (s.current.ev.type === 'walk' && s.current.ev.face !== undefined) s.walkers[s.current.ev.char].facing = s.current.ev.face;
-    if (s.current.ev.type === 'say') s.seenSay[seenSayKey(s.current.ev.speaker, s.current.ev.text)] = true;
-    holdLast(s, s.current);
-    commitShown(s, s.current.seq, 'end');
-    s.current = null;
+    endCurrent(s);
   }
+}
+
+/** 끝난 `current`를 내린다: 끝날 때 바뀌는 것(게이지·방향·본 대사·마지막 장·보이는 플래그)을 적용한다. */
+function endCurrent(s: SceneState): void {
+  const c = s.current!;
+  if (c.ev.type === 'faint') s.shownGauge = GAUGE_MAX;
+  if (c.ev.type === 'walk' && c.ev.face !== undefined) s.walkers[c.ev.char].facing = c.ev.face;
+  if (c.ev.type === 'say') s.seenSay[seenSayKey(c.ev.speaker, c.ev.text)] = true;
+  holdLast(s, c);
+  commitShown(s, c.seq, 'end');
+  s.current = null;
+}
+
+/** 대기열이 다 비었을 때 정리(`sceneTick`이 대기열 끝에서 하는 것과 같다): 마지막 장 유지를 풀고 시작 연출 표시를 끈다. */
+function settle(s: SceneState): void {
+  if (s.overlays.length > 0) return;
+  s.held = {};
+  s.heldArt = {};
+  s.intro = false;
+}
+
+/**
+ * 남은 시작 연출을 잠금 시간 없이 다 끝낸다(`ui-interaction.md` 5절 예외 넷 1, #700). `onEnter`는 상태를 안 바꾸니(ADR-0065 5절) 버려도 퍼즐은 그대로다.
+ * 끝까지 안 본 시작 대사는 본 대사(`seenSay`)에 넣지 않는다.
+ */
+function skipIntro(s: SceneState): void {
+  for (const p of [...s.overlays, ...(s.current ? [s.current] : [])]) commitShown(s, p.seq, 'end');
+  s.current = null;
+  s.queue = [];
+  s.overlays = [];
+  settle(s);
 }
 
 /** 탭 결과. 엔진이 효과음·안내 문구를 고르는 데 쓴다. */
@@ -1351,15 +1389,17 @@ export type SceneTapResult =
 /**
  * 탭 하나. busy 동안은 새 행동을 받지 않고, 월드 탭으로 하는 전환도 받지 않는다(설계 5절).
  * - 얼굴 칸: busy 중에도 바로 전환한다(예외 셋, #266·6-4-2절). HUD 영역의 빈 곳은 무시.
+ * - 시작 연출(`onEnter`)만 남았으면: 그것을 다 끝내고 평소대로 처리한다(예외 넷 1, #700).
  * - 자동 걷기 중: 걷기만 끝 위치로 건너뛴다. 남은 이벤트는 그대로 재생한다.
  * - 말풍선이 뜬 뒤 1.0초(`saySkipAfter`, 이미 본 글이면 0.4초 `seenSaySkipAfter`)가 지났으면: 그 말풍선만 끝낸다.
+ *   터치이고 그 말풍선이 마지막 이벤트면(예외 넷 2): 잠금 전에는 선택만 받고, 잠금 뒤에는 닫고 평소대로 처리한다.
  */
 export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number, touch: boolean): SceneTapResult {
-  const cur = s.current;
+  const clearing = s.current;
   // 클리어 컷은 0.4초 뒤 탭으로 넘긴다(`magpie_nest.md` 8절·`ui-interaction.md` 11-1절: 다시 볼 때 기다리지 않게). 말풍선(1.0초)과 따로다. 클리어 뒤 다른 입력은 받지 않는다.
-  if (cur?.ev.type === 'clear') {
-    if (cur.t < TIMING.clearSkipAfter) return { kind: 'ignored' };
-    cur.duration = cur.t;
+  if (clearing?.ev.type === 'clear') {
+    if (clearing.t < TIMING.clearSkipAfter) return { kind: 'ignored' };
+    clearing.duration = clearing.t;
     return { kind: 'skipSay' };
   }
   if (s.cleared) return { kind: 'ignored' };
@@ -1373,6 +1413,9 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
     }
     if (inHudZone(p)) return { kind: 'ignored' };
   }
+  // 예외 넷 1(#700): 시작 연출 중 월드 탭은 남은 시작 연출을 끝내고 아래에서 평소대로 처리한다. 마우스·터치 같다.
+  if (s.intro && isBusy(s)) skipIntro(s);
+  const cur = s.current;
   if (cur) {
     if (cur.ev.type === 'walk') {
       // 남은 걷기·깡충을 다 건너뛰고 끝 점에 선다(1-5-2절: 깡충까지 건너뛴다).
@@ -1385,11 +1428,24 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
       else if (w.target) teleport(w, w.target);
       return { kind: 'skipWalk' };
     }
-    if (cur.ev.type === 'say' && cur.t >= (s.seenSay[seenSayKey(cur.ev.speaker, cur.ev.text)] ? TIMING.seenSaySkipAfter : TIMING.saySkipAfter)) {
+    if (cur.ev.type !== 'say') return { kind: 'ignored' };
+    const unlocked = cur.t >= (s.seenSay[seenSayKey(cur.ev.speaker, cur.ev.text)] ? TIMING.seenSaySkipAfter : TIMING.saySkipAfter);
+    // 예외 넷 2(#700): 터치이고 이 말풍선 뒤에 남은 게 없을 때만 탭을 살린다. 마우스(클릭 1번 = 실행)·연출 중간 말풍선은 지금 그대로(예외 넷 3·4).
+    if (!touch || !nothingAfterCurrent(s)) {
+      if (!unlocked) return { kind: 'ignored' };
       cur.duration = cur.t;
       return { kind: 'skipSay' };
     }
-    return { kind: 'ignored' };
+    if (!unlocked) {
+      // 잠금 전: 말풍선은 그대로 두고 고르기(select)만 받는다. 걷기·전환·실행(같은 대상 다시 탭)은 버리고 선택도 그대로 둔다.
+      const r = tap(tapContext(data, s), s.ui, p, slop, touch);
+      if (r.intent.kind !== 'select') return { kind: 'ignored' };
+      s.ui = r.ui;
+      return { kind: 'intent', intent: r.intent };
+    }
+    // 잠금 뒤: 말풍선을 지금 닫고(쉴 때와 같은 상태로) 같은 탭을 아래에서 평소대로 처리한다.
+    endCurrent(s);
+    settle(s);
   }
   // 대기열 밖 깡충(쿵 남은 칸·⑦·들썩)도 busy다. 건너뛸 수 없다(1-6-2절 "탭 건너뛰기").
   if (isBusy(s)) return { kind: 'ignored' };
