@@ -206,7 +206,8 @@ describe('판 끝에서 다른 대상 한 번 누르기 = 내려서기 → 대�
   for (const id of ['jjuk', 'mukjik'] as const) {
     for (const end of ['seesaw_left', 'seesaw_right'] as const) {
       it(`${id} @ ${end}`, () => {
-        for (const target of TARGETS) {
+        // 쭉이가 판 끝에서 둥지에 뻗기는 내려오지 않는다(#688, 아래 따로).
+        for (const target of TARGETS.filter((t) => !(id === 'jjuk' && t === 'nest'))) {
           const s = ready(base);
           runAction(base, s, { char: id, verb: 'move', target: end }, null);
           while (isBusy(s)) sceneTick(base, s);
@@ -226,6 +227,24 @@ describe('판 끝에서 다른 대상 한 번 누르기 = 내려서기 → 대�
         }
       });
     }
+  }
+
+  for (const end of ['seesaw_left', 'seesaw_right'] as const) {
+    it(`쭉이 @ ${end} → 둥지 뻗기: 판에서 내려오지 않고 그 자리에서 높이 부족 실패 (#688)`, () => {
+      const s = ready(base);
+      runAction(base, s, { char: 'jjuk', verb: 'move', target: end }, null);
+      while (isBusy(s)) sceneTick(base, s);
+      const before = pos(s, 'jjuk');
+      runAction(base, s, { char: 'jjuk', verb: 'stretch', target: 'nest' }, null);
+      expect(s.queue.some((e) => e.type === 'walk')).toBe(false);
+      expect(s.queue.some((e) => e.type === 'anim' && e.target === 'jjuk' && e.name === 'common.reach_wobble')).toBe(true);
+      const frames = record(base, s, 'jjuk');
+      // 뛰어내리지 않고, 발은 처음부터 끝까지 판 위 그 자리다.
+      expect(frames.every((f) => f.hop === null)).toBe(true);
+      expect(frames.every((f) => f.at.x === before.x && f.at.y === before.y)).toBe(true);
+      expect(s.walkers.jjuk.facing).toBe(-1); // 둥지(왼쪽 위)를 본다
+      expect(s.puzzle.at.jjuk).toBe(end);
+    });
   }
 
   it('묵직이가 서 있던 판 끝을 쿵: 판 옆 바닥(바닥에서 쿵 할 때와 같은 곳)에서 그 끝을 보고 찧는다(15번)', () => {

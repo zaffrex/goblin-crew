@@ -342,15 +342,33 @@ describe('이동과 자동 걷기 (2단계)', () => {
     screen.hotspots.dog = { box: [300, 200, 24, 24], approach: { default: 'yard', squeak: 'stay' } };
     screen.hotspots.magpie!.variants![0]!.approach = 'seesaw_right';
     const s = initialState(screen);
-    expect(approachFor(screen, s, 'dog', 'hand')).toBe('yard');
-    expect(approachFor(screen, s, 'dog', 'squeak')).toBe('stay');
-    expect(approachFor(screen, s, 'nest', 'hand')).toBe('floor');
-    expect(approachFor(screen, s, 'magpie', 'hand')).toBe('floor');
+    expect(approachFor(screen, s, 'jjuk', 'dog', 'hand')).toBe('yard');
+    expect(approachFor(screen, s, 'jjuk', 'dog', 'squeak')).toBe('stay');
+    expect(approachFor(screen, s, 'jjuk', 'nest', 'hand')).toBe('floor');
+    expect(approachFor(screen, s, 'jjuk', 'magpie', 'hand')).toBe('floor');
     const down = withState(s, { flags: { ...s.flags, 'magpie.on_ground': true } });
-    expect(approachFor(screen, down, 'magpie', 'hand')).toBe('seesaw_right');
+    expect(approachFor(screen, down, 'jjuk', 'magpie', 'hand')).toBe('seesaw_right');
     const r = step(screen, s, { char: 'ppik', verb: 'squeak', target: 'dog' });
     expect(r.state.at.ppik).toBe('floor');
     expect(r.events.some((e) => e.type === 'walk')).toBe(false);
+  });
+
+  it('approach.from: 지금 선 자리별 예외, 없는 동사는 바깥 맵으로 (#688)', () => {
+    const screen = magpieScreen();
+    screen.hotspots.nest!.approach = { default: 'floor', squeak: 'stay', from: { seesaw_left: { stretch: 'stay' }, seesaw_right: 'stay' } };
+    const s = run(screen, [
+      { char: 'jjuk', verb: 'move', target: 'seesaw_left' },
+      { char: 'mukjik', verb: 'move', target: 'seesaw_right' },
+    ]);
+    expect(approachFor(screen, s, 'jjuk', 'nest', 'stretch')).toBe('stay');
+    expect(approachFor(screen, s, 'jjuk', 'nest', 'hand')).toBe('floor'); // from 안에 없는 동사 → 바깥 default
+    expect(approachFor(screen, s, 'mukjik', 'nest', 'stomp')).toBe('stay'); // 문자열 값은 모든 동사
+    expect(approachFor(screen, s, 'ppik', 'nest', 'hand')).toBe('floor'); // 바닥은 from에 없음
+    // 시소 끝의 쭉이가 둥지에 뻗기: 내려오지 않고 그 자리에서 높이 부족 실패.
+    const r = step(screen, s, { char: 'jjuk', verb: 'stretch', target: 'nest' });
+    expect(r.state.at.jjuk).toBe('seesaw_left');
+    expect(r.events.some((e) => e.type === 'walk')).toBe(false);
+    expect(r.source).toBe('hotspotFallback'); // 바닥에서와 같은 높이 부족 반응
   });
 });
 
