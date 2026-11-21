@@ -7,12 +7,24 @@ describe('computeScale', () => {
   it('2배 이상이면 정수 배율로 내림한다', () => {
     expect(computeScale({ width: 1920, height: 1080 }, INTERNAL)).toBe(4);
     expect(computeScale({ width: 1366, height: 768 }, INTERNAL)).toBe(2); // 2.84 → 2
-    expect(computeScale({ width: 2532, height: 1170 }, INTERNAL)).toBe(4); // 휴대폰 가로, dpr 3
+  });
+
+  it('2배 판정은 CSS 픽셀로 한다: 고밀도 데스크톱은 장치 픽셀 정수 배율', () => {
+    expect(computeScale({ width: 2880, height: 1800 }, INTERNAL, 2)).toBe(6); // 1440×900 레티나, CSS 3배
+    expect(computeScale({ width: 1920, height: 1080 }, INTERNAL, 1.25)).toBe(4); // 1536×864 CSS, CSS 3.2배 → 장치 4
+  });
+
+  it('휴대폰 가로는 dpr과 상관없이 높이를 꽉 채운다 (#603 10회차: dpr 2에서 CSS 1배로 떨어지던 것)', () => {
+    for (const dpr of [2, 2.625, 3]) {
+      const s = computeScale({ width: Math.floor(844 * dpr), height: Math.floor(390 * dpr) }, INTERNAL, dpr);
+      expect((270 * s) / dpr, `dpr ${dpr}`).toBeCloseTo(390, 0);
+    }
   });
 
   it('2배 미만이면 비정수 배율로 꽉 채운다', () => {
     expect(computeScale({ width: 720, height: 1000 }, INTERNAL)).toBeCloseTo(1.5);
     expect(computeScale({ width: 390, height: 844 }, INTERNAL)).toBeCloseTo(390 / 480);
+    expect(computeScale({ width: 1688, height: 780 }, INTERNAL, 2)).toBeCloseTo(780 / 270); // 844×390 dpr 2
   });
 
   it('더 좁은 축이 배율을 정한다', () => {
