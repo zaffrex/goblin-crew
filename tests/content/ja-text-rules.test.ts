@@ -79,6 +79,18 @@ describe("ja.json 줄 규칙 (ja-text.md 2절, #280)", () => {
     }
   });
 
+  it("대상 이름은 10자 이하, 아이템 이름은 5자 이하 (대상 라벨 + 터치 꼬리가 480px 안, #703)", () => {
+    const keys = Object.keys(texts);
+    const targets = keys.filter((k) => /^[a-z_]+\.name\.[a-z_]+$/.test(k));
+    const items = keys.filter((k) => /^item\.[a-z_]+\.name$/.test(k));
+    expect(targets.length).toBeGreaterThan(0);
+    expect(items.length).toBeGreaterThan(0);
+    for (const k of targets)
+      expect(len(texts[k]!), `${k} ${texts[k]}`).toBeLessThanOrEqual(10);
+    for (const k of items)
+      expect(len(texts[k]!), `${k} ${texts[k]}`).toBeLessThanOrEqual(5);
+  });
+
   it("게이지 이름표는 8자 이하, 클리어 카드는 줄당 12자 이하", () => {
     expect(len(texts["ui.hud.gauge"]!)).toBeLessThanOrEqual(8);
     for (const line of texts["ui.clear"]!.split("\n"))
