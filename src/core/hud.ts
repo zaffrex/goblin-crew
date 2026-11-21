@@ -175,6 +175,11 @@ export function abilityText(char: CharacterId, t: Text): string {
   return fill(t('ui.hud.char_hover'), { name: t(`char.${char}.name`), verb: t(`ui.verb.${ability}`), desc: t(`ui.ability.${ability}`) });
 }
 
+/** 전환 알림 `{name}に交代`(#692). 몸 탭·얼굴 탭 전환 뒤 대상 라벨 자리에 뜬다. */
+export function switchText(char: CharacterId, t: Text): string {
+  return fill(t('ui.switch'), { name: t(`char.${char}.name`) });
+}
+
 /** 데스크톱 호버 설명(대상 라벨 자리). 얼굴 칸 = 그 사람 특기 설명, `gauge` = 게이지 설명. */
 export function hudHoverText(id: HudId | 'gauge', t: Text): string {
   if (id === 'gauge') return t('ui.hud.gauge_hover');

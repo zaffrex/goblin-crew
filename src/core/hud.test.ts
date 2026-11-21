@@ -6,6 +6,7 @@ import { CHARACTERS } from './characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, WALK_AREA } from './config';
 import {
   abilityText,
+  switchText,
   GAUGE_BAND,
   GAUGE_CHIP_HOLD_TICKS,
   GAUGE_CHIP_SHRINK_TICKS,
@@ -121,6 +122,13 @@ describe('hudHoverText (데스크톱 호버 설명, 6-4-3절)', () => {
       expect(text).not.toMatch(/[{}]/);
       expect([...text].length).toBeLessThanOrEqual(20);
     }
+  });
+
+  it('전환 알림(switchText, #692)은 `{name}に交代`이고 이름표와 같은 이름을 쓴다', () => {
+    expect(switchText('jjuk', t)).toBe('ノビーに交代');
+    expect(switchText('mukjik', t)).toBe('ズッシーに交代');
+    expect(switchText('ppik', t)).toBe('プピに交代');
+    for (const c of CHARACTERS) expect(switchText(c.id, t)).not.toMatch(/[{}]/);
   });
 
   it('게이지는 고정 설명', () => {

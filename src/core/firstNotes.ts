@@ -8,6 +8,8 @@ import { FLOOR, type Action, type RuleDef } from './puzzle/types';
 
 /** 첫 감소 안내가 떠 있는 시간(틱, 2.5초 @ 60Hz, 설계 6-2-5절). */
 export const GAUGE_NOTE_TICKS = 150;
+/** 마우스 전환 알림이 떠 있는 시간(틱, 0.8초 @ 60Hz, #692). 터치는 시간으로 안 지운다(다음 탭까지). */
+export const SWITCH_NOTE_TICKS = 48;
 
 export interface FirstNotes {
   /** 그 판에서 특기 설명을 이미 본 캐릭터. 처음 캐릭터는 시작 카드가 말했으니 처음부터 들어 있다(6-4-3절). */
@@ -16,8 +18,11 @@ export interface FirstNotes {
   dropShown: boolean;
   /** 지난번에 본 게이지(감소를 알아보는 데 쓴다). */
   lastGauge: number;
-  /** 지금 떠 있는 글. `until`이 null이면 다음 탭까지. */
-  note: { text: string; until: number | null } | null;
+  /**
+   * 지금 떠 있는 글. `until`이 null이면 다음 탭까지.
+   * `hover`가 있으면 마우스 전환 알림이다(#692): 마우스가 다른 대상으로 옮겨 가면(`noteHover`) 호버 라벨에 자리를 내준다.
+   */
+  note: { text: string; until: number | null; hover?: string } | null;
   /** 서는 자리로 가는 중인 사람(6-4-1a절). busy가 풀리면 `noteStood`가 본다. */
   climbing: { char: CharacterId; spot: string } | null;
   /** 서 있는 자리에 특기를 한 번이라도 쓴 캐릭터. 그 판에서 올라선 뒤 라벨을 다시 안 띄운다(6-4-1a절). */
@@ -38,6 +43,28 @@ export function noteSwitch(n: FirstNotes, char: CharacterId, text: string): void
   if (n.introduced.has(char)) return;
   n.introduced.add(char);
   n.note = { text, until: null };
+}
+
+/**
+ * 전환 알림 `{name}に交代`(#692, #603 7·8회차). 몸 탭으로 바뀌면 휴대폰에서는 얼굴 칸 강조만 달라지는데 시선은 누른 물건에 있어서
+ * "눌렀는데 반응 없음"으로 읽혔다. 얼굴 칸 탭도 같은 일이라 같은 글을 쓴다. `noteSwitch` **뒤에** 부른다:
+ * 그 판 처음 바꾼 캐릭터(터치)는 특기 설명이 이미 떴고, 그 글도 이름으로 시작하니 그게 먼저다.
+ * 터치는 다음 탭까지(선택 라벨과 같은 규칙). 마우스는 0.8초, 그 사이 마우스가 다른 대상으로 가면 바로 호버 라벨이다(`noteHover`).
+ * `hoverKey`는 클릭한 순간 마우스 아래 라벨 키(`labelKey`)다.
+ */
+export function noteSwitched(n: FirstNotes, text: string, tick: number, touch: boolean, hoverKey: string): void {
+  if (n.note) return;
+  n.note = touch ? { text, until: null } : { text, until: tick + SWITCH_NOTE_TICKS, hover: hoverKey };
+}
+
+/** 마우스 호버 라벨이 다시 정해졌다. 전환 알림을 띄운 자리와 다른 대상이면 알림을 지운다(#692, "마우스는 호버가 바꾼다"). */
+export function noteHover(n: FirstNotes, hoverKey: string): void {
+  if (n.note?.hover !== undefined && n.note.hover !== hoverKey) n.note = null;
+}
+
+/** 호버 라벨 비교용 키. 라벨이 없으면 빈 글. */
+export function labelKey(l: Label | null): string {
+  return l ? `${l.verb ?? ''}|${l.target ?? ''}|${l.item ?? ''}` : '';
 }
 
 /**

@@ -15,8 +15,8 @@ import { drawnByShape, frameNudges, fxNudges, particleFx, shapeParticles, type N
 import type { HitBox } from './core/hit';
 import { cutCenter } from './core/cutPlace';
 import { cardFacePx, cardInput, cardPointer, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
-import { createFirstNotes, currentNote, noteAction, noteGauge, noteStood, noteSwitch, noteTap, selectLabelText, standLabel } from './core/firstNotes';
-import { abilityText, cutFontPx, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, type HudId } from './core/hud';
+import { createFirstNotes, currentNote, labelKey, noteAction, noteGauge, noteHover, noteStood, noteSwitch, noteSwitched, noteTap, selectLabelText, standLabel } from './core/firstNotes';
+import { abilityText, cutFontPx, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, switchText, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { pickScreen, screenTextKey } from './core/screenPick';
@@ -270,6 +270,12 @@ onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
   // 첫 전환 안내는 터치만(설계 6-4-3절, PR #295 리뷰). 마우스는 얼굴 호버로 같은 글을 이미 봤고, 안내가 대상 호버 라벨을 가린다.
   // 얼굴 탭·몸 탭 둘 다 전환이다. 처음 캐릭터는 시작 카드가 말했으니 띄우지 않는다(createFirstNotes).
   if (slop > 0 && r.intent.kind === 'switch') noteSwitch(notes, r.intent.char, abilityText(r.intent.char, t));
+  // 전환 알림 `{name}に交代`(#692): 마우스·터치, 몸 탭·얼굴 탭 모두. 위 특기 설명이 떴으면 그게 먼저다.
+  if (r.intent.kind === 'switch') {
+    // 마우스는 바뀐 사람 기준으로 호버를 다시 잰다. 안 그러면 1px만 움직여도 "다른 대상"으로 읽혀 알림이 바로 꺼진다.
+    if (slop === 0) updateHover(p);
+    noteSwitched(notes, switchText(r.intent.char, t), session.scene.tick, slop > 0, labelKey(hoverLabel));
+  }
 });
 /**
  * 처음부터 버튼(#387): 두 번 눌러야 한다(3초 안, `core/restart.ts`). 새로고침 없이 장면만 새 판으로 바꾼다.
@@ -315,6 +321,7 @@ canvas.addEventListener('pointermove', (e) => {
   const p = screenToInternal({ x: e.clientX, y: e.clientY }, display.rect(), display.internal);
   lastMouse = p;
   updateHover(p);
+  noteHover(notes, labelKey(hoverLabel));
 });
 canvas.addEventListener('pointerleave', (e) => {
   if (e.pointerType === 'mouse') lastMouse = null;
