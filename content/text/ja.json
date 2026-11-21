@@ -110,6 +110,7 @@
   "ui.restart": "最初から",
   "ui.restart_hover": "2回押すと最初からやり直す",
   "ui.restart_confirm": "もう一度押すと最初から",
+  "ui.touch.tap_again": "{label}（もう一度タップで決定）",
   "item.shop_key.name": "店のカギ",
   "magpie_nest.name.magpie": "カササギ",
   "magpie_nest.name.nest": "カササギの巣",
