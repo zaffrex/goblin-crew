@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import texts from '../../content/text/ja.json';
 import magpie from '../../content/screens/magpie_nest.json';
 import fountain from '../../content/screens/park_fountain.json';
-import { createFirstNotes, currentNote, GAUGE_NOTE_TICKS, labelKey, noteAction, noteGauge, noteHover, noteStood, noteSwitch, noteSwitched, noteTap, selectLabelText, standLabel, SWITCH_NOTE_TICKS } from './firstNotes';
+import { createFirstNotes, currentNote, GAUGE_NOTE_TICKS, labelKey, noteAction, noteGauge, noteHover, noteStood, noteSwitch, noteSwitched, noteTap, selectLabelText, standLabel, standSelect, SWITCH_NOTE_TICKS } from './firstNotes';
 import { labelText } from './interact';
 import { initialState, step } from './puzzle/step';
 import type { Action, PuzzleState, ScreenData } from './puzzle/types';
@@ -167,6 +167,61 @@ describe('올라선 뒤 그 자리 라벨 (ui-interaction.md 6-4-1a절, #630)', 
     noteAction(n, climb, 'floor');
     noteStood(n, 'mukjik', 1000, text(stood));
     expect(currentNote(n, 1000)).toBeNull();
+  });
+
+  it('터치로 올라서면 글 대신 그 자리를 돌려준다(6-4-1a-1절, #710). 조건 ①·겹침은 같고 횟수는 안 본다', () => {
+    const n = createFirstNotes(5, 'jjuk');
+    noteAction(n, climb, 'floor', true);
+    expect(noteStood(n, 'mukjik', 100, text(stood))).toEqual({ char: 'mukjik', spot: 'seesaw_right' });
+    expect(currentNote(n, 100)).toBeNull();
+    expect(n.climbing).toBeNull();
+    // 걷는 동안 다른 얼굴로 바꿨으면 안 고른다.
+    noteAction(n, climb, 'floor', true);
+    expect(noteStood(n, 'jjuk', 200, text(stood))).toBeNull();
+    // 다른 안내가 떠 있으면 건너뛴다.
+    noteGauge(n, 4, 290, DROP);
+    noteAction(n, climb, 'floor', true);
+    expect(noteStood(n, 'mukjik', 300, text(stood))).toBeNull();
+    noteTap(n);
+    // 그 자리 특기를 한 번 써도 다시 올라서면 또 고른다(두 번째 발사도 탭 3번, PR #719 "몇 번").
+    noteAction(n, { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, 'seesaw_right', true);
+    expect(n.usedHere.has('mukjik')).toBe(true);
+    noteAction(n, { char: 'mukjik', verb: 'move', target: 'floor' }, 'seesaw_right', true);
+    noteAction(n, climb, 'floor', true);
+    expect(noteStood(n, 'mukjik', 400, text(stood))).toEqual({ char: 'mukjik', spot: 'seesaw_right' });
+    expect(currentNote(n, 400)).toBeNull();
+  });
+
+  it('두 입력이 갈리는 지점: 특기를 쓴 뒤 다시 올라서면 터치는 고르고 마우스는 글을 안 띄운다', () => {
+    for (const touch of [true, false]) {
+      const n = createFirstNotes(5, 'jjuk');
+      noteAction(n, climb, 'floor', touch);
+      noteStood(n, 'mukjik', 100, text(stood));
+      noteTap(n);
+      noteAction(n, { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, 'seesaw_right', touch);
+      noteAction(n, { char: 'mukjik', verb: 'move', target: 'floor' }, 'seesaw_right', touch);
+      noteAction(n, climb, 'floor', touch);
+      const r = noteStood(n, 'mukjik', 400, text(stood));
+      expect(r).toEqual(touch ? { char: 'mukjik', spot: 'seesaw_right' } : null);
+      expect(currentNote(n, 400)).toBeNull();
+    }
+  });
+
+  it('마우스로 올라서면 지금처럼 글을 띄우고 아무것도 안 돌려준다', () => {
+    const n = createFirstNotes(5, 'jjuk');
+    noteAction(n, climb, 'floor', false);
+    expect(noteStood(n, 'mukjik', 100, text(stood))).toBeNull();
+    expect(currentNote(n, 100)).toBe(RIGHT);
+  });
+
+  it('standSelect: 다시 눌렀을 때와 같은 행동 키·라벨, 조건 ②·③은 standLabel과 같다', () => {
+    expect(standSelect({ screen, puzzle: stood }, screen.rules, 'mukjik', 'seesaw_right')).toEqual({
+      key: 'mukjik|stomp|seesaw_right|',
+      label: { verb: 'stomp', target: 'seesaw_right' },
+    });
+    expect(standSelect({ screen, puzzle: initialState(screen) }, screen.rules, 'mukjik', 'seesaw_right')).toBeNull();
+    const jjukLeft = standing('jjuk', 'seesaw_left');
+    expect(standSelect({ screen, puzzle: jjukLeft }, screen.rules, 'jjuk', 'seesaw_left')).toBeNull();
   });
 
   it('다른 처음 한 번 안내가 떠 있으면 덮지 않고 건너뛴다', () => {

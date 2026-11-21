@@ -15,7 +15,7 @@ import { drawnByShape, frameNudges, fxNudges, particleFx, shapeParticles, type N
 import type { HitBox } from './core/hit';
 import { cutCenter } from './core/cutPlace';
 import { cardFacePx, cardInput, cardPointer, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
-import { createFirstNotes, currentNote, labelKey, noteAction, noteGauge, noteHover, noteStood, noteSwitch, noteSwitched, noteTap, selectLabelText, standLabel } from './core/firstNotes';
+import { createFirstNotes, currentNote, labelKey, noteAction, noteGauge, noteHover, noteStood, noteSwitch, noteSwitched, noteTap, selectLabelText, standLabel, standSelect } from './core/firstNotes';
 import { cutFontPx, firstSwitchText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, switchText, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
@@ -266,7 +266,7 @@ onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
   const r = sceneTap(session.data, session.scene, p, slop, slop > 0);
   if (r.kind !== 'intent') return;
   touchLabel = r.intent.kind === 'select' ? r.intent.label : null;
-  if (r.intent.kind === 'act') noteAction(notes, r.intent.action, before[r.intent.action.char]);
+  if (r.intent.kind === 'act') noteAction(notes, r.intent.action, before[r.intent.action.char], slop > 0);
   // 첫 전환 안내는 터치만(설계 6-4-3절, PR #295 리뷰). 마우스는 얼굴 호버로 특기 설명을 이미 봤고, 안내가 대상 호버 라벨을 가린다.
   // 글은 `{name}に交代（{desc}）`(#692 Luna 리뷰): 호버 글과 같으면 "바뀌었다"가 안 읽힌다.
   // 얼굴 탭·몸 탭 둘 다 전환이다. 처음 캐릭터는 시작 카드가 말했으니 띄우지 않는다(createFirstNotes).
@@ -354,15 +354,25 @@ function updateHover(p: Point | null): void {
 }
 
 /**
- * busy가 풀린 첫 틱(6-4-1a절). 방금 서는 자리에 선 사람이 지금 고른 사람이면 그 자리 특기 라벨을 2.5초 띄우고,
- * 마우스가 캔버스 위에 있으면 그 자리로 호버 라벨을 다시 잰다(탭 때 지운 라벨이 마우스를 움직여야만 돌아오던 것).
+ * busy가 풀린 첫 틱(6-4-1a절). 방금 서는 자리에 선 사람이 지금 고른 사람이면 그 자리 특기 라벨을 2.5초 띄우고
+ * (터치로 올라섰으면 대신 그 자리 특기를 고른다, 6-4-1a-1절), 마우스가 캔버스 위에 있으면 그 자리로 호버 라벨을 다시 잰다(탭 때 지운 라벨이 마우스를 움직여야만 돌아오던 것).
  */
 function onSettled(): void {
   const { data, scene } = session;
-  noteStood(notes, scene.ui.active, scene.tick, ({ char, spot }) => {
-    const l = standLabel({ screen: data.screen, puzzle: scene.puzzle }, data.screen.rules, char, spot);
+  const view = { screen: data.screen, puzzle: scene.puzzle };
+  const stood = noteStood(notes, scene.ui.active, scene.tick, ({ char, spot }) => {
+    const l = standLabel(view, data.screen.rules, char, spot);
     return l ? labelText(l, data.screen.id, t) : null;
   });
+  // 터치로 올라섰으면 글 대신 그 자리 특기를 첫 탭으로 고른 상태로(6-4-1a-1절, #710). 라벨은 터치 선택 라벨 그대로라 꼬리가 붙는다.
+  // 플레이어가 이미 뭔가 골라 뒀으면 덮지 않는다.
+  if (stood && scene.ui.selected === null) {
+    const sel = standSelect(view, data.screen.rules, stood.char, stood.spot);
+    if (sel) {
+      scene.ui = { ...scene.ui, selected: sel.key };
+      touchLabel = sel.label;
+    }
+  }
   if (lastMouse) updateHover(lastMouse);
 }
 

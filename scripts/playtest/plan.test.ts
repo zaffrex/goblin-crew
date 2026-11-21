@@ -129,6 +129,10 @@ describe('playtest plan (ui-interaction 6-4-7절)', () => {
     const plan = planAction(screen, fakeLayout(s, 'mukjik'), { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' }, 'mouse');
     expect(plan.verbByDefault).toBe(false);
     expect(plan.taps.map((t) => t.why)).toEqual(['move(올라섬) 실행', 'stomp 실행']);
+    expect(plan.taps.some((t) => t.skipIfSelected)).toBe(false);
+    // 터치: 특기의 첫 탭(선택)만 "이미 골라져 있으면 건너뜀"(6-4-1a-1절, #710). 올라섬 탭과 실행 탭은 늘 누른다.
+    const touch = planAction(screen, fakeLayout(s, 'mukjik'), { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' }, 'touch');
+    expect(touch.taps.map((t) => t.skipIfSelected ?? null)).toEqual([null, null, 'mukjik|stomp|seesaw_left|', null]);
     const taken = { ...s, at: { ...s.at, jjuk: 'seesaw_left' } };
     expect(() => planAction(screen, fakeLayout(taken, 'mukjik'), { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' }, 'mouse')).toThrow(/남이 선 자리/);
   });

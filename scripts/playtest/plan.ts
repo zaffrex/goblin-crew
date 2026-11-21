@@ -8,6 +8,7 @@
 import { characterDef, type CharacterId } from '../../src/core/characters.ts';
 import { distanceToBox, type HitBox } from '../../src/core/hit.ts';
 import { HUD_AREA, type HudId } from '../../src/core/hud.ts';
+import { actionKey } from '../../src/core/interact.ts';
 import type { Action, ScreenData, Verb } from '../../src/core/puzzle/types.ts';
 import type { Point } from '../../src/core/viewport.ts';
 
@@ -54,6 +55,11 @@ export interface Tap {
   /** 내부 px 정수. 페이지 좌표는 coords.ts `internalToPage`로 바꾼다. */
   at: Point;
   why: string;
+  /**
+   * 터치 첫 탭(선택)에만. 누르기 직전 훅 `selected`가 이 행동 키면 건너뛴다: 터치로 올라선 순간 엔진이 그 자리 특기를
+   * 이미 골라 둔다(6-4-1a-1절, #710). 다른 안내가 떠 있거나 플레이어가 먼저 골라 뒀으면 안 고르므로 미리 정할 수 없어 누를 때 본다.
+   */
+  skipIfSelected?: string;
 }
 
 export interface Plan {
@@ -169,7 +175,9 @@ export function planAction(screen: ScreenData, layout: Layout, action: Action, i
     const isStepTap = action.target !== 'floor' || !fromFree;
     const times = input === 'touch' && isStepTap ? 2 : 1;
     for (let i = 0; i < times; i++) {
-      taps.push({ id: action.target, at: point, why: times === 2 ? `${verb} ${i === 0 ? '선택(첫 탭)' : '실행(같은 대상 다시 탭)'}` : `${verb} 실행` });
+      const tap: Tap = { id: action.target, at: point, why: times === 2 ? `${verb} ${i === 0 ? '선택(첫 탭)' : '실행(같은 대상 다시 탭)'}` : `${verb} 실행` };
+      if (times === 2 && i === 0 && verb === action.verb) tap.skipIfSelected = actionKey(action);
+      taps.push(tap);
     }
   };
   if (climb) {
