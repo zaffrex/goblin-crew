@@ -46,12 +46,25 @@ describe('기본 탭 동사 (설계 2절)', () => {
     expect(r1).toMatchObject({ kind: 'act', action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, label: { verb: 'stomp' } });
   });
 
-  it('지금 캐릭터 몸은 히트 대상에서 빠진다: 시소 끝을 가린 내 몸을 눌러도 쿵', () => {
+  it('시소 끝을 가린 내 몸을 눌러도 쿵(몸 아래쪽 = 끝 상자 안)', () => {
     const ctx = ctxFor(puzzleWith({ mukjik: 'seesaw_right' }));
-    const p = { x: 280, y: 205 }; // 묵직이 몸(273~303) 안 + 오른쪽 끝(250~288) 안
+    const p = { x: 280, y: 205 }; // 묵직이 몸 안 + 오른쪽 끝(250~288) 안
     expect(ctx.bodies.mukjik.left).toBeLessThanOrEqual(p.x);
     expect(resolveTap(ctx, ui('mukjik'), p, 0)).toMatchObject({ kind: 'act', action: { verb: 'stomp', target: 'seesaw_right' } });
-    expect(worldTargets(ctx, ui('mukjik')).some((t) => t.id === 'char:mukjik')).toBe(false);
+  });
+
+  it('바닥에선 지금 캐릭터 몸이 히트 대상에서 빠진다: 내 몸을 누르면 그 점으로 걷기', () => {
+    const ctx = ctxFor(puzzleWith({}));
+    let checked = 0;
+    for (const c of CHARACTERS) {
+      expect(worldTargets(ctx, ui(c.id)).some((t) => t.id === `char:${c.id}`)).toBe(false);
+      const b = ctx.bodies[c.id];
+      const p = { x: b.left + b.width / 2, y: b.top + b.height - 6 }; // 몸 아래쪽(남의 얼굴 상자와 안 겹치는 쪽)
+      if (hitTest(worldTargets(ctx, ui(c.id)), p, 0)) continue;
+      expect(resolveTap(ctx, ui(c.id), p, 0)).toEqual({ kind: 'walk', to: p, label: { verb: 'walk', target: null } });
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 
   it('hold 예외: 매달린 내 몸은 대상으로 남고, 누르면 아무 일 없음(이름 라벨)', () => {
@@ -331,6 +344,74 @@ describe('터치 탭 2번 (설계 4절)', () => {
     expect(a.intent).toMatchObject({ kind: 'select', label: { verb: 'release' } });
     expect(tap(hang, a.ui, { x: 310, y: 250 }, 8, true).intent).toMatchObject({ kind: 'act', action: { verb: 'move', target: 'floor' } });
     expect(tap(hang, ui('jjuk'), center(CHAR_SLOTS.ppik), 8, true).intent.kind).toBe('switch');
+  });
+});
+
+describe('서 있는 내 몸 = 내가 선 자리 (설계 6-4-1b절, #630 2단계)', () => {
+  const onRight = puzzleWith({ jjuk: 'seesaw_left', mukjik: 'seesaw_right' });
+
+  it('Mia 4회차 7번: 묵직이 오른쪽 끝에 선 뒤 머리 쪽(끝 상자 위)을 누르면 쿵, 걸어 내려오지 않는다', () => {
+    const ctx = ctxFor(onRight);
+    const b = ctx.bodies.mukjik;
+    const head = { x: b.left + b.width / 2, y: b.top + 8 };
+    expect(head.y).toBeLessThan(196); // 끝 box(y 196~220) 위: 예전엔 아무것도 안 맞아 move floor였다
+    const r = resolveTap(ctx, ui('mukjik'), head, 0);
+    expect(r).toEqual(targetIntent(ctx, 'mukjik', { kind: 'spot', ref: 'seesaw_right' }, head));
+    expect(r).toMatchObject({ kind: 'act', action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, label: { verb: 'stomp', target: 'seesaw_right' } });
+    // 몸 전체 어디를 눌러도(남에게 안 가린 점) 걷기가 나오지 않는다
+    for (let x = b.left; x < b.left + b.width; x += 2) {
+      for (let y = b.top; y < b.top + b.height; y += 2) {
+        const hit = hitTest(worldTargets(ctx, ui('mukjik')), { x, y }, 0);
+        if (hit?.id !== 'char:mukjik') continue;
+        expect(resolveTap(ctx, ui('mukjik'), { x, y }, 0), `${x},${y}`).toMatchObject({ kind: 'act', action: { verb: 'stomp' } });
+      }
+    }
+  });
+
+  it('누구든 끝에 서 있으면 내 몸 = 그 끝에 내 능력(쭉이 → stretch, 삑삑이 → squeak)', () => {
+    for (const [c, spot] of [['jjuk', 'seesaw_left'], ['ppik', 'seesaw_right'], ['mukjik', 'seesaw_left']] as const) {
+      const ctx = ctxFor(puzzleWith({ [c]: spot }));
+      const b = ctx.bodies[c];
+      const head = { x: b.left + b.width / 2, y: b.top + 4 };
+      expect(resolveTap(ctx, ui(c), head, 0)).toMatchObject({ kind: 'act', action: { char: c, verb: characterDef(c).ability, target: spot } });
+    }
+  });
+
+  it('호버 라벨도 그 자리 라벨 그대로: ドスン: シーソーの右端', () => {
+    const tt = (id: string): string => (texts as Record<string, string>)[id] ?? id;
+    const ctx = ctxFor(onRight);
+    const r = resolveTap(ctx, ui('mukjik'), { x: center(ctx.bodies.mukjik).x, y: ctx.bodies.mukjik.top + 8 }, 0);
+    expect(r.kind === 'act' && labelText(r.label, 'magpie_nest', tt)).toBe(`${tt('ui.verb.stomp')}: ${tt('magpie_nest.name.seesaw_right')}`);
+  });
+
+  it('남의 몸이 겹치면 남이 이긴다(전환 우선). 그리는 순서와 무관', () => {
+    const base = ctxFor(onRight);
+    const m = base.bodies.mukjik;
+    const overlap = { ...base, bodies: { ...base.bodies, jjuk: { ...m, left: m.left - 10 } } };
+    const p = { x: m.left + 4, y: m.top + 10 };
+    for (const order of [['jjuk', 'mukjik', 'ppik'], ['mukjik', 'jjuk', 'ppik']] as const) {
+      expect(resolveTap({ ...overlap, order }, ui('mukjik'), p, 0)).toMatchObject({ kind: 'switch', char: 'jjuk' });
+    }
+  });
+
+  it('터치: 몸과 끝은 같은 행동이라 몸 → 끝, 끝 → 몸 어느 순서로 두 번 눌러도 실행', () => {
+    const ctx = ctxFor(onRight);
+    const head = { x: center(ctx.bodies.mukjik).x, y: ctx.bodies.mukjik.top + 8 };
+    const end = { x: 256, y: 208 }; // 오른쪽 끝 상자 안, 묵직이 몸 왼쪽 밖
+    expect(hitTest(worldTargets(ctx, ui('mukjik')), end, 8)?.id).toBe('spot:seesaw_right');
+    for (const [a, b] of [[head, end], [end, head]] as const) {
+      const first = tap(ctx, ui('mukjik'), a, 8, true);
+      expect(first.intent.kind).toBe('select');
+      expect(tap(ctx, first.ui, b, 8, true).intent).toMatchObject({ kind: 'act', action: { verb: 'stomp', target: 'seesaw_right' } });
+    }
+  });
+
+  it('매달림(hold)은 그대로 아무 일 없음, box 없는 자리(화면 2 fountain_seat)는 몸을 대상으로 넣지 않는다', () => {
+    const hang = ctxFor(puzzleWith({ jjuk: 'hook' }));
+    expect(resolveTap(hang, ui('jjuk'), center(hang.bodies.jjuk), 0)).toEqual({ kind: 'none', label: { verb: null, target: 'jjuk' } });
+    const seat: ScreenData = { ...screen, spots: { ...screen.spots, seat: { x: 300, y: 200, capacity: 3 } as ScreenData['spots'][string] } };
+    const ctx = ctxFor({ ...puzzleWith({}), at: { ...puzzleWith({}).at, mukjik: 'seat' } }, seat);
+    expect(worldTargets(ctx, ui('mukjik')).some((t) => t.id === 'char:mukjik')).toBe(false);
   });
 });
 
