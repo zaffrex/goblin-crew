@@ -10,12 +10,10 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { stateKey } from '../../src/core/puzzle/bfs';
-import { screenHost } from '../../src/core/puzzle/check';
-import { step } from '../../src/core/puzzle/step';
 import type { CharacterId } from '../../src/core/characters';
 import { actionKey, targetIntent, type PuzzleTarget } from '../../src/core/interact';
-import { type Action, type CharactersData, type PuzzleState, type ScreenData, type StepResult } from '../../src/core/puzzle/types';
+import { type CharactersData, type PuzzleState, type ScreenData } from '../../src/core/puzzle/types';
+import { eachStep } from './each-step';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const load = (...p: string[]): unknown => JSON.parse(readFileSync(join(ROOT, ...p), 'utf8'));
@@ -34,37 +32,6 @@ function sheetAnims(char: string): Set<string> {
   if (!readdirSync(join(ROOT, 'public', 'sprites')).includes(f)) return new Set();
   const meta = load('public', 'sprites', f) as { anims?: Record<string, unknown> };
   return new Set(Object.keys(meta.anims ?? {}));
-}
-
-/**
- * 도달 가능한 클리어 전 상태 × 모든 행동을 진짜 `step`으로 한 번씩 돌린다(#67 BFS와 같은 호스트).
- * `invalid`(엔진이 거르는 행동)는 넘긴다. 자세 장부와 반응 검사(#469)가 같이 쓴다.
- */
-function eachStep(
-  screen: ScreenData,
-  chars: CharactersData,
-  visit: (s: PuzzleState, a: Action, r: StepResult) => void,
-): PuzzleState[] {
-  const host = screenHost(screen, chars);
-  const seen = new Set<string>([stateKey(host.initial)]);
-  const states: PuzzleState[] = [];
-  const queue: PuzzleState[] = [host.initial];
-  while (queue.length) {
-    const s = queue.shift()!;
-    states.push(s);
-    if (host.isClear(s)) continue;
-    for (const a of host.actions(s)) {
-      const r = step(screen, s, a, chars);
-      if (r.source === 'invalid') continue;
-      visit(s, a, r);
-      const k = stateKey(r.state);
-      if (!seen.has(k)) {
-        seen.add(k);
-        queue.push(r.state);
-      }
-    }
-  }
-  return states;
 }
 
 /** 화면에서 캐릭터가 받을 수 있는 `캐릭터:자세` 전부. */

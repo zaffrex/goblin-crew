@@ -23,7 +23,7 @@ describe('screen BFS check', () => {
 
   it('counts unique reactions without common.*', () => {
     const screen = load(dir('../../content/screens/magpie_nest.json')) as ScreenData;
-    // 10 = 9 + 묵직이 `seesaw_stomp`(#414). 새 칸 없이 있는 칸을 잇는 시트 줄이지만 화면 고유 연출로 센다(ADR-0018 R1 상한 12).
+    // 10 = 9 + 묵직이 `seesaw_stomp`(#414). 새 칸 없이 있는 칸을 잇는 시트 줄이지만 화면 고유 연출로 센다(R1 하한 이름 4. 상한은 ADR-0422 새 칸 48, tests/art/r1-cells.test.ts).
     expect(uniqueReactions(screen)).toBe(10);
     const withSpots = { spots: { a: { takenShow: [{ anim: ['x', 'taken_u'] }], releaseShow: { default: [{ anim: ['x', 'release_u'] }] } } } };
     expect(uniqueReactions(withSpots as unknown as ScreenData)).toBe(2);
