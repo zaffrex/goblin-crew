@@ -6,7 +6,7 @@
 import charactersJson from '../content/characters.json';
 import texts from '../content/text/ja.json';
 import { sayText } from './core/sayText';
-import { bubbleFontPx, bubbleMaxWidth, bubbleTailInset, placeBubble, type BubbleAnchor, type BubbleOptions } from './core/bubble';
+import { bubbleFontPx, bubbleMaxWidth, bubbleTailInset, placeBubble, type BubbleAnchor, type BubbleOptions, type KeepBox } from './core/bubble';
 import { CHARACTERS, type CharacterId } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
@@ -379,9 +379,12 @@ function speakerBox(target: string, layout: ReturnType<typeof sceneLayout>, fram
 /**
  * 말풍선이 가리면 안 되는 물건(#356): 화자를 뺀 화면의 핫스팟(둥지·까치·바구니·내복). 내부 좌표.
  * 위·아래 자리가 여기에 걸리면 `placeBubble`이 화자 옆으로 옮긴다. 서는 자리(`spots`)는 사람이 가리는 곳이라 넣지 않는다.
+ * `hintAbility`가 없는 핫스팟은 장난감(#598 Luna)이라 `toy`로 표시한다. 다 막혔을 때 가장 나중에 지킨다.
  */
-function bubbleKeepBoxes(speaker: string, layout: ReturnType<typeof sceneLayout>): HitBox[] {
-  return Object.entries(layout.hotspots).filter(([id]) => id !== speaker).map(([, box]) => box);
+function bubbleKeepBoxes(speaker: string, layout: ReturnType<typeof sceneLayout>): KeepBox[] {
+  const hotspots = session.data.screen.hotspots;
+  return Object.entries(layout.hotspots).filter(([id]) => id !== speaker)
+    .map(([id, box]) => (hotspots[id]?.hintAbility ? box : { ...box, toy: true }));
 }
 
 /** 옆 배치가 가리면 안 되는 다른 사람 몸(#356). 위·아래 자리는 예전처럼 이걸 보지 않는다. 내부 좌표. */
@@ -394,7 +397,7 @@ const BUBBLE_OPTS: Omit<BubbleOptions, 'tailInset'> = { margin: 4, gap: 9, avoid
 /** 글·최대 폭·글자 크기가 같으면 크기도 같다. 매 프레임 재면 레이아웃을 강제로 다시 하므로 바뀔 때만 잰다. */
 let bubbleMeasured = { key: '', width: 0, height: 0 };
 
-function placeBubbleDom(text: string, speaker: BubbleAnchor | null, keep: readonly HitBox[] = [], bodies: readonly HitBox[] = []): void {
+function placeBubbleDom(text: string, speaker: BubbleAnchor | null, keep: readonly KeepBox[] = [], bodies: readonly HitBox[] = []): void {
   const r = display.rect();
   const fontPx = bubbleFontPx(r.width / INTERNAL_WIDTH);
   const fontSize = `${fontPx}px`;
@@ -418,7 +421,7 @@ function placeBubbleDom(text: string, speaker: BubbleAnchor | null, keep: readon
     const br = toScreen(k.left + k.width, k.top + k.height);
     return { left: tl.x, top: tl.y, width: br.x - tl.x, height: br.y - tl.y };
   };
-  const p = placeBubble(anchor, bubbleMeasured, r, { ...BUBBLE_OPTS, tailInset: bubbleTailInset(fontPx) }, bubbleAvoidBoxes(), keep.map(boxToScreen), bodies.map(boxToScreen));
+  const p = placeBubble(anchor, bubbleMeasured, r, { ...BUBBLE_OPTS, tailInset: bubbleTailInset(fontPx) }, bubbleAvoidBoxes(), keep.map((k) => ({ ...boxToScreen(k), toy: k.toy })), bodies.map(boxToScreen));
   bubble.style.left = `${Math.round(p.left)}px`;
   bubble.style.top = `${Math.round(p.top)}px`;
   bubble.style.setProperty('--tail-x', `${Math.round(p.tailX)}px`);
