@@ -208,7 +208,6 @@
       "when": { "flags": { "jacket.on_hand": false } },
       "show": [
         { "anim": ["jjuk", "common.stretch"] },
-        { "fx": ["stretch_text", "jjuk"] },
         { "fx": ["clang_text", "fountain"] },
         { "anim": ["jacket", "twitch"] },
         { "say": ["jjuk", "park_fountain.tap"] }
@@ -222,7 +221,6 @@
       "when": { "flags": { "jacket.on_hand": true } },
       "show": [
         { "anim": ["jjuk", "common.stretch"] },
-        { "fx": ["stretch_text", "jjuk"] },
         { "fx": ["clang_text", "fountain"] },
         { "say": ["jjuk", "park_fountain.tap_hand"] }
       ],
@@ -285,7 +283,6 @@
     "duck": {
       "stretch": { "show": [
         { "anim": ["jjuk", "common.stretch"] },
-        { "fx": ["stretch_text", "jjuk"] },
         { "anim": ["duck", "peck"] },
         { "say": ["jjuk", "park_fountain.duck_peck"] },
         { "anim": ["duck", "lap"] }
@@ -309,7 +306,6 @@
     "guest": {
       "stretch": { "show": [
         { "anim": ["jjuk", "common.stretch"] },
-        { "fx": ["stretch_text", "jjuk"] },
         { "fx": ["rattle", "guest"] },
         { "say": ["jjuk", "park_fountain.guest_shake"] }
       ] },

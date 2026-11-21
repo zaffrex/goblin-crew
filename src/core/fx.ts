@@ -30,9 +30,11 @@ export const SIGNATURE_TICKS = 36;
 /**
  * 특기 시그니처(2절 표). 특기 연출(`anims`) 바로 뒤에는 늘 이 fx가 온다(5절 검사). 캐릭터 정의 옆 한 곳에 둔다.
  * `squeak_text`는 원래 있던 fx라 이름 그대로 쓴다.
+ * 쭉이 `common.stretch`(장대를 기울여 툭 치기만 하고 펴지 않음)는 넣지 않는다(#587, 2절 "장대가 안 펴지는 연출"). 몸이 안 하는 일을
+ * 글자가 말하면 안 돼서, 이 연출 뒤에는 `ビヨーン`을 요구하지 않는다. 글자만 뜨고 장대가 안 펴진 줄은 `tests/art/stretch-pole.test.ts`가 잡는다.
  */
 export const SIGNATURES: Readonly<Record<CharacterId, { anims: readonly string[]; fx: string }>> = {
-  jjuk: { anims: ['common.reach_wobble', 'reach_hang_up', 'common.stretch'], fx: 'stretch_text' },
+  jjuk: { anims: ['common.reach_wobble', 'reach_hang_up'], fx: 'stretch_text' },
   mukjik: { anims: ['common.stomp', 'seesaw_stomp'], fx: 'stomp_text' },
   ppik: { anims: ['common.squeeze_chicken'], fx: 'squeak_text' },
 };
