@@ -2,7 +2,7 @@
 export function assertPlayableUrl(raw: string): URL {
   const url = new URL(raw);
   const deployed = url.origin === 'https://zaffrex.github.io' && url.pathname === '/goblin-crew/';
-  const local = url.hostname === 'localhost' && url.pathname === '/';
+  const local = url.protocol === 'http:' && url.hostname === 'localhost' && url.pathname === '/';
   if (!deployed && !local) throw new Error('배포본 첫 페이지(/goblin-crew/, 쿼리만 허용)만 열 수 있어요');
   return url;
 }

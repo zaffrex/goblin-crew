@@ -13,5 +13,7 @@ describe('assertPlayableUrl', () => {
     'https://zaffrex.github.io/other/',
     'http://localhost:4173/src/main.ts',
     'https://evil.example/goblin-crew/',
+    'javascript://localhost/?%0Adocument.title=1',
+    'data://localhost/?x',
   ])('rejects %s', (u) => expect(() => assertPlayableUrl(u)).toThrow());
 });
