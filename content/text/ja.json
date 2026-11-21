@@ -99,6 +99,7 @@
   "ui.intro": "目標：巣から\u200b店のカギを取り返す",
   "ui.card.goal": "店のカギを取り返そう！",
   "ui.card.why": "カギは巣の中。ないと店を開けられない",
+  "ui.card.ability_row": "特技「{verb}」{desc}",
   "ui.card.gauge": "ふわふわゲージ: 失敗で1マス減る。0で全員スタートに戻る",
   "ui.card.start": "タップしてスタート",
   "ui.card.start_click": "クリックしてスタート",
