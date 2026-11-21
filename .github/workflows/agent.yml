@@ -8,10 +8,10 @@ on:
   workflow_dispatch:
     inputs:
       role:
-        description: "pm | designer | frontend | backend | infra"
+        description: "pm | designer | frontend | backend | infra | qa (qa는 격리 실행, #516)"
         required: true
         type: choice
-        options: [pm, designer, frontend, backend, infra]
+        options: [pm, designer, frontend, backend, infra, qa]
       mode:
         description: "tick(정기 작업) | event(이벤트 대응) | meeting(회의 진행, pm 전용)"
         required: true
@@ -40,19 +40,39 @@ jobs:
     if: vars.TEAM_PAUSED != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # QA 실행에는 QA 토큰만 넣는다(#516). 다른 역할 토큰이 env에 있으면 `--as pm`으로 정답 채널을 읽을 수 있다.
     env:
-      SLACK_TOKEN_PM: ${{ secrets.SLACK_TOKEN_PM }}
-      SLACK_TOKEN_DESIGNER: ${{ secrets.SLACK_TOKEN_DESIGNER }}
-      SLACK_TOKEN_FRONTEND: ${{ secrets.SLACK_TOKEN_FRONTEND }}
-      SLACK_TOKEN_BACKEND: ${{ secrets.SLACK_TOKEN_BACKEND }}
-      SLACK_TOKEN_INFRA: ${{ secrets.SLACK_TOKEN_INFRA }}
-      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}   # 구버전 단일 앱 (없어도 됨)
+      SLACK_TOKEN_PM: ${{ inputs.role != 'qa' && secrets.SLACK_TOKEN_PM || '' }}
+      SLACK_TOKEN_DESIGNER: ${{ inputs.role != 'qa' && secrets.SLACK_TOKEN_DESIGNER || '' }}
+      SLACK_TOKEN_FRONTEND: ${{ inputs.role != 'qa' && secrets.SLACK_TOKEN_FRONTEND || '' }}
+      SLACK_TOKEN_BACKEND: ${{ inputs.role != 'qa' && secrets.SLACK_TOKEN_BACKEND || '' }}
+      SLACK_TOKEN_INFRA: ${{ inputs.role != 'qa' && secrets.SLACK_TOKEN_INFRA || '' }}
+      SLACK_TOKEN_QA: ${{ secrets.SLACK_TOKEN_QA }}
+      SLACK_BOT_TOKEN: ${{ inputs.role != 'qa' && secrets.SLACK_BOT_TOKEN || '' }}   # 구버전 단일 앱 (없어도 됨)
       AGENT_ROLE: ${{ inputs.role }}
     steps:
       - uses: actions/checkout@v7
+        if: inputs.role != 'qa'
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      # QA(Mia)는 정답을 모르는 채 플레이해야 한다(#516). 설계 문서, 화면 데이터, 플레이 해법, git 기록이 디스크에 없게
+      # 필요한 파일만, 기록 없이(depth 1) 받는다. 도구도 아래에서 좁힌다.
+      - uses: actions/checkout@v7
+        if: inputs.role == 'qa'
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /CLAUDE.md
+            /.claude/agents/qa.md
+            /team/team.json
+            /scripts/slack.sh
+            /scripts/build-prompt.sh
+            /scripts/qa/
+            /scripts/playtest/cdp.ts
 
       - uses: actions/setup-node@v7
         with:
@@ -100,8 +120,8 @@ jobs:
           prompt: ${{ steps.prompt.outputs.text }}
           claude_args: >-
             ${{ steps.model.outputs.args }}
-            --max-turns ${{ inputs.mode == 'meeting' && 200 || 120 }}
-            --permission-mode auto
+            --max-turns ${{ inputs.role == 'qa' && 100 || inputs.mode == 'meeting' && 200 || 120 }}
+            ${{ inputs.role == 'qa' && '--permission-mode dontAsk --tools "Read,Write,Bash" --allowedTools "Read,Write(qa-work/**),Bash(scripts/slack.sh:*),Bash(node scripts/qa/browse.ts:*),Bash(gh issue comment:*),Bash(gh issue create:*)"' || '--permission-mode auto' }}
             --append-system-prompt-file .claude/agents/${{ inputs.role }}.md
           bot_id: "209825114"
 
@@ -109,5 +129,8 @@ jobs:
         if: failure()
         env:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          # 실패 보고는 에이전트 밖에서 infra 신원으로 쓴다. QA 실행에서도 이 step에만 infra 토큰을 넣는다.
+          SLACK_TOKEN_INFRA: ${{ secrets.SLACK_TOKEN_INFRA }}
+          AGENT_ROLE: ""
         run: |
           scripts/slack.sh --as infra post dev "⚠️ \`${{ inputs.role }}\` 에이전트 실행 실패 (${{ inputs.mode }}). 로그: $RUN_URL" || true
