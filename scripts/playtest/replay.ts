@@ -46,6 +46,12 @@ const PROBE = `(() => {
       const t = b.hidden ? '' : (b.textContent || '');
       if (t && t !== last) said.push(t);
       last = t;
+      // #683: 게이지 0 컷은 게임 화면(#game) 가운데여야 한다. 창 가운데면 667×375에서 26px 아래로 뜬다.
+      if (sel === '#faint' && t) {
+        const f = b.getBoundingClientRect();
+        const g = document.querySelector('#game').getBoundingClientRect();
+        window.__ptFaintOff = Math.max(Math.abs(f.left + f.width / 2 - (g.left + g.width / 2)), Math.abs(f.top + f.height / 2 - (g.top + g.height / 2)));
+      }
     };
     new MutationObserver(note).observe(b, { attributes: true, childList: true, characterData: true, subtree: true });
     note();
@@ -203,6 +209,11 @@ async function runScenarios(browser: Browser, v: Viewport, outDir: string, error
           r.said = (await page.evaluate<string[]>('window.__ptSaid')).slice(from);
           r.gauge = after.gauge;
           r.problems.push(...checkStep(screen, step, after, r.said, textVariants));
+          if (step.expect?.faint) {
+            const off = await page.evaluate<number | null>('window.__ptFaintOff ?? null');
+            if (off === null) r.problems.push('게이지 0 컷 `#faint` 자리를 못 잼');
+            else if (off > 1.5) r.problems.push(`게이지 0 컷이 게임 화면 가운데에서 ${off.toFixed(1)}px 벗어남 (#683)`);
+          }
           await shot('');
         } catch (e) {
           r.problems.push(`재생 중단: ${(e as Error).message}`);
