@@ -21,6 +21,11 @@ describe('index.html', () => {
     expect(icon![1]).not.toBe('/favicon.ico');
   });
 
+  // #650: 레터박스(게임 밖 여백)는 body 바탕이다. ADR-0007 결정대로 팔레트 0번 ink. 처음 뼈대의 #111이 남아 있었다.
+  it('letterbox (body background) is palette 0 ink #1b1720 per ADR-0007', () => {
+    expect(html).toMatch(/html, body \{[^}]*background: #1b1720;/);
+  });
+
   // #479: 시작 카드 목표·이유 줄이 `出られ／ない`처럼 낱말 중간에서 접히지 않게(PR #478 667×375 스크린샷). 구두점·U+200B 뒤에서만 접는다.
   it('start card goal/why lines break only at punctuation or ZWSP, never mid-word', () => {
     const rule = /#card \.goal, #card \.why \{([^}]*)\}/.exec(html);
