@@ -37,7 +37,7 @@ describe('시작 카드 (ui-interaction.md 6-2-1절, #285)', () => {
     const all = [card.goal, card.why, card.gauge, card.start, ...card.rows.flatMap((r) => [r.name, r.ability])];
     expect(all.filter((s) => s === '' || /^(ui|char)\./.test(s) || s.includes(': ui.'))).toEqual([]);
     expect(card.rows.map((r) => r.id)).toEqual(['jjuk', 'mukjik', 'ppik']);
-    expect(card.rows[1]).toEqual({ id: 'mukjik', name: 'ズッシー', ability: 'ドスン: 全体重でドスンと踏む' });
+    expect(card.rows[1]).toEqual({ id: 'mukjik', name: 'ズッシー', ability: 'ドスン: 全体重で踏んで揺らす' });
   });
 
   it('카드 글은 줄마다 30자 이하(휴대폰 13px × 30 < 카드 폭, 6-2-6절). 화면마다 바뀌는 목표·이유 줄도(#380)', () => {
