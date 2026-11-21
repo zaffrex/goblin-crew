@@ -1,12 +1,13 @@
 // QA용 브라우저 조작 (#516). 상태를 안 남기는 한 번짜리 실행이라, 매번 처음부터 actions 파일을 재생한 뒤 스크린샷을 찍는다.
 // 입력은 실제 마우스 클릭/터치 탭뿐이다. 게임 내부 함수 호출, 소스·네트워크·콘솔 조회는 일부러 노출하지 않는다.
 // 사용: node scripts/qa/browse.ts --url <URL> --viewport desktop|mobile|portrait (--actions <파일> | --steps "<동작>; <동작>") --shot <png> [--no-sandbox]
-// 동작 하나: `click <x> <y>` (스크린샷 픽셀 좌표) | `wait <ms>`. 파일은 한 줄에 하나, `--steps`는 `;`로 구분. `#`로 시작하면 메모.
+// 동작 하나: `click <x> <y>` (스크린샷 픽셀 좌표) | `wait <ms>` | `shot <이름>` (그 순간을 `<shot>-<이름>.png`로 한 장 더, #643).
+// 파일은 한 줄에 하나, `--steps`는 `;`로 구분. `#`로 시작하면 메모.
 import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Browser, sleep } from '../playtest/cdp.ts';
-import { parseSteps } from './steps.ts';
+import { midShotPath, parseSteps } from './steps.ts';
 import { assertPlayableUrl } from './url-guard.ts';
 
 const { values: args } = parseArgs({
@@ -43,8 +44,13 @@ try {
   await page.setViewport(vp);
   await page.goto(url.toString());
   await sleep(1500);
+  const shots: string[] = [];
   for (const s of steps) {
-    if (s.cmd === 'click') {
+    if (s.cmd === 'shot') {
+      const file = midShotPath(args.shot, s.name);
+      await page.screenshot(file);
+      shots.push(file);
+    } else if (s.cmd === 'click') {
       // 스크린샷은 기기 픽셀(모바일 1688x780)이고 입력 이벤트는 CSS 픽셀(844x390)이다. 스크린샷 좌표를 dpr로 나눠 넘긴다.
       const p = { x: s.x / vp.dpr, y: s.y / vp.dpr };
       if (mobile) await page.tap(p); else await page.click(p);
@@ -52,7 +58,8 @@ try {
     } else await sleep(s.ms);
   }
   await page.screenshot(args.shot);
-  console.log(`ok: ${steps.length} actions, screenshot ${args.shot}`);
+  const mid = shots.length ? `, mid-run ${shots.join(' ')}` : '';
+  console.log(`ok: ${steps.length} actions, screenshot ${args.shot}${mid}`);
 } finally {
   await browser.close();
 }
