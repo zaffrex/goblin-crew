@@ -13,6 +13,7 @@ import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
 import { actorEdgeAt, besideFeetAt, dustPush, FX_COLORS, FX_STYLE, fxTextSpot, SHAKE_FX, shakeOffset } from './core/fx';
 import { drawnByShape, frameNudges, fxNudges, particleFx, shapeParticles, type Nudge } from './core/fxShape';
 import type { HitBox } from './core/hit';
+import { cutCenter } from './core/cutPlace';
 import { cardFacePx, cardInput, cardPointer, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
 import { createFirstNotes, currentNote, noteAction, noteGauge, noteStood, noteSwitch, noteTap, noteTouchAct, selectLabelText, standLabel } from './core/firstNotes';
 import { abilityText, cutFontPx, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, type HudId } from './core/hud';
@@ -750,6 +751,10 @@ function render(): void {
     if (el.style.fontSize !== cutSize) el.style.fontSize = cutSize;
     if (el.style.maxWidth !== cutMax) el.style.maxWidth = cutMax;
   }
+  // 클리어 컷(L32)과 화면 하나 클리어 카드는 캐릭터 머리 위로(#662). 열쇠를 든 사람이 보여야 왜 클리어인지 안다.
+  // 게이지 0 컷(`ui.faint`)과 연결 순서(ORDER)의 카드는 예전대로 CSS 창 가운데다.
+  placeCutAbove(faintCut, cut !== null && cut !== 'ui.faint', layout.chars, scale);
+  placeCutAbove(clearCut, !ORDER, layout.chars, scale);
 
   // DOM 말풍선(ADR-0004 결정 3). 화자 머리 위. 카드가 떠 있으면 진입 대사는 아직이다.
   // 폭은 글로만 정하고(화자 위치와 무관), 게임 화면 안으로 민다(#329). 목표 줄·이름표를 피하므로(#351) 그것들을 놓은 뒤에 둔다.
@@ -762,6 +767,17 @@ function render(): void {
     const frameBox = art && artView ? animFrameBox(art.meta, artView, b.speaker) : null;
     placeBubbleDom(sayText(TEXT, b.text, b.speaker), speakerBox(b.speaker, layout, frameBox), bubbleKeepBoxes(b.speaker, layout), bubbleBodyBoxes(b.speaker, layout));
   }
+}
+
+/** 컷 상자를 `cutCenter` 자리에 둔다. `above`가 거짓이면 인라인 자리를 지워 CSS 기본(창 가운데)으로 돌린다. */
+function placeCutAbove(el: HTMLElement, above: boolean, chars: Readonly<Record<CharacterId, HitBox>>, scale: number): void {
+  if (el.hidden || !above) {
+    el.style.left = el.style.top = '';
+    return;
+  }
+  // offset 크기는 transform(translate -50%) 전 CSS px다. 글·글자 크기를 넣은 뒤에 잰다.
+  const size = { width: el.offsetWidth / scale, height: el.offsetHeight / scale };
+  placeDom(el, cutCenter(size, Object.values(chars)));
 }
 
 /**
