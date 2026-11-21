@@ -1,5 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { CHARACTERS } from "../../src/core/characters";
+import { selectLabelText } from "../../src/core/firstNotes";
+import { firstSwitchText, hudHoverText, switchText } from "../../src/core/hud";
+import { labelText, type Label, type LabelVerb } from "../../src/core/interact";
 
 // #280: docs/design/ja-text.md 2절 "줄 길이 규칙" 중 validate.ts(textFits, 14자×2줄)가 보지 않는 것을 검사한다.
 // 이 테스트가 "예외 2에 해당하는 줄" 목록의 원본이다. 규칙을 바꾸면 ja-text.md 2절도 같이 고친다.
@@ -79,18 +83,6 @@ describe("ja.json 줄 규칙 (ja-text.md 2절, #280)", () => {
     }
   });
 
-  it("대상 이름은 10자 이하, 아이템 이름은 5자 이하 (대상 라벨 + 터치 꼬리가 480px 안, #703)", () => {
-    const keys = Object.keys(texts);
-    const targets = keys.filter((k) => /^[a-z_]+\.name\.[a-z_]+$/.test(k));
-    const items = keys.filter((k) => /^item\.[a-z_]+\.name$/.test(k));
-    expect(targets.length).toBeGreaterThan(0);
-    expect(items.length).toBeGreaterThan(0);
-    for (const k of targets)
-      expect(len(texts[k]!), `${k} ${texts[k]}`).toBeLessThanOrEqual(10);
-    for (const k of items)
-      expect(len(texts[k]!), `${k} ${texts[k]}`).toBeLessThanOrEqual(5);
-  });
-
   it("게이지 이름표는 8자 이하, 클리어 카드는 줄당 12자 이하", () => {
     expect(len(texts["ui.hud.gauge"]!)).toBeLessThanOrEqual(8);
     for (const line of texts["ui.clear"]!.split("\n"))
@@ -108,5 +100,92 @@ describe("ja.json 줄 규칙 (ja-text.md 2절, #280)", () => {
     expect(kinsokuViolations("あ\n〜あ")).toHaveLength(1);
     expect(kinsokuViolations("動かす\n・拾う")).toHaveLength(1);
     expect(kinsokuViolations("「えっ\n」")).toHaveLength(1);
+  });
+});
+
+// #707: 대상 라벨 자리(`#label`)에 뜨는 글을 ja.json 패턴·이름으로 실제로 채워서 폭을 잰다.
+// 셈 기준(ja-text.md 2절, PR #705 실측과 같음): 14px × 글자 수 + 좌우 여백 0.6em×2(16.8px) ≤ 게임 폭 480px.
+// `#label` 글자 크기는 내부 7px × 배율(최소 14), 게임 폭은 내부 240 × 배율이라 비율이 같다. 1.0배만 보면 된다.
+// 반각 글자도 14px로 세서 실제보다 넓게 잡는다(안전 쪽). 10자·5자 이름 상한은 작가용 안내로 ja-text.md에만 둔다.
+
+const LABEL_FONT_PX = 14;
+const LABEL_PAD_PX = 16.8;
+const GAME_W_PX = 480;
+
+const labelPx = (s: string): number =>
+  LABEL_FONT_PX * len(s) + LABEL_PAD_PX;
+
+/** 대상 라벨 자리에 뜰 수 있는 모든 글(넉넉한 합집합: 모든 동사 × 같은 화면의 모든 대상). */
+function labelLines(tx: Record<string, string>): string[] {
+  const t = (id: string): string => tx[id] ?? id;
+  const keys = Object.keys(tx);
+  const tail = t("ui.touch.tap_again");
+  const out: string[] = [];
+  const both = (s: string): void => {
+    out.push(s, selectLabelText(s, tail));
+  };
+
+  const screens = new Map<string, string[]>();
+  for (const k of keys) {
+    const m = /^([a-z0-9_]+)\.name\.([a-z0-9_]+)$/.exec(k);
+    if (m) screens.set(m[1]!, [...(screens.get(m[1]!) ?? []), m[2]!]);
+  }
+  const verbs = keys.flatMap((k) => {
+    const m = /^ui\.label\.([a-z0-9_]+)$/.exec(k);
+    return m && m[1] !== "item" ? [m[1] as LabelVerb] : [];
+  });
+  const items = keys.flatMap((k) => {
+    const m = /^(item\.[a-z0-9_]+)\.name$/.exec(k);
+    return m ? [m[1]!] : [];
+  });
+  const chars = CHARACTERS.map((c) => c.id);
+
+  for (const [screen, ids] of screens) {
+    const lt = (l: Label): string => labelText(l, screen, t);
+    for (const target of [...ids, ...chars]) {
+      both(lt({ verb: null, target }));
+      for (const verb of verbs) both(lt({ verb, target }));
+      for (const item of items) both(lt({ verb: "item", target, item }));
+    }
+    for (const verb of ["walk", "release"] as const)
+      both(lt({ verb, target: null }));
+  }
+  // 전환 알림·데스크톱 호버도 같은 자리에 뜬다(#692, 설계 6-4-3절). 터치 꼬리는 안 붙는다.
+  for (const c of chars) {
+    out.push(switchText(c, t), firstSwitchText(c, t), hudHoverText(`char.${c}`, t));
+  }
+  out.push(hudHoverText("gauge", t));
+  return out;
+}
+
+function overWidth(tx: Record<string, string>): string[] {
+  return labelLines(tx)
+    .filter((s) => labelPx(s) > GAME_W_PX)
+    .map((s) => `${labelPx(s).toFixed(1)}px ${s}`);
+}
+
+describe("대상 라벨 폭 (셈 기준, #703 #707)", () => {
+  it("ja.json 패턴·이름·터치 꼬리를 채운 모든 라벨이 1.0배 게임 폭 480px 안 한 줄", () => {
+    const lines = labelLines(texts);
+    expect(lines.length).toBeGreaterThan(100);
+    // 채우지 못한 자리표시자가 남으면 셈이 틀린다.
+    expect(lines.filter((s) => /\{\w+\}/.test(s))).toEqual([]);
+    expect(overWidth(texts)).toEqual([]);
+  });
+
+  it("셈이 PR #694 실측과 맞다", () => {
+    // 가장 긴 첫 전환 줄 23자 → 338.8 (PR #694 헤드리스 Chrome 실측 338px)
+    expect(labelPx("ピピに交代（ニワトリを鳴らして相手の気を引く）")).toBeCloseTo(338.8);
+  });
+
+  it("검사기 자체: 패턴·꼬리·숫자 들어간 이름이 길어지면 잡는다", () => {
+    const longPattern = { ...texts, "ui.label.look": "{target}をじっくりと時間をかけて隅々までみる" };
+    expect(overWidth(longPattern).length).toBeGreaterThan(0);
+    const longTail = { ...texts, "ui.touch.tap_again": "{label}（もう一度同じ所をタップすると決定します）" };
+    expect(overWidth(longTail).length).toBeGreaterThan(0);
+    const digitId = { ...texts, "screen_3.name.pole_2": "とてもとても長い物干し竿の先っぽ" };
+    expect(overWidth(digitId).length).toBeGreaterThan(0);
+    const longItem = { ...texts, "item.key_2.name": "錆びついた古い真鍮のカギ" };
+    expect(overWidth(longItem).length).toBeGreaterThan(0);
   });
 });
