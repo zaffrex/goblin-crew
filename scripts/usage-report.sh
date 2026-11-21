@@ -2,7 +2,8 @@
 # Per-role agent run usage over the last N hours (default 24).
 # Usage: scripts/usage-report.sh [hours]
 # Proxy metric only: wall-clock of GitHub Actions runs, not real subscription tokens.
-# Paginates the Actions API with a created>= filter, so 7-day (168h) windows are not truncated.
+# Queries the Actions API in 24h slices (created=A..B, B inclusive so slices end 1s before the next starts),
+# because created-filtered results are capped at 1000; compares total_count per slice and WARNs on truncation.
 # Appends loop warnings: same role >= TICK_BURST (6) tick runs or >= EVENT_BURST (12) event runs in any 1h window
 # (events have a higher bar: mention bursts of 6-8/h are normal, mention ping-pong loops are what burns usage), or >= 3 consecutive failures.
 # Env: TICK_BURST, EVENT_BURST override the thresholds.
@@ -18,7 +19,7 @@ else
   # The runs API caps created-filtered results at 1000, so query 24h slices and compare total_count with what we got.
   NOW=$(date +%s); START=$(date -u -d "$SINCE" +%s); PARTS=""
   for ((a=START; a<NOW; a+=86400)); do
-    b=$((a+86400)); [ "$b" -gt "$NOW" ] && b=$((NOW+1))
+    b=$((a+86399)); [ "$b" -gt "$NOW" ] && b=$((NOW+1))
     A=$(date -u -d "@$a" +%Y-%m-%dT%H:%M:%SZ); B=$(date -u -d "@$b" +%Y-%m-%dT%H:%M:%SZ)
     Q="repos/{owner}/{repo}/actions/workflows/agent.yml/runs?created=${A}..${B}&per_page=100"
     TOTAL=$(gh api "$Q&page=1" --jq '.total_count')

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -48,7 +48,7 @@ describe('usage-report.sh loop detection', () => {
 });
 
 describe('usage-daily.sh', () => {
-  function stubs(historyOut: string): NodeJS.ProcessEnv {
+  function stubs(historyOut: string): NodeJS.ProcessEnv & { ARGS_FILE: string } {
     const bin = mkdtempSync(join(tmpdir(), 'bin-'));
     // fake gh: total_count 5 but only 2 runs returned -> truncation WARN
     writeFileSync(
@@ -59,19 +59,22 @@ describe('usage-daily.sh', () => {
     const slack = join(bin, 'slack.sh');
     writeFileSync(slack, `#!/usr/bin/env bash\necho "$*" > "${join(bin, 'args')}"\ncat <<'EOF'\n${historyOut}\nEOF\n`);
     chmodSync(slack, 0o755);
-    return { PATH: `${bin}:${process.env.PATH ?? ''}`, SLACK_SH: slack, TZ: 'UTC' };
+    return { PATH: `${bin}:${process.env.PATH ?? ''}`, SLACK_SH: slack, TZ: 'UTC', ARGS_FILE: join(bin, 'args') };
   }
-  const hourKst = Number(new Intl.DateTimeFormat('en', { hour: 'numeric', hourCycle: 'h23', timeZone: 'Asia/Seoul' }).format(new Date()));
+  // Fixed clock: 2026-11-21 12:00 KST (03:00 UTC), so tests never skip depending on the real time of day.
+  const NOW = String(Date.UTC(2026, 10, 21, 3, 0, 0) / 1000);
+  const OLDEST = String(Date.UTC(2026, 10, 21, 0, 0, 0) / 1000); // 09:00 KST
 
-  it.skipIf(hourKst < 9)('includes truncation WARN and passes oldest_ts of 09:00 KST', () => {
-    const r = spawnSync('bash', [daily, '--dry'], { env: stubs('--- ts=1 | x\nhello'), encoding: 'utf8' });
+  it('includes truncation WARN and passes oldest_ts of 09:00 KST', () => {
+    const env = { ...stubs('--- ts=1 | x\nhello'), USAGE_NOW: NOW };
+    const r = spawnSync('bash', [daily, '--dry'], { env, encoding: 'utf8' });
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/WARN: truncated/);
-    expect(r.stdout).toMatch(/^\[사용량 기록 \d{4}-\d{2}-\d{2}\]/);
+    expect(r.stdout).toMatch(/^\[사용량 기록 2026-11-21\]/);
+    expect(readFileSync(env.ARGS_FILE, 'utf8').trim()).toBe(`--as infra history dev 999 ${OLDEST}`);
   });
-  it.skipIf(hourKst < 9)('skips when the marker is already in the window', () => {
-    const today = new Intl.DateTimeFormat('sv', { timeZone: 'Asia/Seoul' }).format(new Date());
-    const r = spawnSync('bash', [daily, '--dry'], { env: stubs(`--- ts=1 | x\n[사용량 기록 ${today}] ...`), encoding: 'utf8' });
+  it('skips when the marker is already in the window', () => {
+    const r = spawnSync('bash', [daily, '--dry'], { env: { ...stubs('--- ts=1 | x\n[사용량 기록 2026-11-21] ...'), USAGE_NOW: NOW }, encoding: 'utf8' });
     expect(r.stdout).toContain('already posted today');
   });
 });

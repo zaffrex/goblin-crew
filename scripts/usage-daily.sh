@@ -2,12 +2,13 @@
 # Daily usage record: run from Sam's tick. After 09:00 KST, if today's record is not yet in #goblin-dev, post it.
 # Slack is the state (marker "[사용량 기록 YYYY-MM-DD]"), so no extra PRs or workflow changes are needed.
 # Usage: scripts/usage-daily.sh [--dry]   (--dry prints instead of posting)
-# Env: SLACK_SH overrides the slack helper path (tests).
+# Env: SLACK_SH overrides the slack helper path; USAGE_NOW=<epoch> overrides the current time (tests).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 SLACK="${SLACK_SH:-scripts/slack.sh}"
-TODAY=$(TZ=Asia/Seoul date +%F)
-HOUR=$(TZ=Asia/Seoul date +%-H)
+NOW="${USAGE_NOW:-$(date +%s)}"
+TODAY=$(TZ=Asia/Seoul date -d "@$NOW" +%F)
+HOUR=$(TZ=Asia/Seoul date -d "@$NOW" +%-H)
 MARK="[사용량 기록 $TODAY]"
 if [ "$HOUR" -lt 9 ]; then echo "before 09:00 KST, skip"; exit 0; fi
 # Check since today's 09:00 KST (not "last N messages": a busy channel pushes the marker out). 999 = API max per page.
