@@ -1391,6 +1391,8 @@ describe('게이지 감소 시점: 첫 say 바로 앞 (ui-interaction.md 6-2-5�
       if (d) {
         drops++;
         expect([d.from, d.to]).toEqual([4, 5]);
+        // 칸이 터지는 동안 말풍선이 없다(#611): 말풍선 자리 고르기가 게이지 띠를 지키지 않아도 되는 근거다.
+        expect(currentBubble(s)).toBeNull();
       }
       if (gaugeAtFirstSay === null && currentBubble(s)) gaugeAtFirstSay = s.shownGauge;
     }
