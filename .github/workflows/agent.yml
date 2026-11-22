@@ -107,6 +107,7 @@ jobs:
           ROLE: ${{ inputs.role }}
           MODE: ${{ inputs.mode }}
           CONTEXT: ${{ inputs.context }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           {
             echo 'text<<__PROMPT_EOF__'
