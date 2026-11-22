@@ -84,6 +84,7 @@ export function pose(kind, k) {
   if (kind === 'hide_in_basket') return HIDE[k];
   if (kind === 'step_up') return STEP_UP[k];
   if (kind === 'common.wet') return WET[k];
+  if (kind === 'common.zap') return ZAP[k];
   if (kind === 'idle') {
     return {
       chest: k, // 숨 들이쉬기 / 내쉬기
@@ -192,6 +193,9 @@ const GLASSES = {
   slosh: [11, 11, ['.FFF...FFF.', 'FAwPFFFAwPF', 'FAAwF.FAAwF', 'FMAAF.FMAAF', '.FFF...FFF.']],
   // 반쯤 빠짐(common.wet 3번): 물은 맨 아랫줄만 남고 눈동자가 물 바로 위에서 앞을 본다
   drain: [11, 11, ['.FFF...FFF.', 'FawwFFFawwF', 'FwwPF.FwwPF', 'FAMAF.FAMAF', '.FFF...FFF.']],
+  // 그을린 안경(common.zap 2번): 렌즈가 검댕으로 까매지고(g dusk, 아랫줄 K plum) 가운데 바늘 눈동자만 하얗게 남는다.
+  //   2×2로 채우면 선글라스로 읽힌다는 걸(fwd 주석) 거꾸로 쓴다: 까만 렌즈 + 흰 점 = "선글라스 낀 것처럼 멍한" 얼굴.
+  soot: [11, 11, ['.FFF...FFF.', 'FgggFFFgggF', 'FgwgF.FgwgF', 'FKgKF.FKgKF', '.FFF...FFF.']],
   askew: [11, 10, ['.FFF.......', 'FPwwF..FFF.', 'FwwwFFFawwF', 'FlwwF.FwwwF', '.FFF..FwwPF', '.......FFF.']],
 };
 const TEMPLE = [10, 12, ['F']]; // 안경다리(후드 안으로)
@@ -217,6 +221,15 @@ const SNAG = [
   '...y.....',
 ];
 const SWEAT = ['.A.', 'AAA', 'AWA', '.A.'];
+// 곤두선 후드(common.zap): 후드 천이 정전기로 뾰족뾰족 선다(묵직이 곤두선 머리 SPIKES와 같은 웃음을 삑삑이는 후드로 한다).
+//   [열, 행, 격자] 4가닥. 행은 머리 격자 기준(음수 = 정수리 위). 0·1 = 덜덜 두 갈래(둘 다 끝이 밖으로 벌어진다. 1번은 바깥 가닥이 짧고 안쪽이 길다. 안으로 모으면 외곽선이 붙어 왕관으로 읽혔다). 2 = 그을음(조금 처진다).
+const FRIZZ = [
+  [[2, -3, ['L..', '.L.', '..L', '..Y']], [7, -4, ['L', 'L', 'Y', 'Y']], [11, -4, ['.L', '.L', 'L.', 'Y.']], [16, -3, ['..Y', '.Y.', 'Y..', 'Y..']]],
+  [[3, -2, ['L.', '.L', '.Y']], [7, -4, ['L.', '.L', '.L', '.Y']], [12, -4, ['.L', 'L.', 'L.', 'Y.']], [16, -2, ['.Y', 'Y.', 'Y.']]],
+  [[3, -1, ['L.', '.Y']], [7, -2, ['L', 'L']], [12, -2, ['.L', 'L.']], [16, -1, ['.Y', 'Y.']]],
+];
+// 그을린 얼굴(common.zap 2번): 볼·턱에 검댕(g dusk). 렌즈 그을음(GLASSES.soot)과 같이 쓴다. 입·코는 그대로.
+const SOOT_FACE = [12, 16, ['g..g.', '.g...', '...g.']];
 const HEAD_X = 11, HEAD_Y = 15;
 /** 머리 박스(② 칸 좌표, 서 있기 0번 기준). UI 초상화가 24×24로 자른다. */
 export const HEAD_BOX = [HEAD_X, HEAD_Y, 24, 24];
@@ -350,6 +363,8 @@ export function drawFrame(p) {
   const brows = p.wet ? [] : [[BROWS[0], BROWS[1] - gUp, BROWS[2]]]; // 젖은 후드 챙이 눈썹을 덮는다
   for (const [cx2, cy2, rows] of [...brows, [...GLASSES[p.eyes].slice(0, 1), GLASSES[p.eyes][1] - gUp, GLASSES[p.eyes][2]], TEMPLE, NOSE, MOUTHS[p.mouth ?? 'shake'], CHEEK])
     K.stamp(hx0 + cx2, hy0 + cy2, rows, HL, headPart);
+  if (p.soot) K.stamp(hx0 + SOOT_FACE[0], hy0 + SOOT_FACE[1], SOOT_FACE[2], HL, headPart);
+  if (p.frizz !== undefined) for (const [cx2, cy2, rows] of FRIZZ[p.frizz]) K.stamp(hx0 + cx2, hy0 + cy2, rows, HL, headPart);
   if (p.sweat >= 0) K.stamp(hx0 + 21, hy0 + 1 + p.sweat, SWEAT, { A: C.tealM, W: C.white }, K.part(R4.chick));
   // 세운 검지(머리 앞에 찍는다): 소매 끝에서 주먹, 그 위로 검지가 까딱(tilt −1 뒤 / 0 곧게 / 1 앞)
   if (pt) {
@@ -701,6 +716,56 @@ const WET = [
   },
 ];
 
+// common.zap  공용 "찌릿"(쭉이 jjuk-v4.mjs·묵직이 mukjik.mjs와 같은 박자 [100, 100, 300], 같은 순서, #734 3/3).
+//   0·1 덜덜: 몸이 1px 좌우로 떨고(dx), 후드가 정전기로 뾰족뾰족 서고(FRIZZ 두 갈래), 안경이 튀고 바늘 눈 + 이 악물기.
+//       **품의 고무 닭이 감전돼 꽉 눌리며 부리가 쩍**(삑삑이 웃음 "닭부터 운다", 납작·엉덩방아·젖음과 같은 단서). 몸 양옆에 노란 번개.
+//   → 2 그을음: 어깨가 내려앉고 후드 끝은 반쯤 처진다. **안경 렌즈가 까맣게 그을려 흰 바늘 눈만 남고**, 볼에 검댕,
+//       **고무 닭 부리에서 연기가 모락**(젖음 3번에서 물을 토한 것과 같은 줄기). 입은 덜덜 = 겁쟁이 막내 그대로.
+//   다른 둘과 갈리는 점: 쭉이 = 질끈 움츠림, 묵직이 = 그을려도 무표정, 삑삑이 = 까만 안경 + 닭이 연기를 토함.
+//   합 500ms = 지금 캐릭터 anim busy(TIMING.anim 30틱). 마지막 칸이 말풍선 동안 남는다(#193). 방향은 고정하지 않는다.
+/** 번개(외곽선 없음): 후드 옆 위 한 줄기 + 우비 옆 한 줄기(지그재그, 2px). k마다 좌우가 바뀐다(묵직이 sparks와 같은 방식).
+ *  닭(오른쪽 x 30~38)·후드에 가리지 않는 빈칸에 둔다. */
+function zapSparks(K, k) {
+  const L = (x0, y0, n) => Array.from({ length: n }, (_, i) => [x0 + [0, 1, 2, 1][i % 4], y0 + i]);
+  const bolts = [
+    [L(4, 9, 8), L(41, 32, 7)],
+    [L(3, 33, 7), L(41, 7, 8)],
+  ][k];
+  for (const bolt of bolts)
+    for (const [x, y] of bolt) {
+      if (K.get(x, y) === -1) K.dot(x, y, C.yelL);
+      if (K.get(x + 1, y) === -1) K.dot(x + 1, y, C.yelD);
+    }
+}
+/** 닭 부리 연기(외곽선 없음): 부리 앞에서 위로 휘며 피어오르는 한 가닥(2px) + 후드 뒤 한 가닥. 아래가 진하고(lav) 위로 옅다(lint → cotton). */
+function zapSmoke(K, { beak: [bx0, by0], head: [hx, hy] }) {
+  const wisps = [[bx0 + 4, by0 - 2, 1, 9], [hx + 1, hy - 1, -1, 7]]; // [시작 x, 시작 y, 휘는 방향, 길이]
+  for (const [x0, y0, dir, n] of wisps)
+    for (let i = 0; i < n; i++) {
+      const x = x0 + dir * [0, 0, 1, 1, 0, 0, 1, 2, 2][i], y = y0 - i;
+      const c = i < 3 ? C.lav : i < 6 ? C.lint : C.cotton;
+      for (const dx of [0, 1]) if (y >= 0 && K.get(x + dx, y) === -1) K.dot(x + dx, y, c);
+    }
+}
+const ZAP_LEGS = { back: { x: -1.6, lift: 0, toe: false }, front: { x: 1.9, lift: 0, toe: false } }; // 뻣뻣하게 벌린 다리
+const ZAP = [
+  { // 0 덜덜: 뻣뻣하게 굳고 후드가 곤두선다. 안경 튐 + 바늘 눈 + 이 악물기, 닭이 꽉 눌려 부리가 쩍
+    chest: 0, lean: -1, dx: 0, legs: ZAP_LEGS,
+    eyes: 'wide', mouth: 'clench', glassesUp: 1, sweat: -1, chickHead: -3, chickUp: 3, squash: 1, beakOpen: true, flare: 1,
+    frizz: 0, fx: (K) => zapSparks(K, 0),
+  },
+  { // 1 덜덜: 1px 옆으로, 후드 끝 갈래 바뀜, 닭 머리는 반대로 튐(부리는 그대로 쩍)
+    chest: 0, lean: -1, dx: 1, legs: ZAP_LEGS,
+    eyes: 'wide', mouth: 'clench', glassesUp: 1, sweat: -1, chickHead: -1, chickUp: 3, squash: 0.6, beakOpen: true, flare: 1,
+    frizz: 1, fx: (K) => zapSparks(K, 1),
+  },
+  { // 2 그을음: 어깨가 내려앉고 후드 끝이 반쯤 처진다. 까만 안경 + 볼 검댕 + 덜덜 입, 닭은 머리를 떨군 채 부리에서 연기
+    chest: 3, lean: 0, legs: { back: { x: -0.9, lift: 0, toe: false }, front: { x: 1.0, lift: 0, toe: false } },
+    eyes: 'soot', mouth: 'shake', sweat: -1, chickHead: 2, chickUp: 0, beakOpen: true, flare: 0,
+    frizz: 2, soot: true, fx: zapSmoke,
+  },
+];
+
 export const SHEET = {
   name: 'ppik-base',
   character: 'ppik',
@@ -723,6 +788,8 @@ export const SHEET = {
     { name: 'step_up', frames: 2, ms: [50, 150] },
     // 공용 젖음(#529). 쭉이·묵직이와 같은 박자. 맨 뒤에 붙여서 앞 칸 번호는 그대로다.
     { name: 'common.wet', frames: 4, ms: [100, 400, 300, 500] },
+    // 공용 찌릿(#734 3/3). 쭉이·묵직이와 같은 박자. 맨 뒤에 붙여서 앞 칸 번호는 그대로다.
+    { name: 'common.zap', frames: 3, ms: [100, 100, 300] },
   ],
   pose,
   drawFrame,
