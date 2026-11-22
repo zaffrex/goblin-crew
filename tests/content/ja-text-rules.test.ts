@@ -85,8 +85,12 @@ describe("ja.json 줄 규칙 (ja-text.md 2절, #280)", () => {
 
   it("게이지 이름표는 8자 이하, 클리어 카드는 줄당 12자 이하", () => {
     expect(len(texts["ui.hud.gauge"]!)).toBeLessThanOrEqual(8);
-    for (const line of texts["ui.clear"]!.split("\n"))
-      expect(len(line), line).toBeLessThanOrEqual(12);
+    // 화면별 결과 줄(`<id>.clear_card`)과 끝 카드(`ui.end`)도 같은 카드 글자(#802).
+    const cardKeys = ["ui.clear", "ui.end", ...Object.keys(texts).filter((k) => k.endsWith(".clear_card"))];
+    expect(cardKeys.length).toBeGreaterThanOrEqual(5);
+    for (const k of cardKeys)
+      for (const line of texts[k]!.split("\n"))
+        expect(len(line), `${k} ${line}`).toBeLessThanOrEqual(12);
   });
 
   it("검사기 자체: 예외 1·2는 넘기고 문장 중간 줄 머리 금칙은 잡는다", () => {
