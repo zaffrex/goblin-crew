@@ -73,6 +73,7 @@ export function pose(kind, k) {
   if (kind === 'sit_corner') return SIT_CORNER[k];
   if (kind === 'common.wet') return WET[k];
   if (kind === 'common.bump_bottom') return BUMP[k];
+  if (kind === 'common.zap') return ZAP[k];
   if (kind === 'idle') {
     return {
       chest: k, // 숨 들이쉬기(배가 나온다) / 내쉬기
@@ -171,6 +172,18 @@ const FACE = {
     yell: ['...dssssssssmmmmmms...', '...ddsssxsxmkkkkkkms..', '....dsssxsxmkrrrrkms..'], // 으악: 입이 세로로 크게 열린다(엉덩방아 낙하)
   },
 };
+// 그을음(common.zap 2번): 머리띠에 탄 자국(g dusk), 이마·볼에 검댕(x lav, g dusk). 눈썹·눈·입은 그대로 = "그을려도 비장".
+const SOOT = {
+  5: 'eWWWgWWWWWWWlWWWWWgWW.',
+  7: '.kKdssgtgsssssxttsss..',
+  12: '..ddssgggssssssxggxs..',
+  13: '..dDssccssssssssxssss.',
+};
+// 곤두선 머리(common.zap): 짧게 깎은 머리가 정수리 위로 뾰족뾰족 선다. 머리 0행 위 3행, 머리 2열부터. 0·1 = 덜덜 두 갈래.
+const SPIKES = [
+  ['.K...K...K...K', '.KK.KK..KK.KK.', 'KKgKKKgKKKgKKK'],
+  ['..K...K..K...K', '.KK..KK.KK.KK.', 'KKKgKKKgKKKgKK'],
+];
 // 젖은 머리(common.wet 1~3번): 짧은 머리가 물에 눌려 정수리가 한 줄 낮아지고 빛 가닥(g)이 늘어난다.
 //   젖은 머리띠가 무게로 흘러내려 **일자 눈썹과 두 눈을 통째로 덮는다**(8~10행). 코와 이를 악문 입만 남는다 = "앞이 안 보여도 비장".
 //   쭉이 젖은 앞머리(jjuk-v4.mjs WET_BANGS)와 같은 웃음을 묵직이 물건(머리띠)으로 한다. 원래 띠 자리(4~6행)엔 젖은 머리가 드러난다.
@@ -194,6 +207,7 @@ function face(f) {
   if (f.brows && f.band !== 'wet') r.splice(9, 1, ...FACE.brows[f.brows]);
   if (f.eyes && f.band !== 'wet') r.splice(10, 2, ...FACE.eyes[f.eyes]);
   if (f.mouth) r.splice(15, 3, ...FACE.mouth[f.mouth]);
+  if (f.soot) for (const [i, row] of Object.entries(SOOT)) r[i] = row;
   for (const row of r) if (row.length !== 22) throw new Error(`[mukjik] 얼굴 줄 길이 ${row.length}: ${row}`);
   return r;
 }
@@ -245,7 +259,8 @@ function drawArm(K, side, sx, sy, swing, bias, aim) {
 
 export function drawFrame(p) {
   const oy = p.oy ?? 0; // 몸 전체를 위로 올린다(② px, 음수 = 위). 엉덩방아 낙하 칸(삑삑이 ppik.mjs와 같은 방식)
-  const K = new Canvas(CELL[0], CELL[1], S, OX, oy);
+  const ox = p.ox ?? 0; // 몸 전체를 옆으로 민다(② px). 찌릿 덜덜 칸(쭉이 jjuk-v4.mjs common.zap의 1px 흔들림)
+  const K = new Canvas(CELL[0], CELL[1], S, OX + ox, oy);
   const d = u(p.chest);
   const lean = u(p.lean);
   const body = (y) => y + d;
@@ -293,11 +308,12 @@ export function drawFrame(p) {
   }
 
   // 머리: 상체와 같은 정수 px만큼 내리고 lean만큼
-  const hx0 = HEAD_X + p.lean, hy0 = HEAD_Y + p.chest + oy;
+  const hx0 = HEAD_X + p.lean + ox, hy0 = HEAD_Y + p.chest + oy;
   const headPart = K.part(R4.skin);
   // 젖은 띠(face.band 'wet')는 4행 아래로 흘러내렸다: 매듭 꼬리도 같이 내려가고, 귀는 띠 아래로 나온 끝(2행~)만 보인다.
   const band = p.face?.band === 'wet' ? 4 : 0;
   K.stamp(hx0 - 5, hy0 + 4 + band, TAILS[clamp(p.tails, 0, 2)], HL, headPart);
+  if (p.hair !== undefined) K.stamp(hx0 + 2, hy0 - 3, SPIKES[p.hair], HL, headPart);
   K.stamp(hx0, hy0, p.face ? face(p.face) : HEAD, HL, headPart);
   K.stamp(hx0 + NOSE[0], hy0 + NOSE[1], NOSE[2], HL, headPart);
   if (band) K.stamp(hx0 + EAR[0], hy0 + EAR[1] + 2, EAR[2].slice(2), HL, headPart);
@@ -605,6 +621,64 @@ const BUMP = [
   },
 ];
 
+// common.zap  공용 "찌릿"(쭉이 jjuk-v4.mjs common.zap과 같은 박자 [100, 100, 300]와 같은 순서, #734).
+//   0·1 덜덜: 몸이 1px 좌우로 떨고(ox), 짧은 머리가 뾰족뾰족 곤두서고(SPIKES 두 갈래), 두 주먹이 뻣뻣하게 머리 위로 뻗친다.
+//       휘둥그레 눈(점 눈동자) + 이를 악문 입. 머리띠 꼬리는 위로 날리고, 몸 양옆에 노란 번개.
+//   → 2 그을음: 팔이 툭 떨어지고 어깨가 내려앉는다. 머리는 곤두선 채 남고, 머리띠·이마·볼에 검댕, 머리 옆에서 연기 두 가닥.
+//       얼굴은 **원래 무표정(비장)** 그대로다 = "안 아픈 척". 쭉이(질끈 움츠림)와 달리 묵직이 웃음은 안 무너지는 얼굴이다
+//       (젖음 3번 grit과 같은 줄기). 그을음·연기·선 머리가 실패를 알려서 성공 자세(sit_corner 비장)와 헷갈리지 않는다.
+//   합 500ms = 지금 캐릭터 anim busy(TIMING.anim 30틱). 마지막 칸이 말풍선 동안 남는다(#193). 방향은 고정하지 않는다.
+/** 번개(외곽선 없음): 머리 옆 위 한 줄기 + 배 옆 한 줄기(지그재그). k마다 좌우가 바뀌어 덜덜 칸에서 번쩍인다. 주먹에 가리지 않는 빈칸에 둔다. */
+function sparks(K, k) {
+  const bolts = [
+    [[[2, 0], [3, 1], [4, 2], [3, 3], [2, 4], [3, 5], [4, 6], [3, 7]], [[43, 27], [44, 28], [45, 29], [44, 30], [43, 31], [44, 32], [45, 33]]],
+    [[[2, 27], [3, 28], [4, 29], [3, 30], [2, 31], [3, 32], [4, 33]], [[42, 0], [43, 1], [44, 2], [43, 3], [42, 4], [43, 5], [44, 6], [43, 7]]],
+  ][k];
+  // 가운데 줄은 밝은 노랑, 오른쪽 한 칸은 진한 노랑(두께 2px): 크림 벽·하늘 어디서나 1배에서 보이게
+  for (const bolt of bolts)
+    for (const [x, y] of bolt) {
+      if (K.get(x, y) === -1) K.dot(x, y, C.yelL);
+      if (K.get(x + 1, y) === -1) K.dot(x + 1, y, C.yelD);
+    }
+}
+/** 연기(외곽선 없음): 머리 옆에서 피어오르는 두 가닥(2px). 아래가 진하고(lav) 위로 갈수록 옅다(lint → cotton). */
+function smoke(K) {
+  const wisps = [[9, 10, -1], [38, 8, 1]]; // [시작 x, 시작 y, 휘는 방향]
+  for (const [x0, y0, dir] of wisps)
+    for (let i = 0; i < 8; i++) {
+      const x = x0 + dir * [0, 0, 1, 1, 0, 0, 1, 2][i], y = y0 - i;
+      const c = i < 3 ? C.lav : i < 6 ? C.lint : C.cotton;
+      for (const dx of [0, 1]) if (y >= 0 && K.get(x + dx, y) === -1) K.dot(x + dx, y, c);
+    }
+}
+const ZAP_FACE = { brows: 'up', eyes: 'wide', mouth: 'grit' };
+const ZAP = [
+  { // 0 덜덜: 두 주먹이 머리 위로 뻣뻣하게(V), 다리 곧게 벌림, 배는 위로 튐
+    chest: 0, belly: 0.6, jiggle: -1, lean: 0, ox: 0,
+    legs: { back: { x: -2.2, lift: 0, toe: false }, front: { x: 3.0, lift: 0, toe: false } },
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [UP - 0.7, UP - 0.55], front: [UP + 0.6, UP + 0.4] },
+    hair: 0, tails: 0, face: ZAP_FACE,
+    fx: (K) => sparks(K, 0),
+  },
+  { // 1 덜덜: 1px 옆으로, 곤두선 머리 갈래 바뀜, 팔은 조금 더 벌어지고 배는 반대로 튐
+    chest: 0, belly: 0.6, jiggle: 1, lean: 0, ox: 1,
+    legs: { back: { x: -2.2, lift: 0, toe: false }, front: { x: 3.0, lift: 0, toe: false } },
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [UP - 0.8, UP - 0.65], front: [UP + 0.5, UP + 0.3] },
+    hair: 1, tails: 0, face: ZAP_FACE,
+    fx: (K) => sparks(K, 1),
+  },
+  { // 2 그을음: 팔이 축 떨어지고 어깨가 내려앉는다. 선 머리는 남고, 무표정 + 검댕, 연기 두 가닥
+    chest: 2, belly: 0.6, jiggle: 1, lean: 0,
+    legs: { back: { x: -1.2, lift: 0, toe: false }, front: { x: 2.2, lift: 0, toe: false } },
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [1.8, 1.7], front: [1.35, 1.45] }, // 축 늘어진 팔(젖음 1·3번과 같다)
+    hair: 1, tails: 2, face: { soot: true },
+    fx: smoke,
+  },
+];
+
 export const SHEET = {
   name: 'mukjik-base',
   character: 'mukjik',
@@ -635,6 +709,8 @@ export const SHEET = {
     { name: 'common.wet', frames: 4, ms: [100, 400, 300, 500] },
     // 공용 엉덩방아(#734). 쭉이·삑삑이와 같은 박자. 맨 뒤에 붙여서 앞 칸 번호는 그대로다.
     { name: 'common.bump_bottom', frames: 4, ms: [100, 400, 300, 500] },
+    // 공용 찌릿(#734). 쭉이와 같은 박자. 맨 뒤에 붙여서 앞 칸 번호는 그대로다.
+    { name: 'common.zap', frames: 3, ms: [100, 100, 300] },
   ],
   pose,
   drawFrame,
