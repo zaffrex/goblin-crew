@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import type { ScreenData } from '../core/puzzle/types';
 
 const SCREENS = Object.entries(
-  import.meta.glob<ScreenData>('../../content/screens/*.json', { eager: true, import: 'default' }),
+  import.meta.glob<ScreenData>(['../../content/screens/*.json', '!../../content/screens/order.json'], { eager: true, import: 'default' }),
 ).map(([path, s]) => [path.replace(/^.*\/|\.json$/g, ''), s] as const);
 
 function spotsWhere(pred: (spot: ScreenData['spots'][string]) => boolean): string[] {

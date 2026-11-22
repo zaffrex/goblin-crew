@@ -96,7 +96,7 @@ function silentActions(screen: ScreenData, chars: CharactersData): string[] {
 }
 
 const screens = readdirSync(join(ROOT, 'content', 'screens'))
-  .filter((f) => f.endsWith('.json'))
+  .filter((f) => f.endsWith('.json') && f !== 'order.json')
   .map((f) => load('content', 'screens', f) as ScreenData);
 
 describe('화면 자세 장부 (#142, 판정 2 시작 조건)', () => {

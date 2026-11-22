@@ -12,6 +12,7 @@ import {
   parseOrder,
   playtestOrder,
   showCard,
+  startOrder,
   usesSave,
   type Flow,
 } from "./flow";
@@ -81,6 +82,42 @@ describe("playtestOrder / usesSave", () => {
   it("순서를 덮어쓴 판은 세이브를 끈다(11-4절)", () => {
     expect(usesSave(null)).toBe(true);
     expect(usesSave(["magpie_nest", "magpie_nest"])).toBe(false);
+  });
+});
+
+describe("startOrder (#766 쿼리 없는 배포본도 이어 간다)", () => {
+  const deployed = parseOrder(["magpie_nest", "park_fountain", "laundromat"], known);
+  it("쿼리가 없으면 배포 order.json 순서", () => {
+    expect(startOrder(q(""), known, deployed)).toEqual([
+      "magpie_nest",
+      "park_fountain",
+      "laundromat",
+    ]);
+  });
+  it("playtest=1만 있어도 배포 순서(M1 replay.ts는 ?playtest=1로 연다)", () => {
+    expect(startOrder(q("?playtest=1"), known, deployed)).toEqual([
+      "magpie_nest",
+      "park_fountain",
+      "laundromat",
+    ]);
+  });
+  it("playtest order 덮어쓰기가 배포 순서보다 먼저", () => {
+    expect(
+      startOrder(q("?playtest=1&order=magpie_nest,magpie_nest"), known, deployed),
+    ).toEqual(["magpie_nest", "magpie_nest"]);
+  });
+  it("?screen=이 있으면 화면 하나(도구용). 모르는 id여도 하나", () => {
+    expect(startOrder(q("?screen=park_fountain"), known, deployed)).toBeNull();
+    expect(startOrder(q("?screen=magpie_nest&playtest=1"), known, deployed)).toBeNull();
+    expect(startOrder(q("?screen=nope"), known, deployed)).toBeNull();
+  });
+  it("order가 맞으면 ?screen=보다 order", () => {
+    expect(
+      startOrder(q("?playtest=1&order=park_fountain&screen=magpie_nest"), known, deployed),
+    ).toEqual(["park_fountain"]);
+  });
+  it("배포 order.json이 틀렸으면 화면 하나로 연다", () => {
+    expect(startOrder(q(""), known, parseOrder([], known))).toBeNull();
   });
 });
 

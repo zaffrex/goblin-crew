@@ -20,7 +20,8 @@ import { cutFontPx, firstSwitchText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_A
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { pickScreen, screenTextKey } from './core/screenPick';
-import { cardLines, enterCharacter, flowTap, flowTick, flowView, nextIndex, PLAYING, playtestOrder, showCard, soloCardKey, type Flow } from './core/flow';
+import { cardLines, enterCharacter, flowTap, flowTick, flowView, nextIndex, parseOrder, PLAYING, playtestOrder, showCard, soloCardKey, startOrder, type Flow } from './core/flow';
+import orderJson from '../content/screens/order.json';
 import { activeFx, activeMarkerVisible, boardDrop, charPose, charWalking, createScene, currentBubble, drawOrder, gaugeDrop, isBusy, isHanging, sceneArtView, sceneLayout, sceneTap, sceneTick, selectsDuringSay, takeWalkStart, tapContext, type SceneData, type SceneState } from './core/scene';
 import { animFrameBox, coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
@@ -53,21 +54,24 @@ const cardEl = need('#card');
 const loadingEl = need('#loading');
 const restartEl = need<HTMLButtonElement>('#restart');
 
-/** 번들에 든 화면 데이터(파일 이름 = 화면 ID). 13KB 안팎이라 다 넣고 `?screen=`으로 고른다(#466). */
+/** 번들에 든 화면 데이터(파일 이름 = 화면 ID). 13KB 안팎이라 다 넣고 `?screen=`으로 고른다(#466). `order.json`은 화면이 아니라 뺀다(#766). */
 const SCREENS = new Map(
-  Object.entries(import.meta.glob<ScreenData>('../content/screens/*.json', { eager: true, import: 'default' })).map(([path, s]) => [path.replace(/^.*\/|\.json$/g, ''), s]),
+  Object.entries(import.meta.glob<ScreenData>(['../content/screens/*.json', '!../content/screens/order.json'], { eager: true, import: 'default' })).map(([path, s]) => [path.replace(/^.*\/|\.json$/g, ''), s]),
 );
 const query = (key: string): string | null => new URLSearchParams(location.search).get(key);
 const picked = pickScreen(query('screen'), [...SCREENS.keys()]);
 if (picked.unknown) console.warn(`?screen=${picked.unknown}: 없는 화면이라 ${picked.id}로 엽니다`);
 const TEXT: Readonly<Record<string, string>> = texts;
 /**
- * 플레이 순서(#230 여러 화면 연결 2단계). 지금은 `?playtest=1&order=a,b`일 때만 있다(L1 기록 `2026-11-21-multi-screen-link-before-planning`).
- * null이면 배포본 그대로다: 화면 하나, 클리어 뒤 `ui.clear` 카드에서 끝나고 연결 경로(카드 탭·전환)를 아예 타지 않는다.
- * 배포 순서 `content/screens/order.json`과 세이브는 플래닝 결론 뒤에 붙인다(같은 기록 2·3번).
+ * 플레이 순서(#230 여러 화면 연결, #766). 쿼리가 없으면 배포 순서 `content/screens/order.json`이다
+ * (지금은 임시 순서, L1 기록 `2026-11-22-default-link-interim-order`). `?playtest=1&order=a,b`가 그보다 먼저다.
+ * null이면 `?screen=<id>`로 연 화면 하나: 클리어 뒤 `soloCardKey` 카드에서 끝나고 연결 경로(카드 탭·전환)를 아예 타지 않는다.
+ * 세이브는 아직 붙이지 않았다(#767).
  */
-const ORDER = playtestOrder(query, new Set(SCREENS.keys()));
-if (query('order') !== null && !ORDER) console.warn('?order=: playtest=1이 아니거나 모르는 화면 id가 있어 화면 하나로 엽니다');
+const DEPLOY_ORDER = parseOrder(orderJson, new Set(SCREENS.keys()));
+if (!DEPLOY_ORDER.ok) console.error(`content/screens/order.json: ${DEPLOY_ORDER.error}. 화면 하나로 엽니다`);
+const ORDER = startOrder(query, new Set(SCREENS.keys()), DEPLOY_ORDER);
+if (query('order') !== null && !playtestOrder(query, new Set(SCREENS.keys()))) console.warn('?order=: playtest=1이 아니거나 모르는 화면 id가 있어 무시합니다');
 
 /**
  * 한 화면 판(#230 여러 화면 연결 1단계, 설계 `ui-interaction.md` 11절). 화면에 묶인 상태는 전부 여기 있다.

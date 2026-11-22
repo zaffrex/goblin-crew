@@ -33,7 +33,7 @@ const sprites = { jjuk: parseSpriteMeta(jjukJson), mukjik: parseSpriteMeta(mukji
 type Frames = { frames: { src: number[]; at: number[] }[] };
 const baseName = (path: string, tail: string): string => path.replace(/^.*\//, '').replace(tail, '');
 const SCREEN_JSON = Object.fromEntries(
-  Object.entries(import.meta.glob<ScreenData>('../../content/screens/*.json', { eager: true, import: 'default' })).map(([p, v]) => [baseName(p, '.json'), v]),
+  Object.entries(import.meta.glob<ScreenData>(['../../content/screens/*.json', '!../../content/screens/order.json'], { eager: true, import: 'default' })).map(([p, v]) => [baseName(p, '.json'), v]),
 );
 /** 물건 시트가 있는 화면만(그림 없는 화면은 임시 상자라 가림을 따질 그림이 없다). */
 const ART_JSON = Object.entries(import.meta.glob<Frames>('../../public/scenes/*-objects.json', { eager: true, import: 'default' })).map(

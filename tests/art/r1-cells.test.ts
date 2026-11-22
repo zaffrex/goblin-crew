@@ -164,7 +164,7 @@ const objectsOf = (id: string): SceneArtMeta | null => {
 };
 
 const screens = readdirSync(join(ROOT, 'content', 'screens'))
-  .filter((f) => f.endsWith('.json'))
+  .filter((f) => f.endsWith('.json') && f !== 'order.json')
   .map((f) => load('content', 'screens', f) as ScreenData);
 
 const inputOf = (screen: ScreenData): R1Input => ({
