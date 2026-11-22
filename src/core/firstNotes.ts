@@ -21,8 +21,9 @@ export interface FirstNotes {
   /**
    * 지금 떠 있는 글. `until`이 null이면 다음 탭까지.
    * `hover`가 있으면 마우스 전환 알림이다(#692): 마우스가 다른 대상으로 옮겨 가면(`noteHover`) 호버 라벨에 자리를 내준다.
+   * `walk`가 있으면 긴 걷기 안내다(#38): 그 캐릭터의 걷기가 끝나면(`noteWalkDone`) 지운다.
    */
-  note: { text: string; until: number | null; hover?: string } | null;
+  note: { text: string; until: number | null; hover?: string; walk?: CharacterId } | null;
   /**
    * 서는 자리로 가는 중인 사람(6-4-1a절). busy가 풀리면 `noteStood`가 본다.
    * `touch`: 올라서기를 실행한 탭이 터치였나. 터치면 안내 글 대신 그 자리 특기를 고른 상태로 만든다(6-4-1a-1절, #710).
@@ -30,10 +31,14 @@ export interface FirstNotes {
   climbing: { char: CharacterId; spot: string; touch: boolean } | null;
   /** 서 있는 자리에 특기를 한 번이라도 쓴 캐릭터. 그 판에서 올라선 뒤 라벨을 다시 안 띄운다(6-4-1a절). 터치 선택(6-4-1a-1절)은 이걸 안 본다. */
   usedHere: Set<CharacterId>;
+  /** 긴 걷기 안내(#38, 5-2-2절)를 띄운 횟수. `WALK_NOTE_MAX`번이면 그 판에서 더 안 띄운다. */
+  walkNotes: number;
+  /** 그 판에서 걷기 건너뛰기(자동·바닥)를 한 번이라도 썼나. 썼으면 긴 걷기 안내를 다시 안 띄운다. */
+  walkSkipped: boolean;
 }
 
 export function createFirstNotes(gauge: number, first: CharacterId): FirstNotes {
-  return { introduced: new Set([first]), dropShown: false, lastGauge: gauge, note: null, climbing: null, usedHere: new Set() };
+  return { introduced: new Set([first]), dropShown: false, lastGauge: gauge, note: null, climbing: null, usedHere: new Set(), walkNotes: 0, walkSkipped: false };
 }
 
 /** 탭 하나가 왔다. 떠 있는 글은 무엇이든 지운다(다음 탭에서 지움, 6-4-3·6-2-5절). 탭 결과를 반영하기 **전에** 부른다. */
@@ -146,4 +151,29 @@ export function noteStood(n: FirstNotes, active: CharacterId, tick: number, text
   const s = text(c);
   if (s) n.note = { text: s, until: tick + GAUGE_NOTE_TICKS };
   return null;
+}
+
+/** 긴 걷기 안내를 띄우는 최소 걷기 길이(내부 px, 90px/s로 1.5초, #38 5-2-2절). 짧은 걷기는 알려 줘도 누르기 전에 끝난다. */
+export const WALK_NOTE_MIN = 135;
+/** 그 판에서 긴 걷기 안내를 띄우는 최대 횟수(5-2-2절). 첫 번째는 걷는 그림을 보느라 못 읽을 수 있어서 2번이다. */
+export const WALK_NOTE_MAX = 2;
+
+/**
+ * 걷기가 시작됐다(자동·바닥, 시작 연출 밖). `WALK_NOTE_MIN` 이상이고, 그 판에서 건너뛰기를 안 써 봤고, 아직 `WALK_NOTE_MAX`번 안 띄웠으면
+ * 그 걷기가 끝날 때까지(또는 다음 탭까지) 안내를 띄운다. 다른 안내가 떠 있으면 덮지 않고 이번은 건너뛴다(횟수도 안 센다).
+ */
+export function noteWalkStart(n: FirstNotes, char: CharacterId, dist: number, text: string): void {
+  if (dist < WALK_NOTE_MIN || n.walkSkipped || n.walkNotes >= WALK_NOTE_MAX || n.note) return;
+  n.walkNotes += 1;
+  n.note = { text, until: null, walk: char };
+}
+
+/** 걷기 건너뛰기를 썼다(자동이든 바닥이든). 그 판에서 긴 걷기 안내를 다시 안 띄운다. 탭이 이미 떠 있던 글을 지웠다(`noteTap`). */
+export function noteWalkSkipped(n: FirstNotes): void {
+  n.walkSkipped = true;
+}
+
+/** 매 틱 부른다. 긴 걷기 안내를 띄운 그 캐릭터의 걷기가 끝났으면 지운다. */
+export function noteWalkDone(n: FirstNotes, walking: (char: CharacterId) => boolean): void {
+  if (n.note?.walk !== undefined && !walking(n.note.walk)) n.note = null;
 }
