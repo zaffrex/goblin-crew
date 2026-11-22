@@ -50,7 +50,9 @@ done
 [ "${#TOKENS[@]}" -gt 0 ] || { log "no Slack tokens; exiting"; exit 1; }
 
 # --- channels to watch: team channels + CEO DM per member ----------------------------------------
-declare -A CH_TOKEN CH_NAME CH_DMROLE CURSOR
+declare -A CH_TOKEN CH_NAME CH_DMROLE CURSOR WIDE_CURSOR SEEN
+# WIDE_CURSOR: separate cursor for the wide scan, advanced only by wide scans (a normal tick moving CURSOR must not hide
+# old-thread replies from it). SEEN[ch:ts]: messages already handled, so normal and wide scans never wake twice.
 # Start cursor: previous listener's end - OVERLAP (covers the handover and any cron-recovery gap, issue #11).
 # Cancelled runs are skipped: queued cron runs get cancelled at each handover and would give a too-early end (PM #11).
 # Capped at MAX_BACKFILL so old posts never wake agents; falls back to now - LOOKBACK if no previous run is found.
@@ -69,14 +71,14 @@ fi
 start_cursor="${start_s}.000000"
 i=0
 while IFS=$'\t' read -r name id; do
-  CH_TOKEN[$id]="${TOKENS[$(( i % ${#TOKENS[@]} ))]}"; CH_NAME[$id]=$name; CH_DMROLE[$id]=""; CURSOR[$id]=$start_cursor
+  CH_TOKEN[$id]="${TOKENS[$(( i % ${#TOKENS[@]} ))]}"; CH_NAME[$id]=$name; CH_DMROLE[$id]=""; CURSOR[$id]=$start_cursor; WIDE_CURSOR[$id]=$start_cursor
   i=$((i + 1))
 done < <(jq -r '.slack_channels | to_entries[] | "\(.key)\t\(.value)"' "$TEAM")
 for r in "${ROLES[@]}"; do
   t=$(token_of "$r"); [ -n "$t" ] || continue
   dm=$(slack "$t" POST conversations.open "$(jq -n --arg u "$CEO_ID" '{users:$u}')" | jq -r '.channel.id // empty')
   [ -n "$dm" ] || continue
-  CH_TOKEN[$dm]=$t; CH_NAME[$dm]="ceo-dm"; CH_DMROLE[$dm]=$r; CURSOR[$dm]=$start_cursor
+  CH_TOKEN[$dm]=$t; CH_NAME[$dm]="ceo-dm"; CH_DMROLE[$dm]=$r; CURSOR[$dm]=$start_cursor; WIDE_CURSOR[$dm]=$start_cursor
 done
 # Handover gap (numbers only, no message text): seconds between the previous listener job ending and this one starting.
 # If the max over a week exceeds LOOKBACK_SECONDS, raise LOOKBACK_SECONDS (issue #11).
@@ -139,6 +141,8 @@ process() { # process <channel-id> <message-json> <thread-parent-user>
   local subtype user author ts thread mentions targets t
   subtype=$(jq -r '.subtype // ""' <<<"$m")
   case "$subtype" in ""|thread_broadcast|file_share) ;; *) return ;; esac
+  [ -z "${SEEN[$ch:$(jq -r '.ts' <<<"$m")]:-}" ] || return 0
+  SEEN[$ch:$(jq -r '.ts' <<<"$m")]=1
   user=$(jq -r '.user // ""' <<<"$m")
   if [ "$user" = "$CEO_ID" ]; then author=ceo
   elif [ -n "${ROLE_OF_UID[$user]:-}" ]; then author=${ROLE_OF_UID[$user]}
@@ -189,6 +193,26 @@ watchdog() {
   done
 }
 
+# conversations.history; in wide mode follow next_cursor (max WIDE_MAX_PAGES) and merge pages into one object.
+# Rate: Tier 3 (~50/min per method per app). Normal ticks = 1 call/conversation/15s. Wide = pages/conversation/5min.
+# 11 conversations (6 channels + 5 DMs) spread over 5 tokens: ~2-3 conversations/token -> ~10 calls/min/token normal
+# + at most ~3 x WIDE_MAX_PAGES / 5 per min for the wide scan, i.e. < 15/min/token even with 2 pages each.
+WIDE_EVERY=${WIDE_EVERY_CYCLES:-20}; WIDE_DAYS=${WIDE_DAYS:-30}; WIDE_MAX_PAGES=${WIDE_MAX_PAGES:-5}
+fetch_history() { # fetch_history <token> <channel> <oldest> <wide:0|1>
+  local tok="$1" ch="$2" oldest="$3" wide="$4" page next="" acc='{"messages":[]}' q n=0
+  while :; do
+    q="channel=$ch&oldest=$oldest&limit=100"; [ "$wide" = 1 ] && q="channel=$ch&oldest=$oldest&limit=200"
+    [ -n "$next" ] && q="$q&cursor=$next"
+    page=$(slack "$tok" GET conversations.history "$q") || { [ "$n" = 0 ] && return 1; break; }
+    acc=$(jq -c --argjson p "$page" '.messages += $p.messages' <<<"$acc")
+    n=$((n + 1))
+    [ "$wide" = 1 ] && [ "$n" -lt "$WIDE_MAX_PAGES" ] || break
+    next=$(jq -r '.response_metadata.next_cursor // empty' <<<"$page")
+    [ -n "$next" ] || break
+  done
+  printf '%s' "$acc"
+}
+
 # --- main loop ----------------------------------------------------------------------------------
 began=$(date +%s); cycle=0; chained=0
 # Queue the next listener job shortly before MAX so the handover gap stays small (cron alone left gaps up to ~3h).
@@ -208,10 +232,13 @@ while [ $(( $(date +%s) - began )) -lt "$MAX" ]; do
     [ "$paused" = true ] && { log "schedule paused; exiting"; exit 0; }
   fi
   [ $((cycle % 20)) = 0 ] && watchdog   # ~5 min
-  since=$(( $(date +%s) - 259200 ))
+  # Normal tick: parents from the last 72h. Every WIDE_EVERY cycles (~5 min, same as the watchdog) widen to
+  # WIDE_DAYS so replies on old parents (long CEO threads) are found via latest_reply, paging through history.
+  if [ $((cycle % WIDE_EVERY)) = 0 ]; then since=$(( $(date +%s) - WIDE_DAYS * 86400 )); wide=1
+  else since=$(( $(date +%s) - 259200 )); wide=0; fi
   for ch in "${!CH_NAME[@]}"; do
-    tok=${CH_TOKEN[$ch]}; cur=${CURSOR[$ch]}; newcur=$cur
-    hist=$(slack "$tok" GET conversations.history "channel=$ch&oldest=$since&limit=100") || continue
+    tok=${CH_TOKEN[$ch]}; if [ "$wide" = 1 ]; then cur=${WIDE_CURSOR[$ch]}; else cur=${CURSOR[$ch]}; fi; newcur=$cur
+    hist=$(fetch_history "$tok" "$ch" "$since" "$wide") || continue
     while read -r m; do
       [ -n "$m" ] || continue
       process "$ch" "$m" ""
@@ -226,7 +253,7 @@ while [ $(( $(date +%s) - began )) -lt "$MAX" ]; do
         process "$ch" "$m" "$parent_user"
       done < <(jq -c --arg c "$cur" --arg p "$p" '.messages[] | select(.ts != $p and (.ts|tonumber) > ($c|tonumber))' <<<"$rep")
     done
-    CURSOR[$ch]=$newcur
+    if [ "$wide" = 1 ]; then WIDE_CURSOR[$ch]=$newcur; else CURSOR[$ch]=$newcur; fi
   done
   flush
   sleep "$POLL"
