@@ -4,7 +4,7 @@
 // 가장 짧은 길을 진짜 장면(`runAction` + `sceneTick`)으로 걷고 그 행동을 돌린다. 글자가 떠 있는 틱마다 `spritePole` 길이를 잰다.
 // - `NO_POLE`은 지금 장대가 0px인 줄이다(#587 결정: 높은 대상 2곳은 C2 `reach_wobble`, 나머지는 안 A로 글자를 뺀다).
 //   그 PR이 줄을 고치면 여기서 지워야 테스트가 통과한다. **`NO_POLE`이 비면 #587을 닫는다.**
-// - 화면 1(`magpie_nest`)은 진마씨 재플레이 답 전에는 데이터를 안 바꾼다. 이 파일은 검사만 한다.
+// - 두 화면 모두 장부가 비었다(#587 닫음). 새 화면에서 0px 줄이 생기면 장부에 넣지 말고 그림·데이터를 고친다.
 
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -29,8 +29,8 @@ const SCREENS = ['magpie_nest', 'park_fountain'] as const;
 
 /** 화면별 `대상 규칙/폴백` 중 글자 동안 장대가 0px인 줄. 정렬해 둔다. 줄을 지우는 건 #587 구현 PR 몫이다. */
 const NO_POLE: Record<(typeof SCREENS)[number], string[]> = {
-  // 화면 1: 까치·내복은 C2(`common.reach_wobble`), 바닥 3곳은 안 A. 진마씨 재플레이 답 전에는 안 바꾼다.
-  magpie_nest: ['basket hotspotFallback', 'long_johns hotspotFallback', 'magpie hotspotFallback', 'seesaw_left hotspotFallback', 'seesaw_right hotspotFallback'],
+  // 화면 1: 까치·내복은 C2(`common.reach_wobble`)로 장대를 펴고, 시소 양 끝·바구니는 안 A로 글자를 뺐다(진마씨 재플레이 11/22 뒤). 남은 줄 없음.
+  magpie_nest: [],
   // 화면 2: 분수·오리·손님은 안 A로 글자를 뺐다(바닥이거나 tip보다 낮음, 오리는 `reach_wobble`이어도 0px). 남은 줄 없음.
   park_fountain: [],
 };

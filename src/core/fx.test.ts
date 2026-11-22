@@ -79,9 +79,9 @@ describe('특기 시그니처 (ability-feedback.md 2·5절, #284)', () => {
     expect(missingSignatures([{ anim: ['ppik', 'common.squeeze_chicken'] }, { fx: ['squeak_text', 'nest'] }])).toEqual([]);
   });
 
-  it('F-d: 쭉이 내복 반응은 이제 장대를 뻗고 나서 내복이 날아온다', () => {
+  it('F-d: 쭉이 내복 반응은 이제 장대를 뻗고 나서 내복이 날아온다(장대가 실제로 펴지는 reach_wobble, #587 C2)', () => {
     const show = (screenJson as unknown as { fallbacks: Record<string, Record<string, { show: ShowItem[] }>> }).fallbacks.long_johns!.stretch!.show;
-    expect(show.slice(0, 3)).toEqual([{ anim: ['jjuk', 'common.stretch'] }, { fx: ['stretch_text', 'jjuk'] }, { anim: ['long_johns', 'flutter'] }]);
+    expect(show.slice(0, 3)).toEqual([{ anim: ['jjuk', 'common.reach_wobble'] }, { fx: ['stretch_text', 'jjuk'] }, { anim: ['long_johns', 'flutter'] }]);
   });
 });
 
