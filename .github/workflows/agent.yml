@@ -129,6 +129,7 @@ jobs:
             --max-turns ${{ inputs.role == 'qa' && 100 || inputs.mode == 'meeting' && 200 || 120 }}
             ${{ inputs.role == 'qa' && '--permission-mode dontAsk --tools "Read,Write,Bash" --allowedTools "Read,Write(qa-work/**),Edit(./qa-work/**),Bash(scripts/slack.sh:*),Bash(node scripts/qa/browse.ts:*),Bash(gh issue comment:*),Bash(gh issue create:*)"' || '--permission-mode auto' }}
             --append-system-prompt-file .claude/agents/${{ inputs.role }}.md
+            ${{ vars.BEAKET_ENABLED == 'true' && inputs.role != 'qa' && '--plugin-dir .github/beaket/plugin' || '' }}
           bot_id: "209825114"
           # QA 실행이 2턴 만에 끝난 원인(거부된 명령)이 로그에 안 남는다(#601, #603). QA 실행에서만 전체 출력을 켠다.
           # 비밀값은 GitHub이 로그에서 가린다. QA 실행에는 QA·infra 토큰 외에 아무것도 없다.
@@ -153,6 +154,17 @@ jobs:
           RUN_ID: ${{ github.run_id }}
         run: |
           scripts/slack.sh --as infra post dev "QA 스크린샷(7일 보관): \`gh run download $RUN_ID -n qa-shots -D /tmp/qa-shots\` 후 /tmp/qa-shots/*.png를 Read로 열어요." || true
+
+      # 실험 플러그인의 이벤트 로그(대화 원문 없음)를 회고 집계용으로 보관한다. BEAKET_ENABLED가 "true"일 때만.
+      - name: Keep Beaket events
+        if: always() && vars.BEAKET_ENABLED == 'true' && inputs.role != 'qa'
+        uses: actions/upload-artifact@v7
+        with:
+          name: beaket-events-${{ inputs.role }}-${{ github.run_id }}
+          path: .git/beaket/events.jsonl
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 30
 
       - name: Report failure to Slack
         if: failure()
