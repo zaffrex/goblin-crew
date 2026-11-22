@@ -1,3 +1,5 @@
+> 일부 대체됨(지킬 선 1·2): [default-link-always-latest](2026-11-22-default-link-always-latest.md)
+
 # 결정: 여러 화면 연결 2단계는 플래닝 전에 `?playtest=1&order=` 뒤에서 시작한다
 
 - 레벨: L1
