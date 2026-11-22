@@ -8,7 +8,7 @@ import ppikJson from '../../public/sprites/ppik-base.json';
 import type { CharacterId } from './characters';
 import { parseSpriteMeta, spriteFrame } from './sprite';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { charPose, createScene, HOP, isBusy, runAction, sceneTap, sceneTick, type SceneData, type SceneState } from './scene';
+import { bodies, charPose, createScene, HOP, isBusy, runAction, sceneTap, sceneTick, type SceneData, type SceneState } from './scene';
 import type { Point } from './viewport';
 
 const base: SceneData = { screen: screenJson as unknown as ScreenData, characters: charactersJson as CharactersData };
@@ -22,6 +22,11 @@ function ready(data: SceneData): SceneState {
   const s = createScene(data);
   while (isBusy(s)) sceneTick(data, s);
   return s;
+}
+
+/** 바닥 점(400, 230) 근처의 묵직이·삑삑이(시작 x 400·440)를 왼쪽 끝으로 비켜 둔다. 비켜 서기(#825)와 섞이지 않게. */
+function clearRight(s: SceneState): void {
+  for (const id of ['mukjik', 'ppik'] as const) Object.assign(s.walkers[id], { x: 30, y: 252 });
 }
 
 interface Frame {
@@ -134,6 +139,7 @@ describe('시소 끝 내려서기·판 위 걷기 (#397 1-5-2절)', () => {
 
   it('바닥으로 떠나면 먼저 바닥 점으로 뛰어내린다(웅크림 없이 공중 → 착지)', () => {
     const s = onLeft(base);
+    clearRight(s);
     runAction(base, s, { char: 'jjuk', verb: 'move', target: 'floor' }, { x: 400, y: 230 });
     const frames = record(base, s, 'jjuk');
     expect(runs(frames)).toEqual([[1, 6], [0, 3]]);
@@ -263,8 +269,26 @@ describe('판 끝에서 다른 대상 한 번 누르기 = 내려서기 → 대�
     const s = ready(base);
     runAction(base, s, { char: 'jjuk', verb: 'move', target: 'seesaw_left' }, null);
     while (isBusy(s)) sceneTick(base, s);
+    clearRight(s);
     runAction(base, s, { char: 'jjuk', verb: 'move', target: 'floor' }, { x: 400, y: 230 });
     while (isBusy(s)) sceneTick(base, s);
     expect(pos(s, 'jjuk')).toEqual({ x: 400, y: 230 });
+  });
+
+  it('바닥 클릭(move floor) 점에 동료가 서 있으면 비켜 선 점으로 내려간다(#825)', () => {
+    const s = ready(base);
+    runAction(base, s, { char: 'jjuk', verb: 'move', target: 'seesaw_left' }, null);
+    while (isBusy(s)) sceneTick(base, s);
+    runAction(base, s, { char: 'jjuk', verb: 'move', target: 'floor' }, { x: 400, y: 230 });
+    while (isBusy(s)) sceneTick(base, s);
+    const at = pos(s, 'jjuk');
+    expect(at.y).toBe(230);
+    expect(at.x).not.toBe(400);
+    const b = bodies(base, s);
+    for (const id of ['mukjik', 'ppik'] as const) {
+      const o = b[id];
+      const j = b.jjuk;
+      expect(j.left + j.width <= o.left || o.left + o.width <= j.left).toBe(true);
+    }
   });
 });

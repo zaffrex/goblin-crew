@@ -16,12 +16,16 @@ const TEXT: Record<string, string> = texts;
 const center = (b: HitBox): Point => ({ x: b.left + b.width / 2, y: b.top + b.height / 2 });
 const SEESAW_LEFT = center({ left: 208, top: 196, width: 38, height: 24 });
 
-/** onEnter가 끝난 화면. */
+/**
+ * onEnter가 끝난 화면. 묵직이·삑삑이는 왼쪽 끝(x 30)으로 비켜 둔다. 시작 배치(400·440)에 그대로 두면
+ * 쭉이가 그 자리를 눌렀을 때 비켜 서기(#825)가 목표를 옮겨서, 여기서 보는 건너뛰기 규칙과 섞인다.
+ */
 function ready(): SceneState {
   const s = createScene(data);
   for (let i = 0; i < 5000 && isBusy(s); i++) sceneTick(data, s);
   expect(isBusy(s)).toBe(false);
   takeWalkStart(s);
+  for (const id of ['mukjik', 'ppik'] as const) Object.assign(s.walkers[id], { x: 30, y: 252 });
   return s;
 }
 
@@ -73,7 +77,12 @@ describe('바닥 걷기 건너뛰기 (5-2-1절)', () => {
     expect(sceneTap(data, s, center(CHAR_SLOTS.mukjik), 0, false)).toMatchObject({ kind: 'intent', intent: { kind: 'switch', char: 'mukjik' } });
     expect(s.ui.active).toBe('mukjik');
     expect(sceneTap(data, s, goal, 0, false)).toMatchObject({ kind: 'intent', intent: { kind: 'walk' } });
-    expect(s.walkers.mukjik.target).toEqual(goal);
+    // 묵직이는 새로 걷기 시작한다(바로 서지 않음). 목표는 쭉이가 설 자리를 비켜 선 점이다(#825).
+    const m = s.walkers.mukjik;
+    expect(m.target).not.toBeNull();
+    expect(m.target!.y).toBe(goal.y);
+    expect(Math.abs(m.target!.x - goal.x)).toBeGreaterThan(WALK_SKIP_SAME);
+    expect([m.x, m.y]).toEqual([30, 252]);
     expect(s.walkers.jjuk.target).toEqual(goal);
     expect(s.walkers.jjuk.x).not.toBe(goal.x);
   });
