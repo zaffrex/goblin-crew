@@ -782,6 +782,9 @@ export const SHEET = {
     { name: 'common.flatten_stay', reuse: [['common.flatten', 0], ['common.flatten', 1]], ms: [100, 600] },
     { name: 'common.bump_bottom', frames: 4, ms: [100, 400, 300, 500] },
     { name: 'common.shiver', frames: 4, ms: [400, 100, 100, 500] },
+    // n번째 변형(#765 2/2, ADR-0761 H5 "두 번째부터는 짧은 판"): 같은 규칙이 두 번째로 돌면 0번 올려다봄(400ms)을 빼고
+    // 부르르 → 움츠림만. 새 칸 없이 앞 칸을 다시 쓴다(reuse). 1100ms → 500ms. 끝 칸(3 움츠림)은 처음 판과 같다.
+    { name: 'common.shiver#2', reuse: [['common.shiver', 1], ['common.shiver', 2], ['common.shiver', 3]], ms: [100, 100, 300] },
     { name: 'common.wag_finger', frames: 4, ms: [250, 200, 200, 400] },
     { name: 'hide_in_basket', frames: 4, ms: [200, 300, 350, 500] },
     // 웅크림·공중(#397 1-5-3절). 착지는 엔진이 0번 칸을 50ms 다시 쓴다. 맨 뒤에 붙여서 앞 칸 번호(#357 납작 17)는 그대로다.

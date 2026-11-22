@@ -12,6 +12,7 @@
 import { opaqueAt, type AlphaMask } from './alpha';
 import { TICK_MS } from './config';
 import { SCENE_FX, type SceneFxDraw } from './sceneFx';
+import { parseNthName } from './sprite';
 
 export type Layer = 'back' | 'front';
 type Flags = Readonly<Record<string, boolean>>;
@@ -219,6 +220,13 @@ export function parseSceneArt(raw: unknown): SceneArtMeta {
       layer(v.layer, `anims['${name}'].variants[${j}]`);
       animTilt(v, `anims['${name}'].variants[${j}]`);
       when(v.when, `anims['${name}'].variants[${j}]`);
+    }
+    const nth = parseNthName(name);
+    if (nth) {
+      // n번째 변형(#765 2/2): 같은 물건, 같은 `hold`. 다르면 끝난 뒤 붙드는 칸·보이는 플래그 시점이 처음 판과 갈린다.
+      const base = m.anims[nth.base];
+      if (!base) fail(`anims['${name}']: 변형의 원래 anim '${nth.base}'가 없음`);
+      else if (base.object !== a.object || base.hold !== a.hold) fail(`anims['${name}']: 변형은 '${nth.base}'와 object·hold가 같아야 한다`);
     }
   }
   return m as SceneArtMeta;
