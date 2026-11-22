@@ -7,7 +7,8 @@
 
 import { screenHost } from '../../src/core/puzzle/check';
 import { foldedKey } from '../../src/core/puzzle/bfs';
-import type { Action, CharactersData, PuzzleState, ScreenData } from '../../src/core/puzzle/types';
+import { step } from '../../src/core/puzzle/step';
+import type { Action, CharactersData, PuzzleEvent, PuzzleState, ScreenData, StepResult } from '../../src/core/puzzle/types';
 
 const FLOOR = 'floor';
 
@@ -92,4 +93,109 @@ export function difficultyReport(screen: ScreenData, characters?: CharactersData
 export function formatDifficulty(d: DifficultyReport): string {
   const n = d.noChange;
   return `[${d.screen}] 탐색 리포트: 퍼즐 상태 ${d.states}, 경로 ${d.pathCells ?? '없음'}칸(걷기 포함), 칸마다 상태가 바뀌는 행동 ${d.choicesPerCell.join('/')} (평균 ${d.meanChoices.toFixed(1)}), 칸마다 특기 자리 이동 ${d.spotMovesPerCell.join('/')}, 상태 안 바뀜 ${n.total}개 = 설계된 반응 ${n.designedRule} / 폴백 ${n.fallback} / 막힘 ${n.blocked} / 자리만 바뀜 ${n.positionOnly}`;
+}
+
+// ADR-0761 section 5 (#67): `정답 길 반응` / `오답 반응` report lines. Numbers + decoy warnings only; humans judge funny (H3).
+// Counted with the real `step` over `solution` and over the BFS-reachable states, so `StepResult` stays unchanged.
+// `common.*` anims are counted apart. Separate from R1 `uniqueReactions` (static) on purpose, do not merge names.
+
+export interface ReactionReport {
+  screen: string;
+  /** Unique anim/say on the `solution` replay. `outside` = every step before the last, `clearCut` = last step only (ADR-0761 H1). */
+  solution: { outside: number; clearCut: number; common: number };
+  /** Unique anim/say from actions (any reached state, not move/invalid) whose ruleId never fires on the `solution` replay; `states` = all reached folded states (gauge excluded). */
+  wrong: { reactions: number; states: number; common: number };
+  decoys: string[];
+  warnings: string[];
+}
+
+type Reaction = { key: string; common: boolean };
+
+function reactionsOf(events: PuzzleEvent[]): Reaction[] {
+  const out: Reaction[] = [];
+  for (const e of events) {
+    if (e.type === 'anim') {
+      out.push({ key: `anim:${e.target}:${e.name}`, common: e.name.startsWith('common.') });
+    } else if (e.type === 'say') {
+      out.push({ key: `say:${e.speaker}:${JSON.stringify(e.text)}`, common: false });
+    }
+  }
+  return out;
+}
+
+export function reactionReport(screen: ScreenData, characters?: CharactersData, limit = 5000): ReactionReport {
+  const host = screenHost(screen, characters);
+  // host.step is typed as StepResultLike (no ruleId, loose events); call core step directly for the full StepResult.
+  const run = (st: PuzzleState, a: Action): StepResult => step(screen, st, a, characters);
+  const warnings: string[] = [];
+  const ruledTargets = new Set(screen.rules.map((r) => r.target));
+  const decoys = Object.keys(screen.hotspots).filter((id) => !ruledTargets.has(id) && screen.fallbacks?.[id]);
+  for (const id of decoys) {
+    for (const [verb, fb] of Object.entries(screen.fallbacks![id]!)) {
+      if (fb?.do?.gauge) warnings.push(`미끼 폴백 ${id}.${verb}에 do.gauge(H4 ①)`);
+    }
+  }
+  for (const h of Object.entries(screen.hotspots)) {
+    if (/미끼/.test(h[1].note ?? '') && !decoys.includes(h[0]) && !screen.rules.some((r) => r.id?.startsWith(`decoy.${h[0]}`))) {
+      warnings.push(`note에 미끼라고 적힌 ${h[0]}가 미끼로 안 잡힘(경고만)`);
+    }
+  }
+
+  // solution replay
+  const solRules = new Set<string>();
+  const inside = new Set<string>();
+  const outside = new Set<string>();
+  const solCommon = new Set<string>();
+  let s = host.initial;
+  const sol = screen.solution ?? [];
+  sol.forEach((a, i) => {
+    const r = run(s, a);
+    if (r.ruleId) solRules.add(r.ruleId);
+    for (const x of reactionsOf(r.events)) {
+      if (x.common) solCommon.add(x.key);
+      else (i === sol.length - 1 ? inside : outside).add(x.key);
+    }
+    s = r.state;
+  });
+
+  // wrong-side reactions
+  const seen = new Set<string>([foldedKey(host.initial)]);
+  const queue: PuzzleState[] = [host.initial];
+  const wrong = new Set<string>();
+  const wrongCommon = new Set<string>();
+  for (let i = 0; i < queue.length && queue.length < limit; i++) {
+    const st = queue[i]!;
+    for (const a of host.actions(st) as Action[]) {
+      const r = run(st, a);
+      if (r.source === 'invalid') continue;
+      const nk = foldedKey(r.state);
+      if (r.ruleId?.startsWith('decoy.') && (progressKey(r.state) !== progressKey(st) || r.state.gauge !== st.gauge)) {
+        warnings.push(`${r.ruleId}가 퍼즐 상태/게이지를 바꿈(H4 ①)`);
+      }
+      if (a.verb !== 'move' && !(r.ruleId && solRules.has(r.ruleId))) {
+        for (const x of reactionsOf(r.events)) (x.common ? wrongCommon : wrong).add(x.key);
+      }
+      if (!seen.has(nk)) {
+        seen.add(nk);
+        if (!host.isClear(r.state)) queue.push(r.state);
+      }
+    }
+  }
+  return {
+    screen: screen.id,
+    solution: { outside: outside.size, clearCut: inside.size, common: solCommon.size },
+    wrong: { reactions: wrong.size, states: seen.size, common: wrongCommon.size },
+    decoys,
+    warnings: [...new Set(warnings)],
+  };
+}
+
+export function formatReactions(d: ReactionReport): string {
+  const w = d.wrong;
+  const lines = [
+    `[${d.screen}] 정답 길 반응: 클리어 연출 밖 ${d.solution.outside} / 클리어 연출 ${d.solution.clearCut} (common.* ${d.solution.common} 따로)`,
+    `[${d.screen}] 오답 반응: 도달 상태 ${w.states}개의 정답 길 밖 행동에서 고유 반응 ${w.reactions} (common.* ${w.common} 따로), 미끼 ${d.decoys.length ? d.decoys.join(',') : '없음'}`,
+  ];
+  for (const x of d.warnings) lines.push(`[${d.screen}] 경고: ${x}`);
+  return lines.join('\n');
 }
