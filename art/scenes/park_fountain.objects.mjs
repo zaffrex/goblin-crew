@@ -9,7 +9,7 @@
 // 뼈대 1: 손님 P8 4칸(설계 7절)과 멈춘 모습 2개, anim 4개(`guest.wait`·`run_in`·`cheer`·`soaked`).
 // 뼈대 2: 관리인 P1 4칸 + P2 3칸, anim 3개(`keeper.wake`·`clean_time`·`swat`), 대기 꾸벅 `loop`(#477).
 // 뼈대 3: 커튼 P3 2칸(`keeper.curtain`·`curtain_open`) + 자명종 P7 3칸과 멈춘 모습(`alarm_clock.spring`·`fall`·`ring_late`).
-// 뼈대 4: 재킷 P5 4칸(꼭대기·손 멈춘 모습, 대기 움찔 `loop`, `jacket.twitch`·`slide`).
+// 뼈대 4: 재킷 P5 4칸(꼭대기·손 멈춘 모습, `jacket.slide`). 대기 움찔 `loop`와 `jacket.twitch`는 S2(#802, PR #816)에서 뺐고, 움찔 칸은 slide 첫 칸으로만 남는다.
 // 뼈대 5: 분수대 테두리 앞면(`fountain` 멈춘 모습 1장). 물줄기는 효과 자리(scene-art-format 11절)라 여기 없다.
 
 import { C, Image, EMPTY } from '../lib/pixel.mjs';
