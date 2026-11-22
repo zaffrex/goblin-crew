@@ -14,6 +14,7 @@
 
 import { C, Image, EMPTY } from '../lib/pixel.mjs';
 import { stamp, outlined, line, fill, bay, hash } from '../lib/texture.mjs';
+import { statue } from './park_fountain.statue.mjs';
 
 const W = 480, H = 270;
 
@@ -1082,10 +1083,15 @@ ANIMS['duck.flap'] = { ms: [110, 90, 110, 90, 110, 160], frames: [duck.flap, duc
 // duck × squeak: 소리 난 쪽을 홱 돌아봤다가 다시 앞으로(제자리 한 바퀴), 그 뒤 クワッ(화면 JSON `quack_text`).
 ANIMS['duck.turn'] = { ms: [260, 160], frames: [duck.restRight, duck.rest] };
 
+// ═════════════ 동상 (statue, 히트 205,102 40×70, 미끼 #802) ═════════════
+// 배경 동상과 같은 그림(park_fountain.statue.mjs)에 외곽선만 두른다. 클릭되는 물건이라 시트에 있어야 한다(없으면 임시 상자, 형식 9절).
+// 돌우산·우산대까지 한 장이다(동상 하나). 처마 물방울 자국은 배경에만 있다(효과 픽셀).
+OBJECTS.statue = { draw: pic(statue) };
+
 // ═════════════ 그리는 순서 (설계 1-4절, 뒤 → 앞) ═════════════
-// back 목록은 OBJECTS 키 순서다(형식 6절). 오리(연못 물 위, 동상보다 앞이지만 물줄기·테두리 뒤) → 재킷 → 물줄기(재킷 앞을 지나감) → 테두리 앞면 → 비둘기(흙길이라 테두리 앞, 날아오르면 흰 돌 앞) → 창(관리인·커튼) → 자명종 → 손님.
+// back 목록은 OBJECTS 키 순서다(형식 6절). 동상(맨 뒤: 손 재킷·물줄기·오리가 그 앞) → 오리(연못 물 위, 동상보다 앞이지만 물줄기·테두리 뒤) → 재킷 → 물줄기(재킷 앞을 지나감) → 테두리 앞면 → 비둘기(흙길이라 테두리 앞, 날아오르면 흰 돌 앞) → 창(관리인·커튼) → 자명종 → 손님.
 // 손님이 맨 앞이어야 재회 자리(290,188)에서 테두리(y 180~198)가 손님 머리를 덮지 않는다. 파일에서 그린 순서와 달라서 여기서 다시 줄 세운다.
-for (const k of ['duck', 'jacket', 'water', 'fountain', 'pigeons', 'keeper', 'alarm_clock', 'guest']) {
+for (const k of ['statue', 'duck', 'jacket', 'water', 'fountain', 'pigeons', 'keeper', 'alarm_clock', 'guest']) {
   const v = OBJECTS[k];
   delete OBJECTS[k];
   OBJECTS[k] = v;

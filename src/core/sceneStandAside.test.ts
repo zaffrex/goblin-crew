@@ -38,20 +38,25 @@ function anyOverlap(s: SceneState): string[] {
   return out;
 }
 
+// 바닥 위 빈 곳(어느 상자에도 안 걸림). 동상(205,102,40×70)이 #802에서 클릭 대상이 돼서
+// Mia 5회차의 동상 자리(226,150) 대신 동상 오른쪽 빈 곳을 누른다. 노비도 그만큼 옮긴다.
+const ABOVE = { x: 264, y: 150 } as const;
+const JJUK = { x: 262, y: 242 } as const;
+
 describe('바닥 걷기 비켜 서기 (#825)', () => {
-  it('Mia 5회차 재현: 노비(224,242) 옆 동상을 즛시로 누르면 몸이 안 겹치는 x에 선다', () => {
+  it('Mia 5회차 재현: 노비 옆 바닥 위 빈 곳을 즛시로 누르면 몸이 안 겹치는 x에 선다', () => {
     const s = ready();
-    place(s, 'jjuk', 224, 242);
+    place(s, 'jjuk', JJUK.x, JJUK.y);
     place(s, 'mukjik', 120, 230);
     place(s, 'ppik', 400, 230);
     s.ui = { active: 'mukjik', selected: null };
-    // 동상(바닥 위). 클릭 대상이 아니라 걷기이고 y는 걷기 영역 위 끝으로 당겨진다.
-    const r = sceneTap(data, s, { x: 226, y: 150 }, 0, false);
+    // 클릭 대상이 아니라 걷기이고 y는 걷기 영역 위 끝으로 당겨진다.
+    const r = sceneTap(data, s, ABOVE, 0, false);
     expect(r).toMatchObject({ kind: 'intent', intent: { kind: 'walk' } });
     const t = s.walkers.mukjik.target!;
     expect(t.y).toBe(WALK_AREA.top);
     // 오른쪽으로 걸어가니 오른쪽을 본다. 노비 몸 왼쪽 끝 - 2px 틈에 몸 오른쪽 끝이 닿는 x.
-    const jjuk = characterHitBox(characterDef('jjuk'), 224, 242, s.walkers.jjuk.facing);
+    const jjuk = characterHitBox(characterDef('jjuk'), JJUK.x, JJUK.y, s.walkers.jjuk.facing);
     const m = characterDef('mukjik').hit;
     expect(t.x).toBe(Math.floor(jjuk.left - 2 - m.width - m.dx));
     settle(s);
@@ -104,15 +109,15 @@ describe('바닥 걷기 비켜 서기 (#825)', () => {
 
   it('비켜 선 목표를 다시 누르면(같은 탭) 건너뛰기가 그대로 된다(5-2-1절)', () => {
     const s = ready();
-    place(s, 'jjuk', 224, 242);
+    place(s, 'jjuk', JJUK.x, JJUK.y);
     place(s, 'mukjik', 60, 230);
     place(s, 'ppik', 400, 230);
     s.ui = { active: 'mukjik', selected: null };
-    sceneTap(data, s, { x: 226, y: 150 }, 0, false);
+    sceneTap(data, s, ABOVE, 0, false);
     const t = { ...s.walkers.mukjik.target! };
-    expect(t.x).not.toBe(226);
+    expect(t.x).not.toBe(ABOVE.x);
     sceneTick(data, s);
-    expect(sceneTap(data, s, { x: 226, y: 150 }, 0, false)).toEqual({ kind: 'skipWalk' });
+    expect(sceneTap(data, s, ABOVE, 0, false)).toEqual({ kind: 'skipWalk' });
     expect([s.walkers.mukjik.x, s.walkers.mukjik.y]).toEqual([t.x, t.y]);
   });
 });

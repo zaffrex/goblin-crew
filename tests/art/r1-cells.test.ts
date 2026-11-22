@@ -39,7 +39,8 @@ const LEDGER: Record<string, { cells: number; base: number }> = {
   // S2(#802, PR #815 그림 + 화면 JSON): 54 > 48 경고. 비둘기가 돌우산까지 165px를 나는 길(R3 칸당 ≤ 21px) 때문이다.
   // 손 그림 칸은 0(있는 비둘기 모양을 자리만 바꿔 찍음). 물건 −7 옛 pigeons_up + 12 perch 칸, 기본 +1 꼭대기 멈춘 모습(Luna 계산 53/13),
   // 그리고 재킷 대기 움찔 loop를 빼서(설계 6절) 움찔 칸이 기본 칸 → 반응 칸(jacket.slide 첫 칸)으로 옮겼다(+1/−1).
-  park_fountain: { cells: 54, base: 12 },
+  // 동상 미끼(#802 PR #827): 기본 +1 동상 멈춘 모습(배경 동상과 같은 그림 + 외곽선, 새로 그린 칸 0). 시트에 없으면 임시 상자가 덮는다.
+  park_fountain: { cells: 54, base: 13 },
   // 화면 JSON만(그림 전). 삑 hide_in_basket 4칸(화면 1 U9 재사용, 자판기 × プピッ). 새 그림 U1~U9는 그림 PR이 더한다(설계 7절 21~23칸).
   laundromat: { cells: 4, base: 0 },
 };
