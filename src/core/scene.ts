@@ -248,6 +248,11 @@ export interface SceneState {
    * 시작 연출 중에는 행동이 대기열에 들어갈 수 없어서(HUD 칸은 이벤트를 안 넣는다) 이 표시 하나로 "남은 게 다 시작 연출"이 된다. 대기열이 다 비면 끈다.
    */
   intro: boolean;
+  /**
+   * 이번 틱(또는 이번 탭)에 시작한 걷기와 그 길이(px, #38 5-2-2절). 엔진이 `takeWalkStart`로 읽고 지운다. 긴 걷기 안내를 띄우는 데만 쓴다.
+   * 자동 걷기(`walk` 이벤트)는 구간 길이 합, 바닥 걷기는 목표까지 직선 거리. 시작 연출(`intro`) 중 걷기는 넣지 않는다(탭이 시작 연출을 통째로 넘긴다).
+   */
+  walkStart: { char: CharacterId; dist: number } | null;
 }
 
 export interface SceneData {
@@ -381,6 +386,7 @@ export function createScene(data: SceneData): SceneState {
     pinDrop: {},
     cleared: false,
     intro: false,
+    walkStart: null,
   };
   // onEnter는 상태를 바꾸지 않는 연출이다(ADR-0065 5절). say 화자는 캐릭터 ID만 온다.
   for (const item of data.screen.onEnter ?? []) {
@@ -886,6 +892,36 @@ function faintPoint(data: SceneData, s: SceneState, char: CharacterId, to: strin
   return destination(data, s, char, to);
 }
 
+/** 지금 점에서 구간 끝점들을 차례로 이은 길이(깡충도 직선으로 센다). 긴 걷기 안내(#38)용이다. */
+function legsLength(from: Point, legs: readonly WalkLeg[]): number {
+  let at = from;
+  let d = 0;
+  for (const leg of legs) {
+    d += Math.hypot(leg.to.x - at.x, leg.to.y - at.y);
+    at = leg.to;
+  }
+  return d;
+}
+
+/**
+ * 바닥 걷기 건너뛰기(#38, `ui-interaction.md` 5-2-1절): 걷는 중 자른 탭 점이 지금 목표에서 이 거리(내부 px, 유클리드) 안이면 "같은 점"이다.
+ * 휴대폰 가로에서 손가락 폭 약 24px의 반지름.
+ */
+export const WALK_SKIP_SAME = 12;
+
+/** 이번에 시작한 걷기를 꺼내고 지운다(#38 긴 걷기 안내). 없으면 null. */
+export function takeWalkStart(s: SceneState): { char: CharacterId; dist: number } | null {
+  const w = s.walkStart;
+  s.walkStart = null;
+  return w;
+}
+
+/** 그 캐릭터가 아직 걷는 중인가: 바닥 걷기, 자동 걷기의 걷기·깡충 구간 모두(#38 안내를 걷기가 끝날 때 지운다). */
+export function charWalking(s: SceneState, char: CharacterId): boolean {
+  const cur = s.current?.ev;
+  return s.walkers[char].target !== null || s.hops[char] !== undefined || (cur?.type === 'walk' && cur.char === char);
+}
+
 function teleport(w: Walker, p: Point): void {
   w.x = p.x;
   w.y = p.y;
@@ -934,6 +970,7 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
       // 판 끝 ↔ 끝은 판 위로 걷는다(깡충 없음). 계속 탄 채라 자리만 바꾼다(어느 쪽 무게인지는 지금 x로 센다).
       if (s.riding[ev.char] !== undefined && hasBoard(data, ev.to)) s.riding[ev.char] = ev.to;
       const playing: Playing = { ev, t: 0, duration: null, seq, legs: walkLegs(data, ev.from, ev.to, p), end: p };
+      if (!s.intro) s.walkStart = { char: ev.char, dist: legsLength(s.walkers[ev.char], playing.legs!) };
       nextLeg(data, s, playing);
       return playing;
     }
@@ -1478,6 +1515,7 @@ export type SceneTapResult =
  * - 얼굴 칸: busy 중에도 바로 전환한다(예외 셋, #266·6-4-2절). HUD 영역의 빈 곳은 무시.
  * - 시작 연출(`onEnter`)만 남았으면: 그것을 다 끝내고 평소대로 처리한다(예외 넷 1, #700).
  * - 자동 걷기 중: 걷기만 끝 위치로 건너뛴다. 남은 이벤트는 그대로 재생한다.
+ * - 바닥 걷기 중(busy 아님): 같은 캐릭터로 지금 목표에서 `WALK_SKIP_SAME` 안을 다시 누르면 목표에 바로 선다(`skipWalk`, #38 5-2-1절).
  * - 말풍선이 뜬 뒤 1.0초(`saySkipAfter`, 이미 본 글이면 0.4초 `seenSaySkipAfter`)가 지났으면: 그 말풍선만 끝낸다.
  *   터치이고 그 말풍선이 마지막 이벤트면(예외 넷 2): 잠금 전에는 선택만 받고, 잠금 뒤에는 닫고 평소대로 처리한다.
  */
@@ -1542,8 +1580,17 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
   const intent = r.intent;
   // 컷이 남은 동안(faint 뒤 0.5초) 새 행동을 시작하면 컷을 바로 내린다. 말풍선과 겹치지 않게.
   if (intent.kind === 'walk' || intent.kind === 'act') s.faintCutUntil = 0;
-  if (intent.kind === 'walk') walkTo(s.walkers[s.ui.active], floorTarget(data, intent.to), WALK_AREA);
-  else if (intent.kind === 'act') runAction(data, s, intent.action, intent.to);
+  if (intent.kind === 'walk') {
+    const w = s.walkers[s.ui.active];
+    const to = clampToArea(floorTarget(data, intent.to), WALK_AREA);
+    // 5-2-1절: 같은 캐릭터가 걷는 중 지금 목표와 같은 점(12px 안)을 다시 누르면 목표에 바로 선다. 다른 점은 목표를 바꾼다.
+    if (w.target && Math.hypot(to.x - w.target.x, to.y - w.target.y) <= WALK_SKIP_SAME) {
+      teleport(w, w.target);
+      return { kind: 'skipWalk' };
+    }
+    walkTo(w, to, WALK_AREA);
+    if (w.target) s.walkStart = { char: s.ui.active, dist: Math.hypot(w.target.x - w.x, w.target.y - w.y) };
+  } else if (intent.kind === 'act') runAction(data, s, intent.action, intent.to);
   return { kind: 'intent', intent };
 }
 

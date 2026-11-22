@@ -15,13 +15,13 @@ import { drawnByShape, frameNudges, fxNudges, particleFx, shapeParticles, type N
 import type { HitBox } from './core/hit';
 import { cutCenter } from './core/cutPlace';
 import { cardFacePx, cardInput, cardPointer, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
-import { createFirstNotes, currentNote, labelKey, noteAction, noteGauge, noteHover, noteStood, noteSwitch, noteSwitched, noteTap, selectLabelText, standLabel, standSelect } from './core/firstNotes';
+import { createFirstNotes, currentNote, labelKey, noteAction, noteGauge, noteHover, noteStood, noteSwitch, noteSwitched, noteTap, noteWalkDone, noteWalkSkipped, noteWalkStart, selectLabelText, standLabel, standSelect } from './core/firstNotes';
 import { cutFontPx, firstSwitchText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, switchText, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { pickScreen, screenTextKey } from './core/screenPick';
 import { cardLines, enterCharacter, flowTap, flowTick, flowView, nextIndex, PLAYING, playtestOrder, showCard, soloCardKey, type Flow } from './core/flow';
-import { activeFx, activeMarkerVisible, boardDrop, charPose, createScene, currentBubble, drawOrder, gaugeDrop, isBusy, isHanging, sceneArtView, sceneLayout, sceneTap, sceneTick, selectsDuringSay, tapContext, type SceneData, type SceneState } from './core/scene';
+import { activeFx, activeMarkerVisible, boardDrop, charPose, charWalking, createScene, currentBubble, drawOrder, gaugeDrop, isBusy, isHanging, sceneArtView, sceneLayout, sceneTap, sceneTick, selectsDuringSay, takeWalkStart, tapContext, type SceneData, type SceneState } from './core/scene';
 import { animFrameBox, coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
 import { isTapKey } from './core/keys';
@@ -262,10 +262,13 @@ const inBox = (p: Point, b: HitBox): boolean => p.x >= b.left && p.x < b.left + 
 window.addEventListener('resize', () => display.resize());
 onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
   if (!loaded || rotating() || startCard.open || flow.phase !== 'play') return; // 로딩·세로 안내 중이거나 카드 몫(window 핸들러가 닫는다)
-  noteTap(notes);
+  noteTap(notes); // 걷기 안내가 떠 있었으면 그 주인을 남긴다: 같은 사람이 목표를 바꾸면 횟수 없이 이어 띄운다(#755)
   if (slop > 0) lastMouse = null;
+  lastTapTouch = slop > 0;
   const before = { ...session.scene.puzzle.at };
   const r = sceneTap(session.data, session.scene, p, slop, slop > 0);
+  if (r.kind === 'skipWalk') noteWalkSkipped(notes);
+  pollWalkStart();
   if (r.kind !== 'intent') return;
   touchLabel = r.intent.kind === 'select' ? r.intent.label : null;
   if (r.intent.kind === 'act') noteAction(notes, r.intent.action, before[r.intent.action.char], slop > 0);
@@ -353,6 +356,18 @@ function updateHover(p: Point | null): void {
   const r = resolveTap(tapContext(data, scene), scene.ui, p, 0);
   hoverLabel = 'label' in r ? r.label : null;
   canvas.style.cursor = r.kind === 'act' ? 'pointer' : 'default';
+}
+
+/** 마지막 캔버스 탭이 터치였나. 긴 걷기 안내 글(`タップ`/`クリック`)을 고른다(#38 5-2-2절, `ui.next`와 같은 나누기). */
+let lastTapTouch = false;
+
+/**
+ * 방금 시작한 걷기가 길면 걷기 건너뛰기 안내를 라벨 자리에 띄운다(#38 5-2-2절). 탭 뒤와 매 틱 뒤(`noteWalkDone` 전)에 부른다.
+ * 물건 탭의 걷기는 다음 틱에 시작한다. 목표 바꾸기 판단(`walkCarry`)은 `firstNotes`가 탭 뒤 첫 틱까지 들고 있는다(#755).
+ */
+function pollWalkStart(): void {
+  const ws = takeWalkStart(session.scene);
+  if (ws) noteWalkStart(notes, ws.char, ws.dist, t(lastTapTouch ? 'ui.hud.walk_skip' : 'ui.hud.walk_skip_click'));
 }
 
 /**
@@ -867,6 +882,8 @@ startLoop({
     if (startCard.open) return;
     // 어두워지는 동안까지는 지난 판이 움직이고, 다 검어진 뒤(기다림·밝아짐)는 멈춘다. 새 판 진입 연출은 밝아진 뒤에 시작한다(11-1절).
     if (flow.phase === 'play' || flow.phase === 'card' || flow.phase === 'fadeOut') sceneTick(session.data, session.scene);
+    pollWalkStart();
+    noteWalkDone(notes, (c) => charWalking(session.scene, c));
     const busy = isBusy(session.scene);
     if (wasBusy && !busy && flow.phase === 'play' && !session.scene.cleared) onSettled();
     wasBusy = busy;
