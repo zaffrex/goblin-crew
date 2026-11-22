@@ -417,6 +417,12 @@
           ]
         },
         {
+          "anim": [
+            "ppik",
+            "common.shiver"
+          ]
+        },
+        {
           "say": [
             "ppik",
             "magpie_nest.squeak_down"
