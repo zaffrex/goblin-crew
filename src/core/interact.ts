@@ -33,10 +33,21 @@ export interface TapContext {
    */
   faces: Readonly<Record<CharacterId, HitBox>>;
   /**
+   * 이번 프레임에 그린 그림 칸(설계 2-1절, #736, `scene.ts` `drawnBodies`). 바닥에 선 다른 캐릭터는 얼굴 상자에 더해
+   * 이 칸 위(여유 0)를 눌러도 전환된다. 없는 캐릭터(시트를 아직 못 읽음·실루엣)는 얼굴 상자만이다(11/19 규칙).
+   */
+  drawn?: Readonly<Partial<Record<CharacterId, DrawnBody>>>;
+  /**
    * 캐릭터 그리는 순서(뒤 → 앞, `scene.ts` `drawOrder`). 있으면 겹친 캐릭터 중 나중에 그린 쪽이 클릭을 받는다.
    * 없으면 몸 상자 아래 끝(발 y)이 큰 쪽이 앞이다.
    */
   order?: readonly CharacterId[];
+}
+
+/** 그린 그림 칸 하나. `box`는 칸 전체 사각형(그리는 자리), `at`은 화면 점이 보이는 불투명 칸인가(물건·나중에 그린 사람에 덮인 칸은 아니다). */
+export interface DrawnBody {
+  box: HitBox;
+  at: (p: Point) => boolean;
 }
 
 /** 라벨에 쓰는 동사 이름. `climb` = 서는 자리로 `move`, `walk` = 바닥, `release` = 매달린 채 바닥. null = 이름만(캐릭터). */
@@ -128,20 +139,24 @@ export function usesFaceBox(ctx: TapContext, char: CharacterId): boolean {
  * 월드 히트 대상. 엔진 그리기·재생 도구 훅(`?playtest=1`)도 이 배열을 그대로 쓴다.
  * 지금 캐릭터 몸은 뺀다. 단 `hold` 자리(설계 2절)나 누를 수 있는 서는 자리(`standSpot`, 6-4-1b절)에 있으면 넣는다.
  * 서는 자리 위 내 몸은 다른 사람 몸·얼굴과 겹치면 늘 진다(전환 우선, 6-4-1b절).
- * 바닥(또는 바닥 앞 고정 점, `usesFaceBox`)에 선 다른 캐릭터는 몸 대신 얼굴 상자다(설계 2-1절, #427). 몸통·다리를 누르면 그 사람이 없는 것처럼
- * 뒤의 대상이나 바닥으로 판정한다. 겹친 순서(z)는 그대로 몸 기준이다.
+ * 바닥(또는 바닥 앞 고정 점, `usesFaceBox`)에 선 다른 캐릭터는 몸 상자 대신 **얼굴 상자 + 보이는 그림 칸**(여유 0) 두 대상이다
+ * (설계 2-1절, #427 → #736). 둘 다 아닌 곳(그림 옆 투명 칸, 물건에 덮인 칸)을 누르면 그 사람이 없는 것처럼 뒤의 대상이나 바닥으로 판정한다.
+ * 두 대상은 id·z가 같다. 겹친 순서(z)는 그대로 몸 기준이다.
  */
 export function worldTargets(ctx: TapContext, ui: UiState): WorldTarget[] {
   const out: WorldTarget[] = [];
   for (const c of CHARACTERS) {
     if (c.id === ui.active && !isHolding(ctx, c.id) && !standSpot(ctx, c.id)) continue;
     const body = ctx.bodies[c.id];
-    const box = c.id !== ui.active && usesFaceBox(ctx, c.id) ? ctx.faces[c.id] : body;
+    const floorMate = c.id !== ui.active && usesFaceBox(ctx, c.id);
+    const box = floorMate ? ctx.faces[c.id] : body;
     const rank = ctx.order?.indexOf(c.id) ?? -1;
     // 서는 자리 위 내 몸은 다른 사람 몸·얼굴 아래(전환 우선), 핫스팟·자리 위다(6-4-1b절 히트 순서).
     const own = c.id === ui.active && !isHolding(ctx, c.id);
     const z = own ? CHAR_Z_BASE - 1 : CHAR_Z_BASE + (rank >= 0 ? rank : body.top + body.height);
     out.push({ id: `char:${c.id}`, kind: 'char', ref: c.id, box, z });
+    const drawn = floorMate ? ctx.drawn?.[c.id] : undefined;
+    if (drawn) out.push({ id: `char:${c.id}`, kind: 'char', ref: c.id, box: drawn.box, z, mask: drawn.at });
   }
   for (const [id, spot] of Object.entries(ctx.screen.spots)) {
     if (spot.box) out.push({ id: `spot:${id}`, kind: 'spot', ref: id, box: toHitBox(spot.box), z: 0 });

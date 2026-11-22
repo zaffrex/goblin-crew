@@ -3,11 +3,13 @@
 // 배경 PNG는 메타 `bg`가 있을 때만 요청한다. draft 배경은 내보내지 않으므로 404(M1 판정 A4)가 나지 않는다.
 // 이미지 로드 전·실패면 그리지 않고 false → main.ts가 임시 방·상자를 그린다(형식 기록 9절 폴백).
 
+import { alphaMask, type AlphaMask } from '../core/alpha';
 import { parseSceneArt, type SceneArtMeta } from '../core/sceneArt';
 import type { Nudge } from '../core/fxShape';
 import { BOSONG_32, fxParticles, type FxParticle, type SceneFxDraw } from '../core/sceneFx';
 import { assetUrl } from './assets';
 import { buildOutlined } from './outline';
+import { readRgba } from './pixels';
 
 export interface SceneArt {
   meta: SceneArtMeta;
@@ -16,6 +18,8 @@ export interface SceneArt {
   objectsReady: boolean;
   /** 프레임마다 호버 외곽선을 칠한 시트(10-1절). 시트가 읽힐 때 한 번 만든다. 못 만들면 null(외곽선 없음). */
   outlined: HTMLCanvasElement | null;
+  /** 물건 시트 알파(설계 2-1절 "물건 그림 아래 깔린 칸", #736). 시트가 읽힐 때 한 번 만든다. 못 읽었으면 null(덮개 없음). */
+  alpha: AlphaMask | null;
   /** 배경. 메타에 `bg`가 없으면 null. */
   bg: HTMLImageElement | null;
   bgReady: boolean;
@@ -50,9 +54,11 @@ function load(path: string, onReady: () => void): HTMLImageElement {
 export function loadSceneArt(screenId: string): SceneArt | null {
   const meta = METAS.get(screenId);
   if (!meta) return null;
-  const art: SceneArt = { meta, objects: null as unknown as HTMLImageElement, objectsReady: false, outlined: null, bg: null, bgReady: false };
+  const art: SceneArt = { meta, objects: null as unknown as HTMLImageElement, objectsReady: false, outlined: null, alpha: null, bg: null, bgReady: false };
   art.objects = load(meta.image, () => {
     art.outlined = buildOutlined(art.objects, meta.frames.map((f) => f.src));
+    const px = readRgba(art.objects);
+    art.alpha = px ? alphaMask(px.rgba, px.width, px.height) : null;
     art.objectsReady = true;
   });
   if (meta.bg)

@@ -154,7 +154,9 @@ describe('기본 탭 동사 (설계 2절)', () => {
   });
 });
 
-describe('바닥에 선 동료는 얼굴로 고른다 (설계 2-1절, #427)', () => {
+// 여기 TapContext에는 그린 칸(`drawn`)이 없다: 시트 알파를 아직 못 읽은 경우(2-1절 #736)라 11/19 규칙 그대로다.
+// 알파가 있을 때(몸통·다리 = 전환)는 tests/art/drawn-body.test.ts가 커밋된 PNG로 본다.
+describe('바닥에 선 동료는 얼굴로 고른다 (설계 2-1절, #427, 그린 칸 없음)', () => {
   const start = puzzleWith({});
   const others = (me: CharacterId): CharacterId[] => CHARACTERS.map((c) => c.id).filter((id) => id !== me);
   const SLOPS = [0, 8] as const;

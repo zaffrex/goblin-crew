@@ -3,11 +3,13 @@
 // 이미지 요청 자체를 안 한다(404 → 콘솔 에러 없음, M1 판정 A4). 새 캐릭터 시트는 json·png만 넣으면 붙는다.
 // 이미지는 assetUrl()로만 읽는다(ADR-0004 결정 8). 로드 전·실패면 null → 호출하는 쪽이 실루엣을 그린다.
 
+import { alphaMask, type AlphaMask } from '../core/alpha';
 import type { Loaded } from '../core/fallbacks';
 import { cellTops, frameSourceX, headSource, headTop, parseSpriteMeta, spriteBox, spriteFacing, spriteFrame, spritePole, type PoleDraw, type Pose, type SpriteMeta } from '../core/sprite';
 import type { Walker } from '../core/walk';
 import { assetUrl } from './assets';
 import { buildOutlined } from './outline';
+import { readRgba } from './pixels';
 
 interface Sheet {
   meta: SpriteMeta;
@@ -19,6 +21,8 @@ interface Sheet {
   claw: { image: HTMLImageElement; ready: boolean } | null;
   /** 칸마다 불투명 위끝(#464). 픽셀을 못 읽었으면 null → 앵커는 늘 기본 `hit` 위끝(예전과 같다). */
   tops: (number | null)[] | null;
+  /** 시트 알파(설계 2-1절 그림 칸, #736). 픽셀을 못 읽었으면 null → 바닥 동료는 얼굴 상자로만 전환(11/19 규칙). */
+  alpha: AlphaMask | null;
 }
 
 /** 그린 캐릭터의 앵커 높이(내부 y, #464). `low`면 낮은 자세라 서 있기 히트 박스 위끝 대신 이 값을 그대로 쓴다. */
@@ -41,7 +45,7 @@ function loadSheets(): Map<string, Sheet> {
       continue;
     }
     const image = new Image();
-    const sheet: Sheet = { meta, image, ready: false, outlined: null, claw: null, tops: null };
+    const sheet: Sheet = { meta, image, ready: false, outlined: null, claw: null, tops: null, alpha: null };
     if (meta.claw) {
       const claw = { image: new Image(), ready: false };
       claw.image.onload = () => {
@@ -54,7 +58,10 @@ function loadSheets(): Map<string, Sheet> {
       const [cw, ch] = meta.cell;
       const cells = Array.from({ length: Math.floor(image.naturalWidth / cw) }, (_, i) => [frameSourceX(meta, i), 0, cw, ch] as const);
       sheet.outlined = buildOutlined(image, cells);
-      sheet.tops = readTops(image, meta);
+      const px = readRgba(image);
+      // 칸 위끝(#464)과 그림 칸 알파(#736)는 같은 픽셀 한 번으로 만든다.
+      sheet.tops = px ? cellTops(px.rgba, px.width, meta.cell, Math.floor(px.width / meta.cell[0])) : null;
+      sheet.alpha = px ? alphaMask(px.rgba, px.width, px.height) : null;
       sheet.ready = true;
     };
     image.src = assetUrl(`sprites/${meta.image}`);
@@ -63,29 +70,17 @@ function loadSheets(): Map<string, Sheet> {
   return sheets;
 }
 
-/** 칸마다 불투명 위끝(#464). 시트를 읽을 때 한 번. 캔버스를 못 쓰면 null(앵커가 예전처럼 서 있는 높이). */
-function readTops(image: HTMLImageElement, meta: SpriteMeta): (number | null)[] | null {
-  const { naturalWidth: w, naturalHeight: h } = image;
-  if (w === 0 || h === 0) return null;
-  try {
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return null;
-    ctx.drawImage(image, 0, 0);
-    return cellTops(ctx.getImageData(0, 0, w, h).data, w, meta.cell, Math.floor(w / meta.cell[0]));
-  } catch (e) {
-    console.warn(`칸 위끝을 못 읽었어요(${image.src}): ${(e as Error).message}`);
-    return null;
-  }
-}
-
 const SHEETS = loadSheets();
 
 /** 캐릭터 ID → 시트 메타(동기, 번들에 들어 있음). 장면 로직의 캐릭터 연출 busy 길이에 넘긴다(scene.ts `SceneData.sprites`). */
 export function spriteMetas(): Record<string, SpriteMeta> {
   return Object.fromEntries([...SHEETS].map(([id, sheet]) => [id, sheet.meta]));
+}
+
+/** 캐릭터 ID → 시트 알파(#736). 시트가 아직이거나 픽셀을 못 읽었으면 null. 장면 판정(`SceneData.alpha`)에 넘긴다. */
+export function spriteAlpha(id: string): AlphaMask | null {
+  const sheet = SHEETS.get(id);
+  return sheet?.ready ? sheet.alpha : null;
 }
 
 /** 캐릭터 시트 상태(임시 그림 세기 #142용). 시트가 없으면 none, 이미지가 아직이면 loading. */

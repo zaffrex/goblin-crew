@@ -9,6 +9,7 @@
 // - 시트에 없는 대상은 null → 엔진이 임시 상자를 그린다(9절 폴백).
 // - 효과 자리(11절, 개정 4): 그림 없이 엔진 입자를 `back` 안 그 순서에 끼운다. 대상 ID가 없다(클릭·외곽선 밖).
 
+import { opaqueAt, type AlphaMask } from './alpha';
 import { TICK_MS } from './config';
 import { SCENE_FX, type SceneFxDraw } from './sceneFx';
 
@@ -419,4 +420,35 @@ export function litFrames(meta: SceneArtMeta, draws: SceneDraws, target: string 
 /** 시트가 그리는 대상 ID 전부. 엔진은 이 밖의 대상만 임시 상자로 그린다. */
 export function coveredIds(meta: SceneArtMeta): Set<string> {
   return new Set(meta.objects.flatMap((o) => o.ids));
+}
+
+/**
+ * 시트 프레임 하나를 제자리(`at`)에 그렸을 때 화면 정수 픽셀 (px, py)가 불투명인가(설계 2-1절 "물건 그림 아래 깔린 칸", #736).
+ * `mask`는 물건 시트 이미지의 알파. 그 프레임이 없으면 false.
+ */
+export function frameOpaqueAt(meta: SceneArtMeta, mask: AlphaMask, frame: number, px: number, py: number): boolean {
+  const f = meta.frames[frame];
+  if (!f) return false;
+  const [sx, sy, w, h] = f.src;
+  const dx = px - f.at[0];
+  const dy = py - f.at[1];
+  if (dx < 0 || dy < 0 || dx >= w || dy >= h) return false;
+  return opaqueAt(mask, sx + dx, sy + dy);
+}
+
+/**
+ * 사람을 덮는 물건 프레임(설계 2-1절, #736). 그리기 순서(6절)대로 `front` 층은 늘 사람 위, 앞판(`overlays`)은 발 y가 `sortY` 이하인 사람 위다.
+ * `front`에서 반복(`loop`)으로 그리는 멈춘 모습은 반복 칸 전부를 덮개로 친다. 반복 시계(`loopStarts`)는 엔진 상태라
+ * 판정 쪽은 지금 몇 번째 칸인지 모른다(땅의 까치 7·8·9번은 칸 상자가 1px 안쪽으로만 다르다, #738 Theo 견적).
+ */
+export function coverFrames(meta: SceneArtMeta, view: SceneView): { front: number[]; overlays: { sortY: number; frame: number }[] } {
+  const draws = sceneDraws(meta, view);
+  const front = new Set(draws.front);
+  for (const o of meta.objects) {
+    if (isFxObject(o) || artNow(view, o.key)) continue;
+    const pic = pictureOf(o, view.flagsOf(o.key));
+    const drawn = draws.byObject[o.key]?.[0];
+    if (pic.layer === 'front' && pic.loop && drawn !== undefined && pic.loop.frames.includes(drawn)) for (const f of pic.loop.frames) front.add(f);
+  }
+  return { front: [...front], overlays: draws.overlays };
 }

@@ -9,11 +9,12 @@ import { CHARACTERS, characterFaceBox, characterHitBox, characterDef, type Chara
 import { TICK_MS, WALK_AREA, WALK_SPEED } from './config';
 import { hitTest, type HitBox } from './hit';
 import { inHudZone } from './hud';
-import { hotspotBox, hudTargets, tap, type Intent, type TapContext, type UiState } from './interact';
-import { animOf, animTicks, restingBox, tiltDrop, timedIndex, type SceneAnim, type SceneArtMeta, type SceneObject } from './sceneArt';
+import type { AlphaMask } from './alpha';
+import { hotspotBox, hudTargets, tap, type DrawnBody, type Intent, type TapContext, type UiState } from './interact';
+import { animOf, animTicks, coverFrames, frameOpaqueAt, restingBox, tiltDrop, timedIndex, type SceneAnim, type SceneArtMeta, type SceneObject, type SceneView } from './sceneArt';
 import { FX_TICKS, fxTicks } from './fx';
 import { sayText, seenSayKey } from './sayText';
-import { cueMs, spriteFacing, spriteFrame, spriteHit, type Pose, type SpriteAnim, type SpriteMeta } from './sprite';
+import { cueMs, spriteBox, spriteFacing, spriteFrame, spriteHit, spriteOpaqueAt, type Pose, type SpriteAnim, type SpriteMeta } from './sprite';
 import { approachFor, initialState, step } from './puzzle/step';
 import { GAUGE_MAX, type Action, type CharactersData, type PuzzleEvent, type PuzzleState, type ScreenData, type StepSource, type Verb } from './puzzle/types';
 import type { Point } from './viewport';
@@ -269,6 +270,19 @@ export interface SceneData {
    * 코어는 글을 그리지 않고 길이만 본다. 없으면 글 ID 길이로 잰다(옛 동작, 테스트용).
    */
   texts?: Readonly<Record<string, string>>;
+  /**
+   * 엔진이 읽은 시트 알파(설계 2-1절 그림 칸, #736). 시트 이미지가 아직이거나 못 읽었으면 각 함수가 null을 돌려준다.
+   * 없으면 바닥에 선 동료는 얼굴 상자로만 전환된다(11/19 규칙, 노드 테스트 기본값).
+   */
+  alpha?: SceneAlpha;
+}
+
+/** 시트 알파 조회. 이미지가 늦게 오니 값이 아니라 함수로 넘긴다(엔진 `spriteAlpha`, `SceneArt.alpha`). */
+export interface SceneAlpha {
+  /** 캐릭터 ID → 기본 시트 알파. */
+  sprite(id: string): AlphaMask | null;
+  /** 이 화면 물건 시트 알파. */
+  objects(): AlphaMask | null;
 }
 
 /**
@@ -451,8 +465,73 @@ export function faces(data: SceneData, s: SceneState): Record<CharacterId, HitBo
   return out;
 }
 
+/** 그린 자리 하나(그리기 `drawSprite`와 같은 칸 번호·발 위치·방향). 시트·알파가 없거나 실루엣이면 null. */
+interface Placed {
+  meta: SpriteMeta;
+  mask: AlphaMask;
+  frame: number;
+  x: number;
+  y: number;
+  facing: Facing;
+}
+
+function placed(data: SceneData, s: SceneState, id: CharacterId): Placed | null {
+  const meta = data.sprites?.[id];
+  const mask = data.alpha?.sprite(id) ?? null;
+  if (!meta || !mask) return null;
+  const frame = spriteFrame(meta, charPose(data, s, id));
+  if (frame === null) return null;
+  const w = s.walkers[id];
+  return { meta, mask, frame, x: w.x, y: w.y + boardDrop(data, s, id), facing: charFacing(data, s, id) };
+}
+
+const placedOpaque = (p: Placed, px: number, py: number): boolean => spriteOpaqueAt(p.meta, p.mask, p.frame, p.x, p.y, p.facing, px, py);
+
+/**
+ * 물건 그림 고르기에 넘길 지금 장면(`sceneDraws`). 엔진 그리기와 판정의 덮개(`drawnBodies`)가 같이 쓴다.
+ * 반복 시작 시각(`loopStarts`)은 엔진 상태라 넣지 않는다. 엔진은 그리기 전에 덧붙인다.
+ */
+export function sceneArtView(data: SceneData, s: SceneState): SceneView {
+  const playing = s.current?.art ? { ...s.current.art, ms: s.current.t * TICK_MS } : null;
+  return { flagsOf: (k: string) => shownFlags(s, k), playing, cued: cuedArtView(s), held: heldArtView(s), clockMs: s.tick * TICK_MS, tiltOf: (k: string) => tiltOf(data, s, k) };
+}
+
+/**
+ * 캐릭터마다 이번 프레임에 그린 그림 칸(설계 2-1절, #736). 점이 그 사람의 불투명 칸이고, 그 위에 나중에 그린 것
+ * (물건 `front` 층·발 y가 `sortY` 이하일 때 앞판, `drawOrder`에서 뒤에 오는 사람)의 불투명 칸이 없을 때만 참이다.
+ * 나중에 그린 사람에는 지금 캐릭터도 들어간다: 내 몸 뒤에 깔린 동료 칸은 보이지 않으니 동료가 아니다(#738 Theo 리뷰).
+ * 시트 알파가 없으면(엔진이 아직 못 읽음, 노드 기본) 빈 표 → 얼굴 상자만(11/19 규칙).
+ */
+export function drawnBodies(data: SceneData, s: SceneState): Partial<Record<CharacterId, DrawnBody>> {
+  const out: Partial<Record<CharacterId, DrawnBody>> = {};
+  if (!data.alpha) return out;
+  const order = drawOrder(data, s);
+  const all = order.map((id) => placed(data, s, id));
+  const objects = data.art ? data.alpha.objects() : null;
+  const covers = objects ? coverFrames(data.art!, sceneArtView(data, s)) : null;
+  order.forEach((id, k) => {
+    const me = all[k];
+    if (!me) return;
+    const later = all.slice(k + 1).filter((p): p is Placed => p !== null);
+    // 그리기(main.ts render)는 사람을 발 y 반올림으로, 앞판을 sortY + 0.5로 섞는다. 매달린 사람은 늘 맨 앞.
+    const footY = isHanging(data, s, id) ? Infinity : Math.round(s.walkers[id].y);
+    const over = covers ? [...covers.front, ...covers.overlays.filter((o) => o.sortY + 0.5 > footY).map((o) => o.frame)] : [];
+    out[id] = {
+      box: spriteBox(me.meta, me.x, me.y, me.facing),
+      at: (p: Point): boolean => {
+        const px = Math.floor(p.x);
+        const py = Math.floor(p.y);
+        if (!placedOpaque(me, px, py)) return false;
+        if (later.some((o) => placedOpaque(o, px, py))) return false;
+        return !over.some((f) => frameOpaqueAt(data.art!, objects!, f, px, py));
+      },
+    };
+  });
+  return out;
+}
+
 export function tapContext(data: SceneData, s: SceneState): TapContext {
-  return { screen: data.screen, puzzle: s.puzzle, bodies: bodies(data, s), faces: faces(data, s), order: drawOrder(data, s) };
+  return { screen: data.screen, puzzle: s.puzzle, bodies: bodies(data, s), faces: faces(data, s), drawn: drawnBodies(data, s), order: drawOrder(data, s) };
 }
 
 function pickText(text: string | string[], count: number): string {
