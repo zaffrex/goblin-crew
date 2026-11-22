@@ -214,6 +214,9 @@ function soilPuff(at: { x: number; y: number }, t: number): FxParticle[] {
  */
 export const TEXT_PARTICLE_FX: Readonly<Record<string, ParticleFx>> = {
   poof_text: { anchor: 'foot', particles: soilPuff },
+  // `park_fountain` S2 7번(#802): 꼭대기에 앉으려던 비둘기가 물줄기에 맞는 バシャッ. 글자와 물보라를 fx 하나로 묶어 공중 멈칫을 0.5초로 둔다
+  // (fx 둘이면 1.0초 정지 그림, Luna·Theo #810 재리뷰). 기준점은 `jacket` 머리 위끝(돌우산 꼭대기)이다.
+  splash_text: { anchor: 'head', particles: splash },
 };
 
 /** 입자를 그리는 fx(물 입자 + 글자 곁 입자)의 표 한 줄. 없으면 undefined. */

@@ -29,7 +29,7 @@
 //   거꾸로 칸 몸통(끈·효과 점 뺌)은 창 아래 흙길(아래 끝 ≥ 198)에 있고 창(관리인 히트)과 안 겹친다, 화면 JSON의 자명종·커튼 anim 이름이 시트에 다 있다.
 //   끈(#542): fall·reel_up 칸마다 끈이 포갠 손(64,145)에서 한 줄로 이어진다, 되감기는 위로만 올라가고 마지막 칸은 창턱 그림 바로 위,
 //   들림·벽 칸 몸통은 창과 안 겹친다.
-//   재킷(P5): 꼭대기 그림 = 구도 시안 그림(213,32) 그대로(#530에서 앞판이 보이게 둘 다 고침), 대기 loop의 움찔 칸 = twitch anim 첫 칸(같은 그림 재사용),
+//   재킷(P5): 꼭대기 그림 = 구도 시안 그림(213,32) 그대로(#530에서 앞판이 보이게 둘 다 고침), 움찔 칸은 slide 첫 칸(S2에서 대기 loop·twitch anim은 뺌, #802),
 //   slide 마지막 칸 = 손 멈춘 모습(도착 순간 튀지 않음), slide가 오른쪽·아래로만 간다, 떨어지는 칸은 처마(y ≤ 52) 아래,
 //   손 칸 아래 끝 y 123~125(소매 끝 124)이고 집게 자리(x 252~270, y 116~124) 안에 4×4 불투명 덩어리가 있다(설계 1-3 집기 조건),
 //   손 칸에서 손바닥 가운데(x 257~260, y 119~121)가 보인다, 재킷 주색과 뒤 배경(하늘·나무)의 명도 차 ≥ 60.
@@ -366,8 +366,8 @@ for (const [name, k, at] of [['입구 대기', 'watch', GUEST_AT], ['재회 만�
   let same = true;
   for (let y = jy; y < jy + 14; y++) for (let x = jx; x < jx + 22; x++) if (sk.get(x, y) !== EMPTY && sk.get(x, y) !== top.get(x, y)) same = false;
   check(same, `재킷 꼭대기 그림 = 구도 시안 그림(${jx},${jy})`);
-  const tw = A['jacket.twitch'];
-  check(JK.default.loop?.frames[1] === tw.frames[0] && slideFrames[0] === tw.frames[0], '대기 움찔 = tap 움찔 = slide 첫 칸(P5 0칸 하나를 다시 쓴다)');
+  // S2(#802, 설계 park_fountain-s2.md 6절): 대기 움찔 loop와 カーン 움찔(`jacket.twitch`)은 예고편이라 뺐다. 움찔 칸은 slide 첫 칸으로만 남는다.
+  check(!JK.default.loop && !A['jacket.twitch'] && slideFrames[0] !== JK.default.frame, '대기 움찔·tap 움찔 없음, 움찔 칸은 slide 첫 칸(새 비둘기 무게)으로만 쓴다');
   const handState = JK.states?.find((st) => st.when.flags['jacket.on_hand'] === true);
   check(handState && !handState.loop && slideFrames.at(-1) === handState.frame, 'slide 마지막 칸 = 손 멈춘 모습, 손 state에는 대기 움찔이 없다');
   const box = (i) => { const { at: [ax, ay], src: [, , sw, sh] } = meta.frames[i]; return { x: ax, y: ay, w: sw, h: sh, cx: ax + sw / 2, bottom: ay + sh - 1 }; };
@@ -395,7 +395,7 @@ for (const [name, k, at] of [['입구 대기', 'watch', GUEST_AT], ['재회 만�
     const main = mainColor(one(f), 0, 0, W, H, [C.ink]);
     check(main === C.pink && dY(main, back) >= 60, `재킷 ${name}: 주색 #${main}(Y${Y[main]}) vs 뒤 #${back}(Y${Y[back]}) 차 ${dY(main, back)} ≥ 60`);
   }
-  const missing = ['jacket.twitch', 'jacket.slide'].filter((k) => !A[k]);
+  const missing = ['jacket.slide'].filter((k) => !A[k]);
   check(missing.length === 0, `화면 JSON의 재킷 P5 anim이 시트에 있다${missing.length ? `: 없음 ${missing.join(', ')}` : ''}`);
 }
 

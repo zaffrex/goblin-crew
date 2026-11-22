@@ -107,7 +107,7 @@ describe('park_fountain 테두리 カーン (#530 할 일 3)', () => {
     expect(p.x + cell[2] <= stLeft || p.x >= stRight, `clang ${p.x}..${p.x + cell[2]} vs stretch ${stLeft}..${stRight}`).toBe(true);
   });
 
-  it('왼쪽에서 쳐도(자명종 쪽에 섰다가) カーン은 왼쪽 끝 장대 옆, 테두리 안에 뜬다(#530: 화면 확인은 `clue-main-1-tap-left`)', () => {
+  it('왼쪽에서 쳐도(자명종 쪽에 섰다가) カーン은 왼쪽 끝 장대 옆, 테두리 안에 뜬다(#530: 화면 확인은 `decoy-tap-left`)', () => {
     const s = createScene(data);
     settle(s);
     runAction(data, s, { char: 'jjuk', verb: 'stretch', target: 'alarm_clock' }, null);

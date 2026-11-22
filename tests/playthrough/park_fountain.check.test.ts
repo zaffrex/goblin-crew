@@ -21,10 +21,12 @@ describe('park_fountain BFS check', () => {
   it('matches the expected size and shortest path', () => {
     // 25 -> 180 with the `fountain_seat` spot (P4 sit on the rim stone, #380): BFS also tries `move` into it for every
     // character (capacity 3). The spot has no box, so in play only mukjik's stomp on `fountain` walks there.
-    expect(r.explore.stateCount).toBe(180);
+    // 180 -> 140, 36 -> 28 with the S2 rules (#802): `jacket.on_hand` now needs `fountain.off` first, so the
+    // (water on, jacket on hand) states are gone and there is one solution order instead of two.
+    expect(r.explore.stateCount).toBe(140);
     expect(r.explore.shortestLength).toBe(3);
     expect(r.explore.safeShortestLength).toBe(3);
-    expect(r.explore.foldedCount).toBe(36);
+    expect(r.explore.foldedCount).toBe(28);
   });
   it('requires all three abilities', () => {
     expect(r.requiredAbilities).toEqual({ stretch: true, stomp: true, squeak: true });

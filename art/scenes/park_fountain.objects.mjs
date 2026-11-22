@@ -842,8 +842,7 @@ const jacket = {
 
 OBJECTS.jacket = {
   draw: jacket.top,
-  // 9절 재킷 대기(#477): 약 12초마다 바람에 소매가 움찔(P5 0칸 재사용). 손으로 내려온 뒤(state)에는 loop가 없어서 멈춘다
-  loop: { ms: [12000, 300], frames: [jacket.top, jacket.twitch] },
+  // 대기 움찔 loop(#477)는 S2에서 뺐다(#802, 설계 park_fountain-s2.md 6절): "재킷이 미끄러질 수 있다"는 예고편이라서.
   states: [
     // 클리어(#529, 형식 기록 14절 개정 9): 재킷은 ノビー 머리 → 손님 만세 칸으로 갔다. 동상 손은 비운다.
     // 클리어 때 `jacket.on_hand`가 참으로 남으니까 첫 일치가 되게 이 줄이 on_hand보다 앞이어야 한다.
@@ -852,8 +851,7 @@ OBJECTS.jacket = {
     { when: { flags: { 'jacket.on_hand': true } }, draw: jacket.hand },
   ],
 };
-// 9번 `fountain_tap`(단서 ①): カーン에 소매가 움찔 → 제자리 → 한 번 더. 상태는 안 바뀌어서 끝나면 꼭대기 그림
-ANIMS['jacket.twitch'] = { ms: [160, 90, 420], frames: [jacket.twitch, jacket.top, jacket.twitch] };
+// 미끼 カーン의 움찔(`jacket.twitch` anim)은 "쿵 하면 떨어진다" 예고편이라 S2에서 지웠다(#802 PM 진단 ②). 움찔 칸은 아래 slide 첫 칸으로 남는다
 // 3번★(주 아하): ゴォン 뒤 움찔 → 경사를 타고 미끄러짐 → 처마에서 떨어짐(두 자리) → 손에 턱. 끝나면 state 그림(손)과 같은 그림
 ANIMS['jacket.slide'] = { ms: [200, 260, 90, 90, 400], frames: [jacket.twitch, jacket.slide, jacket.fallHigh, jacket.fallLow, jacket.hand] };
 // 8번★ P6(#529): ノビー `take_up` 1번 칸(확 당김)의 cue로 겹쳐 뜬다. 활짝 → 떨어짐, 합 350ms = take_up 1번 칸 길이라

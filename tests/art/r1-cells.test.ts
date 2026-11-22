@@ -36,7 +36,10 @@ const LEDGER: Record<string, { cells: number; base: number }> = {
   // 50 > 48 경고: U10 클리어 반전 컷 magpie.twist 4칸(#763). 설계 7절 계획 34칸에 들어 있던 칸이고, 날기·바닥 자세 7칸은 재사용(0칸).
   magpie_nest: { cells: 50, base: 17 },
   // 물건 41(효과 water_off·water_burst 0칸, guest.soaked는 상태 칸 11이라 0칸), 쭉 4(take_up 3 + take_off 1), 묵직 3(sit_corner).
-  park_fountain: { cells: 48, base: 12 },
+  // S2(#802, PR #815 그림 + 화면 JSON): 54 > 48 경고. 비둘기가 돌우산까지 165px를 나는 길(R3 칸당 ≤ 21px) 때문이다.
+  // 손 그림 칸은 0(있는 비둘기 모양을 자리만 바꿔 찍음). 물건 −7 옛 pigeons_up + 12 perch 칸, 기본 +1 꼭대기 멈춘 모습(Luna 계산 53/13),
+  // 그리고 재킷 대기 움찔 loop를 빼서(설계 6절) 움찔 칸이 기본 칸 → 반응 칸(jacket.slide 첫 칸)으로 옮겼다(+1/−1).
+  park_fountain: { cells: 54, base: 12 },
   // 화면 JSON만(그림 전). 삑 hide_in_basket 4칸(화면 1 U9 재사용, 자판기 × プピッ). 새 그림 U1~U9는 그림 PR이 더한다(설계 7절 21~23칸).
   laundromat: { cells: 4, base: 0 },
 };
