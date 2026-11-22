@@ -15,6 +15,9 @@
 //     순서: 꼭대기(멈춤) | 움찔 | 미끄러짐 | 떨어짐(위) | 떨어짐(아래) | 손에 턱(= on_hand 멈춘 모습)
 //   park_fountain-objects-pigeons-4x.png  비둘기 셋(#526)을 4배로, **완성 배경** 위에(테두리·연못 앞 대비를 보려고)
 //     테두리 앞면(물건)도 엔진 순서대로 깐다. 순서: 쉬기 | pigeons_up 8칸(놀람 → 퍼덕 → 꼭대기 → 내려옴 → 놀람) | pigeons_turn 돌아보기
+//   park_fountain-objects-pigeons-top-2x.png  S2 돌우산 꼭대기(#802)를 2배로, 완성 배경 + 재킷 위에. 순서: perch 놀람 | 상승 3·6·9칸 | 툭 내려앉음 |
+//     꼭대기(재킷 앞) | 재킷 미끄러지는 중 | 재킷 손에 턱 | splash 맞는 칸(앉기 직전) | 밀려 내려감 3·6칸 | 땅 놀람
+//   park_fountain-objects-pigeons-top-4x.png  꼭대기만 4배: 재킷 앞에 앉음 | 재킷 미끄러지는 중 | 손에 턱(클리어 뒤 그림, 물줄기 빼고)
 //   park_fountain-objects-duck-4x.png  오리 P9(#529)를 4배로, 완성 배경 + 테두리 앞면 위에. 순서: 떠 있기 | 콕 | 퍼덕 | lap 왼쪽 12px | 돌아섬
 // 검사(어기면 종료 코드 1): buildScene 문제 0건(배경 시안의 ink는 빼고 센다), 손님 주색과 뒤 배경(입구 기둥·흙길)의 명도 차 ≥ 30,
 //   넥타이 = 재킷 같은 분홍, 금색(yel 계열) 없음, 재회 자리 칸이 ノビー 칸(기준점 ±24)과 겹치지 않음,
@@ -41,7 +44,7 @@ import { dirname, join } from 'node:path';
 import { C, PALETTE, EMPTY, Image, indexedPng } from '../../../art/lib/pixel.mjs';
 import { stamp } from '../../../art/lib/texture.mjs';
 import { buildScene } from '../../../art/scene-build.mjs';
-import { OBJECTS, ANIMS, GUEST_AT, GUEST_REUNION_AT, KEEPER_WINDOW, CLOCK_AT, JACKET_TOP_AT, CORD_COLOR } from '../../../art/scenes/park_fountain.objects.mjs';
+import { OBJECTS, ANIMS, PIGEONS_AT, PIGEONS_TOP_AT, PIGEON_TRACKS, GUEST_AT, GUEST_REUNION_AT, KEEPER_WINDOW, CLOCK_AT, JACKET_TOP_AT, CORD_COLOR } from '../../../art/scenes/park_fountain.objects.mjs';
 import { bg, fg } from './park_fountain-bg-sketch.mjs';
 import { SCENE as PARK } from '../../../art/scenes/park_fountain.mjs';
 
@@ -430,6 +433,78 @@ for (const [name, k, at] of [['입구 대기', 'watch', GUEST_AT], ['재회 만�
       if (n > 0) for (let y = 0; y < ch; y++) out.set(n * (cw + 1) - 1, y, C.ink);
     });
     writeFileSync(join(HERE, 'park_fountain-objects-pigeons-4x.png'), indexedPng(out, S));
+  }
+}
+
+// ── 비둘기 S2 돌우산 꼭대기 (#802, park_fountain-s2.md 3절 7·8번·7-1절, PR #810 Luna 리뷰 R3)
+// 검사: anim 셋이 시트에 있다, perch·splash_up은 hold(다음 anim·fx까지 마지막 칸을 붙듦), splash_down은 hold 없음이고 놀람 칸으로 끝난다(쉬는 그림으로 이어짐),
+//   splash 둘은 perch 칸만 다시 쓴다, 새 한 마리가 한 칸에 21px 넘게 안 간다(1배에서 "사라졌다 나타남" 막기, R3), 꼭대기 칸이 오른 경사(재킷 slide 길, x ≥ 230)를 비운다,
+//   꼭대기 칸 외곽선(dusk)과 뒤 하늘의 명도 차 ≥ 60, 꼭대기 칸에 땅 그림자(wood)가 없다.
+{
+  const names = ['floor.pigeons_perch', 'floor.pigeons_splash_up', 'floor.pigeons_splash_down'];
+  const missing = names.filter((n) => !A[n]);
+  check(missing.length === 0, `시트에 S2 비둘기 anim 3개가 있다${missing.length ? `: 없음 ${missing.join(', ')}` : ''}`);
+  if (missing.length === 0) {
+    const [perch, sUp, sDown] = names.map((n) => A[n]);
+    check(perch.hold === true && sUp.hold === true && !sDown.hold, 'perch·splash_up은 hold, splash_down은 hold 없음');
+    check(sDown.frames.at(-1) === A['floor.pigeons_up'].frames[0], 'splash_down 마지막 칸 = 땅 놀람 칸(쉬는 그림으로 이어짐)');
+    const bb = (f) => { const { at: [x, y], src: [, , w, h] } = meta.frames[f]; return [x, y, x + w - 1, y + h - 1]; };
+    // 새마다 칸당 이동(대각 거리). 오르기 = 땅 놀람(쉬는 자리 2px 위) → 9칸 → 내려앉음, 떨어지기 = 꼭대기 → 7칸 → 땅 놀람
+    const hop = PIGEONS_AT.map(([x, y]) => [x, y - 2]);
+    const landed = PIGEONS_TOP_AT.map(([x, y]) => [x, y - 2]);
+    const climbPath = PIGEON_TRACKS.perch;
+    const paths = {
+      perch: [hop, ...climbPath, landed, PIGEONS_TOP_AT.map(([x, y]) => [x, y])],
+      splash_up: [hop, ...climbPath],
+      splash_down: [...climbPath.slice().reverse(), hop],
+    };
+    check(sUp.frames.every((f) => perch.frames.includes(f)) && sDown.frames.every((f) => perch.frames.includes(f)), 'splash_up·splash_down은 perch 칸만 다시 쓴다(새 칸 0)');
+    for (const [name, path] of Object.entries(paths)) {
+      let worst = 0;
+      for (let k = 1; k < path.length; k++) for (let i = 0; i < 3; i++) worst = Math.max(worst, Math.hypot(path[k][i][0] - path[k - 1][i][0], path[k][i][1] - path[k - 1][i][1]));
+      check(worst <= 21, `${name}: 새 한 마리가 한 칸에 간 거리 최대 ${worst.toFixed(1)}px ≤ 21`);
+    }
+    const topF = perch.frames.at(-1);
+    const [, , right] = bb(topF);
+    check(right < 230, `꼭대기 칸 오른쪽 끝 x ${right} < 230(오른 경사는 재킷 slide 길이라 비움)`);
+    const real = new Image(W, H);
+    PARK.bg(real);
+    const only = new Image(W, H); put(only, topF);
+    let wood = 0, worstDy = 999;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const c = only.get(x, y);
+      if (c === C.wood) wood++;
+      // 외곽선 픽셀 바로 뒤(배경)와의 명도 차
+      if (c === C.dusk) worstDy = Math.min(worstDy, dY(c, real.get(x, y)));
+    }
+    check(wood === 0, `꼭대기 칸에 땅 그림자 ${wood}픽셀 = 0`);
+    check(worstDy >= 60, `꼭대기 칸 외곽선(dusk)과 바로 뒤 배경의 명도 차 최소 ${worstDy} ≥ 60`);
+    // 그림: 배경 → 재킷(그 순간 그림) → 테두리 앞면 → 비둘기. 물줄기는 엔진 입자라 여기 없다(replay 캡처는 화면 JSON PR에서).
+    const rim = meta.objects.find((o) => o.key === 'fountain').default.frame;
+    const jTop = JK.default.frame, jHand = JK.states.find((st) => st.when.flags['jacket.on_hand'] === true).frame;
+    const slideLast = A['jacket.slide'].frames;
+    const shots = [
+      [jTop, perch.frames[0]], [jTop, perch.frames[3]], [jTop, perch.frames[6]], [jTop, perch.frames[9]], [jTop, perch.frames.at(-2)], [jTop, topF],
+      [slideLast[1], topF], [jHand, topF],
+      [jTop, sUp.frames.at(-1)], [jTop, sDown.frames[3]], [jTop, sDown.frames[6]], [jTop, sDown.frames.at(-1)],
+    ];
+    const S = 2, x0 = 176, y0 = 14, cw = 100, ch = 210;
+    const out = new Image(cw * shots.length + shots.length - 1, ch);
+    shots.forEach(([jf, pf], n) => {
+      const im = new Image(W, H); im.blit(real, 0, 0); put(im, jf); put(im, rim); put(im, pf);
+      for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) out.set(n * (cw + 1) + x, y, im.get(x0 + x, y0 + y));
+      if (n > 0) for (let y = 0; y < ch; y++) out.set(n * (cw + 1) - 1, y, C.ink);
+    });
+    writeFileSync(join(HERE, 'park_fountain-objects-pigeons-top-2x.png'), indexedPng(out, S));
+    // 꼭대기만 크게(4배): 재킷 위 앉음 | 재킷 미끄러지는 중 | 손에 턱(= 클리어 뒤 그림, 물줄기 빼고)
+    const S4 = 4, tx = 186, ty = 18, tw = 76, th = 40;
+    const zoom = new Image(tw * 3 + 2, th);
+    [[jTop, topF], [slideLast[1], topF], [jHand, topF]].forEach(([jf, pf], n) => {
+      const im = new Image(W, H); im.blit(real, 0, 0); put(im, jf); put(im, pf);
+      for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) zoom.set(n * (tw + 1) + x, y, im.get(tx + x, ty + y));
+      if (n > 0) for (let y = 0; y < th; y++) zoom.set(n * (tw + 1) - 1, y, C.ink);
+    });
+    writeFileSync(join(HERE, 'park_fountain-objects-pigeons-top-4x.png'), indexedPng(zoom, S4));
   }
 }
 

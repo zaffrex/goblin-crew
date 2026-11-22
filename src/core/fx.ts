@@ -56,6 +56,7 @@ export const FX_STYLE: Readonly<Record<string, { color: FxColor; height: number 
   quack_text: { color: 'white', height: 8 },
   kokee_text: { color: 'pinkL', height: 10 },
   shaa_text: { color: 'aqua', height: 8 },
+  splash_text: { color: 'tealM', height: 8 },
 };
 
 /**
