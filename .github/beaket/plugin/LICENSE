@@ -1,0 +1,15 @@
+Beaket experiment plugin: trial license
+
+Copyright (c) 2026 Jihnma, founder of Beaket. All rights reserved.
+
+Jihnma, founder of Beaket (the "Licensor"), permits the owner and the maintainers of the GitHub repository zaffrex/goblin-crew, for the trial of this plugin that the Licensor and the repository's owner agreed on:
+
+1. to keep this plugin in that repository, in this folder, including while the repository is public;
+2. to run it in that repository's own workflows; and
+3. to modify it there.
+
+The permission ends when the trial ends, or when the Licensor withdraws it in writing. When it ends, the plugin is to be turned off and removed from the repository's current files. Copies that remain in the repository's git history, or in forks made while the repository was public, are not a breach.
+
+No other right is granted. In particular, the plugin may not be copied, published or distributed elsewhere, or used outside that repository, and the name "Beaket" is not licensed for any use.
+
+THE PLUGIN IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED. IN NO EVENT SHALL THE LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM THE PLUGIN OR ITS USE.

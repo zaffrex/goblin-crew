@@ -1,0 +1,7 @@
+{
+  "name": "beaket",
+  "description": "Records the decisions an agent team makes in decisions/, committed with the change, and shows recorded decisions to the agents that work on the code they govern.",
+  "author": {
+    "name": "Beaket"
+  }
+}

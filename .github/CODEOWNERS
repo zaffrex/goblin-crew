@@ -5,3 +5,5 @@
 /scripts/review-gate.sh @zaffrex
 /team/team.json @zaffrex
 /.github/CODEOWNERS @zaffrex
+# 실험 플러그인(Beaket) 폴더. 업데이트마다 사장님 승인을 거친다.
+/.github/beaket/ @zaffrex

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "beaket": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/beaket.mjs", "mcp"],
+      "env": { "BEAKET_OWNER": "zaffrex" }
+    }
+  }
+}
