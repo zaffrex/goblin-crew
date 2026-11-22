@@ -110,10 +110,10 @@ describe('hudTags (늘 보이는 이름표, 설계 6-4-2절)', () => {
 });
 
 describe('hudHoverText (데스크톱 호버 설명, 6-4-3절)', () => {
-  it('얼굴 칸은 `{name}: {desc}` — 누구로 바꾸는지와 그 사람 특기를 말한다(#311)', () => {
-    expect(hudHoverText('char.jjuk', t)).toBe('ノビー: サオを伸ばして高い所に届く');
-    expect(hudHoverText('char.mukjik', t)).toBe('ズッシー: 全体重で踏みつける');
-    expect(hudHoverText('char.ppik', t)).toBe('プピ: ニワトリを鳴らして相手の気を引く');
+  it('얼굴 칸은 `{name}：{desc}` — 누구로 바꾸는지와 그 사람 특기를 말한다(#311)', () => {
+    expect(hudHoverText('char.jjuk', t)).toBe('ノビー：サオを伸ばして高い所に届く');
+    expect(hudHoverText('char.mukjik', t)).toBe('ズッシー：全体重で踏みつける');
+    expect(hudHoverText('char.ppik', t)).toBe('プピ：ニワトリを鳴らして相手の気を引く');
   });
 
   it('얼굴 칸 호버 글(abilityText)은 hudHoverText와 같고, 자리표시가 남지 않고 20자 이하다', () => {
@@ -147,7 +147,7 @@ describe('hudHoverText (데스크톱 호버 설명, 6-4-3절)', () => {
   });
 
   it('게이지는 고정 설명', () => {
-    expect(hudHoverText('gauge', t)).toBe('ふわふわゲージ: 痛い目にあうと減って、ゼロで全員スタートに戻る');
+    expect(hudHoverText('gauge', t)).toBe('ふわふわゲージ：痛い目にあうと減って、ゼロで全員スタートに戻る');
   });
 
   it('없앤 버튼 설명 키(능력·손·보기)는 텍스트에 없다', () => {
