@@ -67,6 +67,23 @@ export function playtestOrder(
   return ids;
 }
 
+/**
+ * 이번 판의 플레이 순서(#766). null이면 화면 하나로 연다(연결 경로를 아예 타지 않는다).
+ * 1. `?playtest=1&order=`가 맞으면 그 순서(`playtestOrder`)
+ * 2. `?screen=`이 있으면 null: 그 화면 하나만 본다(재생·프레임 도구 `solve.ts --screen`·`frames.ts`가 쓴다. 값이 틀려 기본 화면으로 떨어져도 하나)
+ * 3. 아니면 배포 순서 `content/screens/order.json`. 그 파일이 틀렸으면 null(테스트가 막지만, 판이 안 열리는 것보다 화면 하나가 낫다)
+ */
+export function startOrder(
+  query: (key: string) => string | null,
+  known: ReadonlySet<string>,
+  deployed: OrderResult,
+): string[] | null {
+  const override = playtestOrder(query, known);
+  if (override) return override;
+  if (query("screen") !== null) return null;
+  return deployed.ok ? deployed.order : null;
+}
+
 /** 순서를 덮어쓴 판에서는 세이브를 끈다(같은 id 반복으로 "다 깸"이 일찍 참이 되는 것 방지). */
 export function usesSave(override: readonly string[] | null): boolean {
   return override === null;

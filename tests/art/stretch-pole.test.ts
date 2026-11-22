@@ -111,7 +111,7 @@ function measure(data: SceneData, c: Case): { textTicks: number; maxPole: number
 
 describe('ビヨーン 동안 장대가 펴진다 (#587, ability-feedback.md 2절)', () => {
   it('화면 목록이 content/screens와 같다(새 화면은 SCREENS·NO_POLE에 넣는다)', () => {
-    const files = readdirSync(join(ROOT, 'content', 'screens')).filter((f) => f.endsWith('.json')).map((f) => f.replace(/\.json$/, ''));
+    const files = readdirSync(join(ROOT, 'content', 'screens')).filter((f) => f.endsWith('.json') && f !== 'order.json').map((f) => f.replace(/\.json$/, ''));
     expect([...SCREENS].sort()).toEqual(files.sort());
   });
   for (const id of SCREENS) {

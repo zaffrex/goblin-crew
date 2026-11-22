@@ -11,7 +11,7 @@ import { planAction, type Input } from './plan';
 
 const load = (p: string): unknown => JSON.parse(readFileSync(p, 'utf8'));
 const characters = load('content/characters.json') as CharactersData;
-const SCREEN_FILES = readdirSync('content/screens').filter((f) => f.endsWith('.json')).map((f) => f.replace(/\.json$/, ''));
+const SCREEN_FILES = readdirSync('content/screens').filter((f) => f.endsWith('.json') && f !== 'order.json').map((f) => f.replace(/\.json$/, ''));
 
 describe('화면 파일 이름 = 화면 JSON id (#473 리뷰)', () => {
   // main.ts `pickScreen`은 파일 이름으로, `screenTextKey`는 JSON id로 화면을 찾는다. 둘이 다르면 화면별 글이 조용히 안 바뀐다.

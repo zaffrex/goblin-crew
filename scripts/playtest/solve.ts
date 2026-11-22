@@ -8,6 +8,8 @@
 //
 // 사용: node --import ./scripts/playtest/register.mjs scripts/playtest/solve.ts --screen park_fountain [--url <URL>] [--out <폴더>] [--touch] [--no-sandbox]
 //       node --import ./scripts/playtest/register.mjs scripts/playtest/solve.ts --order magpie_nest,magpie_nest [...]
+//       node --import ./scripts/playtest/register.mjs scripts/playtest/solve.ts --deploy [...]
+// `--deploy`(#766)는 `?playtest=1`만 붙여(훅용) 쿼리 없는 배포본 경로를 탄다. 순서는 로컬 `content/screens/order.json`이고, 게임이 같은 순서를 쓰는지 본다.
 // 종료 코드: 클리어 못 했거나, 콘솔 에러가 있거나, 누를 곳을 못 찾거나, 화면 전환·끝 카드가 기대와 다르면 1.
 
 import { mkdirSync, readFileSync } from 'node:fs';
@@ -24,6 +26,7 @@ const { values: args } = parseArgs({
   options: {
     screen: { type: 'string', default: 'magpie_nest' },
     order: { type: 'string' },
+    deploy: { type: 'boolean', default: false },
     url: { type: 'string', default: 'http://localhost:4173/' },
     out: { type: 'string', default: 'playtest-out/solve' },
     touch: { type: 'boolean', default: false },
@@ -31,7 +34,13 @@ const { values: args } = parseArgs({
   },
 });
 
-const ids = args.order ? args.order.split(',') : [args.screen!];
+if (args.deploy && args.order) throw new Error('--deploy와 --order는 같이 못 쓴다');
+const linked = args.deploy || args.order !== undefined;
+const ids: string[] = args.deploy
+  ? (JSON.parse(readFileSync('content/screens/order.json', 'utf8')) as string[])
+  : args.order
+    ? args.order.split(',')
+    : [args.screen!];
 const screens = ids.map((id) => {
   if (!/^[a-z0-9_]+$/.test(id)) throw new Error(`화면 ID 형식이 아님: ${id}`);
   const screen = JSON.parse(readFileSync(`content/screens/${id}.json`, 'utf8')) as ScreenData;
@@ -150,7 +159,7 @@ async function main(): Promise<number> {
   const u = new URL(args.url!);
   u.searchParams.set('playtest', '1');
   if (args.order) u.searchParams.set('order', ids.join(','));
-  else u.searchParams.set('screen', ids[0]!);
+  else if (!args.deploy) u.searchParams.set('screen', ids[0]!);
   const browser = await Browser.launch({ noSandbox: args['no-sandbox'] });
   const problems: string[] = [];
   try {
@@ -163,14 +172,15 @@ async function main(): Promise<number> {
     }
     await closeStartCard(page, () => send(page, CARD_TAP));
     await waitIdle(page);
-    if (args.order) {
+    if (linked) {
       const f = await flowOf(page);
-      if (!f?.order) throw new Error(`?order=가 안 먹음(훅 __gcFlow: ${JSON.stringify(f)}). 연결 2단계 이전 빌드인가?`);
+      if (!f?.order) throw new Error(`순서가 안 먹음(훅 __gcFlow: ${JSON.stringify(f)}). ${args.deploy ? '배포 순서(#766)' : '연결 2단계'} 이전 빌드인가?`);
+      if (f.order.join() !== ids.join()) throw new Error(`게임 순서 ${f.order.join(',')}가 기대 ${ids.join(',')}와 다름(배포본이 로컬 order.json과 다른가?)`);
     }
     for (const [k, screen] of screens.entries()) {
       await solveScreen(page, screen, k, problems);
       if (problems.length) break;
-      if (args.order) await crossCard(page, k, problems);
+      if (linked) await crossCard(page, k, problems);
       else await soloCard(page, problems);
     }
     for (const e of page.errors) problems.push(`콘솔(${e.source}): ${e.text}`);

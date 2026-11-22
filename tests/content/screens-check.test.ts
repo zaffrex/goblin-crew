@@ -9,7 +9,7 @@ import type { CharactersData, ScreenData } from '../../src/core/puzzle/types';
 const dir = (rel: string): string => fileURLToPath(new URL(rel, import.meta.url));
 const load = (path: string): unknown => JSON.parse(readFileSync(path, 'utf8'));
 const characters = load(dir('../../content/characters.json')) as CharactersData;
-const files = readdirSync(dir('../../content/screens')).filter((f) => f.endsWith('.json'));
+const files = readdirSync(dir('../../content/screens')).filter((f) => f.endsWith('.json') && f !== 'order.json');
 
 describe('screen BFS check', () => {
   it.each(files)('screens/%s', (file) => {
