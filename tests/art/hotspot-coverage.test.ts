@@ -4,11 +4,12 @@
 // 단서 그림 위에 판이 서 버린다. PR #827에서 `park_fountain` `statue`가 그렇게 40×70 보라 판으로 덮였는데 `npm test`가 통과했다.
 // 시트가 없는 화면(그림 전, 예: `laundromat`)은 보지 않는다. 그림 PR이 시트를 만드는 순간부터 그 화면 대상 전부를 그려야 한다.
 // 일부러 시트 없이 두는 대상이 필요해지면 그때 예외 목록을 L1로 정한다(지금은 없음).
+// 결정 기록: docs/decisions/2026-11-23-art-guards-in-vitest.md
 
 import { describe, expect, it } from 'vitest';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { coveredIds, type SceneArtMeta } from '../../src/core/sceneArt';
+import { coveredIds, parseSceneArt, type SceneArtMeta } from '../../src/core/sceneArt';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const SCREENS = join(ROOT, 'content', 'screens');
@@ -37,6 +38,8 @@ const withSheet = readdirSync(SCREENS)
   .filter((id) => existsSync(join(ROOT, 'public', 'scenes', `${id}-objects.json`)));
 
 const read = <T>(path: string): T => JSON.parse(readFileSync(path, 'utf8')) as T;
+/** 엔진이 받는 것과 같은 검증(`parseSceneArt`)을 거친 메타. */
+const readMeta = (id: string): SceneArtMeta => parseSceneArt(read<unknown>(join(ROOT, 'public', 'scenes', `${id}-objects.json`)));
 
 describe('그림 있는 화면의 클릭 대상은 전부 물건 시트에 있다 (#828)', () => {
   it('검사할 화면이 있다(폴더를 잘못 읽어 0개로 통과하지 않게)', () => {
@@ -46,13 +49,13 @@ describe('그림 있는 화면의 클릭 대상은 전부 물건 시트에 있�
 
   it.each(withSheet)('%s: 임시 상자로 그려지는 대상 0개', (id) => {
     const screen = read<ScreenLike>(join(SCREENS, `${id}.json`));
-    const meta = read<SceneArtMeta>(join(ROOT, 'public', 'scenes', `${id}-objects.json`));
+    const meta = readMeta(id);
     expect(placeholderIds(screen, meta), '시트에 없어서 임시 상자가 그려짐 → art/scenes/<화면>.mjs objects에 그리기').toEqual([]);
   });
 
   it('시트에서 대상 하나를 빼면 잡는다', () => {
     const screen = read<ScreenLike>(join(SCREENS, 'park_fountain.json'));
-    const meta = read<SceneArtMeta>(join(ROOT, 'public', 'scenes', 'park_fountain-objects.json'));
+    const meta = readMeta('park_fountain');
     const without = { ...meta, objects: meta.objects.filter((o) => !o.ids.includes('duck')) };
     expect(placeholderIds(screen, without)).toContain('duck');
   });

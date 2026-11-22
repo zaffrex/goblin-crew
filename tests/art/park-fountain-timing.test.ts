@@ -7,10 +7,11 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { SceneArtMeta } from '../../src/core/sceneArt';
+import { parseSceneArt } from '../../src/core/sceneArt';
 
 const ROOT = join(import.meta.dirname, '..', '..');
-const sheet = JSON.parse(readFileSync(join(ROOT, 'public', 'scenes', 'park_fountain-objects.json'), 'utf8')) as SceneArtMeta;
+// 엔진이 받는 것과 같은 검증을 거친다(PR #820 Theo 니트).
+const sheet = parseSceneArt(JSON.parse(readFileSync(join(ROOT, 'public', 'scenes', 'park_fountain-objects.json'), 'utf8')));
 
 /** 11/23 값: perch 1030ms + slide 1040ms. */
 const PERCH_SLIDE_MAX_MS = 2070;
