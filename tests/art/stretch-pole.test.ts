@@ -7,7 +7,7 @@
 // - 두 화면 모두 장부가 비었다(#587 닫음). 새 화면에서 0px 줄이 생기면 장부에 넣지 말고 그림·데이터를 고친다.
 
 import { describe, expect, it } from 'vitest';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { stateKey } from '../../src/core/puzzle/bfs';
 import { screenHost } from '../../src/core/puzzle/check';
@@ -25,7 +25,7 @@ const sprites = {
   mukjik: parseSpriteMeta(load('public', 'sprites', 'mukjik-base.json')),
   ppik: parseSpriteMeta(load('public', 'sprites', 'ppik-base.json')),
 };
-const SCREENS = ['magpie_nest', 'park_fountain'] as const;
+const SCREENS = ['laundromat', 'magpie_nest', 'park_fountain'] as const;
 
 /** 화면별 `대상 규칙/폴백` 중 글자 동안 장대가 0px인 줄. 정렬해 둔다. 줄을 지우는 건 #587 구현 PR 몫이다. */
 const NO_POLE: Record<(typeof SCREENS)[number], string[]> = {
@@ -33,13 +33,16 @@ const NO_POLE: Record<(typeof SCREENS)[number], string[]> = {
   magpie_nest: [],
   // 화면 2: 분수·오리·손님은 안 A로 글자를 뺐다(바닥이거나 tip보다 낮음, 오리는 `reach_wobble`이어도 0px). 남은 줄 없음.
   park_fountain: [],
+  // M2 튜토리얼(화면 JSON만, 그림 전): 걸쇠 정답은 U1 `pull_latch`가 시트에 없어 장대가 0px이다. U1 그림 PR이 이 줄을 지운다.
+  laundromat: ['latch latch_pull_open'],
 };
 
 function sceneData(id: string): SceneData {
   return {
     screen: load('content', 'screens', `${id}.json`) as ScreenData,
     characters,
-    art: parseSceneArt(load('public', 'scenes', `${id}-objects.json`)),
+    // 물건 그림이 아직 없는 화면(laundromat)은 회색 상자로 돈다. 장대 길이는 캐릭터 시트만 본다.
+    art: existsSync(join(ROOT, 'public', 'scenes', `${id}-objects.json`)) ? parseSceneArt(load('public', 'scenes', `${id}-objects.json`)) : undefined,
     sprites,
   };
 }

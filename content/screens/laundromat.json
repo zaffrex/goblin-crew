@@ -1,0 +1,213 @@
+{
+  "id": "laundromat",
+  "note": "튜토리얼 화면(설계 docs/design/screens/laundromat.md, M2 #230). 좌표는 회색 배치 v1에서 옮겼고(그 파일은 지움) 이 파일이 진실이다. 시작 좌표(엔진 배치, floor ±40, characters 순서): jjuk 240,244 / mukjik 280,244 / ppik 320,244. 그림·화면 순서(order.json) 연결은 별도 PR이라 지금은 ?screen=laundromat으로만 열린다(회색 상자).",
+  "start": {
+    "at": { "jjuk": "floor", "mukjik": "floor", "ppik": "floor" },
+    "items": []
+  },
+  "exitFlag": "shutter.up",
+  "flags": {
+    "latch.open": false,
+    "shutter.up": false
+  },
+  "solution": [
+    { "char": "jjuk", "verb": "stretch", "target": "latch" },
+    { "char": "mukjik", "verb": "stomp", "target": "shutter" }
+  ],
+  "spots": {
+    "floor": { "x": 280, "y": 244, "free": true, "note": "이 화면의 유일한 자리(설계 1-2). 서는 자리가 하나라 유지 상태·board 점이 없다" }
+  },
+  "hotspots": {
+    "shutter": {
+      "box": [24, 140, 128, 104],
+      "hintAbility": "stomp",
+      "note": "그림과 히트가 같다. 손잡이 = 맨 아래 가로 막대 전체(24,238,128×4, 설계 1-1 메모). 바닥 대상이라 가까운 쪽 가장자리 옆에 선다. reachPoint를 두지 않는다(두면 장대가 막대 가운데로 걸어 들어가 셔터 앞에 겹쳐 선다). 세 사람 모두 규칙이라 힌트 ②는 실제로 안 뜬다(설계 3절)"
+    },
+    "latch": {
+      "box": [133, 134, 24, 24],
+      "hintAbility": "stretch",
+      "reachPoint": [145, 146],
+      "note": "그림 140,140,10×12. 셔터와 겹치는 칸에서는 걸쇠가 이긴다(결정 6): 지금 핫스팟 z가 모두 0이라 hit.ts가 id 사전순(latch < shutter)으로 고른다. 핫스팟 앞뒤 순서가 생기면 걸쇠를 셔터 앞에 둔다(설계 1-4). 땅(걸쇠 밑 x 145, 손 212)에서 66px ≤ maxReach 80. 높은 대상(히트 아래 끝 158 ≤ 200), SMALL_ART(설계 1-5)"
+    },
+    "dryer_3": { "box": [352, 164, 48, 72], "note": "장난감. 오늘의 범인. 상태 불변·게이지 변화 없음(B 미끼, M2 플래닝 #230)" },
+    "soap_vending": { "box": [416, 148, 44, 88], "note": "장난감. 상태 불변·게이지 변화 없음(B 미끼, M2 플래닝 #230)" }
+  },
+  "onEnter": [
+    { "fx": ["gatan_text", "shutter"] },
+    { "anim": ["latch", "dangle"] },
+    { "say": ["ppik", "laundromat.enter"] }
+  ],
+  "rules": [
+    {
+      "id": "latch_pull_open",
+      "target": "latch",
+      "verb": "stretch",
+      "when": { "flags": { "latch.open": false } },
+      "do": { "set": { "latch.open": true } },
+      "show": [
+        { "anim": ["jjuk", "pull_latch"] },
+        { "fx": ["stretch_text", "jjuk"] },
+        { "anim": ["latch", "release"] },
+        { "say": ["jjuk", "laundromat.latch_open"] }
+      ],
+      "note": "#1 정답. U1 장대로 걸쇠 당기기 → U2 걸쇠 툭 + 셔터 덜컹(1px 내려앉고 아래 틈 빛줄). U2 끝 칸이 셔터 '풀림' 상태 그림이라 latch.open이 보이는 플래그다"
+    },
+    {
+      "id": "latch_pull_done",
+      "target": "latch",
+      "verb": "stretch",
+      "when": { "flags": { "latch.open": true } },
+      "show": [
+        { "anim": ["jjuk", "common.reach_wobble"] },
+        { "fx": ["stretch_text", "jjuk"] },
+        { "say": ["jjuk", "laundromat.latch_done"] }
+      ],
+      "note": "#2 이미 풀림. 높은 대상이라 공용 reach_wobble(장대가 실제로 펴짐, #587 C2), 집게가 풀린 걸쇠를 톡"
+    },
+    {
+      "id": "shutter_stomp_open",
+      "target": "shutter",
+      "verb": "stomp",
+      "when": { "flags": { "latch.open": true } },
+      "do": { "set": { "shutter.up": true } },
+      "show": [
+        { "anim": ["mukjik", "shutter_grab"] },
+        { "anim": ["mukjik", "shutter_sit"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "say": ["mukjik", "laundromat.shutter_open"] },
+        { "anim": ["shutter", "roll_up"] },
+        { "anim": ["mukjik", "shutter_ride"] },
+        { "say": ["mukjik", "laundromat.clear_hang"] },
+        { "anim": ["mukjik", "common.bump_bottom"] },
+        { "say": ["ppik", "laundromat.clear_hook"] },
+        { "anim": ["shutter", "magpie_pass"] },
+        { "say": ["jjuk", "laundromat.clear_magpie"] }
+      ],
+      "note": "#3 정답 → 클리어. 설계 8절 클리어 컷 ①②를 이 show 하나에 쓴다(park_fountain jacket_take와 같은 방식, step이 clear를 show 뒤에 붙임). U3 = shutter_grab(2칸, 4번과 같이 씀) + shutter_sit(1칸). U4 roll_up 끝 칸 = '올라감' 상태 그림. U7 shutter_ride 뒤 툭 떨어짐은 공용 엉덩방아(#735). 까치는 이 화면 핫스팟이 아니라서 열린 문(셔터 자리)의 anim으로 둔다(magpie.fly_up 칸 재사용, 연결은 그림 PR). 컷 글(<id>.clear)은 두지 않는다: 세 줄 다 사람 말풍선이라 가운데 자막이 따로 필요 없다. ③ 뛰어나가기는 그림 단계에서 정한다(설계 7절 '이 표에 빠진 것')"
+    },
+    {
+      "id": "shutter_stomp_latched",
+      "target": "shutter",
+      "verb": "stomp",
+      "when": { "flags": { "latch.open": false } },
+      "do": { "gauge": -1 },
+      "show": [
+        { "anim": ["mukjik", "shutter_grab"] },
+        { "fx": ["gatan_text", "shutter"] },
+        { "fx": ["rattle", "shutter"] },
+        { "anim": ["mukjik", "common.flatten"] },
+        { "say": ["mukjik", ["laundromat.stomp_latched", "laundromat.stomp_latched_again"]] }
+      ],
+      "note": "#4 다치는 실패(이 화면 유일). 3번과 같은 시작(U3 앞 2칸)이 걸쇠 상태에 따라 다르게 끝난다(F2). 두 번째 대사가 위의 빨간 걸쇠를 가리킨다"
+    },
+    {
+      "id": "shutter_hook_latched",
+      "target": "shutter",
+      "verb": "stretch",
+      "when": { "flags": { "latch.open": false } },
+      "show": [
+        { "anim": ["jjuk", "common.stretch"] },
+        { "anim": ["jjuk", "common.bump_bottom"] },
+        { "say": ["jjuk", ["laundromat.hook_latched", "laundromat.hook_latched_again"]] }
+      ],
+      "note": "#5 잠김. 장대가 활처럼 휘었다 튕겨 엉덩방아(공용). 두 번째 대사가 걸쇠 단서. 바닥 대상이라 ビヨーン 글자는 뺀다(#587 안 A, 장대가 0px). 셔터·장난감 stretch 칸 모두 같다"
+    },
+    {
+      "id": "shutter_hook_light",
+      "target": "shutter",
+      "verb": "stretch",
+      "when": { "flags": { "latch.open": true } },
+      "show": [
+        { "anim": ["jjuk", "common.stretch"] },
+        { "anim": ["jjuk", "shutter_dangle"] },
+        { "say": ["jjuk", ["laundromat.hook_light", "laundromat.hook_light_again"]] }
+      ],
+      "note": "#6 풀렸는데 가볍다. U6 셔터에 딸려 올라가 대롱대롱 → 도로 내려옴(재사용 후보: magpie_nest U4, 손 위치가 맞으면 그림 PR에서 그 칸을 이 이름에 잇는다). 두 번째 대사가 ズッシー 이름을 부른다(사람 바꾸기)"
+    },
+    {
+      "id": "shutter_squeak_latched",
+      "target": "shutter",
+      "verb": "squeak",
+      "when": { "flags": { "latch.open": false } },
+      "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "fx": ["echo_text", "shutter"] },
+        { "anim": ["latch", "dangle"] },
+        { "say": ["ppik", "laundromat.shutter_squeak"] }
+      ],
+      "note": "#7a 메아리 + 걸쇠 덜렁(U9, 진입 연출과 같은 칸, 설계 9-1 ①). 폴백이 아니라 규칙: 폴백이면 힌트 ②(hint_stomp)가 잠긴 셔터를 가리켜 따르면 💥다(설계 3절)"
+    },
+    {
+      "id": "shutter_squeak_open",
+      "target": "shutter",
+      "verb": "squeak",
+      "when": { "flags": { "latch.open": true } },
+      "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "fx": ["echo_text", "shutter"] },
+        { "say": ["ppik", "laundromat.shutter_squeak"] }
+      ],
+      "note": "#7b 풀린 뒤에는 걸쇠가 떨지 않는다(설계 12절, 7a/7b로 나눔). 대사는 같은 키"
+    }
+  ],
+  "fallbacks": {
+    "latch": {
+      "stomp": { "show": [
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "fx": ["dust", "mukjik"] },
+        { "say": ["mukjik", "laundromat.latch_stomp"] }
+      ] },
+      "squeak": { "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "fx": ["small_squeak_text", "latch"] },
+        { "say": ["ppik", "laundromat.latch_squeak"] }
+      ] }
+    },
+    "dryer_3": {
+      "stretch": { "show": [
+        { "anim": ["jjuk", "common.stretch"] },
+        { "anim": ["dryer_3", "gulp_pole"] },
+        { "anim": ["jjuk", "common.bump_bottom"] },
+        { "say": ["jjuk", "laundromat.dryer_stretch"] }
+      ] },
+      "stomp": { "show": [
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "anim": ["dryer_3", "jolt_open"] },
+        { "fx": ["sock_land", "mukjik"] },
+        { "say": ["mukjik", "laundromat.dryer_stomp"] }
+      ] },
+      "squeak": { "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "anim": ["dryer_3", "jolt_open"] },
+        { "say": ["ppik", "laundromat.dryer_squeak"] }
+      ] }
+    },
+    "soap_vending": {
+      "stretch": { "show": [
+        { "anim": ["jjuk", "common.stretch"] },
+        { "anim": ["soap_vending", "spill_boxes"] },
+        { "anim": ["jjuk", "common.flatten"] },
+        { "say": ["jjuk", "laundromat.soap_stretch"] }
+      ] },
+      "stomp": { "show": [
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "anim": ["soap_vending", "spill_coin"] },
+        { "say": ["mukjik", "laundromat.soap_stomp"] }
+      ] },
+      "squeak": { "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "fx": ["pipit_text", "soap_vending"] },
+        { "anim": ["ppik", "hide_in_basket"] },
+        { "say": ["ppik", "laundromat.soap_squeak"] }
+      ] }
+    }
+  }
+}

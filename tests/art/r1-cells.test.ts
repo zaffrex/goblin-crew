@@ -36,6 +36,8 @@ const LEDGER: Record<string, { cells: number; base: number }> = {
   magpie_nest: { cells: 46, base: 17 },
   // 물건 41(효과 water_off·water_burst 0칸, guest.soaked는 상태 칸 11이라 0칸), 쭉 4(take_up 3 + take_off 1), 묵직 3(sit_corner).
   park_fountain: { cells: 48, base: 12 },
+  // 화면 JSON만(그림 전). 삑 hide_in_basket 4칸(화면 1 U9 재사용, 자판기 × プピッ). 새 그림 U1~U9는 그림 PR이 더한다(설계 7절 21~23칸).
+  laundromat: { cells: 4, base: 0 },
 };
 
 /** 캐릭터 시트에서 반응 비용이 아닌 anim(가만히·걷기·올라서기·들기·공용). */
