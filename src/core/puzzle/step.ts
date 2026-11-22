@@ -71,7 +71,8 @@ export function approachFor(screen: ScreenData, state: PuzzleState, actor: Chara
   if (approach === undefined) return FLOOR;
   if (typeof approach === 'string') return approach;
   const here = state.at[actor];
-  const from = here === undefined ? undefined : approach.from?.[here];
+  // 프로토타입 키(`constructor` 등)로 엉뚱한 값을 집지 않게 자기 키만 본다(#699).
+  const from = here !== undefined && approach.from && Object.hasOwn(approach.from, here) ? approach.from[here] : undefined;
   if (typeof from === 'string') return from;
   return from?.[verb] ?? from?.default ?? approach[verb] ?? approach.default ?? FLOOR;
 }
