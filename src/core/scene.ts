@@ -560,6 +560,21 @@ function pickText(text: string | string[], count: number): string {
   return text[Math.min(count, text.length) - 1] ?? '';
 }
 
+/**
+ * n번째 anim 변형(#765 2/2, ADR-0761 H5 "두 번째부터는 짧은 판"). 대사 변형(`pickText`)과 같은 발동 횟수 `n`을 쓴다.
+ * 그림 쪽(캐릭터 시트 `anims`, 물건 메타 `anims['대상.이름']`)에 `이름#k`(2 ≤ k ≤ n)가 있으면 가장 큰 k, 없으면 그대로.
+ * 화면 데이터는 안 바꾼다: 짧은 판은 그림이 붙는 대로 생기고, 없으면 지금과 같다. 퍼즐 상태·세이브·BFS와 무관한 UI 상태다.
+ */
+export function nthAnim(data: SceneData, target: string, name: string, n: number): string {
+  const sheet = data.sprites?.[target]?.anims;
+  const art = data.art?.anims;
+  for (let k = n; k >= 2; k--) {
+    const v = `${name}#${k}`;
+    if (sheet?.[v] || art?.[`${target}.${v}`]) return v;
+  }
+  return name;
+}
+
 /** 대사 변형 키: 규칙은 규칙 ID, 폴백은 출처·대상·동사·캐릭터. */
 function variantKey(source: StepSource, ruleId: string | undefined, a: Action): string {
   return source === 'rule' ? `rule:${ruleId}` : `${source}:${a.target}:${a.verb}:${a.char}`;
@@ -845,6 +860,7 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
     else if (ev.type === 'fx') s.queue.push({ ...ev, by: action.char });
     else if (ev === stay) s.queue.push({ ...ev, stay: true });
     else if (ev === jump && ev.type === 'anim') s.queue.push({ ...ev, onto: action.target });
+    else if (ev.type === 'anim') s.queue.push({ ...ev, name: nthAnim(data, ev.target, ev.name, n) });
     else s.queue.push(ev === leaving?.walk && downFace !== null ? { ...ev, face: downFace } : ev);
   }
   const hint = hintEvent(data, s, r.source, action);

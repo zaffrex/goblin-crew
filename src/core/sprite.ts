@@ -9,6 +9,17 @@ import { MIN_HIT_SIZE } from './characters';
 import type { HitBox } from './hit';
 import type { Facing } from './walk';
 
+/**
+ * n번째 변형 이름(#765 2/2, ADR-0761 H5 "두 번째부터는 짧은 판"): `이름#k`(k ≥ 2)는 같은 규칙·폴백이 k번째 이상 돌 때 `이름` 대신 쓴다.
+ * 캐릭터 시트 `anims`와 물건 메타 `anims['대상.이름']` 둘 다 같은 꼴이다. 아니면 null.
+ */
+export function parseNthName(name: string): { base: string; k: number } | null {
+  const m = /^(.+)#([0-9]+)$/.exec(name);
+  if (!m) return null;
+  const k = Number(m[2]);
+  return k >= 2 && String(k) === m[2] ? { base: m[1]!, k } : null;
+}
+
 export type SpriteAnim = ({ frames: number[]; ms: number[] } | { frames: number[]; by: 'distance' }) & {
   /**
    * 이 자세 동안 고정할 방향. `hold`(고리 손 기준점이 이 방향으로 맞춰져 있다, #182)와,
@@ -161,6 +172,15 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
     if ('hit' in a) {
       const h = a.hit as number[];
       if (!intTuple(h, 4) || h[2]! < MIN_HIT_SIZE || h[3]! < MIN_HIT_SIZE) fail(`${name}.hit은 [x, y, w, h], 폭·높이 ${MIN_HIT_SIZE} 이상`);
+    }
+    const nth = parseNthName(name);
+    if (nth) {
+      // n번째 변형(#765 2/2): 같은 자세의 짧은 판. 끝 칸이 같아야 말풍선 동안 남는 칸·다음 연출 이음매가 처음 판과 같다.
+      const base = (m.anims as Record<string, RawAnim>)[nth.base];
+      if (!base) fail(`${name}: 변형의 원래 자세 '${nth.base}'가 시트에 없음`);
+      if (!('ms' in a) || !('ms' in base!)) fail(`${name}: 변형은 ms 자세만`);
+      if ('air' in a || 'air' in base!) fail(`${name}: 공중 칸(air) 자세는 변형을 쓰지 않는다(뛰어오르기는 처음 판만)`);
+      if (a.frames![a.frames!.length - 1] !== base!.frames![base!.frames!.length - 1]) fail(`${name}: 끝 칸이 '${nth.base}'의 끝 칸과 같아야 한다`);
     }
   }
   return m as SpriteMeta;
