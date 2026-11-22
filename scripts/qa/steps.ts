@@ -7,6 +7,16 @@ export type Step =
   | { cmd: 'wait'; ms: number }
   | { cmd: 'shot'; name: string };
 
+/** `wait` 한 번의 상한. 넘으면 자르지 않고 거부한다(#772). 더 기다리려면 이어 쓴다. */
+export const MAX_WAIT_MS = 5000;
+
+/** 긴 대기를 상한 이하 `wait` 여러 개로 나눈 안내 문자열. 예: 14000 → `wait 5000; wait 5000; wait 4000`. */
+function splitWait(ms: number): string {
+  const parts: number[] = [];
+  for (let left = ms; left > 0; left -= MAX_WAIT_MS) parts.push(Math.min(left, MAX_WAIT_MS));
+  return parts.map((p) => `wait ${p}`).join('; ');
+}
+
 /** 한 실행에서 중간 스크린샷 상한. 이미지 한 장마다 QA 실행이 읽는 양(=구독 사용량)이 는다. */
 export const MAX_SHOTS = 8;
 // 파일 이름에 그대로 붙으므로 경로 문자(`/`, `.`)는 받지 않는다.
@@ -26,7 +36,9 @@ export function parseSteps(text: string): Step[] {
       }
       if (cmd === 'wait' && a !== undefined && b === undefined) {
         const ms = Number(a);
-        if (Number.isFinite(ms) && ms >= 0) return { cmd, ms: Math.min(ms, 5000) };
+        // 조용히 자르지 않는다(#772): `wait 14000`이 5초로 잘린 줄 모르고 "연출이 끝난 뒤 클릭이 먹힌다"로 읽었다.
+        if (Number.isFinite(ms) && ms > MAX_WAIT_MS) throw new Error(`wait는 한 번에 ${MAX_WAIT_MS}ms까지예요 (${l}). 나눠 쓰세요: ${splitWait(ms)}`);
+        if (Number.isFinite(ms) && ms >= 0) return { cmd, ms };
       }
       if (cmd === 'shot' && a !== undefined && b === undefined && SHOT_NAME.test(a)) return { cmd, name: a };
       throw new Error(`모르는 동작: ${l}`);
