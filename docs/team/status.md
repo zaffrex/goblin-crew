@@ -8,7 +8,7 @@
 - **M1**: 11/22 통과, 닫음([#257](https://github.com/zaffrex/goblin-crew/issues/257)). 후속 #736 닫힘. 진마씨 우려 "웃긴 순간 별로 없었다" → M2 플래닝 안건 1 → **ADR-0761 머지**(#784 #787, 정답 길 웃긴 박자, 클리어 연출 8초 안·`park_fountain` 12초 예외).
 - **M2** ([milestone/3](https://github.com/zaffrex/goblin-crew/milestone/3), 회의록 [m2-planning](../meetings/2026-11-22-m2-planning.md)): 기본 링크가 **늘 최신 main**이고([기록](../decisions/2026-11-22-default-link-always-latest.md)) 쿼리 없이 화면 1 → 2 → 3(회색 `laundromat`)으로 이어진다(#789, 배포 `7298410`). 임시 순서는 #764 그림 뒤 회의록 순서로 되돌림([기록](../decisions/2026-11-22-default-link-interim-order.md), Luna 한 줄 PR).
 - **화면 2 `park_fountain`**: #781 클리어 연출 27.1초 → 11.3초 머지(#794). 진마씨가 이미 해 보셨고 "뻔하다" → 퍼즐을 다시 짠 뒤에 거의 완성본 요청. Mia 4회차(#601)는 "누르기 전 예상" 기록을 넣어 새 기준의 기준선으로 돌린다. 진마씨는 중간본을 기본 링크로 이미 직접 보실 수 있다(#785).
-- **진마씨 스테이지 2 피드백 11/22 밤**: "퍼즐이 너무 뻔하다" → 기준 "예상 못 했는데 알고 나면 당연한", 판정은 Mia 블라인드([기록](../decisions/2026-11-22-puzzle-unexpected-but-obvious.md)). #802: `laundromat`은 그림(#764) 전에 다시 보고, `park_fountain`은 그림 재사용 선에서 고칠 범위(PM 추천 S2)를 Luna 답 받아 진마씨께. 퍼즐·개그 작가 신설 L3 #801(PM 추천 B, 11/26 리셋 때 켜기).
+- **진마씨 스테이지 2 피드백 11/22 밤**: "퍼즐이 너무 뻔하다" → 기준 "예상 못 했는데 알고 나면 당연한", 판정은 Mia 블라인드([기록](../decisions/2026-11-22-puzzle-unexpected-but-obvious.md)). #802: `laundromat`은 그림(#764) 전에 다시 보고, `park_fountain`은 그림 재사용 선에서 고칠 범위(PM 추천 S2)를 Luna 답 받아 진마씨께. 퍼즐·개그 작가 Kai 신설 L3 #801 → 진마씨 **B, 바로 시작·스테이지 2부터**(PR #804, 정기 실행은 11/26 리셋 뒤).
 - **진마씨 새 요청 11/22**: 메인화면(새로 하기/이어 하기) + 깬 판 다시 하기 맵 → #792(스테이지 2 요청 뒤 시작, Luna 설계 → Theo, 세이브 읽기 Ben #767). 정식 이름 확정: `Laundry Runaways` + 「せんたくもの大脱走」([기록](../decisions/2026-11-22-official-title-laundry-runaways.md)).
 
 ## 마일스톤
@@ -22,11 +22,11 @@
 
 ## 진마씨 방침 (지금도 유효)
 - 일정보다 디테일 품질 우선 ([human-characters](../decisions/2026-11-15-human-characters.md)).
-- 게임 안 대사는 일본어 전용(#265), Luna가 작가·감수(#362). ノビー는 오사카벤([기록](../decisions/2026-11-18-one-character-osaka-ben.md)).
+- 게임 안 대사는 일본어 전용(#265), 2026-11-22부터 퍼즐·개그 작가 Kai가 작가·감수([기록](../decisions/2026-11-22-puzzle-gag-writer-role.md), Kai가 돌기 전까지는 Luna). ノビー는 오사카벤([기록](../decisions/2026-11-18-one-character-osaka-ben.md)).
 - 조작은 "얼굴 고르기 → 물건 누르기" 한 번, 게이지는 아래 가로 막대([기록](../decisions/2026-11-18-one-click-interaction-bottom-gauge.md)).
 - 진마씨께 플레이를 부탁하기 전에 보이는 모양 체크리스트를 통과한다([playtest-visual-gate](../decisions/2026-11-18-playtest-visual-gate.md)).
 - 진마씨께는 **거의 완성된 판만** 올린다: 그림 완성 + Mia QA 통과(p0·p1 고친 뒤 재확인) + 체크리스트 + 대사 감수([기록](../decisions/2026-11-21-near-final-only-to-ceo.md), 11/21).
-- Mia는 일본어가 모국어인 첫 플레이어. 진행 기록은 일본어, 보고서에 "어색한 대사" 칸. 고치는 건 Luna([기록](../decisions/2026-11-21-qa-japanese-first-player.md), 11/21 #608).
+- Mia는 일본어가 모국어인 첫 플레이어. 진행 기록은 일본어, 보고서에 "어색한 대사" 칸. 고치는 건 Kai([기록](../decisions/2026-11-21-qa-japanese-first-player.md), 11/21 #608; 11/22 결정 B로 Luna → Kai).
 - 호칭은 "진마씨", Slack 멘션은 `{CEO}`.
 
 ## 진행 중 (M2 p1 요약, 상세는 이슈)
@@ -34,14 +34,14 @@
 |---|---|---|---|
 | #781 `park_fountain` 클리어 연출 12초 안 | Luna (리뷰 Theo) | 대사 2줄은 #782로 끝. 연출 줄이기만 남음. #788보다 먼저(PM 11/22) | replay 숫자 PR 본문에 → 머지 → Mia 4회차 |
 | #601 화면 2 Mia QA | Mia → PM | 3회차 p0 0 · p1 2 | 4회차 → p0·p1 0이면 진마씨 스테이지 2 요청 |
-| #802 퍼즐 다시 보기(새 기준) | Luna → (#801 결과에 따라 새 역할) | Luna에게 `park_fountain` 재사용 그림·새 칸 상한 질문 | 범위 확정 → 진마씨 스레드 → `laundromat` 0절 다시 쓰기(#764 전) |
+| #802 퍼즐 다시 보기(새 기준) | Kai (그림 비용 리뷰 Luna) | Luna에게 `park_fountain` 재사용 그림·새 칸 상한 질문 | 범위 확정 → 진마씨 스레드 → `laundromat` 0절 다시 쓰기(#764 전) |
 | #792 메인화면 + 깬 판 맵 | Luna 설계 → Theo (세이브 읽기 Ben) | 대기 | 스테이지 2 플레이 요청 뒤 시작. 이름 정해질 때까지 글자 제목 |
 | #767 세이브 연결 (코어 PR) | Ben + Theo | 시작 조건(3화면 연결 #789) 채움 | `usesSave`에 `playtestOrder` 결과를 넘김, 맵 재도전이 `checkpoint`를 덮지 않는 규칙 |
 | #788 ADR-0761 H1 고칠 것 | Luna | `magpie_nest` 규칙 4(움찔+L05) 먼저 | `laundromat` `コツン`은 #764 뒤 |
 | #765 클리어 건너뛰기 2/2 anim n번째 변형 | Theo | 1/2 #780 머지 | #776 말풍선 중 호버 라벨 |
 | #734 공용 리액션 남은 칸 / #764 `laundromat` 그림 | Luna | #763 U10 머지(#779) | #788 뒤. #768 배치 검사 도구(Theo)는 그림 PR 전에 머지 |
 | #67 반응 수 검사 (코어 PR) | Ben | `laundromat` BFS 최단 2, 경고 0 | `정답 길 반응`/`오답 반응` 리포트(ADR-0761 5절) |
-| #468·#380·#71 화면 2 설계 꼬리 | Luna | 블라인드 조건 채움, 남은 그림 0 | 진마씨 스테이지 2 플레이 뒤 닫을지 본다 |
+| #468·#380·#71 화면 2 설계 꼬리 | Kai (Luna에게서 넘겨받음) | 블라인드 조건 채움, 남은 그림 0 | 진마씨 스테이지 2 플레이 뒤 닫을지 본다 |
 | #11 Slack 리스너 운영 | Sam | 오래된 스레드 답글 읽기, 리스너 교대(#758 닫힘) | 점검 마감 보고 후 닫기 |
 
 ## 회의

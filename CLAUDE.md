@@ -18,13 +18,14 @@ DOS 시절 협동 퍼즐 어드벤처(Gobliiins류)의 **장르와 메커닉에�
 |---|---|---|---|
 | 진마씨(사람) | — | — | 아주 중대한 결정만 (L3) |
 | PM | Noah | `.claude/agents/pm.md` | 우선순위, 백로그, 회의 진행, 결정 기록, 진마씨 보고 |
-| 디자이너 | Luna | `.claude/agents/designer.md` | 게임 디자인(퍼즐/레벨), 아트 디렉션, UI/UX, 일본어 대사 작가·감수 |
+| 디자이너 | Luna | `.claude/agents/designer.md` | 아트 디렉션, 그림, UI/UX, 화면 연출. 퍼즐 문서는 그림 비용 관점으로 리뷰(그림 쪽 거부권) |
+| 퍼즐·개그 작가 (2주 시범) | Kai | `.claude/agents/puzzle.md` | 화면 퍼즐 설계, 웃긴 실패 리액션, 게임 안 일본어 글 전부. 기준 "예상 못 했는데 알고 나면 당연한". 11/26 리셋 전까지는 불릴 때만 실행 ([결정 기록](docs/decisions/2026-11-22-puzzle-gag-writer-role.md)) |
 | 프론트엔드 | Theo | `.claude/agents/frontend.md` | 게임 엔진/렌더링/입력/UI 구현 |
 | 백엔드 | Ben | `.claude/agents/backend.md` | 세이브, 계정, 리더보드, API, 데이터 |
 | 인프라 | Sam | `.claude/agents/infra.md` | CI/CD, 배포, 모니터링, 보안, 비용 |
 | QA (2주 시범) | Mia | `.claude/agents/qa.md` | 정답을 모르는 채 배포본을 처음 하는 사람처럼 플레이·보고. 일본어가 모국어인 첫 플레이어로 화면 속 어색한 대사도 보고([결정 기록](docs/decisions/2026-11-21-qa-japanese-first-player.md)). 불릴 때만 실행 ([결정 기록](docs/decisions/2026-11-20-qa-role-trial.md), 실행 설정 #516) |
 
-역할별 모델: PM·디자이너·프론트는 Opus 5.5(effort high), 백엔드·인프라·QA는 Sonnet 5.5(effort medium). 설정은 `team/team.json`에 있다. 모델 하향은 L1, 상향은 L3다.
+역할별 모델: PM·디자이너·퍼즐·프론트는 Opus 5.5(effort high), 백엔드·인프라·QA는 Sonnet 5.5(effort medium). 설정은 `team/team.json`에 있다. 모델 하향은 L1, 상향은 L3다.
 
 진마씨는 PM에게 L3 미만의 모든 권한을 위임했다. PM은 팀의 결정권자이지만 독단하지 않는다.
 
@@ -69,7 +70,7 @@ L3를 올릴 때는 선택지 2~3개와 팀의 추천안, 근거를 함께 올�
 - `main` 직접 push 금지 (초기 스캐폴딩 제외). 모든 변경은 브랜치 → PR → 리뷰 → 머지.
 - 브랜치: `<role>/<issue#>-<slug>` (예: `fe/12-sprite-renderer`)
 - PR은 연결 이슈(`Closes #n`)와 테스트 방법을 적는다. 다른 역할 1명 이상이 리뷰한다. 리뷰는 실제로 코드를 읽고 구체적 코멘트를 남긴다.
-- 이슈 라벨: `role:pm|design|fe|be|infra`, `type:feature|bug|chore|adr|meeting`, `prio:p0|p1|p2`, `status:blocked`, `ceo-decision`
+- 이슈 라벨: `role:pm|design|puzzle|fe|be|infra|qa`, `type:feature|bug|chore|adr|meeting`, `prio:p0|p1|p2`, `status:blocked`, `ceo-decision`
 - ADR: `docs/adr/NNNN-slug.md`, 템플릿 `docs/adr/0000-template.md`. ADR PR 제목은 `ADR-NNNN: ...`
 
 ## 작업 루프 (에이전트가 깨어날 때마다)
