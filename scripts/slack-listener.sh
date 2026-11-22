@@ -189,6 +189,26 @@ watchdog() {
   done
 }
 
+# conversations.history; in wide mode follow next_cursor (max WIDE_MAX_PAGES) and merge pages into one object.
+# Rate: Tier 3 (~50/min per method per app). Normal ticks = 1 call/conversation/15s. Wide = pages/conversation/5min.
+# 11 conversations (6 channels + 5 DMs) spread over 5 tokens: ~2-3 conversations/token -> ~10 calls/min/token normal
+# + at most ~3 x WIDE_MAX_PAGES / 5 per min for the wide scan, i.e. < 15/min/token even with 2 pages each.
+WIDE_EVERY=${WIDE_EVERY_CYCLES:-20}; WIDE_DAYS=${WIDE_DAYS:-30}; WIDE_MAX_PAGES=${WIDE_MAX_PAGES:-5}
+fetch_history() { # fetch_history <token> <channel> <oldest> <wide:0|1>
+  local tok="$1" ch="$2" oldest="$3" wide="$4" page next="" acc='{"messages":[]}' q n=0
+  while :; do
+    q="channel=$ch&oldest=$oldest&limit=100"; [ "$wide" = 1 ] && q="channel=$ch&oldest=$oldest&limit=200"
+    [ -n "$next" ] && q="$q&cursor=$next"
+    page=$(slack "$tok" GET conversations.history "$q") || { [ "$n" = 0 ] && return 1; break; }
+    acc=$(jq -c --argjson p "$page" '.messages += $p.messages' <<<"$acc")
+    n=$((n + 1))
+    [ "$wide" = 1 ] && [ "$n" -lt "$WIDE_MAX_PAGES" ] || break
+    next=$(jq -r '.response_metadata.next_cursor // empty' <<<"$page")
+    [ -n "$next" ] || break
+  done
+  printf '%s' "$acc"
+}
+
 # --- main loop ----------------------------------------------------------------------------------
 began=$(date +%s); cycle=0; chained=0
 # Queue the next listener job shortly before MAX so the handover gap stays small (cron alone left gaps up to ~3h).
@@ -208,10 +228,13 @@ while [ $(( $(date +%s) - began )) -lt "$MAX" ]; do
     [ "$paused" = true ] && { log "schedule paused; exiting"; exit 0; }
   fi
   [ $((cycle % 20)) = 0 ] && watchdog   # ~5 min
-  since=$(( $(date +%s) - 259200 ))
+  # Normal tick: parents from the last 72h. Every WIDE_EVERY cycles (~5 min, same as the watchdog) widen to
+  # WIDE_DAYS so replies on old parents (long CEO threads) are found via latest_reply, paging through history.
+  if [ $((cycle % WIDE_EVERY)) = 0 ]; then since=$(( $(date +%s) - WIDE_DAYS * 86400 )); wide=1
+  else since=$(( $(date +%s) - 259200 )); wide=0; fi
   for ch in "${!CH_NAME[@]}"; do
     tok=${CH_TOKEN[$ch]}; cur=${CURSOR[$ch]}; newcur=$cur
-    hist=$(slack "$tok" GET conversations.history "channel=$ch&oldest=$since&limit=100") || continue
+    hist=$(fetch_history "$tok" "$ch" "$since" "$wide") || continue
     while read -r m; do
       [ -n "$m" ] || continue
       process "$ch" "$m" ""
