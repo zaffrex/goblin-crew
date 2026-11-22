@@ -370,6 +370,22 @@ describe('이동과 자동 걷기 (2단계)', () => {
     expect(r.events.some((e) => e.type === 'walk')).toBe(false);
     expect(r.source).toBe('hotspotFallback'); // 바닥에서와 같은 높이 부족 반응
   });
+
+  it('approach.from: 프로토타입 키 자리는 from에 없는 것으로 보고 바깥 맵을 쓴다 (#699)', () => {
+    const screen = magpieScreen();
+    screen.hotspots.nest!.approach = { default: 'floor', stretch: 'seesaw_left', from: { seesaw_right: 'stay' } };
+    const s = initialState(screen);
+    for (const key of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      // ID 문법(validate)이 막는 값이라 상태를 직접 만든다.
+      const odd = { ...s, at: { ...s.at, jjuk: key } };
+      expect(approachFor(screen, odd, 'jjuk', 'nest', 'stretch')).toBe('seesaw_left');
+      expect(approachFor(screen, odd, 'jjuk', 'nest', 'hand')).toBe('floor');
+    }
+    // 위 키들은 지금 동사 이름과 안 겹쳐 가드 없이도 같은 값이 나온다. 자기 키만 보는지는 상속 키로 확인한다.
+    screen.hotspots.nest!.approach = { default: 'floor', from: Object.assign(Object.create({ seesaw_left: 'stay' }), { seesaw_right: 'stay' }) };
+    const onLeft = run(screen, [{ char: 'jjuk', verb: 'move', target: 'seesaw_left' }]);
+    expect(approachFor(screen, onLeft, 'jjuk', 'nest', 'stretch')).toBe('floor');
+  });
 });
 
 describe('유지 상태 (1단계)', () => {
