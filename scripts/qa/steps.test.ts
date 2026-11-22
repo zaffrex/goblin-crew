@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_SHOTS, midShotPath, parseSteps } from './steps.ts';
+import { MAX_SHOTS, MAX_WAIT_MS, midShotPath, parseSteps } from './steps.ts';
 
 describe('parseSteps (#603)', () => {
   it('reads a file body and an inline --steps string the same way', () => {
@@ -10,10 +10,17 @@ describe('parseSteps (#603)', () => {
     expect(parseSteps(inline)).toEqual(want);
   });
 
-  it('caps wait at 5000ms and allows an empty list', () => {
-    expect(parseSteps('wait 99999')).toEqual([{ cmd: 'wait', ms: 5000 }]);
+  it('allows wait up to 5000ms and an empty list', () => {
+    expect(parseSteps('wait 5000')).toEqual([{ cmd: 'wait', ms: MAX_WAIT_MS }]);
+    expect(parseSteps('wait 0')).toEqual([{ cmd: 'wait', ms: 0 }]);
     expect(parseSteps('')).toEqual([]);
     expect(parseSteps(' ; ;\n')).toEqual([]);
+  });
+
+  it('rejects a wait over 5000ms instead of silently cutting it, and says how to split it (#772)', () => {
+    expect(() => parseSteps('click 1 2; wait 14000')).toThrow('wait 5000; wait 5000; wait 4000');
+    expect(() => parseSteps('wait 5001')).toThrow('wait 5000; wait 1');
+    expect(() => parseSteps('wait 99999')).toThrow('한 번에 5000ms까지');
   });
 
   it('rejects anything that is not a plain click or wait', () => {
