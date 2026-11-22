@@ -28,6 +28,7 @@
       "variants": [{ "when": { "flags": { "jacket.on_hand": true } }, "box": [249, 100, 24, 24] }],
       "note": "꼭대기(돌우산 위) 그림 214,32,20×14 / 손 그림 252,106,18×18. reachPoint 없음: 장대 대상 점 = 상자 아래 끝 가운데(꼭대기 224,51 못 닿음 / 손 261,124 닿음)"
     },
+    "statue": { "box": [205, 102, 40, 70], "approach": { "default": "floor", "stomp": "fountain_seat" }, "reachPoint": [236, 140], "note": "reachPoint: 쭉이 x 236에 서서 왼쪽을 보고(상자 가운데 225) 장대 끝이 동상 옷자락(x 약 221, y 140)에 닿는다. 상자 아래 끝(172)을 겨누면 장대가 0px라 안 펴진다(stretch-pole). 팔·손(x 230..262, y 117..124)은 안 겨눈다(정답 자리 예고 금지). 미끼(#802 5회차 표 #3). 동상 몸·받침 그림 204..244, y 104..172. 화면 한가운데 가장 어두운 덩어리라 눈이 먼저 가는데 클릭 대상이 아니어서 그냥 걷기가 됐다. 오리 상자 175..199, 손 재킷 상자 249부터라 안 겹친다. 꼭대기 재킷 상자(y 27..51)와 돌우산(y 40..53)은 위라 안 가린다. 쿵은 분수대와 같은 테두리 앞 자리(물 속 동상에는 못 올라간다). hintAbility 없음(fountain과 같은 이유: 규칙이 decoy.와 폴백뿐). 반응은 정답을 예고하지 않는다: 오리·비둘기·손 얘기를 넣지 않고, 물이 돌우산 위로 떨어진다는 것만 보여 준다" },
     "keeper": { "box": [36, 114, 44, 36], "hintAbility": "squeak", "reachPoint": [73, 140], "note": "창 전체. 조는 얼굴 그림 40,118,36×30. 말풍선 화자(ADR-0065 개정 #434). reachPoint(#507): 쭉이 x 73에 서서 왼쪽을 보고(상자 가운데 58이 왼쪽) reach_wobble 장대(기준점 −13~−17, short 10)가 창 아래쪽 유리 x 54..62, y 142..150을 톡 친다" },
     "alarm_clock": { "box": [80, 134, 24, 24], "hintAbility": "squeak", "reachPoint": [107, 147], "note": "창턱 닭 자명종 그림 84,140,12×12(시트 83,139,13×14). プピッ는 관리인과 같은 결과. reachPoint(#507): 쭉이 x 107에 서서 왼쪽을 보고 reach_wobble 장대 집게(x 86..98, y 149..157)가 자명종 아래 4px에 닿는다. 발 y 222 미만이면 칸 안 장대 끝이 이미 자명종 높이라 잇지 않는다" },
     "duck": { "box": [175, 156, 24, 24], "hintAbility": "squeak", "note": "정답 대상(S2 duck_alarm, #802). 힌트 ②는 プピ(오리를 울리는 건 プピ 소리뿐). 연못 물 위 그림 181,167,14×9(외곽선 포함 180,166,16×11, 퍼덕 칸은 3px 뜸). 처음 자리(y 158)는 뒤 덤불 앞이라 떠 보이지 않아 9px 내렸다. 상자 아래 끝 180 = 테두리 위 끝이라 테두리(fountain) 상자와 안 겹친다" },
@@ -265,6 +266,45 @@
       "note": "미끼(S2 13번, 이름만 decoy.). 폴백이 아니라 규칙: 폴백이면 힌트 ②(hint_stomp)가 이미 끝난 쿵을 가리킨다(설계 3절). 재킷 rattle은 넣지 않는다: 동상 손은 배경이라 못 흔들고, 재킷만 덜컹하면 \"더 치면 떨어진다\"로 읽혀 대사(がっちり)와 반대 단서가 된다(PR #558 Luna 리뷰)"
     },
     {
+      "id": "decoy.statue_sit_wet",
+      "target": "statue",
+      "verb": "stomp",
+      "when": { "flags": { "fountain.off": false } },
+      "show": [
+        { "anim": ["mukjik", "sit_corner"] },
+        { "fx": ["splash", "mukjik"] },
+        { "anim": ["mukjik", "common.wet"] },
+        { "anim": ["floor", "pigeons_turn"] },
+        { "say": ["mukjik", ["park_fountain.statue_sit_wet", "park_fountain.sit_wet_again"]] }
+      ],
+      "note": "미끼(S2 15번, #802 5회차 표 #3). \"동상을 밟아 물을 멈춘다\" 첫 시도: 물 속 동상에는 못 올라가 테두리에 털썩 앉고 엉덩이만 젖는다(10번과 같은 연출, 새 칸 0). 돌우산을 쓴 동상만 멀쩡하다 → 물이 돌우산 위로 떨어진다(단서 ⑥ 쪽, 비둘기·손은 말하지 않음). 물 켜짐이면 jacket.on_hand는 늘 거짓이라 땅 비둘기 anim이 순간이동하지 않는다"
+    },
+    {
+      "id": "decoy.statue_sit",
+      "target": "statue",
+      "verb": "stomp",
+      "when": { "flags": { "fountain.off": true } },
+      "show": [
+        { "anim": ["mukjik", "sit_corner"] },
+        { "say": ["mukjik", "park_fountain.sit_calm"] }
+      ],
+      "note": "미끼(S2 16번). 물이 멈추면 11번과 같다. 비둘기 anim 없음(jacket.on_hand 참일 수 있음)"
+    },
+    {
+      "id": "decoy.statue_poke_wet",
+      "target": "statue",
+      "verb": "stretch",
+      "when": { "flags": { "fountain.off": false } },
+      "show": [
+        { "anim": ["jjuk", "common.reach_wobble"] },
+        { "fx": ["stretch_text", "jjuk"] },
+        { "fx": ["splash", "jjuk"] },
+        { "anim": ["jjuk", "common.wet"] },
+        { "say": ["jjuk", ["park_fountain.statue_poke_wet", "park_fountain.wet_again"]] }
+      ],
+      "note": "미끼(S2 17번). 물줄기 가운데 기둥이 동상 앞을 지나서 장대가 물을 맞는다. 게이지는 그대로(미끼, ADR-0761 H4. 다치는 칸은 5번 하나). 두 번째는 wet_again(誰か止めてくれへん？)으로 관리실 쪽을 본다. 물이 멈춘 뒤는 폴백(돌이라 손만 저림)"
+    },
+    {
       "id": "decoy.jacket_squeak_seated",
       "target": "jacket",
       "verb": "squeak",
@@ -284,6 +324,18 @@
         { "fx": ["squeak_text", "ppik"] },
         { "fx": ["small_squeak_text", "fountain"] },
         { "say": ["ppik", "park_fountain.fountain_squeak"] }
+      ] }
+    },
+    "statue": {
+      "stretch": { "show": [
+        { "anim": ["jjuk", "common.stretch"] },
+        { "fx": ["clang_text", "statue"] },
+        { "say": ["jjuk", "park_fountain.statue_tap"] }
+      ] },
+      "squeak": { "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "say": ["ppik", "park_fountain.statue_squeak"] }
       ] }
     },
     "jacket": {
