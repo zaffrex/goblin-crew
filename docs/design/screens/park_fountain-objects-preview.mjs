@@ -14,7 +14,7 @@
 //   park_fountain-objects-jacket-4x.png  재킷 P5를 4배로, 동상·돌우산(배경 시안)과 함께
 //     순서: 꼭대기(멈춤) | 움찔 | 미끄러짐 | 떨어짐(위) | 떨어짐(아래) | 손에 턱(= on_hand 멈춘 모습)
 //   park_fountain-objects-pigeons-4x.png  비둘기 셋(#526)을 4배로, **완성 배경** 위에(테두리·연못 앞 대비를 보려고)
-//     테두리 앞면(물건)도 엔진 순서대로 깐다. 순서: 쉬기 | pigeons_up 8칸(놀람 → 퍼덕 → 꼭대기 → 내려옴 → 놀람) | pigeons_turn 돌아보기
+//     테두리 앞면(물건)도 엔진 순서대로 깐다. 순서: 쉬기 | pigeons_turn 돌아보기 (나는 칸은 pigeons-top-2x)
 //   park_fountain-objects-pigeons-top-2x.png  S2 돌우산 꼭대기(#802)를 2배로, 완성 배경 + 재킷 위에. 순서: perch 놀람 | 상승 3·6·9칸 | 툭 내려앉음 |
 //     꼭대기(재킷 앞) | 재킷 미끄러지는 중 | 재킷 손에 턱 | splash 맞는 칸(앉기 직전) | 밀려 내려감 3·6칸 | 땅 놀람
 //   park_fountain-objects-pigeons-top-4x.png  꼭대기만 4배: 재킷 앞에 앉음 | 재킷 미끄러지는 중 | 손에 턱(클리어 뒤 그림, 물줄기 빼고)
@@ -400,31 +400,28 @@ for (const [name, k, at] of [['입구 대기', 'watch', GUEST_AT], ['재회 만�
 }
 
 // ── 비둘기 (#526): 바닥 자리 `floor`가 맡는 물건. 화면 JSON은 fx가 아니라 anim으로 부른다.
+// S2(#802)에서 옛 `pigeons_up`(40px 퍼덕)은 지웠다. 나는 칸은 아래 S2 절이 본다.
 {
   const P = meta.objects.find((o) => o.key === 'pigeons');
   check(Boolean(P) && P.ids.length === 1 && P.ids[0] === 'floor', '비둘기 물건은 바닥 자리 floor 하나만 맡는다(핫스팟이 아니라 클릭 대상 아님)');
-  const up = A['floor.pigeons_up'], turn = A['floor.pigeons_turn'];
-  check(Boolean(up && turn), '시트에 floor.pigeons_up·floor.pigeons_turn이 있다');
+  const turn = A['floor.pigeons_turn'];
+  check(Boolean(turn) && !A['floor.pigeons_up'], '시트에 floor.pigeons_turn이 있고 옛 pigeons_up은 없다');
   const raw = JSON.stringify(screen);
-  const asFx = /"fx":\["pigeons_(up|turn)"/.test(raw);
-  const asAnim = raw.includes('"anim":["floor","pigeons_up"]') && raw.includes('"anim":["floor","pigeons_turn"]');
-  check(!asFx && asAnim, '화면 JSON이 비둘기를 fx(임시 별)가 아니라 floor anim으로 부른다');
-  if (P && up && turn) {
+  const asFx = /"fx":\["pigeons_(up|turn|perch|splash)/.test(raw);
+  const asAnim = ['pigeons_turn', 'pigeons_perch', 'pigeons_splash_up', 'pigeons_splash_down'].every((n) => raw.includes(`"anim":["floor","${n}"]`));
+  check(!asFx && asAnim, '화면 JSON이 비둘기를 fx(임시 별)가 아니라 floor anim으로 부른다(turn·perch·splash_up·splash_down)');
+  if (P && turn) {
     const real = new Image(W, H);
     PARK.bg(real);
     const rest = P.default.frame;
     const rim = meta.objects.find((o) => o.key === 'fountain').default.frame;
-    const top = (f) => meta.frames[f].at[1];
-    check(up.frames[0] === up.frames.at(-1), 'pigeons_up 첫 칸 = 마지막 칸(놀람 칸으로 내려앉고 쉬는 그림으로 이어짐)');
-    const rise = top(rest) - Math.min(...up.frames.map(top));
-    check(rise >= 30, `pigeons_up 꼭대기가 쉬는 자리보다 ${rise}px 위(≥ 30, 흰 테두리를 지나 연못 앞까지)`);
     // 배경에 비둘기가 남지 않았는지: 쉬는 그림 자리의 배경에 비둘기 목 청록(tealM)이 없다
     const [rx, ry] = meta.frames[rest].at, [, , rw, rh] = meta.frames[rest].src;
     let teal = 0;
     for (let y = ry; y < ry + rh; y++) for (let x = rx; x < rx + rw; x++) if (real.get(x, y) === C.tealM) teal++;
     check(teal === 0, `배경에 비둘기가 남지 않았다(쉬는 자리 배경의 청록 목 ${teal}픽셀 = 0)`);
     const S = 4, x0 = 176, y0 = 150, cw = 104, ch = 74;
-    const shots = [rest, ...up.frames, turn.frames[0]];
+    const shots = [rest, turn.frames[0]];
     const out = new Image(cw * shots.length + shots.length - 1, ch);
     shots.forEach((f, n) => {
       // 엔진 순서대로: 배경 → 테두리 앞면(물건) → 비둘기
@@ -447,7 +444,7 @@ for (const [name, k, at] of [['입구 대기', 'watch', GUEST_AT], ['재회 만�
   if (missing.length === 0) {
     const [perch, sUp, sDown] = names.map((n) => A[n]);
     check(perch.hold === true && sUp.hold === true && !sDown.hold, 'perch·splash_up은 hold, splash_down은 hold 없음');
-    check(sDown.frames.at(-1) === A['floor.pigeons_up'].frames[0], 'splash_down 마지막 칸 = 땅 놀람 칸(쉬는 그림으로 이어짐)');
+    check(sDown.frames.at(-1) === perch.frames[0] && sUp.frames[0] === perch.frames[0], 'splash_up 첫 칸·splash_down 마지막 칸 = perch 첫 칸(땅 놀람, 쉬는 그림으로 이어짐)');
     const bb = (f) => { const { at: [x, y], src: [, , w, h] } = meta.frames[f]; return [x, y, x + w - 1, y + h - 1]; };
     // 새마다 칸당 이동(대각 거리). 오르기 = 땅 놀람(쉬는 자리 2px 위) → 9칸 → 내려앉음, 떨어지기 = 꼭대기 → 7칸 → 땅 놀람
     const hop = PIGEONS_AT.map(([x, y]) => [x, y - 2]);

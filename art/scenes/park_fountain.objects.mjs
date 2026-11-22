@@ -945,16 +945,9 @@ const flock = (pose) => (im) => {
 };
 const pigeonsPic = {
   rest: flock(() => ['rest', 0, 0]),
-  // 단서 ② 날아오름(설계 2절 7번 "비둘기가 날았다 내려앉음"): 놀람 → 퍼덕퍼덕 40px까지 → 다시 내려와 놀람 칸으로 착지.
-  // 꼭대기는 셋째 새(y 204) 기준 164: 흰 테두리(180~198)를 지나 그 위 연못 뒤 어두운 덤불 앞에서 회색 몸이 갈린다.
-  // 26px 판은 꼭대기가 흰 돌 위라 1배에서 새가 돌에 묻혔다(로컬 캡처).
+  // 날기 전·내려앉은 직후 놀람(땅에서 2px 펄쩍). S2 perch·splash의 첫 칸, splash_down의 끝 칸.
+  // 옛 7번 `pigeons_up`(40px만 퍼덕 → 제자리)은 S2에서 `pigeons_splash_*`(돌우산까지)로 바뀌어 지웠다(#802, 화면이 안 부르는 칸은 R1 장부가 막는다).
   hop: flock(() => ['startle', 2, 0]),
-  up1: flock(() => ['up', 10, 1]),
-  down1: flock(() => ['down', 21, 2]),
-  up2: flock(() => ['up', 32, 3]),
-  down2: flock(() => ['down', 40, 4]),
-  up3: flock(() => ['up', 30, 3]),
-  down3: flock(() => ['down', 15, 2]),
   // 돌아보기(재킷 프피, 설계 3절 jacket 행 "물줄기가 꺼졌으면 비둘기만 돌아본다"): 셋 다 반대로 고개를 돌린다.
   turn: flock(() => ['rest', 0, 0, true]),
 };
@@ -1008,12 +1001,6 @@ OBJECTS.pigeons = {
   // **S2 화면 JSON과 같이 머지한다.** 옛 규칙(`fountain_stomp_drop`)은 비둘기를 안 날리고 on_hand를 켜서, 이 줄만 들어가면 셋이 꼭대기로 순간이동한다.
   // (그래서 이 PR은 혼자 못 들어간다: R1 장부 테스트가 화면 JSON이 안 부르는 새 칸을 막는다.)
   states: [{ when: { flags: { 'jacket.on_hand': true } }, draw: pigeonsPic.top }],
-};
-// 7번 `jacket_ground_stomp`(단서 ②): ぼふっ 뒤 셋이 퍼덕 날았다가 제자리에 내려앉는다. 흙길 쿵은 "새가 잠깐 놀랄" 만큼만 울린다.
-// 끝나면 쉬는 그림(같은 자리)이라 따로 붙들지 않는다.
-ANIMS['floor.pigeons_up'] = {
-  ms: [100, 80, 90, 90, 120, 100, 100, 100],
-  frames: [pigeonsPic.hop, pigeonsPic.up1, pigeonsPic.down1, pigeonsPic.up2, pigeonsPic.down2, pigeonsPic.up3, pigeonsPic.down3, pigeonsPic.hop],
 };
 // 재킷 × プピ 폴백: 소리 쪽을 두리번(돌아봄 → 원래 → 다시 돌아봄). 날지는 않는다(프피는 쿵보다 약하다).
 ANIMS['floor.pigeons_turn'] = { ms: [300, 150, 350], frames: [pigeonsPic.turn, pigeonsPic.rest, pigeonsPic.turn] };
