@@ -25,7 +25,7 @@ import { CONTENT_VERSION, saveOnCard, startFromSave } from './core/progress';
 import { LocalSaveStore, probeStorage } from './core/save/store';
 import type { SaveData } from './core/save/schema';
 import orderJson from '../content/screens/order.json';
-import { activeFx, activeMarkerVisible, boardDrop, charPose, charWalking, createScene, currentBubble, drawOrder, gaugeDrop, isBusy, isHanging, sceneArtView, sceneLayout, mouseHoverThroughSay, sceneTap, sceneTick, selectsDuringSay, takeWalkStart, tapContext, type SceneData, type SceneState } from './core/scene';
+import { activeFx, activeMarkerVisible, boardDrop, charPose, charWalking, createScene, currentBubble, drawOrder, gaugeDrop, introHoverScene, isBusy, isHanging, sceneArtView, sceneLayout, mouseHoverThroughSay, sceneTap, sceneTick, selectsDuringSay, takeWalkStart, tapContext, type SceneData, type SceneState } from './core/scene';
 import { animFrameBox, coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
 import { isTapKey } from './core/keys';
@@ -396,9 +396,13 @@ function updateHover(p: Point | null): void {
     hoverHud = hit ? (hit[0] as HudId) : null;
     return;
   }
-  // busy 중에는 끈다. 예외(#776): 행동 뒤 마지막 말풍선 중 그 클릭이 말풍선을 닫고 그대로 실행될 때만 띄운다(예외 넷 3).
-  if (isBusy(scene) && !mouseHoverThroughSay(data, scene, p)) return;
-  const r = resolveTap(tapContext(data, scene), scene.ui, p, 0);
+  // busy 중에는 끈다. 예외 둘:
+  // - 시작 연출 중(#798, 예외 넷 1): 클릭이 남은 시작 연출을 끝내고 쉴 때처럼 처리되니, 라벨도 그 뒤 상태로 쉴 때 그대로 띄운다.
+  // - 행동 뒤 마지막 말풍선 중(#776, 예외 넷 3): 그 클릭이 말풍선을 닫고 그대로 실행될 때만 띄운다.
+  const intro = introHoverScene(scene);
+  if (!intro && isBusy(scene) && !mouseHoverThroughSay(data, scene, p)) return;
+  const hs = intro ?? scene;
+  const r = resolveTap(tapContext(data, hs), hs.ui, p, 0);
   hoverLabel = 'label' in r ? r.label : null;
   canvas.style.cursor = r.kind === 'act' ? 'pointer' : 'default';
 }
@@ -661,8 +665,9 @@ function render(): void {
   // 라벨과 호버 외곽선(형식 기록 10-1절)은 같은 대상: 마우스 호버 또는 터치 첫 탭. busy·클리어 중에는 끈다.
   // 예외: 행동 뒤 마지막 말풍선 중 터치로 고른 대상(예외 넷 2, #700)은 말풍선과 함께 보인다. 안 그러면 첫 탭이 먹혔는지 안 보인다(#704).
   // 마우스는 그 클릭이 말풍선을 닫고 그대로 실행될 때만(예외 넷 3, #776). 잠금이 풀리는 순간은 마우스가 안 움직여도 오니 매 프레임 다시 잰다.
-  // `updateHover`가 busy 중에는 그때만 `hoverLabel`을 채운다.
-  const sayingToMouse = lastMouse !== null && selectsDuringSay(scene);
+  // 시작 연출 중 마우스 호버는 쉴 때와 같다(#798, 예외 넷 1). 카드를 닫은 순간처럼 마우스가 가만히 있어도 뜨게 매 프레임 다시 잰다.
+  // `updateHover`가 busy 중에는 이 두 때만 `hoverLabel`을 채운다.
+  const sayingToMouse = lastMouse !== null && (selectsDuringSay(scene) || (scene.intro && isBusy(scene)));
   if (sayingToMouse) updateHover(lastMouse);
   const sayHover = sayingToMouse ? hoverLabel : null;
   const busyShown = (scene.ui.selected !== null && selectsDuringSay(scene) ? touchLabel : null) ?? sayHover;

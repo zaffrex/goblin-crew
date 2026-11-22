@@ -1535,6 +1535,19 @@ function skipIntro(s: SceneState): void {
   settle(s);
 }
 
+/**
+ * 시작 연출 중 마우스 호버를 잴 상태(#798, `ui-interaction.md` 5절 예외 넷 1). 시작 연출(`intro`)이 남았으면 `sceneTap`처럼
+ * 남은 시작 연출을 끝낸 **복사본**, 아니면 null(쉴 때·다른 busy는 지금 판정 그대로). 클릭이 `skipIntro` 뒤에 판정되니 호버도
+ * 같은 상태로 잰다. 그래서 시작 연출이 나중에 캐릭터·물건 상자를 바꾸게 돼도 "라벨이 보이면 그 클릭은 그대로 된다"가 지켜진다.
+ * `s`는 바꾸지 않는다: `skipIntro`는 `shown`만 고쳐 쓰고 나머지는 새 값을 대입한다(테스트가 원본 그대로임을 본다).
+ */
+export function introHoverScene(s: SceneState): SceneState | null {
+  if (s.cleared || !s.intro || !isBusy(s)) return null;
+  const c: SceneState = { ...s, shown: { ...s.shown } };
+  skipIntro(c);
+  return c;
+}
+
 /** 클리어 규칙 연출(`clear` 이벤트가 아직 끝나지 않았다)이 도는 중인가(#765). */
 function clearPending(s: SceneState): boolean {
   return s.current?.ev.type === 'clear' || s.queue.some((e) => e.type === 'clear');
@@ -1686,6 +1699,7 @@ function sayUnlocked(s: SceneState, ev: { speaker: string; text: string }, t: nu
  * 지금 p를 클릭하면 `sceneTap`이 행동 뒤 마지막 말풍선을 닫고 그 클릭을 그대로 처리하는 때만 참이다:
  * 마지막 말풍선이 잠금 뒤이고, 판정이 방금과 다른 행동이거나 화면 속 동료 몸(전환)이다.
  * 같은 행동·바닥·빈 곳·잠금 전·연출 중간 말풍선·시작 연출·HUD 영역은 거짓이다. "라벨이 보이면 그 클릭은 그대로 된다".
+ * 시작 연출 중 호버는 이 함수가 아니라 `introHoverScene`이 쉴 때와 같게 잰다(#798).
  * 마우스 전용이다(터치는 호버가 없고 예외 넷 2의 선택 라벨을 쓴다). `s`는 바꾸지 않는다.
  */
 export function mouseHoverThroughSay(data: SceneData, s: SceneState, p: Point): boolean {
