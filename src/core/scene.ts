@@ -259,6 +259,12 @@ export interface SceneState {
    */
   lastActKey: string | null;
   /**
+   * 마우스로 행동 뒤 마지막 말풍선의 잠금 *전*에 누른 클릭 중, 잠금 뒤였다면 그대로 실행됐을 것 하나(`ui-interaction.md` 5절 예외 넷 3,
+   * #601 6회차). 엔진이 매 틱 `takeHeldTap`으로 꺼내 잠금이 풀리는 틱에 같은 점을 다시 누른다. 새 탭이 오면 지운다. UI 상태라 세이브하지 않는다.
+   * `say`는 맡을 때의 말풍선 이벤트다. 다른 말풍선으로 바뀌면 버린다.
+   */
+  heldTap: { p: Point; say: unknown } | null;
+  /**
    * 이 화면의 클리어 연출을 이번 페이지에서 이미 끝까지 봤다(#765, M2 플래닝 회의록 "확인한 것"). 엔진이 새 판을 만들 때 채운다.
    * 참이면 클리어 규칙 연출 중 월드 탭 하나가 남은 연출을 끝 상태로 돌리고 카드로 넘긴다(`skipClearRule`). UI 상태라 세이브하지 않는다.
    */
@@ -440,6 +446,7 @@ export function createScene(data: SceneData): SceneState {
     intro: false,
     walkStart: null,
     lastActKey: null,
+    heldTap: null,
     clearSeen: false,
     clearAt: null,
   };
@@ -1616,6 +1623,8 @@ export type SceneTapResult =
   | { kind: 'skipSay' }
   /** 이미 본 클리어 연출을 통째로 넘겼다(#765). */
   | { kind: 'skipClear' }
+  /** 마우스, 마지막 말풍선 잠금 전에 다른 행동 클릭: 맡아 뒀다가 잠금이 풀리면 실행한다(`takeHeldTap`, #601). */
+  | { kind: 'held' }
   | { kind: 'intent'; intent: Intent };
 
 /**
@@ -1628,6 +1637,8 @@ export type SceneTapResult =
  *   터치이고 그 말풍선이 마지막 이벤트면(예외 넷 2): 잠금 전에는 선택만 받고, 잠금 뒤에는 닫고 평소대로 처리한다.
  */
 export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number, touch: boolean): SceneTapResult {
+  // 맡아 둔 클릭은 새 탭 하나로 바뀐다(마음을 바꿨거나 얼굴을 바꿨다). 아래에서 다시 맡을 수 있다.
+  s.heldTap = null;
   // #765: 이미 본 클리어 연출은 정답 행동 0.4초 뒤 월드 탭 하나로 카드까지 넘긴다(anim·fx·걷기·대사·컷 글 모두).
   // 처음 보는 클리어는 그대로 둔다(처음 보는 사람은 끝까지 본다, M2 회의록). HUD 영역 탭은 아래 예외 셋 그대로다.
   if (s.clearSeen && s.clearAt !== null && clearPending(s) && !inHudZone(p)) {
@@ -1673,7 +1684,13 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
     const last = nothingAfterCurrent(s);
     if (!unlocked) {
       // 예외 넷 2(#700): 터치, 행동 뒤 마지막 말풍선의 잠금 전에는 말풍선은 그대로 두고 고르기(select)만 받는다.
-      // 걷기·전환·실행(같은 대상 다시 탭)은 버리고 선택도 그대로 둔다. 마우스·연출 중간 말풍선은 다 버린다.
+      // 걷기·전환·실행(같은 대상 다시 탭)은 버리고 선택도 그대로 둔다. 연출 중간 말풍선은 다 버린다.
+      // 예외 넷 3 잠금 전(#601 6회차): 마우스는 잠금 뒤였다면 실행됐을 클릭(다른 행동·동료 몸)만 맡아 뒀다가 잠금이 풀리면 실행한다.
+      // 같은 행동·바닥·빈 곳은 지금처럼 버린다(대사를 넘기려던 클릭이 잠금 뒤 닫기로 바뀌지 않게).
+      if (!touch && last && mouseActsThroughSay(data, s, p, slop)) {
+        s.heldTap = { p, say: cur.ev };
+        return { kind: 'held' };
+      }
       if (!touch || !last) return { kind: 'ignored' };
       const r = tap(tapContext(data, s), s.ui, p, slop, touch);
       if (r.intent.kind !== 'select') return { kind: 'ignored' };
@@ -1728,6 +1745,23 @@ function mouseActsThroughSay(data: SceneData, s: SceneState, p: Point, slop: num
   const intent = tap(tapContext(data, s), s.ui, p, slop, false).intent;
   if (intent.kind === 'switch') return true;
   return intent.kind === 'act' && intent.key !== s.lastActKey;
+}
+
+/**
+ * 맡아 둔 클릭(`heldTap`, 예외 넷 3 잠금 전, #601)을 지금 다시 누를 때면 그 점을 주고 지운다. 엔진이 `sceneTick` 뒤 매 틱 부른다.
+ * - 같은 말풍선이 잠금 뒤가 됐고 그 점이 지금도 그대로 실행될 클릭(`mouseHoverThroughSay`)이면: 점을 준다.
+ * - 말풍선이 끝나 쉬는 중이면(말풍선 길이 = 잠금인 짧은 글): 점을 준다. 쉴 때 클릭과 같다.
+ * - 그 밖(다른 말풍선·연출·클리어, 또는 더는 실행되지 않는 클릭): 버린다. 아직 잠금 전이면 그대로 둔다.
+ */
+export function takeHeldTap(data: SceneData, s: SceneState): Point | null {
+  const h = s.heldTap;
+  if (!h) return null;
+  const cur = s.current;
+  if (cur && cur.ev === h.say && cur.ev.type === 'say' && !sayUnlocked(s, cur.ev, cur.t)) return null;
+  s.heldTap = null;
+  if (s.cleared) return null;
+  if (!isBusy(s)) return h.p;
+  return cur?.ev === h.say && mouseHoverThroughSay(data, s, h.p) ? h.p : null;
 }
 
 /** 말풍선 잠금(처음 보는 글 `saySkipAfter`, 본 글 `seenSaySkipAfter`)이 풀렸나. `sceneTap`과 호버 판정이 같은 값을 쓴다. */
