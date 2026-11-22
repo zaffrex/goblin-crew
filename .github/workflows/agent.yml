@@ -13,11 +13,11 @@ on:
         type: choice
         options: [pm, designer, frontend, backend, infra, qa]
       mode:
-        description: "tick(정기 작업) | event(이벤트 대응) | meeting(회의 진행, pm 전용)"
+        description: "tick(정기 작업) | event(이벤트 대응) | meeting(회의 진행, pm 전용) | chat(qa 대화 모드, 진마씨의 general 멘션 답, #751)"
         required: true
         default: tick
         type: choice
-        options: [tick, event, meeting]
+        options: [tick, event, meeting, chat]
       context:
         description: "깨운 이유 (이벤트 요약, 회의 종류 등)"
         required: false
@@ -25,7 +25,7 @@ on:
 
 concurrency:
   # 같은 역할은 동시에 하나만. 대기 중인 실행은 최신 하나로 대체된다 (역할은 어차피 전체 상태를 다시 훑는다).
-  group: agent-${{ inputs.role }}
+  group: agent-${{ inputs.role }}${{ inputs.mode == 'chat' && '-chat' || '' }}   # 대화 모드가 대기 중인 QA 플레이 요청을 밀어내지 않게 분리
   cancel-in-progress: false
 
 permissions:
@@ -98,7 +98,7 @@ jobs:
 
       # 게임은 시스템 글꼴을 쓴다(ADR-0007 9절). 러너에는 일본어 글꼴이 없어 QA 스크린샷의 글자가 전부 □로 나왔다(#603).
       - name: Install Japanese fonts for QA
-        if: inputs.role == 'qa'
+        if: inputs.role == 'qa' && inputs.mode != 'chat'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk >/dev/null && fc-list :lang=ja | wc -l
 
       - name: Build prompt
@@ -126,14 +126,15 @@ jobs:
           prompt: ${{ steps.prompt.outputs.text }}
           claude_args: >-
             ${{ steps.model.outputs.args }}
-            --max-turns ${{ inputs.role == 'qa' && 100 || inputs.mode == 'meeting' && 200 || 120 }}
+            --max-turns ${{ inputs.mode == 'chat' && 12 || inputs.role == 'qa' && 100 || inputs.mode == 'meeting' && 200 || 120 }}
             ${{ inputs.role == 'qa' && '--permission-mode dontAsk --tools "Read,Write,Bash" --allowedTools "Read,Write(qa-work/**),Edit(./qa-work/**),Bash(scripts/slack.sh:*),Bash(node scripts/qa/browse.ts:*),Bash(gh issue comment:*),Bash(gh issue create:*)"' || '--permission-mode auto' }}
             --append-system-prompt-file .claude/agents/${{ inputs.role }}.md
             ${{ vars.BEAKET_ENABLED == 'true' && inputs.role != 'qa' && '--plugin-dir .github/beaket/plugin' || '' }}
           bot_id: "209825114"
           # QA 실행이 2턴 만에 끝난 원인(거부된 명령)이 로그에 안 남는다(#601, #603). QA 실행에서만 전체 출력을 켠다.
           # 비밀값은 GitHub이 로그에서 가린다. QA 실행에는 QA·infra 토큰 외에 아무것도 없다.
-          show_full_output: ${{ inputs.role == 'qa' }}
+          # 대화 모드(#751)는 Slack 본문이 로그에 남으면 안 되므로 끈다.
+          show_full_output: ${{ inputs.role == 'qa' && inputs.mode != 'chat' }}
 
       # Mia 스크린샷을 팀이 볼 수 있게 한다(#684). PNG만 올린다(report.md 등 제외). 보관 7일, 공개 저장소라 로그인한 사람은 받을 수 있다.
       - name: Upload QA screenshots

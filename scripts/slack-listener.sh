@@ -48,6 +48,12 @@ for r in "${ROLES[@]}"; do
   [ -n "$uid" ] && ROLE_OF_UID[$uid]=$r
 done
 [ "${#TOKENS[@]}" -gt 0 ] || { log "no Slack tokens; exiting"; exit 1; }
+# qa(Mia)는 멘션 대상으로만 알아본다. 채널·DM 조회에는 쓰지 않는다(#751: 진마씨의 general 멘션만 깨운다).
+tqa=$(token_of qa)
+if [ -n "$tqa" ]; then
+  uid=$(slack "$tqa" POST auth.test '{}' | jq -r '.user_id // empty')
+  [ -n "$uid" ] && ROLE_OF_UID[$uid]=qa
+fi
 
 # --- channels to watch: team channels + CEO DM per member ----------------------------------------
 declare -A CH_TOKEN CH_NAME CH_DMROLE CURSOR WIDE_CURSOR SEEN
@@ -118,15 +124,22 @@ enqueue() { # enqueue <role> <line> <by-bot:0|1> <thread-key>
 }
 
 flush() {
-  local role ctx
+  local role ctx mode
   for role in "${!PENDING[@]}"; do
     ROLE_WAKES[$role]=$(recent_count "${ROLE_WAKES[$role]:-}")
     if [ "$(wc -w <<<"${ROLE_WAKES[$role]}")" -ge "$ROLE_CAP" ]; then
       log "role cap hit: $role (kept pending, retry next tick)"; continue
     fi
-    ctx="Slack에서 너를 불렀다. 먼저 아래 위치의 메시지와 스레드를 읽고(scripts/slack.sh --as <너의 역할> thread <channel> <thread_ts>), 그 스레드에 바로 답한다:${PENDING[$role]}"
+    if [ "$role" = qa ]; then
+      # 대화 모드(#751): 본문 없이 위치만 넘긴다. Mia는 read-mention으로 그 글 하나만 읽는다.
+      ctx="QA 대화 모드. 진마씨가 #goblin-general에서 너를 불렀다. 아래 각 위치마다 scripts/slack.sh --as qa read-mention general <ts> <thread_ts>로 그 글만 읽고 그 스레드에 한 번 답한다:${PENDING[$role]}"
+      mode=chat
+    else
+      ctx="Slack에서 너를 불렀다. 먼저 아래 위치의 메시지와 스레드를 읽고(scripts/slack.sh --as <너의 역할> thread <channel> <thread_ts>), 그 스레드에 바로 답한다:${PENDING[$role]}"
+      mode=event
+    fi
     if [ "${DRY_RUN:-}" = 1 ]; then echo "DISPATCH $role :: $ctx"
-    elif ! gh workflow run agent.yml -R "$REPO" -f role="$role" -f mode=event -f context="$ctx" >/dev/null 2>&1; then
+    elif ! gh workflow run agent.yml -R "$REPO" -f role="$role" -f mode="$mode" -f context="$ctx" >/dev/null 2>&1; then
       log "dispatch failed for $role (kept pending, retry next tick)"; continue   # do not lose the queue on failure
     else log "woke $role"; fi
     ROLE_WAKES[$role]="${ROLE_WAKES[$role]} $(date +%s)"
@@ -161,6 +174,15 @@ process() { # process <channel-id> <message-json> <thread-parent-user>
   else
     for t in $mentions; do [ "$t" != "$author" ] && targets="$targets $t"; done
   fi
+  # qa는 진마씨가 #goblin-general에서 명시적으로 멘션했을 때만 깨운다(#751). 다른 곳·다른 작성자·멘션 없는 답글은 버린다.
+  local kept=""
+  for t in $targets; do
+    if [ "$t" = qa ]; then
+      [ "$author" = ceo ] && [ "${CH_NAME[$ch]}" = general ] && [[ " $mentions " == *" qa "* ]] || continue
+    fi
+    kept="$kept $t"
+  done
+  targets=$kept
   [ -n "$targets" ] || return 0
   local line bybot=0; [ "$author" != ceo ] && bybot=1
   line="channel=${CH_NAME[$ch]} ts=$ts thread_ts=$thread 작성자=$(author_label "$author")"

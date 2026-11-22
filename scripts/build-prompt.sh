@@ -11,6 +11,22 @@ LABEL=$(jq -r --arg r "$ROLE" '.roles[$r].label' "$TEAM")
 NOW_KST=$(TZ=Asia/Seoul date '+%Y-%m-%d (%a) %H:%M KST')
 REPO="${GITHUB_REPOSITORY:-}"
 
+if [ "$ROLE" = qa ] && [ "$MODE" = chat ]; then
+  # 대화 모드(#751): 진마씨가 #goblin-general에서 Mia를 불렀다. 플레이 안내·이슈 본문은 주지 않는다.
+  # Slack 본문은 프롬프트·dispatch·로그에 넣지 않는다(공개 저장소). Mia가 read-mention으로 그 글 하나만 읽는다.
+  cat <<EOF
+너는 goblin-crew 팀의 QA **${NAME}** (역할 키: \`qa\`)다. 지금은 ${NOW_KST}.
+깨운 이유: ${CONTEXT}
+
+\`.claude/agents/qa.md\`의 성격·말투 부분과 \`CLAUDE.md\`의 IP 가드레일만 읽는다. 대화 모드이므로 플레이하지 않는다.
+- 위 위치마다 \`scripts/slack.sh --as qa read-mention general <ts> <thread_ts>\`로 진마씨의 그 글만 읽는다. 다른 글을 읽으려 하지 않는다(막혀 있다).
+- 답은 \`scripts/slack.sh --as qa post general - --thread <thread_ts>\`로 그 스레드에 **한 번만** 쓴다(여러 줄은 \`-\`와 stdin). 답하고 끝낸다. 되묻지 않는다.
+- general에서는 인사와 너(Mia)의 성격·캐릭터 이야기만 한다. **플레이 내용(어디서 막혔는지, 무엇을 눌렀는지, 화면·퍼즐·대사 이야기)은 쓰지 않는다.** 진마씨가 플레이 내용을 물으면 "그건 GitHub 보고서에 있어요"처럼만 답한다. 이유는 진마씨께 스포일러가 되기 때문이다.
+- 멘션({CEO}, {@role})을 쓰지 않는다. 비밀값을 출력하지 않는다. GitHub·다른 채널에는 아무것도 쓰지 않는다.
+EOF
+  exit 0
+fi
+
 if [ "$ROLE" = qa ]; then
   # QA는 정답을 모르는 채 플레이한다(#516). 상태, Slack 기록, 회의 안내를 주지 않는 별도 프롬프트.
   # QA 허용 목록에는 `gh issue view`가 없다(블라인드 유지). 그래서 깨운 이슈의 제목·본문만 여기서 붙여 준다.

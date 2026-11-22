@@ -6,6 +6,7 @@
 #   scripts/slack.sh [--as <role>] history <channel> [limit=30] [oldest_ts] # newest last
 #   scripts/slack.sh [--as <role>] thread <channel> <ts>
 #   scripts/slack.sh --as <role> react <channel> <ts> <emoji-name>
+#   scripts/slack.sh --as qa read-mention general <ts> [thread_ts]   # qa only: the one CEO message that mentions qa (#751)
 #   scripts/slack.sh --as <role> upload <channel> <file> [comment] [--thread <ts>]
 #   scripts/slack.sh permalink <channel> <ts>
 #   scripts/slack.sh join-all                    # every member's bot joins all team channels
@@ -14,7 +15,8 @@
 # <channel>: general | dev | meeting | decisions | ceo | github | ceo-dm  (or a raw channel ID)
 #            ceo-dm = the DM between the CEO and <role>'s own bot (use with --as <role>).
 # <role>:    pm | designer | frontend | backend | infra | qa
-#            qa(Mia)는 정답 차단 때문에 general만 읽고(#516), dev·general에만 쓴다.
+#            qa(Mia)는 정답 차단 때문에 history·thread를 전부 못 읽는다(#516). 쓰기는 dev·general만(#751).
+#            general에서 읽는 건 read-mention으로 진마씨가 Mia를 멘션한 글 하나뿐이다.
 # text "-" reads the message body from stdin (use for multi-line messages).
 # Mentions in posted text: {CEO} -> the CEO, {@pm} {@designer} {@frontend} {@backend} {@infra} -> that member.
 # --no-mentions: post untrusted text (e.g. commit subjects) verbatim: no {CEO}/{@role} expansion, and
@@ -147,7 +149,7 @@ escape_slack() { # Slack control characters, so untrusted text cannot form menti
 
 case "$CMD" in
   post)
-    QA_CH="${1:?channel}"; qa_guard dev
+    QA_CH="${1:?channel}"; qa_guard dev general
     [ -n "$ROLE" ] || die "post requires --as <role>"
     ch=$(channel_id "${1:?channel}"); text="${2:?text or -}"; shift 2
     thread=""; nomen=0
@@ -178,8 +180,26 @@ case "$CMD" in
     ch=$(channel_id "${1:?channel}"); ts="${2:?ts}"
     api_get conversations.replies "channel=$ch&ts=$ts&limit=200" | jq '.messages' | format_messages
     ;;
+  read-mention)
+    # #751: Mia는 general을 못 읽지만, 진마씨가 Mia를 멘션한 글 하나는 읽어야 답할 수 있다.
+    # 작성자가 진마씨이고 qa 멘션이 들어 있고 ts가 정확히 같은 글만 돌려준다. 앞뒤 글·스레드 원글은 출력하지 않는다.
+    [ "$ACTOR" = qa ] || die "read-mention은 qa 전용이에요"
+    QA_CH="${1:?channel}"; qa_guard general
+    ts="${2:?ts}"; thread="${3:-$ts}"
+    [[ "$ts" =~ ^[0-9]+\.[0-9]+$ && "$thread" =~ ^[0-9]+\.[0-9]+$ ]] || die "read-mention: ts 형식이 아니에요"
+    ch=$(channel_id general); me=$(member_uid qa)
+    if [ "$thread" = "$ts" ]; then
+      resp=$(api_get conversations.history "channel=$ch&latest=$ts&oldest=$ts&inclusive=true&limit=1")
+    else
+      resp=$(api_get conversations.replies "channel=$ch&ts=$thread&latest=$ts&oldest=$ts&inclusive=true&limit=5")
+    fi
+    one=$(jq -c --arg ts "$ts" --arg ceo "$CEO_ID" --arg me "<@$me>" \
+      '[.messages[] | select(.ts == $ts and .user == $ceo and ((.text // "") | contains($me)))] | .[0:1]' <<<"$resp")
+    [ "$one" != "[]" ] || die "read-mention: 진마씨가 Mia를 멘션한 글이 아니에요"
+    format_messages <<<"$one"
+    ;;
   react)
-    QA_CH="${1:?channel}"; qa_guard dev
+    QA_CH="${1:?channel}"; qa_guard dev general
     ch=$(channel_id "${1:?channel}")
     api reactions.add "$(jq -n --arg c "$ch" --arg t "${2:?ts}" --arg n "${3:?emoji}" '{channel:$c, timestamp:$t, name:$n}')" >/dev/null
     echo ok
