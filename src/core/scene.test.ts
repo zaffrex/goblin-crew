@@ -504,9 +504,7 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
     sceneTap(data, s, SEESAW_LEFT, 0, false);
     idle(s);
     pick(s, 'mukjik');
-    sceneTap(data, s, SEESAW_RIGHT, 0, false); // 올라섬
-    idle(s);
-    sceneTap(data, s, SEESAW_RIGHT, 0, false); // 한 번 더 = 쿵(6-4-1절)
+    sceneTap(data, s, SEESAW_RIGHT, 0, false); // 특기 자리: 첫 클릭 = 쿵(6-4-1c #723)
     idle(s);
   }
   /** 매달린 c에게 바닥을 누르게 해서 손을 놓게 한다(5절 1단계). */
@@ -548,9 +546,7 @@ describe('바구니 착지 점과 포개짐 (형식 기록 6절 2번, 10절 2단
     sceneTap(data, s, SEESAW_RIGHT, 0, false);
     idle(s);
     pick(s, 'mukjik');
-    sceneTap(data, s, SEESAW_LEFT, 0, false); // 올라섬
-    idle(s);
-    sceneTap(data, s, SEESAW_LEFT, 0, false); // 한 번 더 = 쿵
+    sceneTap(data, s, SEESAW_LEFT, 0, false); // 첫 클릭 = 쿵(6-4-1c)
     idle(s);
     expect(s.puzzle.at.ppik).toBe('floor');
     expect(at(s, 'ppik')).toEqual({ x: data.screen.spots.seesaw_right!.x, y: data.screen.spots.floor!.y });
@@ -809,9 +805,7 @@ describe('한 번 재생 연출의 마지막 장 유지와 매달림 (#189, 형�
     sceneTap(data, s, SEESAW_LEFT, 0, false);
     idle(s);
     pick(s, 'mukjik');
-    sceneTap(data, s, SEESAW_RIGHT, 0, false); // 올라섬
-    idle(s);
-    sceneTap(data, s, SEESAW_RIGHT, 0, false); // 한 번 더 = 쿵
+    sceneTap(data, s, SEESAW_RIGHT, 0, false); // 첫 클릭 = 쿵(6-4-1c)
     return s;
   }
 
@@ -1283,16 +1277,14 @@ describe('대상 앞까지 걷기 (설계 5-1절, #219)', () => {
     expect(s.puzzle.at.jjuk).toBe('hook');
   });
 
-  it('정답 3번(6-4-1절): 묵직이 오른쪽 끝에 올라선 뒤 한 번 더 = 쿵 → 쭉이가 고리로, 묵직이는 끝 자리에 선다', () => {
+  it('정답 3번(6-4-1c #723): 묵직이로 오른쪽 끝 클릭 1번 = 바닥 점까지 걸어가 쿵 → 쭉이가 고리로', () => {
     const s = ready();
     pick(s, 'jjuk');
     sceneTap(data, s, SEESAW_LEFT, 0, false);
     idle(s);
     pick(s, 'mukjik');
-    expect(sceneTap(data, s, SEESAW_RIGHT, 0, false)).toMatchObject({ intent: { kind: 'act', action: { verb: 'move' } } });
-    idle(s);
-    expect(s.puzzle.at.mukjik).toBe('seesaw_right');
     expect(sceneTap(data, s, SEESAW_RIGHT, 0, false)).toMatchObject({ intent: { kind: 'act', action: { verb: 'stomp', target: 'seesaw_right' } } });
+    expect(s.queue[0]).toMatchObject({ type: 'walk', char: 'mukjik', face: -1 });
     idle(s);
     expect(s.puzzle.at.jjuk).toBe('hook');
   });
@@ -1489,9 +1481,9 @@ describe('같은 발 y면 연출 중·조작 중인 사람이 앞 (#506)', () =>
 describe('터치 시소 끝 3탭: 전환 → 선택(꼬리) → 실행 (#603 7회차, #680)', () => {
   it('노비를 고른 채 묵직이가 선 왼쪽 끝을 탭하면 둘째 탭이 선택이고, 그 라벨에 "한 번 더 탭" 꼬리가 붙는다', () => {
     const s = ready();
-    // 묵직이 → 왼쪽 끝, 노비 → 오른쪽 끝 (마우스로 셋업).
+    // 묵직이 → 왼쪽 끝, 노비 → 오른쪽 끝. 묵직이는 특기 자리(6-4-1c #723)라 탭으로 못 올라서서 행동을 직접 넣는다.
     sceneTap(data, s, center(CHAR_SLOTS.mukjik), 0, false);
-    sceneTap(data, s, SEESAW_LEFT, 0, false);
+    runAction(data, s, { char: 'mukjik', verb: 'move', target: 'seesaw_left' }, null);
     idle(s);
     sceneTap(data, s, center(CHAR_SLOTS.jjuk), 0, false);
     sceneTap(data, s, SEESAW_RIGHT, 0, false);

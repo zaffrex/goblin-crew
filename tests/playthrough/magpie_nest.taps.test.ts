@@ -76,6 +76,7 @@ function replay(touch: boolean): { taps: string[]; final: PuzzleState } {
     const dflt = resolveTap(ctxFor(puzzle), ui, p, slop);
     if (dflt.kind !== 'act' || dflt.key !== actionKey(a)) {
       // 기본 탭이 다르면 올라서기(move)뿐이다. 올라선 뒤 같은 자리를 다시 누르면 자기 능력(6-4-1절).
+      // 화면 1은 특기 자리(6-4-1c #723) 뒤로 이 길을 안 탄다. 화면 2부터 정답에 "선 자리에 특기"가 오면 탄다.
       expect(dflt).toMatchObject({ kind: 'act', action: { char: a.char, verb: 'move', target: a.target } });
       expect(a.verb).toBe(characterDef(a.char).ability);
       run(p, a.target, { char: a.char, verb: 'move', target: a.target });
@@ -86,21 +87,21 @@ function replay(touch: boolean): { taps: string[]; final: PuzzleState } {
 }
 
 describe('magpie_nest solution by taps (ui-interaction.md 6-4-1·6-4-7절)', () => {
-  it('데스크톱: 얼굴 칸 + 대상 클릭만으로 정답 4행동이 나오고 클리어한다. 3번은 올라선 뒤 한 번 더', () => {
+  it('데스크톱: 얼굴 칸 + 대상 클릭만으로 정답 4행동이 나오고 클리어한다. 3번은 끝 클릭 1번 = 쿵(6-4-1c #723)', () => {
     const { taps, final } = replay(false);
     expect(taps).toEqual([
       '칸:ppik', 'magpie',
       '칸:jjuk', 'seesaw_left',
-      '칸:mukjik', 'seesaw_right', 'seesaw_right',
+      '칸:mukjik', 'seesaw_right',
       '칸:jjuk', 'nest',
     ]);
     expect(final.flags[screen.exitFlag]).toBe(true);
   });
 
-  it('터치: step 행동만 탭 2번. 3번은 탭 3번(선택·올라섬·쿵, 올라선 순간 쿵이 골라져 있다, 6-4-1a-1절 #710)', () => {
+  it('터치: step 행동만 탭 2번. 3번도 탭 2번(선택·쿵, 6-4-1c #723. 전에는 3번 #710)', () => {
     const { taps, final } = replay(true);
     expect(taps.filter((t) => !t.includes(':'))).toEqual([
-      'magpie', 'magpie', 'seesaw_left', 'seesaw_left', 'seesaw_right', 'seesaw_right', 'seesaw_right', 'nest', 'nest',
+      'magpie', 'magpie', 'seesaw_left', 'seesaw_left', 'seesaw_right', 'seesaw_right', 'nest', 'nest',
     ]);
     expect(final.flags[screen.exitFlag]).toBe(true);
   });

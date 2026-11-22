@@ -14,10 +14,9 @@ const CASES: FrameCase[] = [
   { id: 'ppik-squeak-nest', action: { char: 'ppik', verb: 'squeak', target: 'nest' }, why: '둥지에 삑: 소리 글자' },
   { id: 'ppik-squeak-magpie', action: { char: 'ppik', verb: 'squeak', target: 'magpie' }, why: '까치에 삑: 까치가 내려옴' },
   { id: 'jjuk-move-seesaw_left', action: { char: 'jjuk', verb: 'move', target: 'seesaw_left' }, why: '시소 왼쪽 끝 올라서기: 바닥 점까지 걷고 깡충(#397 1-5-2절)' },
-  { id: 'mukjik-move-seesaw_right', action: { char: 'mukjik', verb: 'move', target: 'seesaw_right' }, why: '시소 오른쪽 끝 올라서기: 가장 낮게·오래 웅크림(#397 1-5-3절)' },
-  // 세 사람 × 양쪽 끝(#397 완료 조건 3, #397 Luna 제안): 착지 칸에 판이 그 끝으로 기운다(3px, 묵직이 6px, 1-5-4절).
+  // 쭉이·삑삑이 × 양쪽 끝(#397 완료 조건 3): 착지 칸에 판이 그 끝으로 기운다(3px, 1-5-4절).
+  // 묵직이 올라서기 사례(웅크림·6px·제자리 쿵·들썩)는 뺐다: 특기 자리(ui-interaction 6-4-1c, #723)라 UI로 못 낸다.
   { id: 'jjuk-move-seesaw_right', action: { char: 'jjuk', verb: 'move', target: 'seesaw_right' }, why: '시소 오른쪽 끝 올라서기: 판이 오른쪽으로 3px' },
-  { id: 'mukjik-move-seesaw_left', action: { char: 'mukjik', verb: 'move', target: 'seesaw_left' }, why: '시소 왼쪽 끝 올라서기: 판이 왼쪽으로 6px' },
   { id: 'ppik-move-seesaw_left', action: { char: 'ppik', verb: 'move', target: 'seesaw_left' }, why: '시소 왼쪽 끝 올라서기: 가볍게 통(웅크림 50ms)' },
   { id: 'ppik-move-seesaw_right', action: { char: 'ppik', verb: 'move', target: 'seesaw_right' }, why: '시소 오른쪽 끝 올라서기: 가볍게 통' },
   {
@@ -33,18 +32,6 @@ const CASES: FrameCase[] = [
     why: '14번: 오른쪽에 탄 쭉이 발이 왼쪽 끝 이벤트 U6 칸을 따른다',
   },
   // #414 묵직이 쿵 = 판 끝에 뛰어올라 쿵(magpie_nest.md 1-6절). `--only seesaw-stomp`로 이것만 찍는다.
-  {
-    id: 'seesaw-stomp-jostle',
-    pre: [{ char: 'jjuk', verb: 'move', target: 'seesaw_left' }],
-    action: { char: 'mukjik', verb: 'move', target: 'seesaw_right' },
-    why: '1-6-6절: 묵직이가 걸어서 올라서는 착지 칸에 왼쪽 쭉이가 들썩(H 4, 150ms)',
-  },
-  {
-    id: 'seesaw-stomp-in-place',
-    pre: [{ char: 'jjuk', verb: 'move', target: 'seesaw_left' }, { char: 'mukjik', verb: 'move', target: 'seesaw_right' }],
-    action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' },
-    why: '정답 11번(UI 경로): 판 위에서 제자리 높이 뛰기(H 24) → 쿵 칸에 U6 → 쭉이 발사 → ⑦ 내려서기',
-  },
   {
     id: 'seesaw-stomp-from-floor',
     pre: [{ char: 'ppik', verb: 'move', target: 'seesaw_left' }],

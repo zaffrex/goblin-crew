@@ -2,8 +2,9 @@
 // 입력은 캐릭터 고르기 → 물건 누르기뿐이다. 동사 버튼(무장)은 없다(6-4절, #311 진마씨 결정).
 // 순수 함수만 둔다. 퍼즐 상태를 바꾸지 않고, `step`을 부르지 않는다. 엔진(main.ts)이 의도를 받아 실행한다.
 //
-// 원칙 1: 기본 탭 동사는 대상 종류와 지금 캐릭터 위치로만 정한다. **규칙 데이터(screen.rules·fallbacks)는 읽지 않는다.**
+// 원칙 1: 기본 탭 동사는 대상 종류·자리 데이터·지금 캐릭터 위치로만 정한다. **규칙 데이터(screen.rules·fallbacks)는 읽지 않는다.**
 // 읽으면 커서가 답을 알려 주게 된다(ADR-0018 F3). interact.test.ts가 이것을 검사한다.
+// 특기 자리(6-4-1c, #723)도 자리의 `hintAbility`만 본다. "그 자리 × 그 특기 규칙이 있다"는 콘텐츠 테스트(screens-check)가 데이터로 보장한다.
 
 import { characterDef, CHARACTERS, type CharacterId } from './characters';
 import { hitTest, type HitBox, type HitTarget } from './hit';
@@ -188,6 +189,15 @@ function floorIntent(ctx: PuzzleView, char: CharacterId, p: Point): Resolved {
 }
 
 /**
+ * 누르면 올라서기 대신 내 능력이 나가는 서는 자리인가. `hold` 자리(누구든, 설계 2절)와
+ * `hintAbility`가 내 특기인 자리(특기 자리, 6-4-1c #723)다. 자리 데이터만 본다(원칙 1).
+ */
+export function specialtySpot(screen: Pick<ScreenData, 'spots'>, me: CharacterId, spotId: string): boolean {
+  const spot = screen.spots[spotId];
+  return spot?.hold === true || (spot?.hintAbility !== undefined && spot.hintAbility === characterDef(me).ability);
+}
+
+/**
  * 지금 캐릭터가 대상 하나(또는 바닥)를 눌렀을 때의 의도. `resolveTap`이 히트 판정 뒤에 부르는 바로 그 함수다.
  * 테스트(`tests/art/screen-poses.test.ts` 반응 없는 행동, #469)가 "누를 수 있는 행동"을 이것으로 만들어
  * 판정 규칙을 손으로 옮겨 적지 않는다(#476 리뷰 후속). p는 바닥 걷기 목적지로만 쓴다.
@@ -196,8 +206,9 @@ export function targetIntent(ctx: PuzzleView, me: CharacterId, target: PuzzleTar
   if (!target) return floorIntent(ctx, me, p);
   if (target.kind === 'hotspot') return ability(me, target.ref);
   // hold 자리는 move로 못 간다(ADR-0065). 핫스팟처럼 내 능력(설계 2절, PR #115).
-  // 내가 선 자리를 다시 누르면 내 능력(화면 1 정답 3번 "올라선 뒤 한 번 더 = 쿵", 6-4-1절).
-  if (ctx.puzzle.at[me] !== target.ref && !ctx.screen.spots[target.ref]?.hold) {
+  // 내가 선 자리를 다시 누르면 내 능력(6-4-1절).
+  // 그 자리 `hintAbility`가 내 특기면 올라서지 않고 바로 내 능력(특기 자리, 6-4-1c #723: 화면 1 묵직이 × 시소 끝 = 첫 클릭 쿵).
+  if (ctx.puzzle.at[me] !== target.ref && !specialtySpot(ctx.screen, me, target.ref)) {
     return act({ char: me, verb: 'move', target: target.ref }, { verb: 'climb', target: target.ref });
   }
   return ability(me, target.ref);

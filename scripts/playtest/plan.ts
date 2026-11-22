@@ -8,7 +8,7 @@
 import { characterDef, type CharacterId } from '../../src/core/characters.ts';
 import { distanceToBox, type HitBox } from '../../src/core/hit.ts';
 import { HUD_AREA, type HudId } from '../../src/core/hud.ts';
-import { actionKey } from '../../src/core/interact.ts';
+import { actionKey, specialtySpot } from '../../src/core/interact.ts';
 import type { Action, ScreenData, Verb } from '../../src/core/puzzle/types.ts';
 import type { Point } from '../../src/core/viewport.ts';
 
@@ -78,12 +78,13 @@ const abilityOf = (c: CharacterId): Verb => characterDef(c).ability;
 
 /**
  * 무장 없이 대상을 누르면 고르는 동사 (ui-interaction 2절, `interact.ts` `resolveTap`). 규칙 데이터는 보지 않는다(원칙 1).
- * 서는 자리: 내가 서 있거나 `hold` 자리면 능력, 아니면 `move` (hold 자리 = 능력은 PR #115·#116).
+ * 서는 자리: 내가 서 있거나 `hold` 자리거나 `hintAbility`가 내 특기인 자리(6-4-1c #723)면 능력, 아니면 `move`
+ * (hold 자리 = 능력은 PR #115·#116). 특기 자리 판정은 `interact.ts` `specialtySpot`을 그대로 쓴다.
  */
 export function defaultVerb(screen: ScreenData, char: CharacterId, charAt: string, target: string): Verb {
   if (target === 'floor') return 'move';
   const spot = screen.spots[target];
-  if (spot) return charAt === target || spot.hold === true ? abilityOf(char) : 'move';
+  if (spot) return charAt === target || specialtySpot(screen, char, target) ? abilityOf(char) : 'move';
   if (screen.hotspots[target]) return abilityOf(char);
   throw new Error(`화면 ${screen.id}에 없는 대상: ${target}`);
 }
@@ -135,7 +136,13 @@ export function planAction(screen: ScreenData, layout: Layout, action: Action, i
   const verbByDefault = def === action.verb;
   let climb = false;
   if (!verbByDefault) {
-    if (action.verb === 'move') unreachable(action, screen.spots[action.target]?.hold ? 'hold 자리는 move로 못 간다(기본 탭이 능력)' : '이미 그 자리에 있다');
+    if (action.verb === 'move') {
+      const spot = screen.spots[action.target];
+      unreachable(
+        action,
+        spot?.hold ? 'hold 자리는 move로 못 간다(기본 탭이 능력)' : charAt === action.target ? '이미 그 자리에 있다' : '특기 자리라 기본 탭이 능력이다(6-4-1c)',
+      );
+    }
     if (action.verb !== abilityOf(char)) unreachable(action, '능력이 아닌 동사(손·보기·아이템·남의 능력)');
     // 여기 오면 def는 move다: 대상은 hold가 아닌 서는 자리이고 내가 거기 없다.
     const taken = Object.entries(layout.at).some(([c, at]) => c !== char && at === action.target);
