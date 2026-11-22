@@ -8,7 +8,7 @@ import texts from '../content/text/ja.json';
 import { sayText } from './core/sayText';
 import { bubbleFontPx, bubbleMaxWidth, bubbleTailInset, placeBubble, type BubbleAnchor, type BubbleOptions, type KeepBox } from './core/bubble';
 import { CHARACTERS, type CharacterId } from './core/characters';
-import { INTERNAL_HEIGHT, INTERNAL_WIDTH, TICK_MS, WALK_AREA } from './core/config';
+import { INTERNAL_HEIGHT, INTERNAL_WIDTH, WALK_AREA } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
 import { actorEdgeAt, besideFeetAt, dustPush, FX_COLORS, FX_STYLE, fxTextSpot, SHAKE_FX, shakeOffset } from './core/fx';
 import { drawnByShape, frameNudges, fxNudges, particleFx, shapeParticles, type Nudge } from './core/fxShape';
@@ -21,7 +21,7 @@ import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { pickScreen, screenTextKey } from './core/screenPick';
 import { cardLines, enterCharacter, flowTap, flowTick, flowView, nextIndex, PLAYING, playtestOrder, showCard, soloCardKey, type Flow } from './core/flow';
-import { activeFx, activeMarkerVisible, boardDrop, charPose, createScene, cuedArtView, currentBubble, drawOrder, gaugeDrop, heldArtView, isBusy, isHanging, sceneLayout, sceneTap, sceneTick, selectsDuringSay, shownFlags, tapContext, tiltOf, type SceneData, type SceneState } from './core/scene';
+import { activeFx, activeMarkerVisible, boardDrop, charPose, createScene, currentBubble, drawOrder, gaugeDrop, isBusy, isHanging, sceneArtView, sceneLayout, sceneTap, sceneTick, selectsDuringSay, tapContext, type SceneData, type SceneState } from './core/scene';
 import { animFrameBox, coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
 import { isTapKey } from './core/keys';
@@ -33,7 +33,7 @@ import { startLoop } from './engine/loop';
 import { drawHud } from './engine/hud';
 import { drawActiveMarker, drawCharacter, drawOutline, drawRoom, drawSpark, drawStompDust, drawTarget, drawTargets } from './engine/placeholder';
 import { drawParticles, drawSceneBg, drawSceneFrame, drawSceneFx, loadSceneArt, sceneArtMeta, type SceneArt } from './engine/sceneArt';
-import { drawHead, drawSprite, spriteMetas, spriteState, type SpriteTop } from './engine/sprites';
+import { drawHead, drawSprite, spriteAlpha, spriteMetas, spriteState, type SpriteTop } from './engine/sprites';
 import { drawFxText, fxTextState, fxTextWidth } from './engine/fxText';
 import { hudIconState, paintHudIcon } from './engine/hudIcons';
 
@@ -90,6 +90,7 @@ interface Session {
 function enterScreen(id: string): Session {
   const screen = SCREENS.get(id);
   if (!screen) throw new Error(`화면 ${id}가 번들에 없습니다`);
+  const art = loadSceneArt(id);
   const data: SceneData = {
     screen,
     characters: charactersJson as CharactersData,
@@ -98,8 +99,9 @@ function enterScreen(id: string): Session {
     // 클리어 컷 글(L32, 설계 8절). 화면 문법에 필드가 없어 `<화면 ID>.clear` 텍스트가 있으면 쓴다.
     clearLine: `${id}.clear` in TEXT ? `${id}.clear` : undefined,
     texts: TEXT,
+    // 바닥 동료의 보이는 그림 칸 판정(2-1절, #736). 이미지가 오기 전에는 null → 얼굴 상자만.
+    alpha: { sprite: spriteAlpha, objects: () => (art?.objectsReady ? art.alpha : null) },
   };
-  const art = loadSceneArt(id);
   return { data, art, covered: art ? coveredIds(art.meta) : new Set<string>(), scene: createScene(data), loopClock: {}, spriteTops: {} };
 }
 
@@ -620,11 +622,10 @@ function render(): void {
   drawTargets(ctx, boxSpots, nudgeBoxes(boxHotspots, nudges));
 
   // 물건 그림(형식 기록 4·6절): 보이는 플래그로 멈춘 모습, 재생 중 물건 anim은 그 프레임.
-  const playing = scene.current?.art ? { ...scene.current.art, ms: scene.current.t * TICK_MS } : null;
   let draws: SceneDraws | null = null;
   let artView: SceneView | null = null;
   if (art) {
-    const view: SceneView = { flagsOf: (k: string) => shownFlags(scene, k), playing, cued: cuedArtView(scene), held: heldArtView(scene), clockMs: scene.tick * TICK_MS, tiltOf: (k: string) => tiltOf(data, scene, k) };
+    const view: SceneView = sceneArtView(data, scene);
     artView = view;
     s.loopClock = loopStarts(art.meta, view, s.loopClock);
     draws = sceneDraws(art.meta, { ...view, loopStarts: s.loopClock });

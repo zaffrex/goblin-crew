@@ -72,7 +72,8 @@ describe('fountain_seat에서 바닥 대상으로 떠나기 (#517)', () => {
   });
 });
 
-describe('fountain_seat에 앉은 동료는 얼굴 상자만 전환 대상 (2-1절 #427, #517)', () => {
+// 시트 알파가 없을 때(엔진이 아직 못 읽음)의 판정이다. 알파가 있을 때는 그려진 칸 6점이 ズッシー 전환이다(2-1-4절, tests/art/drawn-body.test.ts).
+describe('fountain_seat에 앉은 동료: 시트 알파가 없으면 얼굴 상자만 전환 대상 (2-1절 #427 → #736, #517)', () => {
   const ui = (active: 'ppik' | 'jjuk'): UiState => ({ active }) as UiState;
 
   it('테두리 앞면(y 184~200)을 누르면 묵직이 전환이 아니라 테두리 대상이다', () => {

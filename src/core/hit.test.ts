@@ -58,3 +58,21 @@ describe('hitTest (ADR-0007 결정 6)', () => {
     expect(hitTest([b, a], mid, 8)?.id).toBe('a');
   });
 });
+
+describe('칸 판정 대상 (mask, 설계 2-1절 #736)', () => {
+  const body: HitTarget = { id: 'char:a', box: box(0, 0, 10, 10), z: 1, mask: (p) => p.x === 5 && p.y === 5 };
+
+  it('칸 위면 거리 0, 칸 밖이면 사각형 안이어도 안 맞는다', () => {
+    expect(hitTest([body], { x: 5, y: 5 }, 0)?.id).toBe('char:a');
+    expect(hitTest([body], { x: 4, y: 5 }, 0)).toBeNull();
+  });
+
+  it('여유가 없다: 터치 여유 8로도 칸 바로 옆은 안 맞는다', () => {
+    expect(hitTest([body], { x: 6, y: 5 }, 8)).toBeNull();
+  });
+
+  it('칸 위에서는 거리 0이라 여유로 걸친 다른 대상보다 먼저다', () => {
+    const near: HitTarget = { id: 'b', box: box(7, 0, 10, 10), z: 9 };
+    expect(hitTest([near, body], { x: 5, y: 5 }, 8)?.id).toBe('char:a');
+  });
+});

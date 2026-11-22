@@ -4,6 +4,7 @@
 // 시트에 없는 자세는 null을 돌려준다. 엔진은 null이면 임시 실루엣을 그린다.
 // 그래서 한 캐릭터만, 한 자세만 그림이 생겨도 게임이 깨지지 않는다.
 
+import { opaqueAt, type AlphaMask } from './alpha';
 import { MIN_HIT_SIZE } from './characters';
 import type { HitBox } from './hit';
 import type { Facing } from './walk';
@@ -350,6 +351,19 @@ export function spriteBox(meta: SpriteMeta, x: number, y: number, facing: Facing
   const [ax, ay] = meta.anchor;
   const left = facing === 1 ? fx - ax : fx - (w - ax);
   return { left, top: fy - ay, width: w, height: h };
+}
+
+/**
+ * 그린 칸에서 화면 정수 픽셀 (px, py)가 불투명인가(설계 2-1절 그림 칸, #736). 자리·뒤집기는 `drawSprite`와 같다.
+ * (x, y)는 그리는 발 위치(판 높이 포함, 반올림 전). 왼쪽을 보면 칸 열 c가 화면 x = 발 x + anchor x − c − 1에 간다.
+ */
+export function spriteOpaqueAt(meta: SpriteMeta, mask: AlphaMask, frame: number, x: number, y: number, facing: Facing, px: number, py: number): boolean {
+  const box = spriteBox(meta, x, y, facing);
+  const dx = px - box.left;
+  const dy = py - box.top;
+  if (dx < 0 || dy < 0 || dx >= box.width || dy >= box.height) return false;
+  const cx = facing === 1 ? dx : meta.cell[0] - 1 - dx;
+  return opaqueAt(mask, frameSourceX(meta, frame) + cx, dy);
 }
 
 /** 프레임 번호 → 시트 이미지 안의 원본 x(가로 한 줄 배치). */
