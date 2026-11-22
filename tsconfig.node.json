@@ -6,5 +6,5 @@
     "types": ["node"],
     "allowImportingTsExtensions": true
   },
-  "include": ["vite.config.ts", "tests", "scripts/playtest"]
+  "include": ["vite.config.ts", "tests", "scripts/playtest", "scripts/layout"]
 }
