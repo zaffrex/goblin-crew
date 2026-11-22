@@ -95,7 +95,7 @@ describe('마우스, 행동 뒤 마지막 말풍선 클릭 (예외 넷 3, #601)'
     const s = createScene(fountain);
     idle(fountain, s);
     click(fountain, s, center(CHAR_SLOTS.ppik));
-    click(fountain, s, at(fountain, s, 'keeper'));
+    click(fountain, s, at(fountain, s, 'duck')); // S2(#802): 물을 끄는 건 프피 × 오리(duck_alarm)
     untilSay(fountain, s, 'park_fountain.keeper_wake');
     expect(lastEvent(s)).toBe(false);
     ticks(fountain, s, TIMING.saySkipAfter);
@@ -105,21 +105,24 @@ describe('마우스, 행동 뒤 마지막 말풍선 클릭 (예외 넷 3, #601)'
     expect(s.puzzle.flags['fountain.off']).toBe(true);
   });
 
-  it('park_fountain Mia 회차 재현: 물이 멈춘 대사 중 쭉이로 바꿔 재킷 클릭 → 바로 집는다', () => {
+  // S2(#802)부터 정답 순서가 하나(오리 → 흙길 쿵 → 집기)라, 집기 바로 앞 마지막 말풍선은 물 멈춤(fountain_off)이 아니라
+  // 재킷이 손으로 내려온 대사(drop)다. Mia 회차의 상황(앞 단계 마지막 말풍선 중 쭉이로 바꿔 재킷 클릭)은 그대로 본다.
+  it('park_fountain Mia 회차 재현: 재킷이 내려온 대사 중 쭉이로 바꿔 재킷 클릭 → 바로 집는다', () => {
     const s = createScene(fountain);
     idle(fountain, s);
-    click(fountain, s, center(CHAR_SLOTS.mukjik));
-    click(fountain, s, at(fountain, s, 'fountain'));
-    idle(fountain, s);
-    expect(s.puzzle.flags['jacket.on_hand']).toBe(true);
     click(fountain, s, center(CHAR_SLOTS.ppik));
-    click(fountain, s, at(fountain, s, 'keeper'));
-    untilSay(fountain, s, 'park_fountain.fountain_off');
+    click(fountain, s, at(fountain, s, 'duck'));
+    idle(fountain, s);
+    expect(s.puzzle.flags['fountain.off']).toBe(true);
+    click(fountain, s, center(CHAR_SLOTS.mukjik));
+    click(fountain, s, at(fountain, s, 'jacket'));
+    untilSay(fountain, s, 'park_fountain.drop');
+    expect(s.puzzle.flags['jacket.on_hand']).toBe(true);
     expect(lastEvent(s)).toBe(true);
     // 얼굴 칸 전환은 말풍선 중에도 바로 된다(예외 셋). 말풍선은 그대로다.
     click(fountain, s, center(CHAR_SLOTS.jjuk));
     expect(s.ui.active).toBe('jjuk');
-    expect(currentBubble(s)?.text).toBe('park_fountain.fountain_off');
+    expect(currentBubble(s)?.text).toBe('park_fountain.drop');
     ticks(fountain, s, TIMING.saySkipAfter);
     // 전에는 이 클릭이 말풍선만 닫고 버려져서, 호버 라벨 「スーツの上着までのばす」만 남고 장대가 안 나갔다.
     expect(click(fountain, s, at(fountain, s, 'jacket'))).toMatchObject({ kind: 'intent', intent: { kind: 'act', action: { char: 'jjuk', verb: 'stretch', target: 'jacket' } } });
@@ -166,7 +169,7 @@ describe('마지막 말풍선 중 마우스 호버 라벨 판정 (#776)', () => 
     const s = createScene(fountain);
     idle(fountain, s);
     click(fountain, s, center(CHAR_SLOTS.ppik));
-    click(fountain, s, at(fountain, s, 'keeper'));
+    click(fountain, s, at(fountain, s, 'duck')); // S2(#802): 물을 끄는 건 프피 × 오리(duck_alarm)
     untilSay(fountain, s, 'park_fountain.keeper_wake');
     ticks(fountain, s, TIMING.saySkipAfter);
     expect(hover(fountain, s, at(fountain, s, 'alarm_clock'))).toBe(false);
@@ -205,15 +208,15 @@ describe('마지막 말풍선 중 마우스 호버 라벨 판정 (#776)', () => 
     else expect(shown).toBeGreaterThan(0);
   });
 
-  it('park_fountain Mia 순서: 물이 멈춘 대사 중 쭉이로 바꾸면 재킷 위에 라벨이 뜨고, 격자 전체가 클릭 결과와 같다', () => {
+  it('park_fountain Mia 순서: 재킷이 내려온 대사 중 쭉이로 바꾸면 재킷 위에 라벨이 뜨고, 격자 전체가 클릭 결과와 같다', () => {
     const base = createScene(fountain);
     idle(fountain, base);
-    click(fountain, base, center(CHAR_SLOTS.mukjik));
-    click(fountain, base, at(fountain, base, 'fountain'));
-    idle(fountain, base);
     click(fountain, base, center(CHAR_SLOTS.ppik));
-    click(fountain, base, at(fountain, base, 'keeper'));
-    untilSay(fountain, base, 'park_fountain.fountain_off');
+    click(fountain, base, at(fountain, base, 'duck'));
+    idle(fountain, base);
+    click(fountain, base, center(CHAR_SLOTS.mukjik));
+    click(fountain, base, at(fountain, base, 'jacket'));
+    untilSay(fountain, base, 'park_fountain.drop');
     click(fountain, base, center(CHAR_SLOTS.jjuk));
     expect(hover(fountain, base, at(fountain, base, 'jacket'))).toBe(false); // 잠금 전
     ticks(fountain, base, TIMING.saySkipAfter);
@@ -224,7 +227,7 @@ describe('마지막 말풍선 중 마우스 호버 라벨 판정 (#776)', () => 
         const s = structuredClone(base);
         const h = hover(fountain, s, p);
         const r = click(fountain, s, p);
-        const acts = r.kind === 'intent' && (r.intent.kind === 'act' || r.intent.kind === 'switch') && currentBubble(s)?.text !== 'park_fountain.fountain_off';
+        const acts = r.kind === 'intent' && (r.intent.kind === 'act' || r.intent.kind === 'switch') && currentBubble(s)?.text !== 'park_fountain.drop';
         expect({ p, h }).toEqual({ p, h: acts });
       }
     }

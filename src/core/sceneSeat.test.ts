@@ -24,12 +24,21 @@ function settle(s: SceneState): void {
   for (let i = 0; i < 5000 && isBusy(s); i++) sceneTick(data, s);
   expect(isBusy(s)).toBe(false);
 }
-/** 묵직이를 테두리 앞 자리에 앉힌 장면(주 아하, `jacket.on_hand`가 켜진다). */
+/**
+ * 묵직이를 테두리 앞 자리에 앉힌 장면. S2(#802)부터 테두리 앉기는 미끼라 재킷을 안 내린다. 그래서 먼저 정답 길 둘
+ * (프피 × 오리로 물 끄기 → 흙길 쿵으로 재킷을 손에)을 지나 `jacket.on_hand`를 켜고, 그다음 앉는다(`decoy.fountain_sit`).
+ */
 function seated(): SceneState {
   const s = createScene(data);
   settle(s);
-  runAction(data, s, { char: 'mukjik', verb: 'stomp', target: 'fountain' }, null);
-  settle(s);
+  for (const a of [
+    { char: 'ppik', verb: 'squeak', target: 'duck' },
+    { char: 'mukjik', verb: 'stomp', target: 'jacket' },
+    { char: 'mukjik', verb: 'stomp', target: 'fountain' },
+  ] as const) {
+    runAction(data, s, a, null);
+    settle(s);
+  }
   expect(s.puzzle.at.mukjik).toBe('fountain_seat');
   expect([s.walkers.mukjik.x, s.walkers.mukjik.y]).toEqual([220, 200]);
   return s;

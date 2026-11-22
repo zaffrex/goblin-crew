@@ -12,8 +12,8 @@
     "jacket.taken": false
   },
   "solution": [
-    { "char": "ppik", "verb": "squeak", "target": "keeper" },
-    { "char": "mukjik", "verb": "stomp", "target": "fountain" },
+    { "char": "ppik", "verb": "squeak", "target": "duck" },
+    { "char": "mukjik", "verb": "stomp", "target": "jacket" },
     { "char": "jjuk", "verb": "stretch", "target": "jacket" }
   ],
   "spots": {
@@ -21,7 +21,7 @@
     "fountain_seat": { "x": 220, "y": 200, "capacity": 3, "note": "ズッシー가 테두리 돌에 털썩 앉는 자리(P4 sit_corner, 설계 1-3·13절 Q3). 발 y 200 = 테두리 아래 끝 198 바로 앞이라 엉덩이가 테두리 앞면 윗단에 놓인다(발 y 244에서 앉으면 흙길 위라 단서 ② 돌/흙이 무너짐). x 220: 모서리 옆 339는 시작 자리 ノビー(336,244) 머리가 엉덩이를 가리고, 296은 클리어 컷 손님 재회 자리(약 297)에 가려진다. 220은 7번 흙길 쿵(x 224, y 244) 바로 뒤라 돌/흙이 같은 x에서 앞뒤로 갈리고, ノビー 집기 자리(약 261)와도 안 겹친다. 고정 점(free면 x를 안 바꾼다). 정원 3: 판정기(BFS)만 move로 다른 사람을 먼저 앉힐 수 있는데, 그때 ズッシー 쿵이 반응 없이 막히지 않게(#469), box가 없어 클릭 대상이 아니다" }
   },
   "hotspots": {
-    "fountain": { "box": [128, 180, 192, 24], "hintAbility": "stomp", "approach": { "default": "floor", "stomp": "fountain_seat" }, "note": "테두리 앞면 그림 128,180,192×18. 아래 끝 204 > WALK_AREA.top 200이라 바닥 대상. 쿵(P4 돌에 앉기)만 테두리 앞 자리 fountain_seat로 간다" },
+    "fountain": { "box": [128, 180, 192, 24], "approach": { "default": "floor", "stomp": "fountain_seat" }, "note": "미끼(S2, #802). 테두리 앞면 그림 128,180,192×18. 아래 끝 204 > WALK_AREA.top 200이라 바닥 대상. 쿵(P4 돌에 앉기)만 테두리 앞 자리 fountain_seat로 간다. hintAbility 없음: 규칙이 decoy.뿐이라 힌트 ②가 미끼로 보내지 않게 비운다(설계 park_fountain-s2.md 4절, Theo Q3). 그래서 장난감 취급(말풍선이 가장 나중에 피함)을 받는다. 상자가 테두리 띠뿐이라 돌우산 꼭대기·재킷 단서는 안 가린다" },
     "jacket": {
       "box": [212, 27, 24, 24],
       "hintAbility": "stretch",
@@ -30,7 +30,7 @@
     },
     "keeper": { "box": [36, 114, 44, 36], "hintAbility": "squeak", "reachPoint": [73, 140], "note": "창 전체. 조는 얼굴 그림 40,118,36×30. 말풍선 화자(ADR-0065 개정 #434). reachPoint(#507): 쭉이 x 73에 서서 왼쪽을 보고(상자 가운데 58이 왼쪽) reach_wobble 장대(기준점 −13~−17, short 10)가 창 아래쪽 유리 x 54..62, y 142..150을 톡 친다" },
     "alarm_clock": { "box": [80, 134, 24, 24], "hintAbility": "squeak", "reachPoint": [107, 147], "note": "창턱 닭 자명종 그림 84,140,12×12(시트 83,139,13×14). プピッ는 관리인과 같은 결과. reachPoint(#507): 쭉이 x 107에 서서 왼쪽을 보고 reach_wobble 장대 집게(x 86..98, y 149..157)가 자명종 아래 4px에 닿는다. 발 y 222 미만이면 칸 안 장대 끝이 이미 자명종 높이라 잇지 않는다" },
-    "duck": { "box": [175, 156, 24, 24], "note": "장난감. 연못 물 위 그림 181,167,14×9(외곽선 포함 180,166,16×11, 퍼덕 칸은 3px 뜸). 처음 자리(y 158)는 뒤 덤불 앞이라 떠 보이지 않아 9px 내렸다. 상자 아래 끝 180 = 테두리 위 끝이라 테두리(fountain) 상자와 안 겹친다" },
+    "duck": { "box": [175, 156, 24, 24], "hintAbility": "squeak", "note": "정답 대상(S2 duck_alarm, #802). 힌트 ②는 プピ(오리를 울리는 건 プピ 소리뿐). 연못 물 위 그림 181,167,14×9(외곽선 포함 180,166,16×11, 퍼덕 칸은 3px 뜸). 처음 자리(y 158)는 뒤 덤불 앞이라 떠 보이지 않아 9px 내렸다. 상자 아래 끝 180 = 테두리 위 끝이라 테두리(fountain) 상자와 안 겹친다" },
     "guest": {
       "box": [438, 176, 24, 56],
       "variants": [{ "when": { "flags": { "jacket.taken": true } }, "box": [288, 188, 24, 56] }],
@@ -44,38 +44,32 @@
   ],
   "rules": [
     {
-      "id": "keeper_wake",
+      "id": "keeper_snooze",
       "target": "keeper",
       "verb": "squeak",
       "when": { "flags": { "fountain.off": false } },
-      "do": { "set": { "fountain.off": true } },
       "show": [
         { "anim": ["ppik", "common.squeeze_chicken"] },
         { "fx": ["squeak_text", "ppik"] },
-        { "anim": ["keeper", "wake"] },
-        { "say": ["keeper", "park_fountain.keeper_wake"] },
-        { "anim": ["keeper", "clean_time"] },
-        { "anim": ["fountain", "water_off"] },
-        { "say": ["ppik", "park_fountain.fountain_off"] }
+        { "anim": ["keeper", "swat"] },
+        { "say": ["keeper", "park_fountain.keeper_snooze"] },
+        { "say": ["ppik", ["park_fountain.snoozed", "park_fountain.snoozed_again"]] }
       ],
-      "note": "#1 정답. 관리인이 자명종 탁 → 갸웃 → 벽시계 → 제어판 꾹 → 다시 존다(P1·P2, 설계 0절 KX3)"
+      "note": "S2 1번 빗나감(설계 park_fountain-s2.md 1절 T2, #802). 가장 뻔한 첫 시도: 관리인은 눈도 안 뜨고 자명종을 탁 끄고 계속 존다(keeper.swat, 스누즈 버릇). 손 닿는 데서 한 번 나는 소리는 자면서 끈다 → 끌 수 없게 이어지는 소리가 필요하다(단서 ①·②). 오리라는 답은 이 반응에 넣지 않는다(예고편 금지)"
     },
     {
-      "id": "keeper_wake_clock",
+      "id": "keeper_snooze_clock",
       "target": "alarm_clock",
       "verb": "squeak",
       "when": { "flags": { "fountain.off": false } },
-      "do": { "set": { "fountain.off": true } },
       "show": [
         { "anim": ["ppik", "common.squeeze_chicken"] },
         { "fx": ["squeak_text", "ppik"] },
-        { "anim": ["keeper", "wake"] },
-        { "say": ["keeper", "park_fountain.keeper_wake"] },
-        { "anim": ["keeper", "clean_time"] },
-        { "anim": ["fountain", "water_off"] },
-        { "say": ["ppik", "park_fountain.fountain_off"] }
+        { "anim": ["keeper", "swat"] },
+        { "say": ["keeper", "park_fountain.keeper_snooze"] },
+        { "say": ["ppik", ["park_fountain.snoozed", "park_fountain.snoozed_again"]] }
       ],
-      "note": "#1 정답(자명종을 눌렀을 때). keeper_wake와 같은 효과"
+      "note": "S2 1번 빗나감(자명종을 눌렀을 때). keeper_snooze와 같은 연출"
     },
     {
       "id": "keeper_wake_done",
@@ -104,32 +98,40 @@
       "note": "#2 이미 꺼짐(자명종을 눌렀을 때)"
     },
     {
-      "id": "fountain_stomp_drop",
-      "target": "fountain",
-      "verb": "stomp",
-      "when": { "flags": { "jacket.on_hand": false } },
-      "do": { "set": { "jacket.on_hand": true } },
+      "id": "duck_alarm",
+      "target": "duck",
+      "verb": "squeak",
+      "when": { "flags": { "fountain.off": false } },
+      "do": { "set": { "fountain.off": true } },
       "show": [
-        { "anim": ["mukjik", "sit_corner"] },
-        { "fx": ["gon_text", "fountain"] },
-        { "fx": ["rattle", "fountain"] },
-        { "anim": ["jacket", "slide"] },
-        { "say": ["mukjik", "park_fountain.drop"] }
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "anim": ["duck", "turn"] },
+        { "fx": ["quack_text", "duck"] },
+        { "anim": ["keeper", "swat_quick"] },
+        { "fx": ["quack_text", "duck"] },
+        { "anim": ["keeper", "wake_quiet"] },
+        { "say": ["keeper", "park_fountain.keeper_wake"] },
+        { "anim": ["keeper", "clean_time"] },
+        { "anim": ["fountain", "water_off"] },
+        { "say": ["ppik", "park_fountain.fountain_off"] }
       ],
-      "note": "#3 정답(주 아하). 모서리 돌에 일부러 털썩 앉기(P4) → ゴォン + 분수대 흔들림 → 재킷이 손으로(P5)"
+      "note": "S2 3번 정답(주 아하 1, #802). プピッ에 오리가 クワッ 대답 → 관리인이 자면서 탁(swat_quick 300ms, 탁 한 번: H5 PM 판단 #810) → 그래도 또 クワッ(끌 수 없는 자명종) → 벌떡(wake_quiet = keeper.wake에서 swat 칸을 뺀 것, hold) → 벽시계 → 제어판 꾹 → 물줄기 꺼짐. 오답 1번(스누즈)과의 대비 \"아까는 꺼졌는데 이번엔 안 꺼진다\"가 웃음이다(설계 8절 H2)"
     },
     {
-      "id": "fountain_stomp_done",
-      "target": "fountain",
-      "verb": "stomp",
-      "when": { "flags": { "jacket.on_hand": true } },
+      "id": "duck_alarm_done",
+      "target": "duck",
+      "verb": "squeak",
+      "when": { "flags": { "fountain.off": true } },
       "show": [
-        { "anim": ["mukjik", "sit_corner"] },
-        { "fx": ["gon_text", "fountain"] },
-        { "fx": ["ripple", "duck"] },
-        { "say": ["mukjik", "park_fountain.drop_done"] }
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "anim": ["duck", "turn"] },
+        { "fx": ["quack_text", "duck"] },
+        { "anim": ["keeper", "swat"] },
+        { "say": ["keeper", "park_fountain.keeper_done"] }
       ],
-      "note": "#4 이미 손에. 연못 물결, 재킷은 꽉"
+      "note": "S2 4번 이미 꺼짐. 오리가 또 울어도 관리인은 자면서 탁(keeper_wake_done과 같은 끝)"
     },
     {
       "id": "jacket_reach_wet",
@@ -162,15 +164,33 @@
       "id": "jacket_ground_stomp",
       "target": "jacket",
       "verb": "stomp",
-      "when": { "flags": { "jacket.on_hand": false } },
+      "when": { "flags": { "fountain.off": false, "jacket.on_hand": false } },
       "show": [
         { "anim": ["mukjik", "common.stomp"] },
         { "fx": ["stomp_text", "mukjik"] },
         { "fx": ["poof_text", "mukjik"] },
-        { "anim": ["floor", "pigeons_up"] },
-        { "say": ["mukjik", ["park_fountain.soft", "park_fountain.soft_again"]] }
+        { "anim": ["floor", "pigeons_splash_up"] },
+        { "fx": ["splash_text", "jacket"] },
+        { "anim": ["floor", "pigeons_splash_down"] },
+        { "say": ["mukjik", ["park_fountain.pigeons_wet", "park_fountain.pigeons_wet_again"]] }
       ],
-      "note": "#7 흙길 쿵은 안 울린다(단서 ②). 재킷 밑 흙길 x 224에서 발 구르기"
+      "note": "S2 7번 빗나감(설계 1절 T4, 단서 ⑤·⑥). 재킷 밑 흙길 x 224 쿵 → 흙먼지에 놀란 비둘기 셋이 돌우산 꼭대기로 날아오름(pigeons_splash_up, hold, 마지막 칸 = 돔 위 y≈30) → 앉으려는 순간 バシャッ(splash_text 하나, 0.5초 멈칫, Luna #810 재리뷰 2번) → 밀려 내려와 제자리(pigeons_splash_down). 물이 꼭대기 자리를 막는다"
+    },
+    {
+      "id": "pigeons_perch",
+      "target": "jacket",
+      "verb": "stomp",
+      "when": { "flags": { "fountain.off": true, "jacket.on_hand": false } },
+      "do": { "set": { "jacket.on_hand": true } },
+      "show": [
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "fx": ["poof_text", "mukjik"] },
+        { "anim": ["floor", "pigeons_perch"] },
+        { "anim": ["jacket", "slide"] },
+        { "say": ["mukjik", "park_fountain.drop"] }
+      ],
+      "note": "S2 8번 정답(주 아하 2, #802). 물이 멈추면 쿵에 놀란 비둘기가 늘 앉던 돌우산 꼭대기로 간다. pigeons_perch(hold, 마지막 칸 = 가운데 새가 꼭지 222,39에 앉아 재킷 덩어리 앞)가 끝난 뒤 jacket.slide(재킷이 새 밑에서 빠져 동상 손으로). 물건 anim에는 cue가 없어 두 anim 순서로 나눈다(Luna·Theo #810 재리뷰). 보이는 플래그는 각자 anim 시작 때 바뀌어(deferShown) 비둘기가 나는 동안 재킷은 1px도 안 움직인다(N1 타이밍 조건)"
     },
     {
       "id": "jacket_take",
@@ -195,20 +215,45 @@
       "note": "#8 정답 → 클리어. 설계 8절 ①~④를 이 show 하나로 쓴다(step이 clear 이벤트를 show 뒤에 붙임). 마지막 プピ 한마디는 엔진이 <화면 ID>.clear로 띄운다(main.ts clearLine). ③ 물 다시 솟음은 do에서 fountain.off를 거짓으로 돌린다(그림 형식 11-3절). 보이는 플래그는 water_burst가 시작될 때 바뀌고, burst가 끝나면 멈춘 모드 on으로 계속 뿜는다. 안 돌리면 클리어 카드가 뜨는 틱(대기열 빔, hold 풀림)에 물이 꺼진다(PR #452 Luna 리뷰). 처음 볼 때 정답 행동 → 클리어 카드 12초 안(ADR-0761 H6 예외, #781): 말풍선 4개(take·guest_thanks·keeper_again·guest_hand)와 셋 차례 젖기를 뺐다. 성공(재회 만세) → 늦은 자명종 → 관리인 꾹 → 물 솟음·손님 흠뻑 → プピ 한마디(clear) 순서로 물보라가 마지막 웃음이다(PR #446 Theo 리뷰의 꾹 → 솟음 순서 유지)"
     },
     {
-      "id": "fountain_tap",
+      "id": "decoy.fountain_sit_wet",
+      "target": "fountain",
+      "verb": "stomp",
+      "when": { "flags": { "fountain.off": false } },
+      "show": [
+        { "anim": ["mukjik", "sit_corner"] },
+        { "fx": ["splash", "mukjik"] },
+        { "anim": ["mukjik", "common.wet"] },
+        { "anim": ["floor", "pigeons_turn"] },
+        { "say": ["mukjik", ["park_fountain.sit_wet", "park_fountain.sit_wet_again"]] }
+      ],
+      "note": "미끼(S2 10번, ADR-0761 H4, 설계 1절 T3). \"흔들어 떨어뜨리기\" 첫 시도: 테두리에 털썩 앉았는데 물보라에 젖은 돌이라 엉덩이만 젖는다. 돌 분수대는 꿈쩍 안 한다. 앉기는 땅을 구르지 않아 비둘기는 돌아보기만(단서 ⑧). 물 켜짐이면 jacket.on_hand는 늘 거짓이라 땅 비둘기 anim이 순간이동하지 않는다(클리어 뒤는 입력을 안 받음, Theo #810)"
+    },
+    {
+      "id": "decoy.fountain_sit",
+      "target": "fountain",
+      "verb": "stomp",
+      "when": { "flags": { "fountain.off": true } },
+      "show": [
+        { "anim": ["mukjik", "sit_corner"] },
+        { "say": ["mukjik", "park_fountain.sit_calm"] }
+      ],
+      "note": "미끼(S2 11번). 물이 멈춘 돌에 앉으면 그냥 편하다. 비둘기 anim 없음: jacket.on_hand 참이면 비둘기가 꼭대기에 있어 땅 칸이 순간이동한다(Luna #810 리뷰 A)"
+    },
+    {
+      "id": "decoy.fountain_tap",
       "target": "fountain",
       "verb": "stretch",
       "when": { "flags": { "jacket.on_hand": false } },
       "show": [
         { "anim": ["jjuk", "common.stretch"] },
         { "fx": ["clang_text", "fountain"] },
-        { "anim": ["jacket", "twitch"] },
+        { "anim": ["floor", "pigeons_turn"] },
         { "say": ["jjuk", "park_fountain.tap"] }
       ],
-      "note": "#9 단서 ①. 소매가 움찔(P5 0칸), 상태는 안 바뀐다"
+      "note": "미끼(S2 12번). 장대로 테두리 カーン → 비둘기만 돌아본다(단서 ⑧). 재킷 움찔(jacket.twitch)은 \"쿵 하면 떨어진다\" 예고편이라 뺐다(PM 진단 ②, #802)"
     },
     {
-      "id": "fountain_tap_hand",
+      "id": "decoy.fountain_tap_hand",
       "target": "fountain",
       "verb": "stretch",
       "when": { "flags": { "jacket.on_hand": true } },
@@ -217,7 +262,19 @@
         { "fx": ["clang_text", "fountain"] },
         { "say": ["jjuk", "park_fountain.tap_hand"] }
       ],
-      "note": "#10 폴백이 아니라 규칙: 폴백이면 힌트 ②(hint_stomp)가 이미 끝난 쿵을 가리킨다(설계 3절). 재킷 rattle은 넣지 않는다: 동상 손은 배경이라 못 흔들고, 재킷만 덜컹하면 \"더 치면 떨어진다\"로 읽혀 대사(がっちり)와 반대 단서가 된다(PR #558 Luna 리뷰)"
+      "note": "미끼(S2 13번, 이름만 decoy.). 폴백이 아니라 규칙: 폴백이면 힌트 ②(hint_stomp)가 이미 끝난 쿵을 가리킨다(설계 3절). 재킷 rattle은 넣지 않는다: 동상 손은 배경이라 못 흔들고, 재킷만 덜컹하면 \"더 치면 떨어진다\"로 읽혀 대사(がっちり)와 반대 단서가 된다(PR #558 Luna 리뷰)"
+    },
+    {
+      "id": "decoy.jacket_squeak_seated",
+      "target": "jacket",
+      "verb": "squeak",
+      "when": { "flags": { "jacket.on_hand": true } },
+      "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "say": ["ppik", "park_fountain.jacket_squeak_seated"] }
+      ],
+      "note": "미끼(S2 14번). 꼭대기에 앉은 비둘기는 プピッ에도 꿈쩍 안 한다(자리를 되찾아서 이제 신경 안 씀). 비둘기 anim을 돌리면 땅 칸으로 순간이동해서 넣지 않는다(Luna #810 리뷰 A, 안 (나)). jacket.on_hand 거짓이면 아래 폴백(비둘기 돌아봄 + jacket_squeak)이 돈다"
     }
   ],
   "fallbacks": {
@@ -287,13 +344,6 @@
         { "fx": ["splash", "mukjik"] },
         { "anim": ["mukjik", "common.wet"] },
         { "say": ["mukjik", "park_fountain.duck_splash"] }
-      ] },
-      "squeak": { "show": [
-        { "anim": ["ppik", "common.squeeze_chicken"] },
-        { "fx": ["squeak_text", "ppik"] },
-        { "anim": ["duck", "turn"] },
-        { "fx": ["quack_text", "duck"] },
-        { "say": ["ppik", "park_fountain.duck_reply"] }
       ] }
     },
     "guest": {

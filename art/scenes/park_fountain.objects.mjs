@@ -529,6 +529,12 @@ ANIMS['keeper.wake'] = { ms: [260, 340, 600], frames: [keeper.jolt, keeper.swat,
 ANIMS['keeper.clean_time'] = { ms: [520, 420, 480], frames: [keeper.look, keeper.press, keeper.plop], hold: true };
 // 2번(이미 끔): 졸면서 손만 탁
 ANIMS['keeper.swat'] = { ms: [500], frames: [keeper.swatAsleep] };
+// S2 3번★ `duck_alarm`(#802, park_fountain-s2.md 3·8절): 오리 クワッ에 자면서 탁 **한 번**(H5, PM 판단). `keeper.swat`과 같은 칸, 300ms라
+// "끄고 바로 다시 잠"이 짧게 지나가고 곧 이어지는 두 번째 クワッ와 붙는다. hold 없음: 끝나면 졸기(대기 loop)로 돌아간다.
+ANIMS['keeper.swat_quick'] = { ms: [300], frames: [keeper.swatAsleep] };
+// S2 3번★: 두 번째 クワッ에 벌떡 → 조용해진 자명종을 갸웃. `keeper.wake`에서 탁 칸만 뺐다(탁은 바로 앞 `swat_quick`이 이미 했다).
+// 말풍선(keeper_wake)이 갸웃 칸 상자에 붙도록 hold(`keeper.wake`와 같은 까닭)
+ANIMS['keeper.wake_quiet'] = { ms: [260, 600], frames: [keeper.jolt, keeper.tilt], hold: true };
 // P3 `keeper` × ノビー(단서 ③): 확 → 닫힘. 닫힌 칸을 붙든 채 잠꼬대 말풍선, 그 뒤 `curtain_open`이 거꾸로 연다
 ANIMS['keeper.curtain'] = { ms: [160, 300], frames: [keeper.curtainClosing, keeper.curtainClosed], hold: true };
 // P3 거꾸로(새 칸 0): 닫힘 → 확 → (대기열이 비면) 졸기. 설계 7절 "거꾸로 재생해서 다시 연다"
@@ -836,8 +842,7 @@ const jacket = {
 
 OBJECTS.jacket = {
   draw: jacket.top,
-  // 9절 재킷 대기(#477): 약 12초마다 바람에 소매가 움찔(P5 0칸 재사용). 손으로 내려온 뒤(state)에는 loop가 없어서 멈춘다
-  loop: { ms: [12000, 300], frames: [jacket.top, jacket.twitch] },
+  // 대기 움찔 loop(#477)는 S2에서 뺐다(#802, 설계 park_fountain-s2.md 6절): "재킷이 미끄러질 수 있다"는 예고편이라서.
   states: [
     // 클리어(#529, 형식 기록 14절 개정 9): 재킷은 ノビー 머리 → 손님 만세 칸으로 갔다. 동상 손은 비운다.
     // 클리어 때 `jacket.on_hand`가 참으로 남으니까 첫 일치가 되게 이 줄이 on_hand보다 앞이어야 한다.
@@ -846,8 +851,7 @@ OBJECTS.jacket = {
     { when: { flags: { 'jacket.on_hand': true } }, draw: jacket.hand },
   ],
 };
-// 9번 `fountain_tap`(단서 ①): カーン에 소매가 움찔 → 제자리 → 한 번 더. 상태는 안 바뀌어서 끝나면 꼭대기 그림
-ANIMS['jacket.twitch'] = { ms: [160, 90, 420], frames: [jacket.twitch, jacket.top, jacket.twitch] };
+// 미끼 カーン의 움찔(`jacket.twitch` anim)은 "쿵 하면 떨어진다" 예고편이라 S2에서 지웠다(#802 PM 진단 ②). 움찔 칸은 아래 slide 첫 칸으로 남는다
 // 3번★(주 아하): ゴォン 뒤 움찔 → 경사를 타고 미끄러짐 → 처마에서 떨어짐(두 자리) → 손에 턱. 끝나면 state 그림(손)과 같은 그림
 ANIMS['jacket.slide'] = { ms: [200, 260, 90, 90, 400], frames: [jacket.twitch, jacket.slide, jacket.fallHigh, jacket.fallLow, jacket.hand] };
 // 8번★ P6(#529): ノビー `take_up` 1번 칸(확 당김)의 cue로 겹쳐 뜬다. 활짝 → 떨어짐, 합 350ms = take_up 1번 칸 길이라
@@ -939,28 +943,88 @@ const flock = (pose) => (im) => {
 };
 const pigeonsPic = {
   rest: flock(() => ['rest', 0, 0]),
-  // 단서 ② 날아오름(설계 2절 7번 "비둘기가 날았다 내려앉음"): 놀람 → 퍼덕퍼덕 40px까지 → 다시 내려와 놀람 칸으로 착지.
-  // 꼭대기는 셋째 새(y 204) 기준 164: 흰 테두리(180~198)를 지나 그 위 연못 뒤 어두운 덤불 앞에서 회색 몸이 갈린다.
-  // 26px 판은 꼭대기가 흰 돌 위라 1배에서 새가 돌에 묻혔다(로컬 캡처).
+  // 날기 전·내려앉은 직후 놀람(땅에서 2px 펄쩍). S2 perch·splash의 첫 칸, splash_down의 끝 칸.
+  // 옛 7번 `pigeons_up`(40px만 퍼덕 → 제자리)은 S2에서 `pigeons_splash_*`(돌우산까지)로 바뀌어 지웠다(#802, 화면이 안 부르는 칸은 R1 장부가 막는다).
   hop: flock(() => ['startle', 2, 0]),
-  up1: flock(() => ['up', 10, 1]),
-  down1: flock(() => ['down', 21, 2]),
-  up2: flock(() => ['up', 32, 3]),
-  down2: flock(() => ['down', 40, 4]),
-  up3: flock(() => ['up', 30, 3]),
-  down3: flock(() => ['down', 15, 2]),
   // 돌아보기(재킷 프피, 설계 3절 jacket 행 "물줄기가 꺼졌으면 비둘기만 돌아본다"): 셋 다 반대로 고개를 돌린다.
   turn: flock(() => ['rest', 0, 0, true]),
 };
-OBJECTS.pigeons = { ids: ['floor'], draw: pigeonsPic.rest };
-// 7번 `jacket_ground_stomp`(단서 ②): ぼふっ 뒤 셋이 퍼덕 날았다가 제자리에 내려앉는다. 흙길 쿵은 "새가 잠깐 놀랄" 만큼만 울린다.
-// 끝나면 쉬는 그림(같은 자리)이라 따로 붙들지 않는다.
-ANIMS['floor.pigeons_up'] = {
-  ms: [100, 80, 90, 90, 120, 100, 100, 100],
-  frames: [pigeonsPic.hop, pigeonsPic.up1, pigeonsPic.down1, pigeonsPic.up2, pigeonsPic.down2, pigeonsPic.up3, pigeonsPic.down3, pigeonsPic.hop],
+
+// ── S2 돌우산 꼭대기(#802, park_fountain-s2.md 3절 7·8번, 7-1절, PR #810 Luna 리뷰) ──
+// 꼭대기 자리: 꼭지 하나 + 왼 경사 둘. **오른 경사(x 234~252)는 비운다**: 재킷 `slide`(JACKET_SLIDE_AT 230,30)가 그 경사를 타고 내려간다.
+// [x, y(칸 맨 위), 오른쪽을 보나]. 발 줄(y + 6)이 돔 윗면(타원 224,52 반지름 32×12) 바로 위에 닿게 잡았다. 몸은 돔 윗면이 아니라 하늘 앞이다.
+// 왼 경사 둘은 서로 마주 보고(수다), 꼭지 새는 왼쪽(세 사람 쪽)을 내려다본다. 비둘기 셋 칸 번호와 같은 순서다(PIGEONS_AT).
+export const PIGEONS_TOP_AT = [[197, 37, true], [208, 33, false], [219, 32, false]];
+/** 비둘기 셋을 한 칸에, 새마다 [모양, x, y, 오른쪽 보기, 땅 그림자] 를 받는다(`flock`은 쉬는 자리 기준 상대 이동이라 셋째 새 x가 고정이었다). */
+const flockAt = (pose) => (im) => {
+  for (let i = 0; i < PIGEONS_AT.length; i++) {
+    const [shape, x, y, right, grounded] = pose(i);
+    pigeon(im, x, y, right, PIGEON_SHAPES[shape], grounded);
+  }
+};
+const lerp = (a, b, t) => Math.round(a + (b - a) * t);
+/** 칸마다 새 셋의 [x, y] (미리보기가 칸당 이동 거리를 새마다 잰다). 키는 anim 이름 끝 */
+export const PIGEON_TRACKS = {};
+const track = (name, pts) => { (PIGEON_TRACKS[name] ??= []).push(pts); return pts; };
+/** 쉬는 자리 → 목표 자리로 n칸에 나눠 퍼덕퍼덕 오른다(날개 위·아래 번갈아). 칸당 이동은 미리보기가 ≤ 21px로 검사한다(R3). */
+function climb(name, to, n) {
+  return Array.from({ length: n }, (_, k) => {
+    const t = (k + 1) / n;
+    // 마지막 칸은 날개를 내리고(활공) 내려앉는다
+    const shape = k === n - 1 ? 'down' : k % 2 ? 'down' : 'up';
+    const pts = track(name, PIGEONS_AT.map(([x0, y0], i) => [lerp(x0, to[i][0], t), lerp(y0 - 2, to[i][1], t)]));
+    return flockAt((i) => {
+      const [x0, , right] = PIGEONS_AT[i], [x1] = to[i];
+      // 오른쪽에서 왼쪽 위로 가는 새는 왼쪽을 본다(머리가 가는 쪽). 거의 수직인 새는 쉬던 방향 그대로
+      const face = x1 < x0 - 4 ? false : x1 > x0 + 4 ? true : right;
+      return [shape, ...pts[i], face, false];
+    });
+  });
+}
+const RISE = 10; // 상승 10칸 × 65ms = 0.65초(설계 7-1절 "8칸 × 80ms"와 같은 길이. 8칸이면 칸당 22~23px라 21px 아래로 맞추려고 더 나눴다)
+const RISE_MS = 65;
+Object.assign(pigeonsPic, {
+  // 꼭대기에 앉은 멈춘 모습(`jacket.on_hand` 참). 하늘 앞이라 나는 칸과 같은 어두운 외곽선(PIGEON_FLY_LEGEND), 땅 그림자 없음
+  top: flockAt((i) => ['rest', ...PIGEONS_TOP_AT[i], false]),
+  // 내려앉는 순간: 날개 반쯤 들고 다리 벌림(놀람 모양), 2px 위
+  topLand: flockAt((i) => { const [x, y, r] = PIGEONS_TOP_AT[i]; return ['startle', x, y - 2, r, false]; }),
+  perchClimb: climb('perch', PIGEONS_TOP_AT, RISE),
+});
+
+OBJECTS.pigeons = {
+  ids: ['floor'],
+  draw: pigeonsPic.rest,
+  // S2(#802): 재킷이 손으로 내려온 뒤(`jacket.on_hand`)는 돌우산 꼭대기에 앉아 있다(설계 2절). 클리어 뒤에도 그대로(Theo 안 A).
+  // 보이는 플래그는 `floor.pigeons_perch`가 시작될 때 바뀌고(deferShown), perch 마지막 칸과 같은 그림이라 hold가 풀려도 안 튄다.
+  // **S2 화면 JSON과 같이 머지한다.** 옛 규칙(`fountain_stomp_drop`)은 비둘기를 안 날리고 on_hand를 켜서, 이 줄만 들어가면 셋이 꼭대기로 순간이동한다.
+  // (그래서 이 PR은 혼자 못 들어간다: R1 장부 테스트가 화면 JSON이 안 부르는 새 칸을 막는다.)
+  states: [{ when: { flags: { 'jacket.on_hand': true } }, draw: pigeonsPic.top }],
 };
 // 재킷 × プピ 폴백: 소리 쪽을 두리번(돌아봄 → 원래 → 다시 돌아봄). 날지는 않는다(프피는 쿵보다 약하다).
 ANIMS['floor.pigeons_turn'] = { ms: [300, 150, 350], frames: [pigeonsPic.turn, pigeonsPic.rest, pigeonsPic.turn] };
+// S2 8번★ `pigeons_perch`: 쿵에 놀라 → 10칸 퍼덕퍼덕 돌우산까지 → 툭 내려앉음 → 꼭대기에 앉음. 마지막 칸(꼭지 새가 재킷 앞에 앉은 모습)을
+// 붙든 채(hold) 다음 `jacket.slide`가 돈다. 물건 anim은 cue가 없어 둘을 나눴고, 꼭지 새가 처음부터 꼭지 자리라 재킷이 빠져도 새가 안 움직인다.
+// 쿵부터 새가 닿기까지(약 0.85초) 재킷은 1px도 안 움직인다(N1 타이밍 조건: "쿵에 흔들려 떨어짐" 오독 막기). 대기열이 비면 states 꼭대기 그림(같은 자리).
+ANIMS['floor.pigeons_perch'] = {
+  ms: [100, ...Array(RISE).fill(RISE_MS), 120, 160],
+  frames: [pigeonsPic.hop, ...pigeonsPic.perchClimb, pigeonsPic.topLand, pigeonsPic.top],
+  hold: true,
+};
+// S2 7번 `jacket_ground_stomp`(물 켜짐): perch와 **같은 칸**으로 자리까지 날아와, 앉기 직전(날개 내린 활공 칸)을 붙든다(hold).
+// 이어서 화면 JSON이 `splash_text`(バシャッ) fx 하나(0.5초 = "앉으려다 맞고 멈칫")를 띄우고 `floor.pigeons_splash_down`을 부른다.
+// 새 칸 0: R1 장부(ADR-0422)는 시트 칸을 세서, 물보라 길을 따로 그리면 칸이 14개 더 늘었다(첫 판). 앉을 자리에서 맞는 게 "물만 없으면 앉는다"(단서 ⑤·⑥)와도 맞다.
+ANIMS['floor.pigeons_splash_up'] = {
+  ms: [100, ...Array(RISE).fill(RISE_MS)],
+  frames: [pigeonsPic.hop, ...pigeonsPic.perchClimb],
+  hold: true,
+};
+// S2 7번 이어서: 온 길을 거꾸로 밀려 내려간다(같은 칸 거꾸로, 새 칸 0). 칸 시간이 점점 짧아져(60 → 30ms) 뚝 떨어지는 가속이 읽힌다.
+// 놀람 칸으로 착지. hold 없음: 끝나면 쉬는 그림(같은 자리)
+const SPLASH_DOWN_MS = [60, 55, 50, 45, 40, 35, 30, 30, 30];
+ANIMS['floor.pigeons_splash_down'] = {
+  ms: [...SPLASH_DOWN_MS, 110],
+  frames: [...pigeonsPic.perchClimb.slice(0, -1).reverse(), pigeonsPic.hop],
+};
 
 // ═════════════ 오리 (duck, 히트 175,156 24×24 / 그림 181,167 14×9 + 외곽선, P9) ═════════════
 // 공원 연못의 カモ(설계 6절 이름표). 집오리·장난감 오리가 아니라 갈색 암컷 청둥오리: 몸은 woodL·wood에 woodD 얼룩,
