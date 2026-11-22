@@ -962,7 +962,7 @@
           {
             "anim": [
               "jjuk",
-              "common.stretch"
+              "common.reach_wobble"
             ]
           },
           {
@@ -1171,12 +1171,6 @@
           },
           {
             "fx": [
-              "stretch_text",
-              "jjuk"
-            ]
-          },
-          {
-            "fx": [
               "creak_text",
               "seesaw_left"
             ]
@@ -1239,12 +1233,6 @@
           },
           {
             "fx": [
-              "stretch_text",
-              "jjuk"
-            ]
-          },
-          {
-            "fx": [
               "creak_text",
               "seesaw_right"
             ]
@@ -1303,12 +1291,6 @@
             "anim": [
               "jjuk",
               "common.stretch"
-            ]
-          },
-          {
-            "fx": [
-              "stretch_text",
-              "jjuk"
             ]
           },
           {
@@ -1392,7 +1374,7 @@
           {
             "anim": [
               "jjuk",
-              "common.stretch"
+              "common.reach_wobble"
             ]
           },
           {

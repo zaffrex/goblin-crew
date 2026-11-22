@@ -8,7 +8,9 @@ import type { FrameCase } from './types.ts';
 const CASES: FrameCase[] = [
   { id: 'jjuk-stretch-nest', action: { char: 'jjuk', verb: 'stretch', target: 'nest' }, why: '바닥에서 둥지: 장대가 늘어나다 모자라야 한다(#284 완료 조건 2)' },
   { id: 'jjuk-stretch-hook', action: { char: 'jjuk', verb: 'stretch', target: 'hook' }, why: '바닥에서 고리: 집게가 고리 아래에서 멈춤' },
-  { id: 'jjuk-stretch-magpie', action: { char: 'jjuk', verb: 'stretch', target: 'magpie' }, why: '바닥에서 까치' },
+  { id: 'jjuk-stretch-magpie', action: { char: 'jjuk', verb: 'stretch', target: 'magpie' }, why: '바닥에서 까치: 장대가 펴지다 모자라 휘청(#587 C2)' },
+  { id: 'jjuk-stretch-long_johns', action: { char: 'jjuk', verb: 'stretch', target: 'long_johns' }, why: '바닥에서 내복: 장대가 올라가 건드리고 내복이 얼굴에(#587 C2)' },
+  { id: 'jjuk-stretch-seesaw_left', action: { char: 'jjuk', verb: 'stretch', target: 'seesaw_left' }, why: '바닥 대상: ビヨーン 없이 장대 툭 + ギイッ가 1번 칸에(#587 안 A)' },
   { id: 'mukjik-stomp-seesaw_left', action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' }, why: '반대쪽 빈 시소 쿵: 흔들림 + "반대쪽" 암시 대사(#284 완료 조건 3)' },
   { id: 'mukjik-stomp-hook', action: { char: 'mukjik', verb: 'stomp', target: 'hook' }, why: '고리에 쿵' },
   { id: 'ppik-squeak-nest', action: { char: 'ppik', verb: 'squeak', target: 'nest' }, why: '둥지에 삑: 소리 글자' },
