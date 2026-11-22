@@ -253,6 +253,11 @@ export interface SceneState {
    * 자동 걷기(`walk` 이벤트)는 구간 길이 합, 바닥 걷기는 목표까지 직선 거리. 시작 연출(`intro`) 중 걷기는 넣지 않는다(탭이 시작 연출을 통째로 넘긴다).
    */
   walkStart: { char: CharacterId; dist: number } | null;
+  /**
+   * 마지막으로 탭으로 시작한 행동의 키(`actionKey`). 마우스로 행동 뒤 마지막 말풍선을 누를 때, 같은 행동이면 닫기만 하고
+   * 다른 행동이면 닫고 실행하는 데 쓴다(`ui-interaction.md` 5절 예외 넷 3, #601). UI 상태라 세이브하지 않는다.
+   */
+  lastActKey: string | null;
 }
 
 export interface SceneData {
@@ -387,6 +392,7 @@ export function createScene(data: SceneData): SceneState {
     cleared: false,
     intro: false,
     walkStart: null,
+    lastActKey: null,
   };
   // onEnter는 상태를 바꾸지 않는 연출이다(ADR-0065 5절). say 화자는 캐릭터 ID만 온다.
   for (const item of data.screen.onEnter ?? []) {
@@ -1555,20 +1561,26 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
     }
     if (cur.ev.type !== 'say') return { kind: 'ignored' };
     const unlocked = cur.t >= (s.seenSay[seenSayKey(cur.ev.speaker, cur.ev.text)] ? TIMING.seenSaySkipAfter : TIMING.saySkipAfter);
-    // 예외 넷 2(#700): 터치이고 이 말풍선 뒤에 남은 게 없을 때만 탭을 살린다. 마우스(클릭 1번 = 실행)·연출 중간 말풍선은 지금 그대로(예외 넷 3·4).
-    if (!touch || !nothingAfterCurrent(s)) {
-      if (!unlocked) return { kind: 'ignored' };
-      cur.duration = cur.t;
-      return { kind: 'skipSay' };
-    }
+    const last = nothingAfterCurrent(s);
     if (!unlocked) {
-      // 잠금 전: 말풍선은 그대로 두고 고르기(select)만 받는다. 걷기·전환·실행(같은 대상 다시 탭)은 버리고 선택도 그대로 둔다.
+      // 예외 넷 2(#700): 터치, 행동 뒤 마지막 말풍선의 잠금 전에는 말풍선은 그대로 두고 고르기(select)만 받는다.
+      // 걷기·전환·실행(같은 대상 다시 탭)은 버리고 선택도 그대로 둔다. 마우스·연출 중간 말풍선은 다 버린다.
+      if (!touch || !last) return { kind: 'ignored' };
       const r = tap(tapContext(data, s), s.ui, p, slop, touch);
       if (r.intent.kind !== 'select') return { kind: 'ignored' };
       s.ui = r.ui;
       return { kind: 'intent', intent: r.intent };
     }
-    // 잠금 뒤: 말풍선을 지금 닫고(쉴 때와 같은 상태로) 같은 탭을 아래에서 평소대로 처리한다.
+    // 잠금 뒤 말풍선을 닫고 같은 탭을 아래에서 평소대로 처리하는 때:
+    // - 예외 넷 2(#700): 터치, 마지막 말풍선. 닫는 탭이 선택에서 멈추니 같은 행동이 또 나가지 않는다.
+    // - 예외 넷 3(#601): 마우스, 마지막 말풍선, 호버 라벨이 보여 준 *다른* 행동이나 전환. 방금 한 행동과 같은 클릭
+    //   (대사를 넘기려고 같은 자리를 다시 누름)·바닥·빈 곳은 닫기만 한다(💥 두 번 방지, 대사 넘기다 걷지 않게).
+    // 연출 중간 말풍선(예외 넷 4)은 마우스·터치 모두 닫기만 한다.
+    if (!last || (!touch && !mouseActsThroughSay(data, s, p, slop))) {
+      cur.duration = cur.t;
+      return { kind: 'skipSay' };
+    }
+    // 말풍선을 지금 닫고(쉴 때와 같은 상태로) 같은 탭을 아래에서 평소대로 처리한다.
     endCurrent(s);
     settle(s);
   }
@@ -1590,8 +1602,22 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
     }
     walkTo(w, to, WALK_AREA);
     if (w.target) s.walkStart = { char: s.ui.active, dist: Math.hypot(w.target.x - w.x, w.target.y - w.y) };
-  } else if (intent.kind === 'act') runAction(data, s, intent.action, intent.to);
+  } else if (intent.kind === 'act') {
+    s.lastActKey = intent.key;
+    runAction(data, s, intent.action, intent.to);
+  }
   return { kind: 'intent', intent };
+}
+
+/**
+ * 마우스 클릭이 행동 뒤 마지막 말풍선을 닫고 그대로 처리될지(`ui-interaction.md` 5절 예외 넷 3, #601).
+ * 호버 라벨이 보여 준 행동이 방금 한 행동과 다르면(다른 사람·다른 대상·다른 동사) 실행, 화면 속 동료 몸 클릭(전환)도 처리한다.
+ * 바닥 걷기·빈 곳은 대사를 넘기려는 클릭으로 보고 닫기만 한다. 판정만 하고 `s.ui`는 바꾸지 않는다.
+ */
+function mouseActsThroughSay(data: SceneData, s: SceneState, p: Point, slop: number): boolean {
+  const intent = tap(tapContext(data, s), s.ui, p, slop, false).intent;
+  if (intent.kind === 'switch') return true;
+  return intent.kind === 'act' && intent.key !== s.lastActKey;
 }
 
 /** 게이지가 줄어드는 연출(`gauge` 이벤트, 감소) 중이면 잃은 칸 [from, to)와 경과 틱. 엔진이 칸 터짐·흔들림을 그린다(설계 6-2-5절). */

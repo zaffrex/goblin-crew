@@ -1585,7 +1585,7 @@ describe('첫 탭이 버려지지 않게 (ui-interaction.md 5절 예외 넷, #70
     expect(sceneTap(data, s, MAGPIE, TOUCH, true)).toMatchObject({ kind: 'intent', intent: { kind: 'act' } });
   });
 
-  it('④ 마우스는 잠금 뒤 물건 클릭이 닫기만 한다(같은 행동이 또 나가지 않게)', () => {
+  it('④ 마우스는 잠금 뒤 방금 한 행동과 같은 클릭이면 닫기만 한다(같은 행동이 또 나가지 않게, 다른 행동은 sceneSayClick.test.ts #601)', () => {
     const s = nestSay();
     ticks(s, TIMING.saySkipAfter);
     const puzzle = JSON.stringify(s.puzzle);
