@@ -21,8 +21,12 @@ describe('layout-check (#768)', () => {
     expect(r.stands.some((x) => x.target === 'shutter' && x.side === 'left')).toBe(false);
   });
 
-  it('stand-neighbor: 두 바닥 물건 사이가 몸 폭보다 좁으면 warning (laundromat dryer_3 ↔ soap_vending 16px)', () => {
-    const r = layoutReport(loadScene('laundromat'));
+  it('stand-neighbor: 두 바닥 물건 사이가 몸 폭보다 좁으면 warning (laundromat 처음 배치 dryer_3 ↔ soap_vending 16px)', () => {
+    // 실제 화면은 11/23에 44px로 띄웠다(설계 1-1). warning 목록을 실제 화면에 고정하지 않는다(결정 기록 2026-11-22).
+    const d = clone(loadScene('laundromat'));
+    d.screen.hotspots.dryer_3!.box = [352, 164, 48, 72];
+    d.screen.hotspots.soap_vending!.box = [416, 148, 44, 88];
+    const r = layoutReport(d);
     const w = r.problems.filter((p) => p.code === 'stand-neighbor');
     expect(w.every((p) => p.level === 'warning')).toBe(true);
     expect(w.some((p) => p.message.includes('dryer_3 오른쪽') && p.message.includes('soap_vending('))).toBe(true);
