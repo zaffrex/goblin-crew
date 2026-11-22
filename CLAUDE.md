@@ -52,6 +52,7 @@ DOS 시절 협동 퍼즐 어드벤처(Gobliiins류)의 **장르와 메커닉에�
 | L3 진마씨 결정 | 아래 목록 | `#goblin-ceo` + GitHub 이슈 `ceo-decision` 라벨 → 결과를 `docs/decisions/`에 기록 | 진마씨 |
 
 **모든 결정은 GitHub에 문서로 남긴다.** Slack에서만 정하고 끝내지 않는다. 형식은 `docs/decisions/README.md`를 따른다.
+**ADR과 `docs/decisions/`가 루트 `decisions/`의 기록보다 우선한다.** 루트 `decisions/`는 외부 실험 플러그인이 남기는 기록이다(2주 시범, #89, [결정 기록](docs/decisions/2026-11-22-external-decision-tool-trial.md)).
 
 **L3(진마씨에게 올릴 것)만:**
 1. 돈이 드는 것: 유료 서비스·도메인 구매, 월 비용이 생기거나 늘어나는 것
