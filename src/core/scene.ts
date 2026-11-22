@@ -1600,7 +1600,7 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
       return { kind: 'skipWalk' };
     }
     if (cur.ev.type !== 'say') return { kind: 'ignored' };
-    const unlocked = cur.t >= (s.seenSay[seenSayKey(cur.ev.speaker, cur.ev.text)] ? TIMING.seenSaySkipAfter : TIMING.saySkipAfter);
+    const unlocked = sayUnlocked(s, cur.ev, cur.t);
     const last = nothingAfterCurrent(s);
     if (!unlocked) {
       // 예외 넷 2(#700): 터치, 행동 뒤 마지막 말풍선의 잠금 전에는 말풍선은 그대로 두고 고르기(select)만 받는다.
@@ -1658,6 +1658,28 @@ function mouseActsThroughSay(data: SceneData, s: SceneState, p: Point, slop: num
   const intent = tap(tapContext(data, s), s.ui, p, slop, false).intent;
   if (intent.kind === 'switch') return true;
   return intent.kind === 'act' && intent.key !== s.lastActKey;
+}
+
+/** 말풍선 잠금(처음 보는 글 `saySkipAfter`, 본 글 `seenSaySkipAfter`)이 풀렸나. `sceneTap`과 호버 판정이 같은 값을 쓴다. */
+function sayUnlocked(s: SceneState, ev: { speaker: string; text: string }, t: number): boolean {
+  return t >= (s.seenSay[seenSayKey(ev.speaker, ev.text)] ? TIMING.seenSaySkipAfter : TIMING.saySkipAfter);
+}
+
+/**
+ * busy 중 마우스 호버 라벨·외곽선을 띄울지(#776, `ui-interaction.md` 5절 예외 넷 3).
+ * 지금 p를 클릭하면 `sceneTap`이 행동 뒤 마지막 말풍선을 닫고 그 클릭을 그대로 처리하는 때만 참이다:
+ * 마지막 말풍선이 잠금 뒤이고, 판정이 방금과 다른 행동이거나 화면 속 동료 몸(전환)이다.
+ * 같은 행동·바닥·빈 곳·잠금 전·연출 중간 말풍선·시작 연출·HUD 영역은 거짓이다. "라벨이 보이면 그 클릭은 그대로 된다".
+ * 마우스 전용이다(터치는 호버가 없고 예외 넷 2의 선택 라벨을 쓴다). `s`는 바꾸지 않는다.
+ */
+export function mouseHoverThroughSay(data: SceneData, s: SceneState, p: Point): boolean {
+  const cur = s.current;
+  if (s.cleared || cur?.ev.type !== 'say' || !selectsDuringSay(s)) return false;
+  // `sceneTap`과 같은 순서: 얼굴 칸(경계 1px 포함)은 말풍선을 안 닫는 전환, HUD 영역·게이지 띠는 무시다.
+  if (hitTest(hudTargets(), p, 0) || inHudZone(p)) return false;
+  // 이미 본 클리어 연출은 월드 클릭이 건너뛰기라(#765) 행동이 나가지 않는다.
+  if (s.clearSeen && s.clearAt !== null && clearPending(s)) return false;
+  return sayUnlocked(s, cur.ev, cur.t) && mouseActsThroughSay(data, s, p, 0);
 }
 
 /** 게이지가 줄어드는 연출(`gauge` 이벤트, 감소) 중이면 잃은 칸 [from, to)와 경과 틱. 엔진이 칸 터짐·흔들림을 그린다(설계 6-2-5절). */

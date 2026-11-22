@@ -22,7 +22,7 @@ import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { pickScreen, screenTextKey } from './core/screenPick';
 import { cardLines, enterCharacter, flowTap, flowTick, flowView, nextIndex, parseOrder, PLAYING, playtestOrder, showCard, soloCardKey, startOrder, type Flow } from './core/flow';
 import orderJson from '../content/screens/order.json';
-import { activeFx, activeMarkerVisible, boardDrop, charPose, charWalking, createScene, currentBubble, drawOrder, gaugeDrop, isBusy, isHanging, sceneArtView, sceneLayout, sceneTap, sceneTick, selectsDuringSay, takeWalkStart, tapContext, type SceneData, type SceneState } from './core/scene';
+import { activeFx, activeMarkerVisible, boardDrop, charPose, charWalking, createScene, currentBubble, drawOrder, gaugeDrop, isBusy, isHanging, sceneArtView, sceneLayout, mouseHoverThroughSay, sceneTap, sceneTick, selectsDuringSay, takeWalkStart, tapContext, type SceneData, type SceneState } from './core/scene';
 import { animFrameBox, coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
 import { isTapKey } from './core/keys';
@@ -369,7 +369,8 @@ function updateHover(p: Point | null): void {
     hoverHud = hit ? (hit[0] as HudId) : null;
     return;
   }
-  if (isBusy(scene)) return;
+  // busy 중에는 끈다. 예외(#776): 행동 뒤 마지막 말풍선 중 그 클릭이 말풍선을 닫고 그대로 실행될 때만 띄운다(예외 넷 3).
+  if (isBusy(scene) && !mouseHoverThroughSay(data, scene, p)) return;
   const r = resolveTap(tapContext(data, scene), scene.ui, p, 0);
   hoverLabel = 'label' in r ? r.label : null;
   canvas.style.cursor = r.kind === 'act' ? 'pointer' : 'default';
@@ -632,7 +633,12 @@ function render(): void {
   const layout = sceneLayout(data, scene);
   // 라벨과 호버 외곽선(형식 기록 10-1절)은 같은 대상: 마우스 호버 또는 터치 첫 탭. busy·클리어 중에는 끈다.
   // 예외: 행동 뒤 마지막 말풍선 중 터치로 고른 대상(예외 넷 2, #700)은 말풍선과 함께 보인다. 안 그러면 첫 탭이 먹혔는지 안 보인다(#704).
-  const busyShown = scene.ui.selected !== null && selectsDuringSay(scene) ? touchLabel : null;
+  // 마우스는 그 클릭이 말풍선을 닫고 그대로 실행될 때만(예외 넷 3, #776). 잠금이 풀리는 순간은 마우스가 안 움직여도 오니 매 프레임 다시 잰다.
+  // `updateHover`가 busy 중에는 그때만 `hoverLabel`을 채운다.
+  const sayingToMouse = lastMouse !== null && selectsDuringSay(scene);
+  if (sayingToMouse) updateHover(lastMouse);
+  const sayHover = sayingToMouse ? hoverLabel : null;
+  const busyShown = (scene.ui.selected !== null && selectsDuringSay(scene) ? touchLabel : null) ?? sayHover;
   const shown = scene.cleared ? null : isBusy(scene) ? busyShown : (touchLabel ?? hoverLabel);
   const litTarget = shown?.target ?? null;
   // 쿵 흔들림(`ability-feedback.md` 2-1절 2): 장면 층(배경·물건·캐릭터·fx)만 세로로 민다. HUD·DOM 글자는 그대로.
