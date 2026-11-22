@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAllCleared, resumeFrom, saveOnCard } from './progress';
+import { isAllCleared, resumeFrom, saveOnCard, startFromSave } from './progress';
 import { playtestOrder, usesSave } from './flow';
 import { validateSave, type SaveData } from './save/schema';
 
@@ -68,5 +68,29 @@ describe('기본 링크에서 세이브가 켜진다 (#767, 기록 default-link-
   });
   it('?playtest=1만(order 없음)은 세이브를 안 끈다는 점에 주의: null이라 켜짐', () => {
     expect(usesSave(playtestOrder((k) => (k === 'playtest' ? '1' : null), known))).toBe(true);
+  });
+});
+
+describe('startFromSave (#767 2/2)', () => {
+  it('세이브 없음 → 새로 하기, 이어 쓸 세이브 없음', () => expect(startFromSave(null, ORDER)).toEqual({ resume: { kind: 'new' }, prev: null }));
+  it('이어 하기면 그 세이브를 이어 쓴다', () => {
+    const s = mk('magpie_nest', ['laundromat']);
+    expect(startFromSave(s, ORDER)).toMatchObject({ resume: { kind: 'continue', index: 1 }, prev: s });
+  });
+  it('다 깼으면 처음부터지만 solvedScreens는 지키고, 다시 깨도 checkpoint가 그대로다', () => {
+    const s = mk('park_fountain', ORDER);
+    const r = startFromSave(s, ORDER);
+    expect(r.resume).toEqual({ kind: 'new' });
+    expect(r.prev).toBe(s);
+    const after = saveOnCard({ ...base, prev: r.prev, index: 0 });
+    expect(after.progress.solvedScreens).toEqual(ORDER);
+    expect(resumeFrom(after, ORDER)).toEqual({ kind: 'new' });
+  });
+  it('checkpoint 화면이 순서에서 빠졌으면 옛 세이브를 버리고, 첫 카드에서 다음 화면으로 나아간다', () => {
+    const s = mk('gone', ['laundromat']);
+    const r = startFromSave(s, ORDER);
+    expect(r).toEqual({ resume: { kind: 'new' }, prev: null });
+    const after = saveOnCard({ ...base, prev: r.prev, index: 0 });
+    expect(resumeFrom(after, ORDER)).toMatchObject({ kind: 'continue', screenId: 'magpie_nest' });
   });
 });
