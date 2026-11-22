@@ -79,6 +79,18 @@
       "slack_token_env": "SLACK_TOKEN_QA",
       "slack_color": "#d93f0b",
       "isolated": true
+    },
+    "puzzle": {
+      "name": "Kai",
+      "title": "퍼즐·개그 작가",
+      "slack_username": "Kai (퍼즐)",
+      "icon_emoji": ":jack_o_lantern:",
+      "signature": "**[퍼즐 Kai]**",
+      "label": "role:puzzle",
+      "model": "claude-opus-5-5",
+      "effort": "high",
+      "slack_token_env": "SLACK_TOKEN_PUZZLE",
+      "slack_color": "#ff7eb6"
     }
   },
   "slack_channels": {
