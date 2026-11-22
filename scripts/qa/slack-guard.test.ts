@@ -26,10 +26,12 @@ describe('slack.sh qa guard', () => {
       expect(r.err).toContain('qa는 이 채널을 쓸 수 없어요');
     }
   });
-  it('blocks general post for qa', () => {
-    const r = run(ALL, '--as', 'qa', 'post', 'general', 'hi');
-    expect(r.code).not.toBe(0);
-    expect(r.err).toContain('qa는 이 채널을 쓸 수 없어요');
+  it('blocks meeting/ceo post for qa (general post is allowed since #751)', () => {
+    for (const ch of ['meeting', 'ceo']) {
+      const r = run(ALL, '--as', 'qa', 'post', ch, 'hi');
+      expect(r.code).not.toBe(0);
+      expect(r.err).toContain('qa는 이 채널을 쓸 수 없어요');
+    }
   });
   it('blocks --as pm in a qa run', () => {
     const r = run(ALL, '--as', 'pm', 'history', 'dev');

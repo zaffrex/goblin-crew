@@ -127,7 +127,7 @@ jobs:
           claude_args: >-
             ${{ steps.model.outputs.args }}
             --max-turns ${{ inputs.mode == 'chat' && 12 || inputs.role == 'qa' && 100 || inputs.mode == 'meeting' && 200 || 120 }}
-            ${{ inputs.role == 'qa' && '--permission-mode dontAsk --tools "Read,Write,Bash" --allowedTools "Read,Write(qa-work/**),Edit(./qa-work/**),Bash(scripts/slack.sh:*),Bash(node scripts/qa/browse.ts:*),Bash(gh issue comment:*),Bash(gh issue create:*)"' || '--permission-mode auto' }}
+            ${{ inputs.role == 'qa' && inputs.mode == 'chat' && '--permission-mode dontAsk --tools "Read,Bash" --allowedTools "Read,Bash(scripts/slack.sh:*)"' || inputs.role == 'qa' && '--permission-mode dontAsk --tools "Read,Write,Bash" --allowedTools "Read,Write(qa-work/**),Edit(./qa-work/**),Bash(scripts/slack.sh:*),Bash(node scripts/qa/browse.ts:*),Bash(gh issue comment:*),Bash(gh issue create:*)"' || '--permission-mode auto' }}
             --append-system-prompt-file .claude/agents/${{ inputs.role }}.md
             ${{ vars.BEAKET_ENABLED == 'true' && inputs.role != 'qa' && '--plugin-dir .github/beaket/plugin' || '' }}
           bot_id: "209825114"
