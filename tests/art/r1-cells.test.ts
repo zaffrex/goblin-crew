@@ -32,8 +32,9 @@ const R1_CELL_CAP = 48;
  * 리뷰어가 diff에서 "이 PR이 반응 그림 몇 칸을 늘렸나"를 바로 읽게 하려는 것이다. 48을 넘는 건 막지 않는다(경고).
  */
 const LEDGER: Record<string, { cells: number; base: number }> = {
-  // 쭉 7(launch_to_hook 4 + reach_hang_up 3), 삑 8(launch_to_hook 4 + hide_in_basket 4), 묵직 0(seesaw_stomp는 reuse), 물건 31.
-  magpie_nest: { cells: 46, base: 17 },
+  // 쭉 7(launch_to_hook 4 + reach_hang_up 3), 삑 8(launch_to_hook 4 + hide_in_basket 4), 묵직 0(seesaw_stomp는 reuse), 물건 35.
+  // 50 > 48 경고: U10 클리어 반전 컷 magpie.twist 4칸(#763). 설계 7절 계획 34칸에 들어 있던 칸이고, 날기·바닥 자세 7칸은 재사용(0칸).
+  magpie_nest: { cells: 50, base: 17 },
   // 물건 41(효과 water_off·water_burst 0칸, guest.soaked는 상태 칸 11이라 0칸), 쭉 4(take_up 3 + take_off 1), 묵직 3(sit_corner).
   park_fountain: { cells: 48, base: 12 },
   // 화면 JSON만(그림 전). 삑 hide_in_basket 4칸(화면 1 U9 재사용, 자판기 × プピッ). 새 그림 U1~U9는 그림 PR이 더한다(설계 7절 21~23칸).
@@ -193,7 +194,7 @@ describe('R1 새 칸 예산 (ADR-0422)', () => {
 
   it('시트별로 ADR-0422 손 계산과 같다 (magpie_nest)', () => {
     // `@seesaw_left` launch_to_hook은 쭉·삑 둘 다 받는다. 묵직이 seesaw_stomp는 step_up·common.stomp 칸을 다시 이어 0칸.
-    expect(r1Cells(inputOf(nest)).bySheet).toEqual({ jjuk: 7, mukjik: 0, ppik: 8, objects: 31 });
+    expect(r1Cells(inputOf(nest)).bySheet).toEqual({ jjuk: 7, mukjik: 0, ppik: 8, objects: 35 });
   });
 
   it('물건 anim의 variants 칸을 센다', () => {
@@ -201,7 +202,7 @@ describe('R1 새 칸 예산 (ADR-0422)', () => {
     for (const a of Object.values(objects.anims)) delete a.variants;
     const r = r1Cells({ ...inputOf(nest), objects });
     // 땅 위 까치 peck 3칸 + ruffle 3칸이 빠지고, 그 칸은 분류 안 된 칸이 된다.
-    expect(r.bySheet.objects).toBe(31 - 6);
+    expect(r.bySheet.objects).toBe(35 - 6);
     expect(r.unclassified).toEqual([32, 33, 34, 38, 39, 40]);
   });
 
@@ -214,21 +215,21 @@ describe('R1 새 칸 예산 (ADR-0422)', () => {
     const r = r1Cells({ ...inputOf(nest), objects });
     // 13·14는 plank_bounce 첫 칸이라 반응으로 넘어가고(+2), 16은 아무 데도 안 잡힌다.
     expect(r.base).toBe(17 - 3);
-    expect(r.bySheet.objects).toBe(31 + 2);
+    expect(r.bySheet.objects).toBe(35 + 2);
     expect(r.unclassified).toEqual([16]);
   });
 
   it('화면 데이터가 안 부르는 물건 anim이 있으면 분류 검사가 잡는다', () => {
-    // 화면 데이터의 `long_johns.flutter`를 시트에 없는 이름으로 바꾸면, 시트의 flutter 칸 45~47을 아무도 안 부른다.
+    // 화면 데이터의 `long_johns.flutter`를 시트에 없는 이름으로 바꾸면, 시트의 flutter 칸 49~51을 아무도 안 부른다.
     const screen = JSON.parse(JSON.stringify(nest).replaceAll('"long_johns","flutter"', '"long_johns","flutter_gone"')) as ScreenData;
     expect(animRefs(screen).some(([t, n]) => t === 'long_johns' && n === 'flutter_gone')).toBe(true);
     const r = r1Cells({ ...inputOf(nest), screen });
-    expect(r.unclassified).toEqual([45, 46, 47]);
+    expect(r.unclassified).toEqual([49, 50, 51]);
   });
 
   it('`@자리` 연출을 아무도 안 받으면 그 이름을 가진 캐릭터 모두로 센다', () => {
     const r = r1Cells({ ...inputOf(nest), played: new Map() });
     // launch_to_hook은 쭉·삑 시트에만 있다. 묵직이 시트에는 없어 0칸 그대로다.
-    expect(r.bySheet).toEqual({ jjuk: 7, mukjik: 0, ppik: 8, objects: 31 });
+    expect(r.bySheet).toEqual({ jjuk: 7, mukjik: 0, ppik: 8, objects: 35 });
   });
 });

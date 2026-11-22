@@ -64,6 +64,14 @@ const CASES: FrameCase[] = [
     says: 'magpie_nest.hook_pecked',
     why: '#664 3번(다치는 실패 #2): 까치 쪼기 → 쭉이 찌릿 → 바구니로 떨어짐 → 게이지 −1. 쪼는 까치와 「まずカササギやな」가 게이지 깎임과 같은 순간에 읽히나',
   },
+  // #763 U10: 정답 마지막 수(열쇠 집기) → 까치 반전 컷(magpie.twist) → 클리어 컷 글 L32. 카드 전까지 4초 안인지, 까치 급강하가 읽히는지 본다.
+  {
+    id: 'clear-twist',
+    pre: [{ char: 'ppik', verb: 'squeak', target: 'magpie' }, { char: 'jjuk', verb: 'move', target: 'seesaw_left' }, { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }],
+    action: { char: 'jjuk', verb: 'stretch', target: 'nest' },
+    says: 'magpie_nest.key_got',
+    why: '#763 U10: 열쇠를 든 뒤 까치가 날아오르다 급정거 → 눈 번뜩 → 급강하 → 바닥에서 노려봄 → 「やったー！…あれ？」 → 카드',
+  },
   // #419: 꽥은 원거리라 판 끝에서 내려오지 않고 돌아서기만 한다(대상 `approach`의 `squeak: stay`).
   {
     id: 'ppik-squeak-from-seesaw',

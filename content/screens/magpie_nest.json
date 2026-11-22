@@ -278,9 +278,18 @@
             "jjuk",
             "magpie_nest.key_got"
           ]
+        },
+        {
+          "do": "here"
+        },
+        {
+          "anim": [
+            "magpie",
+            "twist"
+          ]
         }
       ],
-      "note": "#1 정답. 클리어 컷(U10, L32)은 clear 이벤트 뒤 엔진이 재생(#68)"
+      "note": "#1 정답. 클리어 반전 컷 U10(magpie.twist, 설계 8절 2·3번)을 show 끝에 두고, 클리어 컷 글 L32(magpie_nest.clear)는 clear 이벤트에서 엔진이 띄운다(#68). do here로 쭉이를 먼저 바구니에 내려(열쇠 받기) 집게가 바닥에 있을 때 까치가 내리꽂고, 셋은 「やったー！…あれ？」로 늦게 알아챈다(#763)"
     },
     {
       "id": "hook_jjuk_pecked",
