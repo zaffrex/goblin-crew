@@ -155,6 +155,9 @@ function labelLines(tx: Record<string, string>): string[] {
     out.push(switchText(c, t), firstSwitchText(c, t), hudHoverText(`char.${c}`, t));
   }
   out.push(hudHoverText("gauge", t));
+  // 처음부터 버튼 호버·확인 글과 첫 게이지 감소 안내도 같은 자리에 뜬다(`main.ts` labelString, PR #720 Luna 리뷰).
+  // 셋 다 대상 라벨보다 먼저 보이고 터치 꼬리는 안 붙는다.
+  out.push(t("ui.restart_hover"), t("ui.restart_confirm"), t("ui.hud.gauge_first_drop"));
   return out;
 }
 
@@ -187,5 +190,9 @@ describe("대상 라벨 폭 (셈 기준, #703 #707)", () => {
     expect(overWidth(digitId).length).toBeGreaterThan(0);
     const longItem = { ...texts, "item.key_2.name": "錆びついた古い真鍮のカギ" };
     expect(overWidth(longItem).length).toBeGreaterThan(0);
+    for (const id of ["ui.restart_hover", "ui.restart_confirm", "ui.hud.gauge_first_drop"]) {
+      const longNote = { ...texts, [id]: "ゲージが1マス減った！ゼロになると全員まとめてスタート地点に戻される" };
+      expect(overWidth(longNote), id).toHaveLength(1);
+    }
   });
 });
