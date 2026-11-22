@@ -242,6 +242,49 @@ const MAGPIE_FLY = {
     '..........dd.dd.....',
   ],
 };
+// U10 클리어 반전 컷 포즈(#763). 같은 범례, 같은 오른쪽 보기.
+// 'brake' = 둥지로 올라가다 공중에서 급정거: 날개를 위로 펼쳐 버티고, 몸이 일어서고, 다리가 앞으로 나온다.
+//   눈은 반쯤 감은 눈꺼풀(dusk) 없이 둥글게 뜬다(흰자 2칸 + 눈동자). 부리는 오른쪽 아래(사람들 쪽)를 겨눈다.
+// 'dive' = 급강하: 날개를 몸에 딱 붙이고 부리부터 오른쪽 아래로 내리꽂는다. 다리는 접었다. 'jab'과 달리 몸이 길고 꼬리가 곧다.
+const MAGPIE_TWIST = {
+  brake: [
+    '...kk.................',
+    '..kwwk................',
+    '..kwTk................',
+    '...kTmk.......kkk.....',
+    '...ktTmk....kkkkkk....',
+    '....ktTmk..kkkkkkkk...',
+    '.....ktTmkkkkkeeekk...',
+    '......ktTkkkkkekekkk..',
+    '......kkkkwwwkeeekkkk.',
+    '.....kkkwwwwwwkkk.kkk.',
+    '....kkkwwwwwwwwk....k.',
+    '...ktkkcwwwwwwck......',
+    '..ktTk.kccllcck.......',
+    '.ktTk....kd..kd.......',
+    'ktTk.....kd...kd......',
+    'tTk.......dd...dd.....',
+    'Tk....................',
+  ],
+  dive: [
+    'Tk..................',
+    'tTk.................',
+    '.tTk................',
+    '..ktTk..............',
+    '...ktTkk............',
+    '....kttTkkk.........',
+    '.....ktmTTkkk.......',
+    '......kttmTkkkk.....',
+    '.......kkttkwwkk....',
+    '........kkkwwwwkkk..',
+    '.........kcwwwwkeek.',
+    '..........kcllwkkkkk',
+    '...........kkkkkkkgk',
+    '................kkkb',
+    '..................kb',
+    '...................k',
+  ],
+};
 const flyPose = (pose) => (im, x, y) => stamp(im, x, y, MAGPIE_FLY[pose], MAGPIE_LEGEND);
 /** 날아가는 한 장: 몸 + 속도선(효과, 외곽선 없음). (vx, vy) = 진행 방향 부호. 속도선은 반대쪽 뒤로 짧게 남는다. */
 const flying = (pose, x, y, vy) => pic((im) => flyPose(pose)(im, x, y), (im) => {
@@ -522,6 +565,36 @@ const ruffle = {
   variants: [{ when: { flags: { 'magpie.on_ground': true } }, ms: [100, 150, 100], frames: ruffleFrames(groundPose, MAGPIE_GROUND_AT), layer: 'front' }],
 };
 
+// U10 클리어 반전 컷(#763, 설계 8절 2·3번). 정답 규칙 1(열쇠 집기) 뒤 바닥의 까치가 둥지로 돌아가려고 날아오르다(U1 거꾸로 앞 다섯 칸 그대로)
+// 공중에서 급정거 → 쭉이 장대의 반짝이는 집게를 보고 눈이 번뜩 → 날개를 접고 부리부터 급강하 → 바닥에 내리꽂혀 부풀린 채 노려본다.
+// 상태는 안 바뀐다(바닥 → 바닥, `magpie.on_ground` 그대로). 마지막 칸 = 바닥 smug라 끝나고 loop로 튀지 않는다.
+// 새 칸은 넷(brake, brake + 번뜩, dive 둘). 나머지는 U1·바닥 자세 재사용. 클리어 컷 글(L32 「やったー！ …あれ？」)이 이 뒤에 뜬다:
+// 플레이어는 까치가 내리꽂히는 걸 봤는데 셋은 이제야 알아챈다(관객이 먼저 아는 웃음).
+const twistPose = (pose, x, y, fx) => pic((im) => stamp(im, x, y, MAGPIE_TWIST[pose], MAGPIE_LEGEND), fx);
+/** 눈 번뜩(효과, 외곽선 없음): 둥글게 뜬 눈(x, y = 눈동자)에서 흰 네 갈래 별이 뻗어 검은 머리 밖까지 나온다 + 반짝 점 둘. 금색은 열쇠 전용이라 흰색. */
+const eyeGlint = (x, y) => (im) => {
+  stamp(im, x - 4, y - 4, ['....w....', '....w....', '....w....', '...lwl...', 'wwwwwwwww', '...lwl...', '....w....', '....w....', '....w....'], { w: C.white, l: C.lint });
+  im.set(x + 6, y - 5, C.white); im.set(x - 5, y - 6, C.lint);
+};
+/** 급강하 속도선(효과): 몸 뒤(왼쪽 위)로 긴 대각선 셋. (x, y) = 등 가운데. */
+const diveLines = (x, y, k = 1) => (im) => {
+  for (const [dx, dy, len] of [[-3, 5, 7], [2, 0, 10], [7, -4, 6]]) line(im, x + dx, y + dy, x + dx - Math.round(len * k * 0.6), y + dy - Math.round(len * k), C.lint);
+};
+const BRAKE_AT = [104, 84];
+const twist = {
+  ms: [100, 70, 70, 70, 70, 160, 300, 60, 60, 120, 150],
+  frames: [
+    ...flyUp.frames.slice(0, 5), // 바닥 고개 홱 → 날아오름(U1 거꾸로 앞부분, 같은 픽셀이라 0칸)
+    twistPose('brake', ...BRAKE_AT), // 급정거, 눈을 동그랗게 뜬다
+    twistPose('brake', ...BRAKE_AT, eyeGlint(BRAKE_AT[0] + 15, BRAKE_AT[1] + 7)), // 번뜩
+    twistPose('dive', 100, 128, diveLines(104, 128)),
+    twistPose('dive', 95, 182, diveLines(99, 182, 1.4)),
+    groundPose('puff'),
+    groundPose('smug'),
+  ],
+  layer: 'front',
+};
+
 // U6 시소 널빤지 튕김(규칙 9~15 `stomp`). 이벤트 대상 끝이 내려가고 반대 끝이 튀어 오른다(형식 3·5절 "`seesaw_right` = 오른쪽이 내려감").
 // 정답(발사)과 실패(잘못 발사, 제 이마 치기)가 같은 프레임이다(설계 U6). 제 이마 치기(15번)는 데이터가 반대쪽 끝 이벤트를 보내서
 // 묵직이가 밟은 끝이 튀어 오른다. 널빤지는 회전 대신 열마다 세로로 밀어(층 밀기) 나뭇결·못이 깨지지 않게 한다.
@@ -568,6 +641,7 @@ export const ANIMS = {
   'magpie.fly_up': flyUp,
   'magpie.peck': { ...peckNest, variants: [{ when: { flags: { 'magpie.on_ground': true } }, ...peckGround }] },
   'magpie.ruffle': ruffle,
+  'magpie.twist': twist,
   'seesaw_right.plank_bounce': plankBounce(1),
   'seesaw_left.plank_bounce': plankBounce(-1),
   'long_johns.flutter': flutter,
