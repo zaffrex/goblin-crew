@@ -143,6 +143,29 @@ describe('긴 걷기 안내 (5-2-2절)', () => {
     expect(WALK_NOTE_MAX).toBe(2);
   });
 
+  it('4. 안내가 떠 있는 중 같은 사람이 목표를 바꾸면 안내가 이어지고 횟수는 안 센다(#755 Luna 리뷰)', () => {
+    const n = createFirstNotes(5, 'jjuk');
+    noteWalkStart(n, 'jjuk', 300, MSG);
+    expect(n.walkNotes).toBe(1);
+    // 탭(목표 바꾸기): 엔진은 noteTap 전에 떠 있던 걷기 안내의 주인을 잡아 둔다.
+    const walking = n.note?.walk;
+    noteTap(n);
+    noteWalkStart(n, 'jjuk', 300, MSG, walking === 'jjuk');
+    expect(currentNote(n, 0)).toBe(MSG);
+    expect(n.walkNotes).toBe(1);
+    // 바꾼 걷기가 짧으면 탭이 지운 그대로다.
+    noteTap(n);
+    noteWalkStart(n, 'jjuk', WALK_NOTE_MIN - 1, MSG, true);
+    expect(currentNote(n, 0)).toBeNull();
+    // 걷기가 끝난 뒤 다음 긴 걷기에서 한 번 더 뜬다(2번째), 그 뒤는 안 뜬다.
+    noteWalkStart(n, 'jjuk', 300, MSG);
+    expect(currentNote(n, 0)).toBe(MSG);
+    expect(n.walkNotes).toBe(2);
+    noteTap(n);
+    noteWalkStart(n, 'jjuk', 300, MSG);
+    expect(currentNote(n, 0)).toBeNull();
+  });
+
   it('4. 건너뛰기를 한 번 쓰면 다시 안 뜬다', () => {
     const n = createFirstNotes(5, 'jjuk');
     noteWalkSkipped(n);

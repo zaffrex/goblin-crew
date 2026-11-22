@@ -262,13 +262,15 @@ const inBox = (p: Point, b: HitBox): boolean => p.x >= b.left && p.x < b.left + 
 window.addEventListener('resize', () => display.resize());
 onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
   if (!loaded || rotating() || startCard.open || flow.phase !== 'play') return; // 로딩·세로 안내 중이거나 카드 몫(window 핸들러가 닫는다)
+  // 이 탭 직전에 걷기 안내가 떠 있던 사람. 그 사람이 목표를 바꾸면 안내가 이어지는 것이라 횟수를 안 센다(#755).
+  const walkNote = notes.note?.walk;
   noteTap(notes);
   if (slop > 0) lastMouse = null;
   lastTapTouch = slop > 0;
   const before = { ...session.scene.puzzle.at };
   const r = sceneTap(session.data, session.scene, p, slop, slop > 0);
   if (r.kind === 'skipWalk') noteWalkSkipped(notes);
-  pollWalkStart();
+  pollWalkStart(walkNote);
   if (r.kind !== 'intent') return;
   touchLabel = r.intent.kind === 'select' ? r.intent.label : null;
   if (r.intent.kind === 'act') noteAction(notes, r.intent.action, before[r.intent.action.char], slop > 0);
@@ -361,10 +363,13 @@ function updateHover(p: Point | null): void {
 /** 마지막 캔버스 탭이 터치였나. 긴 걷기 안내 글(`タップ`/`クリック`)을 고른다(#38 5-2-2절, `ui.next`와 같은 나누기). */
 let lastTapTouch = false;
 
-/** 방금 시작한 걷기가 길면 걷기 건너뛰기 안내를 라벨 자리에 띄운다(#38 5-2-2절). 탭 뒤와 매 틱 뒤에 부른다. */
-function pollWalkStart(): void {
+/**
+ * 방금 시작한 걷기가 길면 걷기 건너뛰기 안내를 라벨 자리에 띄운다(#38 5-2-2절). 탭 뒤와 매 틱 뒤에 부른다.
+ * `continuing`: 탭 직전에 걷기 안내가 떠 있던 사람. 그 사람의 걷기면 안내가 이어지는 것이라 횟수를 안 센다.
+ */
+function pollWalkStart(continuing?: CharacterId): void {
   const ws = takeWalkStart(session.scene);
-  if (ws) noteWalkStart(notes, ws.char, ws.dist, t(lastTapTouch ? 'ui.hud.walk_skip' : 'ui.hud.walk_skip_click'));
+  if (ws) noteWalkStart(notes, ws.char, ws.dist, t(lastTapTouch ? 'ui.hud.walk_skip' : 'ui.hud.walk_skip_click'), ws.char === continuing);
 }
 
 /**

@@ -161,9 +161,16 @@ export const WALK_NOTE_MAX = 2;
 /**
  * 걷기가 시작됐다(자동·바닥, 시작 연출 밖). `WALK_NOTE_MIN` 이상이고, 그 판에서 건너뛰기를 안 써 봤고, 아직 `WALK_NOTE_MAX`번 안 띄웠으면
  * 그 걷기가 끝날 때까지(또는 다음 탭까지) 안내를 띄운다. 다른 안내가 떠 있으면 덮지 않고 이번은 건너뛴다(횟수도 안 센다).
+ * `continues`: 이 걷기를 시작한 탭 직전에 같은 캐릭터의 걷기 안내가 떠 있었다(목표 바꾸기, #755 Luna 리뷰). 플레이어 눈에는 안내 한 번이
+ * 이어지는 것이라 횟수를 세지 않고 다시 띄운다. 새 걷기가 짧으면 탭이 지운 그대로 둔다.
  */
-export function noteWalkStart(n: FirstNotes, char: CharacterId, dist: number, text: string): void {
-  if (dist < WALK_NOTE_MIN || n.walkSkipped || n.walkNotes >= WALK_NOTE_MAX || n.note) return;
+export function noteWalkStart(n: FirstNotes, char: CharacterId, dist: number, text: string, continues = false): void {
+  if (dist < WALK_NOTE_MIN) return;
+  if (continues) {
+    if (!n.note) n.note = { text, until: null, walk: char };
+    return;
+  }
+  if (n.walkSkipped || n.walkNotes >= WALK_NOTE_MAX || n.note) return;
   n.walkNotes += 1;
   n.note = { text, until: null, walk: char };
 }
