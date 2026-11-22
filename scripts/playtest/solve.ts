@@ -10,6 +10,8 @@
 //       node --import ./scripts/playtest/register.mjs scripts/playtest/solve.ts --order magpie_nest,magpie_nest [...]
 //       node --import ./scripts/playtest/register.mjs scripts/playtest/solve.ts --deploy [...]
 // `--deploy`(#766)는 `?playtest=1`만 붙여(훅용) 쿼리 없는 배포본 경로를 탄다. 순서는 로컬 `content/screens/order.json`이고, 게임이 같은 순서를 쓰는지 본다.
+// 세이브(#767): `--deploy`면 카드가 뜰 때마다 localStorage 세이브의 checkpoint가 다음 화면(마지막은 자기)이고 깬 화면이 쌓였는지 본다.
+// `--order`·`--screen`(세이브를 끄는 판)이면 끝까지 세이브가 하나도 안 생겼는지 본다. 헤드리스는 매번 새 프로필이라 빈 저장소에서 시작한다.
 // 종료 코드: 클리어 못 했거나, 콘솔 에러가 있거나, 누를 곳을 못 찾거나, 화면 전환·끝 카드가 기대와 다르면 1.
 
 import { mkdirSync, readFileSync } from 'node:fs';
@@ -76,6 +78,22 @@ const flowOf = (page: Page) => page.evaluate<FlowState | null>(`typeof window.__
 const clearCard = (page: Page) =>
   page.evaluate<{ shown: boolean; next: boolean; text: string }>(`(() => { const c = document.querySelector('#clear'); return { shown: !c.hidden, next: c.hasAttribute('data-next'), text: c.textContent }; })()`);
 
+interface SavedState { screenId: string; activeCharacter: string; solved: string[] }
+/** localStorage 세이브(관찰만). 없으면 null. 키는 `src/core/save/schema.ts` SAVE_KEY. */
+const savedOf = (page: Page) =>
+  page.evaluate<SavedState | null>(`(() => { const t = localStorage.getItem('goblincrew.save.v1'); if (t === null) return null; const d = JSON.parse(t); return { screenId: d.checkpoint.screenId, activeCharacter: d.checkpoint.activeCharacter, solved: d.progress.solvedScreens }; })()`);
+
+/** `--deploy` 카드에서 본 세이브가 11-4절과 맞나: checkpoint = 다음 화면(마지막은 자기), solvedScreens = 지금까지 깬 화면. */
+async function checkSave(page: Page, k: number, tag: string, problems: string[]): Promise<void> {
+  if (!args.deploy) return;
+  const s = await savedOf(page);
+  const want = ids[k + 1] ?? ids[k]!;
+  const solved = ids.slice(0, k + 1).join();
+  if (!s) problems.push(`${tag}: 카드가 떴는데 세이브가 없음`);
+  else if (s.screenId !== want || s.solved.join() !== solved) problems.push(`${tag}: 세이브 checkpoint ${s.screenId}·깬 화면 ${s.solved.join()} (기대 ${want}·${solved})`);
+  else console.log(`${tag} 세이브 ✅ checkpoint ${s.screenId} (${s.activeCharacter}), 깬 화면 ${s.solved.join(',')}`);
+}
+
 async function waitFor<T>(what: string, read: () => Promise<T>, ok: (v: T) => boolean, timeoutMs = 10_000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
@@ -132,6 +150,7 @@ async function crossCard(page: Page, k: number, problems: string[]): Promise<voi
     if (c.text !== texts['ui.end']) problems.push(`${tag}: 끝 카드 글이 ui.end가 아님: ${JSON.stringify(c.text)}`);
     if (after.next) problems.push(`${tag}: 타이틀이 없는데 끝 카드에 ui.next가 보임`);
     console.log(`${tag} 끝 카드 ✅ ${JSON.stringify(c.text)}`);
+    await checkSave(page, k, tag, problems);
     return;
   }
   const shownAt = Date.now();
@@ -140,6 +159,7 @@ async function crossCard(page: Page, k: number, problems: string[]): Promise<voi
   await page.screenshot(join(args.out!, `${tag}-card.png`));
   const body = texts[`${id}.clear_card`];
   if (body !== undefined && !c.text.startsWith(body)) problems.push(`${tag}: 카드 결과 줄이 ${id}.clear_card가 아님: ${JSON.stringify(c.text)}`);
+  await checkSave(page, k, tag, problems);
   const before = await flowOf(page);
   const prevActive = (await layoutOf(page)).active;
   const tapAt = Date.now();
@@ -183,6 +203,7 @@ async function main(): Promise<number> {
       if (linked) await crossCard(page, k, problems);
       else await soloCard(page, problems);
     }
+    if (!args.deploy && (await savedOf(page)) !== null) problems.push('세이브를 끄는 판(--order·--screen)인데 세이브가 생김');
     for (const e of page.errors) problems.push(`콘솔(${e.source}): ${e.text}`);
   } finally {
     await browser.close();

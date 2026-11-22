@@ -66,3 +66,18 @@ export function saveOnCard(i: CardSaveInput): SaveData {
   const checkpoint = { screenId: nextId, gauge: CHECKPOINT_GAUGE, activeCharacter: i.activeCharacter, carriedItems: [] as string[] };
   return { version: 1, contentVersion: i.contentVersion, updatedAt: i.now.toISOString(), progress: { solvedScreens: solved }, checkpoint };
 }
+
+/** 세이브 `contentVersion`(ADR-0006). 화면 id가 바뀌거나 빠지는 콘텐츠 마이그레이션이 생기면 올린다. */
+export const CONTENT_VERSION = 'm2-1';
+
+/**
+ * 페이지를 열 때 세이브에서 고를 것(#767 2/2). `resume`은 어디서 시작할지, `prev`는 이번 판 클리어 카드가 이어 쓸 세이브다.
+ * - checkpoint 화면이 배포 순서에 없으면(콘텐츠가 바뀜) 옛 세이브를 이어 쓰지 않는다. 이어 쓰면 다시 깬 화면이 `saveOnCard`에서
+ *   "다시 하기"로 읽혀 checkpoint가 사라진 화면에 그대로 남고, 새로고침할 때마다 처음 화면으로 돌아간다.
+ * - 다 깬 세이브는 이어 쓴다. 처음 화면부터 다시 해도 `solvedScreens`(맵 #792가 쓸 것)를 잃지 않는다.
+ *   타이틀의 `새로 하기`(#792)는 이 함수가 아니라 호출 쪽에서 `prev = null`로 시작한다.
+ */
+export function startFromSave(loaded: SaveData | null, order: readonly string[]): { resume: Resume; prev: SaveData | null } {
+  const prev = loaded && order.includes(loaded.checkpoint.screenId) ? loaded : null;
+  return { resume: resumeFrom(loaded, order), prev };
+}

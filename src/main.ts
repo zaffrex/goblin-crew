@@ -20,7 +20,10 @@ import { cutFontPx, firstSwitchText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_A
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { pickScreen, screenTextKey } from './core/screenPick';
-import { cardLines, enterCharacter, flowTap, flowTick, flowView, nextIndex, parseOrder, PLAYING, playtestOrder, showCard, soloCardKey, startOrder, type Flow } from './core/flow';
+import { cardLines, enterCharacter, flowTap, flowTick, flowView, nextIndex, parseOrder, PLAYING, playtestOrder, showCard, soloCardKey, startOrder, usesSave, type Flow } from './core/flow';
+import { CONTENT_VERSION, saveOnCard, startFromSave } from './core/progress';
+import { LocalSaveStore, probeStorage } from './core/save/store';
+import type { SaveData } from './core/save/schema';
 import orderJson from '../content/screens/order.json';
 import { activeFx, activeMarkerVisible, boardDrop, charPose, charWalking, createScene, currentBubble, drawOrder, gaugeDrop, isBusy, isHanging, sceneArtView, sceneLayout, mouseHoverThroughSay, sceneTap, sceneTick, selectsDuringSay, takeWalkStart, tapContext, type SceneData, type SceneState } from './core/scene';
 import { animFrameBox, coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
@@ -66,12 +69,24 @@ const TEXT: Readonly<Record<string, string>> = texts;
  * 플레이 순서(#230 여러 화면 연결, #766). 쿼리가 없으면 배포 순서 `content/screens/order.json`이다
  * (지금은 임시 순서, L1 기록 `2026-11-22-default-link-interim-order`). `?playtest=1&order=a,b`가 그보다 먼저다.
  * null이면 `?screen=<id>`로 연 화면 하나: 클리어 뒤 `soloCardKey` 카드에서 끝나고 연결 경로(카드 탭·전환)를 아예 타지 않는다.
- * 세이브는 아직 붙이지 않았다(#767).
+ * 세이브(#767)는 배포 순서로 도는 판에서만 읽고 쓴다(아래 `saveStore`).
  */
 const DEPLOY_ORDER = parseOrder(orderJson, new Set(SCREENS.keys()));
 if (!DEPLOY_ORDER.ok) console.error(`content/screens/order.json: ${DEPLOY_ORDER.error}. 화면 하나로 엽니다`);
 const ORDER = startOrder(query, new Set(SCREENS.keys()), DEPLOY_ORDER);
 if (query('order') !== null && !playtestOrder(query, new Set(SCREENS.keys()))) console.warn('?order=: playtest=1이 아니거나 모르는 화면 id가 있어 무시합니다');
+
+/**
+ * 세이브(#767, 설계 11-4절, ADR-0006 localStorage). 쿼리 없는 기본 링크에서 켜진다(기록 `default-link-always-latest`).
+ * 끄는 판: `?screen=<id>` 화면 하나(`ORDER` null, 연결 경로를 안 탄다), `?playtest=1&order=` 덮어쓰기(같은 id 반복으로 "다 깸"이 일찍 참).
+ * `?playtest=1`만 붙인 판(`solve.ts --deploy`)은 기본 링크와 같은 경로라 켜진다. 헤드리스 브라우저는 판마다 빈 저장소라 서로 새지 않는다.
+ * 저장소가 막혀 있으면(쿠키 차단·사파리 개인 모드) 메모리에만 쓴다: 이 페이지 안에서는 그대로 돌고 새로고침하면 처음이다.
+ */
+const saveStore = ORDER && usesSave(playtestOrder(query, new Set(SCREENS.keys()))) ? new LocalSaveStore(probeStorage(() => window.localStorage).storage) : null;
+/** 페이지를 열 때 읽은 세이브. 손상·상위 버전은 store가 백업에 옮기고 null을 준다(새로 하기). */
+const START = saveStore && ORDER ? startFromSave(await saveStore.load(), ORDER) : null;
+/** 클리어 카드가 이어 쓸 마지막 세이브(이 페이지에서 쓴 것 포함). */
+let saved: SaveData | null = START?.prev ?? null;
 
 /**
  * 한 화면 판(#230 여러 화면 연결 1단계, 설계 `ui-interaction.md` 11절). 화면에 묶인 상태는 전부 여기 있다.
@@ -122,9 +137,11 @@ function enterScreen(id: string): Session {
   return { data, art, covered: art ? coveredIds(art.meta) : new Set<string>(), scene: newScene(data), loopClock: {}, spriteTops: {} };
 }
 
-let session = enterScreen(ORDER ? ORDER[0]! : picked.id);
-/** 순서 안 지금 위치. 같은 id가 두 번 나와도 위치로 센다(`flow.ts` nextIndex). */
-let orderIndex = 0;
+/** 순서 안 지금 위치. 같은 id가 두 번 나와도 위치로 센다(`flow.ts` nextIndex). 세이브에서 이어 하면 그 화면 위치다. */
+let orderIndex = START?.resume.kind === 'continue' ? START.resume.index : 0;
+let session = enterScreen(ORDER ? ORDER[orderIndex]! : picked.id);
+// 이어 하는 화면의 지금 캐릭터: 저장한 캐릭터가 그 화면 `start.at`에 없으면 다음 화면 들어갈 때와 같은 대체 규칙(11-3절).
+if (START?.resume.kind === 'continue') session.scene.ui.active = enterCharacter(START.resume.activeCharacter, session.data.screen.start.at, CHARACTERS.map((c) => c.id)) as CharacterId;
 /** 화면 사이 흐름(ui-interaction 11-1절). `ORDER`가 없으면 늘 `play`다. */
 let flow: Flow = PLAYING;
 /** 클리어 카드가 뜰 때 미리 만든 다음 화면 판. 그림을 카드 보는 동안 받는다(11-1절 "다음 화면 그림 기다림 0초가 목표"). */
@@ -239,6 +256,13 @@ function tapFlow(): void {
   flow = flowTap(flow, false).flow;
 }
 
+/** 클리어 카드 세이브(11-4절). 실패해도 판은 계속한다(store 계약: 실패하면 기존 세이브 유지). */
+function writeSave(index: number, activeCharacter: string): void {
+  if (!saveStore || !ORDER) return;
+  saved = saveOnCard({ prev: saved, order: ORDER, index, activeCharacter, contentVersion: CONTENT_VERSION, now: new Date() });
+  saveStore.save(saved).catch((e: unknown) => console.warn('세이브를 쓰지 못했습니다', e));
+}
+
 /** 다음 화면 그림이 다 왔나. 없는 그림('none')은 기다리지 않는다. 캐릭터·글자 시트는 화면과 상관없이 이미 읽혔다. */
 function artReady(art: SceneArt | null): boolean {
   return !art || ((!art.bg || art.bgReady) && art.objectsReady);
@@ -256,6 +280,9 @@ function stepFlow(): void {
     const next = nextIndex(ORDER, orderIndex);
     flow = showCard(next === null);
     pending = next === null ? null : { index: next, session: enterScreen(ORDER[next]!) };
+    // 카드가 뜨는 순간 저장(11-4절). 다음 화면 캐릭터는 swap 때와 같은 계산이다(카드 동안 전환 입력이 없어 지금 캐릭터가 안 바뀐다).
+    const active = session.scene.ui.active;
+    writeSave(orderIndex, pending ? enterCharacter(active, pending.session.data.screen.start.at, CHARACTERS.map((c) => c.id)) : active);
     return;
   }
   const r = flowTick(flow, pending !== null && artReady(pending.session.art));
