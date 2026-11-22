@@ -102,7 +102,7 @@ export interface ReactionReport {
   screen: string;
   /** Unique anim/say on the `solution` replay. `outside` = every step before the last, `clearCut` = last step only (ADR-0761 H1). */
   solution: { outside: number; clearCut: number; common: number };
-  /** Unique anim/say from actions taken at reached states off the solution path; `states` = folded count minus the path's (gauge excluded). */
+  /** Unique anim/say from actions (any reached state, not move/invalid) whose ruleId never fires on the `solution` replay; `states` = all reached folded states (gauge excluded). */
   wrong: { reactions: number; states: number; common: number };
   decoys: string[];
   warnings: string[];
@@ -141,21 +141,20 @@ export function reactionReport(screen: ScreenData, characters?: CharactersData, 
   }
 
   // solution replay
-  const pathKeys = new Set<string>();
+  const solRules = new Set<string>();
   const inside = new Set<string>();
   const outside = new Set<string>();
   const solCommon = new Set<string>();
   let s = host.initial;
-  pathKeys.add(foldedKey(s));
   const sol = screen.solution ?? [];
   sol.forEach((a, i) => {
     const r = host.step(s, a);
+    if (r.ruleId) solRules.add(r.ruleId);
     for (const x of reactionsOf(r.events)) {
       if (x.common) solCommon.add(x.key);
       else (i === sol.length - 1 ? inside : outside).add(x.key);
     }
     s = r.state;
-    pathKeys.add(foldedKey(s));
   });
 
   // wrong-side reactions
@@ -165,7 +164,6 @@ export function reactionReport(screen: ScreenData, characters?: CharactersData, 
   const wrongCommon = new Set<string>();
   for (let i = 0; i < queue.length && queue.length < limit; i++) {
     const st = queue[i]!;
-    const sk = foldedKey(st);
     for (const a of host.actions(st) as Action[]) {
       const r = host.step(st, a);
       if (r.source === 'invalid') continue;
@@ -173,7 +171,7 @@ export function reactionReport(screen: ScreenData, characters?: CharactersData, 
       if (r.ruleId?.startsWith('decoy.') && (progressKey(r.state) !== progressKey(st) || r.state.gauge !== st.gauge)) {
         warnings.push(`${r.ruleId}가 퍼즐 상태/게이지를 바꿈(H4 ①)`);
       }
-      if (!pathKeys.has(sk) && a.verb !== 'move') {
+      if (a.verb !== 'move' && !(r.ruleId && solRules.has(r.ruleId))) {
         for (const x of reactionsOf(r.events)) (x.common ? wrongCommon : wrong).add(x.key);
       }
       if (!seen.has(nk)) {
@@ -185,7 +183,7 @@ export function reactionReport(screen: ScreenData, characters?: CharactersData, 
   return {
     screen: screen.id,
     solution: { outside: outside.size, clearCut: inside.size, common: solCommon.size },
-    wrong: { reactions: wrong.size, states: [...seen].filter((k) => !pathKeys.has(k)).length, common: wrongCommon.size },
+    wrong: { reactions: wrong.size, states: seen.size, common: wrongCommon.size },
     decoys,
     warnings: [...new Set(warnings)],
   };
@@ -195,7 +193,7 @@ export function formatReactions(d: ReactionReport): string {
   const w = d.wrong;
   const lines = [
     `[${d.screen}] 정답 길 반응: 클리어 연출 밖 ${d.solution.outside} / 클리어 연출 ${d.solution.clearCut} (common.* ${d.solution.common} 따로)`,
-    `[${d.screen}] 오답 반응: 정답 길 밖 상태 ${w.states}개에서 고유 반응 ${w.reactions} (common.* ${w.common} 따로), 미끼 ${d.decoys.length ? d.decoys.join(',') : '없음'}`,
+    `[${d.screen}] 오답 반응: 도달 상태 ${w.states}개의 정답 길 밖 행동에서 고유 반응 ${w.reactions} (common.* ${w.common} 따로), 미끼 ${d.decoys.length ? d.decoys.join(',') : '없음'}`,
   ];
   for (const x of d.warnings) lines.push(`[${d.screen}] 경고: ${x}`);
   return lines.join('\n');
