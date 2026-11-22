@@ -1,0 +1,21 @@
+# Checks the decision records a pull request adds or changes. It only reads, and it is informational: do not make it
+# a required check. The repository variable BEAKET_ENABLED turns it on; unset, or anything but "true", is off.
+name: Beaket decisions
+on:
+  pull_request:
+    paths: ["decisions/**"]
+permissions: {}
+jobs:
+  check:
+    if: vars.BEAKET_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node .github/beaket/plugin/beaket.mjs check decisions
