@@ -237,6 +237,7 @@ fetch_history() { # fetch_history <token> <channel> <oldest> <wide:0|1>
 
 # --- main loop ----------------------------------------------------------------------------------
 began=$(date +%s); cycle=0; chained=0
+SELF_SHA=$(git hash-object "${BASH_SOURCE[0]}" 2>/dev/null || true)   # git blob sha, comparable to the contents API sha
 # Queue the next listener job shortly before MAX so the handover gap stays small (cron alone left gaps up to ~3h).
 # concurrency (cancel-in-progress: false) keeps it pending until this job ends; only one pending run exists at a time.
 CHAIN_LEAD=${CHAIN_LEAD_SECONDS:-300}
@@ -254,6 +255,13 @@ while [ $(( $(date +%s) - began )) -lt "$MAX" ]; do
     [ "$paused" = true ] && { log "schedule paused; exiting"; exit 0; }
   fi
   [ $((cycle % 20)) = 0 ] && watchdog   # ~5 min
+  if [ $((cycle % 20)) = 10 ]; then   # ~5 min (offset from watchdog): hand over when this script changed on main (#758)
+    main_sha=$(gh api "repos/$REPO/contents/scripts/slack-listener.sh?ref=main" --jq .sha 2>/dev/null || true)
+    if [ -n "$main_sha" ] && [ -n "$SELF_SHA" ] && [ "$main_sha" != "$SELF_SHA" ]; then
+      log "listener script changed on main; handing over to a fresh job"
+      chain_next; exit 0
+    fi
+  fi
   # Normal tick: parents from the last 72h. Every WIDE_EVERY cycles (~5 min, same as the watchdog) widen to
   # WIDE_DAYS so replies on old parents (long CEO threads) are found via latest_reply, paging through history.
   if [ $((cycle % WIDE_EVERY)) = 0 ]; then since=$(( $(date +%s) - WIDE_DAYS * 86400 )); wide=1
