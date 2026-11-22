@@ -38,12 +38,42 @@ const center = (b: HitBox): Point => ({ x: b.left + b.width / 2, y: b.top + b.he
 describe('기본 탭 동사 (설계 2절)', () => {
   it('서는 자리에 내가 없으면 올라서기(move), 서 있으면 내 능력', () => {
     const p0 = puzzleWith({});
-    const r0 = resolveTap(ctxFor(p0), ui('mukjik'), { x: 269, y: 208 }, 0);
-    expect(r0).toMatchObject({ kind: 'act', action: { char: 'mukjik', verb: 'move', target: 'seesaw_right' }, label: { verb: 'climb' } });
+    const r0 = resolveTap(ctxFor(p0), ui('jjuk'), { x: 269, y: 208 }, 0);
+    expect(r0).toMatchObject({ kind: 'act', action: { char: 'jjuk', verb: 'move', target: 'seesaw_right' }, label: { verb: 'climb' } });
 
-    const p1 = puzzleWith({ mukjik: 'seesaw_right' });
-    const r1 = resolveTap(ctxFor(p1), ui('mukjik'), { x: 269, y: 208 }, 0);
-    expect(r1).toMatchObject({ kind: 'act', action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, label: { verb: 'stomp' } });
+    const p1 = puzzleWith({ jjuk: 'seesaw_right' });
+    const r1 = resolveTap(ctxFor(p1), ui('jjuk'), { x: 269, y: 208 }, 0);
+    expect(r1).toMatchObject({ kind: 'act', action: { char: 'jjuk', verb: 'stretch', target: 'seesaw_right' }, label: { verb: 'stretch' } });
+  });
+
+  it('특기 자리(6-4-1c, #723): 묵직이 × 시소 끝은 첫 클릭부터 쿵, 쭉이·삑삑이는 올라서기', () => {
+    const t = (id: string): string => (texts as Record<string, string>)[id] ?? id;
+    const ctx = ctxFor(puzzleWith({}));
+    const ends = [
+      ['seesaw_left', { x: 227, y: 208 }, 'シーソーの左端をドスン'],
+      ['seesaw_right', { x: 269, y: 208 }, 'シーソーの右端をドスン'],
+    ] as const;
+    for (const [spot, p, text] of ends) {
+      const r = resolveTap(ctx, ui('mukjik'), p, 0);
+      expect(r).toMatchObject({ kind: 'act', action: { char: 'mukjik', verb: 'stomp', target: spot }, label: { verb: 'stomp', target: spot } });
+      if (r.kind !== 'act') throw new Error('unreachable');
+      expect(labelText(r.label, 'magpie_nest', t)).toBe(text);
+      for (const other of ['jjuk', 'ppik'] as const) {
+        expect(resolveTap(ctx, ui(other), p, 0)).toMatchObject({ kind: 'act', action: { char: other, verb: 'move', target: spot }, label: { verb: 'climb' } });
+      }
+    }
+    // 남이 선 끝의 빈 부분도 묵직이면 쿵(규칙 seesaw_end_taken). 몸이 안 가리는 끝 아래쪽 귀퉁이를 누른다.
+    const taken = ctxFor(puzzleWith({ jjuk: 'seesaw_right' }));
+    const corner = { x: 286, y: 218 };
+    expect(hitTest(worldTargets(taken, ui('mukjik')), corner, 0)?.id).toBe('spot:seesaw_right');
+    expect(resolveTap(taken, ui('mukjik'), corner, 0)).toMatchObject({ kind: 'act', action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' } });
+  });
+
+  it('특기 자리 판정은 자리 hintAbility만 본다: 지우면 묵직이도 올라선다', () => {
+    const spots = { ...screen.spots, seesaw_right: { ...screen.spots.seesaw_right!, hintAbility: undefined } };
+    const s = { ...screen, spots } as ScreenData;
+    const r = resolveTap(ctxFor(puzzleWith({}), s), ui('mukjik'), { x: 269, y: 208 }, 0);
+    expect(r).toMatchObject({ kind: 'act', action: { char: 'mukjik', verb: 'move', target: 'seesaw_right' } });
   });
 
   it('시소 끝을 가린 내 몸을 눌러도 쿵(몸 아래쪽 = 끝 상자 안)', () => {
@@ -237,20 +267,27 @@ describe('바닥에 선 동료는 얼굴로 고른다 (설계 2-1절, #427)', ()
 describe('고르고 누르기만 (설계 6-4절, #311)', () => {
   const seesaw = { x: 269, y: 208 };
 
-  it('화면 1 정답 3번: 오른쪽 끝 = 올라섬, 올라선 뒤 같은 끝 한 번 더 = 쿵(6-4-1절)', () => {
+  it('화면 1 정답 3번: 오른쪽 끝 클릭 1번 = 쿵(6-4-1c #723). 서 있어도 쿵', () => {
     const before = resolveTap(ctxFor(puzzleWith({ jjuk: 'seesaw_left' })), ui('mukjik'), seesaw, 0);
-    expect(before).toMatchObject({ kind: 'act', action: { char: 'mukjik', verb: 'move', target: 'seesaw_right' }, label: { verb: 'climb' } });
+    expect(before).toMatchObject({ kind: 'act', action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, label: { verb: 'stomp' } });
     const after = resolveTap(ctxFor(puzzleWith({ jjuk: 'seesaw_left', mukjik: 'seesaw_right' })), ui('mukjik'), seesaw, 0);
     expect(after).toMatchObject({ kind: 'act', action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' }, label: { verb: 'stomp' } });
   });
 
-  it('남이 선 끝: 몸을 누르면 전환, 몸 밖은 올라서기뿐(능력은 못 고른다, 6-4-4절)', () => {
+  it('남이 선 끝: 몸을 누르면 전환, 몸 밖은 올라서기뿐. 특기 자리면 내 특기(6-4-4절, 6-4-1c)', () => {
     const ctx = ctxFor(puzzleWith({ jjuk: 'seesaw_left' }));
     expect(resolveTap(ctx, ui('mukjik'), { x: 225, y: 205 }, 0)).toMatchObject({ kind: 'switch', char: 'jjuk' });
+    let seen = 0;
     for (let x = 200; x < 250; x += 3) {
-      const r = resolveTap(ctx, ui('mukjik'), { x, y: 208 }, 0);
-      if (r.kind === 'act' && r.action.target === 'seesaw_left') expect(r.action.verb).toBe('move');
+      const ppik = resolveTap(ctx, ui('ppik'), { x, y: 208 }, 0);
+      if (ppik.kind === 'act' && ppik.action.target === 'seesaw_left') expect(ppik.action.verb).toBe('move');
+      const muk = resolveTap(ctx, ui('mukjik'), { x, y: 208 }, 0);
+      if (muk.kind === 'act' && muk.action.target === 'seesaw_left') {
+        expect(muk.action.verb).toBe('stomp'); // 규칙 seesaw_end_taken_left(…どいて。)
+        seen++;
+      }
     }
+    expect(seen).toBeGreaterThan(0);
   });
 
   it('UI로는 hand·look·item 행동이 나오지 않는다(화면 전체 점, 세 캐릭터, 여러 상태)', () => {
@@ -311,12 +348,12 @@ describe('터치 탭 2번 (설계 4절)', () => {
   const seesaw = { x: 269, y: 208 };
 
   it('step 행동: 첫 탭 = 선택, 같은 행동 다시 탭 = 실행. 마우스는 1번', () => {
-    const a = tap(ctx, ui('mukjik'), seesaw, 8, true);
+    const a = tap(ctx, ui('jjuk'), seesaw, 8, true);
     expect(a.intent).toMatchObject({ kind: 'select', label: { verb: 'climb', target: 'seesaw_right' } });
     const b = tap(ctx, a.ui, seesaw, 8, true);
     expect(b.intent).toMatchObject({ kind: 'act', action: { verb: 'move', target: 'seesaw_right' } });
     expect(b.ui.selected).toBeNull();
-    expect(tap(ctx, ui('mukjik'), seesaw, 0, false).intent.kind).toBe('act');
+    expect(tap(ctx, ui('jjuk'), seesaw, 0, false).intent.kind).toBe('act');
   });
 
   it('다른 대상을 탭하면 선택이 옮겨 가고, 바닥 걷기는 선택을 푼다', () => {
@@ -328,14 +365,20 @@ describe('터치 탭 2번 (설계 4절)', () => {
     expect(c.ui.selected).toBeNull();
   });
 
-  it('올라선 뒤 같은 끝은 다른 행동(쿵)이라 다시 선택부터: 정답 3번은 터치 4번(6-4-1절)', () => {
-    const a = tap(ctx, ui('mukjik'), seesaw, 8, true);
+  it('올라선 뒤 같은 끝은 다른 행동이라 다시 선택부터(쭉이: 올라섬 → 뻗기, 6-4-1절)', () => {
+    const a = tap(ctx, ui('jjuk'), seesaw, 8, true);
     const b = tap(ctx, a.ui, seesaw, 8, true);
     expect(b.intent).toMatchObject({ kind: 'act', action: { verb: 'move' } });
-    const on = ctxFor(puzzleWith({ mukjik: 'seesaw_right' }));
+    const on = ctxFor(puzzleWith({ jjuk: 'seesaw_right' }));
     const c = tap(on, b.ui, seesaw, 8, true);
-    expect(c.intent).toMatchObject({ kind: 'select', label: { verb: 'stomp' } });
-    expect(tap(on, c.ui, seesaw, 8, true).intent).toMatchObject({ kind: 'act', action: { verb: 'stomp', target: 'seesaw_right' } });
+    expect(c.intent).toMatchObject({ kind: 'select', label: { verb: 'stretch' } });
+    expect(tap(on, c.ui, seesaw, 8, true).intent).toMatchObject({ kind: 'act', action: { verb: 'stretch', target: 'seesaw_right' } });
+  });
+
+  it('정답 3번 터치 = 2번(선택·쿵, 6-4-1c #723)', () => {
+    const a = tap(ctx, ui('mukjik'), seesaw, 8, true);
+    expect(a.intent).toMatchObject({ kind: 'select', label: { verb: 'stomp', target: 'seesaw_right' } });
+    expect(tap(ctx, a.ui, seesaw, 8, true).intent).toMatchObject({ kind: 'act', action: { char: 'mukjik', verb: 'stomp', target: 'seesaw_right' } });
   });
 
   it('매달린 캐릭터의 손 놓기는 터치에서 2번, 전환·걷기는 1번', () => {

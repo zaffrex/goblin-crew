@@ -30,3 +30,17 @@ describe('screen BFS check', () => {
     expect(uniqueReactions({ ...screen, fallbacks: undefined, onEnter: undefined, rules: [{ show: [{ anim: ['a', 'common.x'] }, { anim: ['a', 'y'] }] }] } as unknown as ScreenData)).toBe(1);
   });
 });
+
+// 특기 자리(ui-interaction.md 6-4-1c, #723): `box` 있는 비-`hold` 서는 자리의 `hintAbility`가 A면, 특기가 A인 캐릭터는
+// 그 자리 첫 클릭이 올라서기 대신 A다(interact.ts `specialtySpot`, 자리 데이터만 본다). 그러니 데이터에
+// `target` = 그 자리, `verb` = A 규칙이 있어야 한다. 없으면 첫 클릭이 폴백으로 빠지고 그 자리로 올라설 길도 없어진다.
+describe('specialty spots have a rule for their hintAbility (6-4-1c)', () => {
+  it.each(files)('screens/%s', (file) => {
+    const screen = load(dir(`../../content/screens/${file}`)) as ScreenData;
+    const missing = Object.entries(screen.spots)
+      .filter(([, s]) => s.box && !s.hold && !s.free && s.hintAbility)
+      .filter(([id, s]) => !screen.rules.some((r) => r.target === id && r.verb === s.hintAbility))
+      .map(([id, s]) => `${id} × ${s.hintAbility}`);
+    expect(missing).toEqual([]);
+  });
+});

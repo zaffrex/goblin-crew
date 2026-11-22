@@ -87,30 +87,31 @@ function replay(input: Input) {
 }
 
 describe('playtest plan (ui-interaction 6-4-7절)', () => {
-  it('화면 1 정답 마우스: 3번은 오른쪽 끝에 올라선 뒤 한 번 더(동사 버튼 없음)', () => {
+  it('화면 1 정답 마우스: 3번은 오른쪽 끝 클릭 1번 = 쿵(특기 자리 6-4-1c #723, 동사 버튼 없음)', () => {
     const { seq, state } = replay('mouse');
     expect(seq).toEqual([
       ['char.ppik', 'magpie'],
       ['char.jjuk', 'seesaw_left'],
-      ['char.mukjik', 'seesaw_right', 'seesaw_right'],
+      ['char.mukjik', 'seesaw_right'],
       ['char.jjuk', 'nest'],
     ]);
     expect(state.flags[screen.exitFlag]).toBe(true);
   });
 
-  it('화면 1 정답 터치: step 행동 탭은 2번, 전환은 1번. 3번은 탭 4번(선택·올라섬·선택·쿵)', () => {
+  it('화면 1 정답 터치: step 행동 탭은 2번, 전환은 1번. 3번도 탭 2번(선택·쿵, 6-4-1c)', () => {
     const { seq, state } = replay('touch');
     expect(seq).toEqual([
       ['char.ppik', 'magpie', 'magpie'],
       ['char.jjuk', 'seesaw_left', 'seesaw_left'],
-      ['char.mukjik', 'seesaw_right', 'seesaw_right', 'seesaw_right', 'seesaw_right'],
+      ['char.mukjik', 'seesaw_right', 'seesaw_right'],
       ['char.jjuk', 'nest', 'nest'],
     ]);
     expect(state.flags[screen.exitFlag]).toBe(true);
   });
 
-  it('기본 동사: 서는 자리는 내가 없으면 move, 서 있거나 hold 자리면 능력. 핫스팟은 능력', () => {
-    expect(defaultVerb(screen, 'mukjik', 'floor', 'seesaw_right')).toBe('move');
+  it('기본 동사: 서는 자리는 내가 없으면 move, 서 있거나 hold 자리·특기 자리면 능력. 핫스팟은 능력', () => {
+    expect(defaultVerb(screen, 'jjuk', 'floor', 'seesaw_right')).toBe('move');
+    expect(defaultVerb(screen, 'mukjik', 'floor', 'seesaw_right')).toBe('stomp');
     expect(defaultVerb(screen, 'jjuk', 'floor', 'hook')).toBe('stretch');
     expect(defaultVerb(screen, 'mukjik', 'seesaw_right', 'seesaw_right')).toBe('stomp');
     expect(defaultVerb(screen, 'ppik', 'floor', 'nest')).toBe('squeak');
@@ -126,15 +127,25 @@ describe('playtest plan (ui-interaction 6-4-7절)', () => {
 
   it('빈 서는 자리에 능력 = 올라섬 + 한 번 더(verbByDefault false). 남이 선 자리는 오류(6-4-7절 3·4)', () => {
     const s = initialState(screen);
-    const plan = planAction(screen, fakeLayout(s, 'mukjik'), { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' }, 'mouse');
+    const plan = planAction(screen, fakeLayout(s, 'jjuk'), { char: 'jjuk', verb: 'stretch', target: 'seesaw_left' }, 'mouse');
     expect(plan.verbByDefault).toBe(false);
-    expect(plan.taps.map((t) => t.why)).toEqual(['move(올라섬) 실행', 'stomp 실행']);
+    expect(plan.taps.map((t) => t.why)).toEqual(['move(올라섬) 실행', 'stretch 실행']);
     expect(plan.taps.some((t) => t.skipIfSelected)).toBe(false);
     // 터치: 특기의 첫 탭(선택)만 "이미 골라져 있으면 건너뜀"(6-4-1a-1절, #710). 올라섬 탭과 실행 탭은 늘 누른다.
-    const touch = planAction(screen, fakeLayout(s, 'mukjik'), { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' }, 'touch');
-    expect(touch.taps.map((t) => t.skipIfSelected ?? null)).toEqual([null, null, 'mukjik|stomp|seesaw_left|', null]);
+    const touch = planAction(screen, fakeLayout(s, 'jjuk'), { char: 'jjuk', verb: 'stretch', target: 'seesaw_left' }, 'touch');
+    expect(touch.taps.map((t) => t.skipIfSelected ?? null)).toEqual([null, null, 'jjuk|stretch|seesaw_left|', null]);
+    const taken = { ...s, at: { ...s.at, ppik: 'seesaw_left' } };
+    expect(() => planAction(screen, fakeLayout(taken, 'jjuk'), { char: 'jjuk', verb: 'stretch', target: 'seesaw_left' }, 'mouse')).toThrow(/남이 선 자리/);
+  });
+
+  it('특기 자리(6-4-1c #723): 묵직이 × 빈 끝·남이 선 끝 = 바로 쿵, 묵직이 move 끝은 오류', () => {
+    const s = initialState(screen);
+    const plan = planAction(screen, fakeLayout(s, 'mukjik'), { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' }, 'mouse');
+    expect(plan.verbByDefault).toBe(true);
+    expect(plan.taps.map((t) => t.id)).toEqual(['seesaw_left']);
     const taken = { ...s, at: { ...s.at, jjuk: 'seesaw_left' } };
-    expect(() => planAction(screen, fakeLayout(taken, 'mukjik'), { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' }, 'mouse')).toThrow(/남이 선 자리/);
+    expect(planAction(screen, fakeLayout(taken, 'mukjik'), { char: 'mukjik', verb: 'stomp', target: 'seesaw_left' }, 'mouse').verbByDefault).toBe(true);
+    expect(() => planAction(screen, fakeLayout(s, 'mukjik'), { char: 'mukjik', verb: 'move', target: 'seesaw_right' }, 'mouse')).toThrow(/특기 자리/);
   });
 
   it('다른 캐릭터 몸이 대상을 가리면 가리지 않은 점을 고른다', () => {
