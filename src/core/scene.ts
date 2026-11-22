@@ -258,6 +258,13 @@ export interface SceneState {
    * 다른 행동이면 닫고 실행하는 데 쓴다(`ui-interaction.md` 5절 예외 넷 3, #601). UI 상태라 세이브하지 않는다.
    */
   lastActKey: string | null;
+  /**
+   * 이 화면의 클리어 연출을 이번 페이지에서 이미 끝까지 봤다(#765, M2 플래닝 회의록 "확인한 것"). 엔진이 새 판을 만들 때 채운다.
+   * 참이면 클리어 규칙 연출 중 월드 탭 하나가 남은 연출을 끝 상태로 돌리고 카드로 넘긴다(`skipClearRule`). UI 상태라 세이브하지 않는다.
+   */
+  clearSeen: boolean;
+  /** `clear` 이벤트를 대기열에 넣은 틱(정답 행동을 시작한 틱). 클리어 건너뛰기 잠금(`clearSkipAfter`)을 여기서 센다. 없으면 null. */
+  clearAt: number | null;
 }
 
 export interface SceneData {
@@ -393,6 +400,8 @@ export function createScene(data: SceneData): SceneState {
     intro: false,
     walkStart: null,
     lastActKey: null,
+    clearSeen: false,
+    clearAt: null,
   };
   // onEnter는 상태를 바꾸지 않는 연출이다(ADR-0065 5절). say 화자는 캐릭터 ID만 온다.
   for (const item of data.screen.onEnter ?? []) {
@@ -840,6 +849,7 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
   }
   const hint = hintEvent(data, s, r.source, action);
   if (hint) s.queue.push(hint);
+  if (events.some((e) => e.type === 'clear')) s.clearAt = s.tick;
 }
 
 /** 바닥(`free`) 자리로 갈 때 설 점. `move floor`는 누른 점, 그 밖에는 지금 있는 곳 바로 아래(손 놓기·발사·기절). */
@@ -1509,11 +1519,34 @@ function skipIntro(s: SceneState): void {
   settle(s);
 }
 
+/** 클리어 규칙 연출(`clear` 이벤트가 아직 끝나지 않았다)이 도는 중인가(#765). */
+function clearPending(s: SceneState): boolean {
+  return s.current?.ev.type === 'clear' || s.queue.some((e) => e.type === 'clear');
+}
+
+/** 클리어 건너뛰기 상한(틱). 지금 가장 긴 클리어 연출이 약 4초(240틱)라 넉넉히 1분. 넘으면 남은 것은 보통 재생으로 돈다. */
+const CLEAR_SKIP_MAX_TICKS = 3600;
+
+/**
+ * 남은 클리어 규칙 연출을 끝 상태로 돌린다(#765). 지켜볼 때와 **같은 `sceneTick`을 화면 없이 돌려서** 끝 상태(보이는 플래그·마지막 장·
+ * 자리·기울기)가 어긋날 틈을 없앤다(#452와 같은 종류의 어긋남 방지). 클리어 컷 글도 바로 내리니 다음 틱에 카드 조건(`cleared && !busy`)이 선다.
+ * 카드는 뜬 뒤 0.6초를 따로 무시하니(`ui-interaction.md` 11-1절) 이 탭이 카드까지 넘기지 않는다.
+ */
+function skipClearRule(data: SceneData, s: SceneState): void {
+  for (let i = 0; i < CLEAR_SKIP_MAX_TICKS && isBusy(s); i++) {
+    const c = s.current;
+    if (c?.ev.type === 'clear') c.duration = c.t;
+    sceneTick(data, s);
+  }
+}
+
 /** 탭 결과. 엔진이 효과음·안내 문구를 고르는 데 쓴다. */
 export type SceneTapResult =
   | { kind: 'ignored' }
   | { kind: 'skipWalk' }
   | { kind: 'skipSay' }
+  /** 이미 본 클리어 연출을 통째로 넘겼다(#765). */
+  | { kind: 'skipClear' }
   | { kind: 'intent'; intent: Intent };
 
 /**
@@ -1526,6 +1559,13 @@ export type SceneTapResult =
  *   터치이고 그 말풍선이 마지막 이벤트면(예외 넷 2): 잠금 전에는 선택만 받고, 잠금 뒤에는 닫고 평소대로 처리한다.
  */
 export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number, touch: boolean): SceneTapResult {
+  // #765: 이미 본 클리어 연출은 정답 행동 0.4초 뒤 월드 탭 하나로 카드까지 넘긴다(anim·fx·걷기·대사·컷 글 모두).
+  // 처음 보는 클리어는 그대로 둔다(처음 보는 사람은 끝까지 본다, M2 회의록). HUD 영역 탭은 아래 예외 셋 그대로다.
+  if (s.clearSeen && s.clearAt !== null && clearPending(s) && !inHudZone(p)) {
+    if (s.tick - s.clearAt < TIMING.clearSkipAfter) return { kind: 'ignored' };
+    skipClearRule(data, s);
+    return { kind: 'skipClear' };
+  }
   const clearing = s.current;
   // 클리어 컷은 0.4초 뒤 탭으로 넘긴다(`magpie_nest.md` 8절·`ui-interaction.md` 11-1절: 다시 볼 때 기다리지 않게). 말풍선(1.0초)과 따로다. 클리어 뒤 다른 입력은 받지 않는다.
   if (clearing?.ev.type === 'clear') {
