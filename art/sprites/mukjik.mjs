@@ -15,7 +15,7 @@
 
 import { Canvas, C } from '../lib/pixel.mjs';
 import { colorLines, rimShade, soles } from '../lib/finish.mjs';
-import { puff, drops } from '../lib/fx.mjs';
+import { puff, drops, streaks, shadow } from '../lib/fx.mjs';
 import { squash } from '../lib/squash.mjs';
 
 export const CELL = [48, 64];
@@ -72,6 +72,7 @@ export function pose(kind, k) {
   if (kind === 'step_up') return STEP_UP[k];
   if (kind === 'sit_corner') return SIT_CORNER[k];
   if (kind === 'common.wet') return WET[k];
+  if (kind === 'common.bump_bottom') return BUMP[k];
   if (kind === 'idle') {
     return {
       chest: k, // 숨 들이쉬기(배가 나온다) / 내쉬기
@@ -155,14 +156,19 @@ const TAILS = [
 ];
 // 얼굴 갈아 끼우기(쿵): 눈썹 9행, 눈 10~11행, 입 15~17행. 바꾸지 않은 줄은 HEAD 그대로.
 const FACE = {
-  brows: { furrow: ['.kdssBBBBBBsssBBBBBBs.'] }, // 일자 눈썹이 미간에서 내려앉는다(기합)
+  brows: {
+    furrow: ['.kdssBBBBBBsssBBBBBBs.'], // 일자 눈썹이 미간에서 내려앉는다(기합)
+    up: ['.kdssssssssssssssssss.'], // 놀라서 눈썹이 한 줄 위(8행)로만 남는다(엉덩방아 낙하)
+  },
   eyes: {
+    wide: ['.kdsssswwwssssswwwsss.', '..dsssswPwssssswPwss..'], // 휘둥그레: 흰자가 커지고 눈동자가 점 하나(엉덩방아 낙하)
     shut: ['.kdssssBBsssssssBBsss.', '..dsssssBBsssssBBsss..'], // 질끈 감은 눈(\ /, 미간 쪽이 낮다)
     daze: ['.kdsssssssssssswPwsss.', '..dssssBBBssssswwwss..'], // 어질: 한 눈은 풀려 반쯤 감기고 한 눈은 동그랗게 뜬다
   },
   mouth: {
     grit: ['...dssssssmmmmmmmmmm..', '...ddsssxsmTTTTTTTTm..', '....dsssxsxmmmmmmmmmm.'], // 이를 악묾
     tongue: ['...dsssssssmmmmmmmm...', '...ddsssxsxsmkkkkmss..', '....dsssxsxssmrrmsss..'], // 어질: 입이 헤 벌어지고 혀가 빠진다
+    yell: ['...dssssssssmmmmmms...', '...ddsssxsxmkkkkkkms..', '....dsssxsxmkrrrrkms..'], // 으악: 입이 세로로 크게 열린다(엉덩방아 낙하)
   },
 };
 // 젖은 머리(common.wet 1~3번): 짧은 머리가 물에 눌려 정수리가 한 줄 낮아지고 빛 가닥(g)이 늘어난다.
@@ -238,7 +244,8 @@ function drawArm(K, side, sx, sy, swing, bias, aim) {
 }
 
 export function drawFrame(p) {
-  const K = new Canvas(CELL[0], CELL[1], S, OX, 0);
+  const oy = p.oy ?? 0; // 몸 전체를 위로 올린다(② px, 음수 = 위). 엉덩방아 낙하 칸(삑삑이 ppik.mjs와 같은 방식)
+  const K = new Canvas(CELL[0], CELL[1], S, OX, oy);
   const d = u(p.chest);
   const lean = u(p.lean);
   const body = (y) => y + d;
@@ -286,7 +293,7 @@ export function drawFrame(p) {
   }
 
   // 머리: 상체와 같은 정수 px만큼 내리고 lean만큼
-  const hx0 = HEAD_X + p.lean, hy0 = HEAD_Y + p.chest;
+  const hx0 = HEAD_X + p.lean, hy0 = HEAD_Y + p.chest + oy;
   const headPart = K.part(R4.skin);
   // 젖은 띠(face.band 'wet')는 4행 아래로 흘러내렸다: 매듭 꼬리도 같이 내려가고, 귀는 띠 아래로 나온 끝(2행~)만 보인다.
   const band = p.face?.band === 'wet' ? 4 : 0;
@@ -533,6 +540,71 @@ const WET = [
   },
 ];
 
+// common.bump_bottom  공용 "엉덩방아"(쭉이 jjuk-v4.mjs·삑삑이 ppik.mjs와 같은 박자 [100, 400, 300, 500]와 같은 순서, #734).
+//   `laundromat` U7(셔터와 같이 딸려 올라갔다 떨어짐) 같은 "위에서 떨어져 엉덩이로 앉는" 실패에서 나온다.
+//   엔진에 떨어지는 궤적이 없어서(순간 배치) 0번 칸이 "위에서 앉은 자세로 떨어지는 중"을 맡는다.
+//   개그: 셋 중 가장 무거워서 착지가 가장 세다. 엉덩이가 닿는 칸에 배가 한 칸 늦게 내려앉고, 먼지가 가장 크다.
+//   sit_corner(일부러 앉기, 비장한 얼굴, 별 없음, park_fountain 주 아하)와 그림으로 갈린다:
+//   여기는 휘둥그레 → 질끈 → 엉덩이 문지르기 → **어질(한 눈 풀림 + 혀)**로 끝나서 실패로 읽힌다(비장 얼굴은 성공 몫).
+//   0 낙하(앉은 몸이 칸 위쪽, 두 주먹 허우적, 휘둥그레 + 으악, 위로 끊기는 속도선, 착지 자리 그림자)
+//   → 1 쿵(엉덩이로 털썩 눌림, 짧은 다리가 위로 튀고 두 주먹 만세, 배는 아직 위, 양옆 큰 먼지)
+//   → 2 아야(반동에 뒤로 휘청, 뒷손으로 엉덩이 문지름, 이 악묾, 배가 늦게 내려앉아 출렁)
+//   → 3 어질(앉은 채 한 눈 풀림 + 혀, 두 손은 바닥을 짚음, 머리띠 꼬리 처짐). 말풍선 동안 3번 칸이 남는다(#193).
+//   앉은 몸 = 서 있기 몸을 chest 10(① 7.5)만큼 내린 것: 골반 45.1이 바닥 근처, 엉덩이(seat)가 바닥 행에 닿는다.
+//   짧은 다리는 앞으로 뻗고 무릎이 살짝 선다. 방향은 고정하지 않는다.
+const SIT = 10;
+/** 문지르는 손 옆 짧은 호 두 개(외곽선 없음): 엉덩이 뒤 바깥 열에. 몸 위에는 그리지 않는다. */
+function rub(K) {
+  for (const [x, y, c] of [[2, 46, C.cotton], [1, 47, C.white], [1, 48, C.white], [2, 49, C.cotton], [2, 52, C.cotton], [1, 53, C.white], [2, 54, C.cotton]])
+    if (K.get(x, y) === -1) K.dot(x, y, c);
+}
+const BUMP_LEGS = {
+  back: { x: 5.2, lift: 0, toe: false, knee: [3.0, -1.4] },
+  front: { x: 6.6, lift: 0, toe: false, knee: [3.9, -2.0] },
+};
+const BUMP = [
+  { // 0 낙하: 앉은 몸이 칸 위쪽(oy). 짧은 다리가 앞으로 들리고 두 주먹이 허우적, 휘둥그레 + 으악
+    chest: SIT, belly: 0.6, jiggle: 2, lean: -1, oy: -12,
+    legs: { back: { x: 5.0, lift: 1.8, toe: true, knee: [3.0, -2.0] }, front: { x: 6.4, lift: 3.0, toe: true, knee: [3.8, -2.8] } },
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [UP - 0.55, UP - 0.95], front: [UP + 0.5, UP + 0.9] }, // 머리 옆에서 허우적(칸이 좁아 옆으로 못 벌린다)
+    seat: [7.4, 37.4, 4.6, 2.8],
+    tails: 0,
+    face: { brows: 'up', eyes: 'wide', mouth: 'yell' },
+    fx: (K) => { streaks(K, [[2, 2, 20], [6, 0, 12], [42, 3, 19], [46, 0, 11]], { fall: true }); shadow(K, 25, 26); },
+  },
+  { // 1 쿵: 엉덩이로 털썩 눌린다. 다리가 위로 튀고 두 주먹 만세, 배는 아직 위(한 칸 늦음). 양옆 큰 먼지
+    chest: SIT, belly: 0.6, jiggle: -2, lean: 0,
+    legs: { back: { x: 5.6, lift: 3.4, toe: true, knee: [3.2, -3.0] }, front: { x: 7.8, lift: 5.2, toe: true, knee: [4.4, -4.0] } },
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [UP - 0.55, UP - 0.25], front: [UP + 0.5, UP + 0.2] },
+    seat: [7.4, 37.6, 4.8, 2.6],
+    tails: 0,
+    face: { brows: 'furrow', eyes: 'shut', mouth: 'grit' },
+    flat: { sx: 1.1, sy: 0.84 },
+    fx: (K) => { puff(K, 5, 1, { behind: true }); puff(K, 43, 1, { behind: true }); impact(K); },
+  },
+  { // 2 아야: 반동에 뒤로 휘청(lean −2). 뒷손은 엉덩이를 문지르고 앞주먹은 무릎. 배가 늦게 내려앉아 출렁
+    chest: SIT, belly: 0.6, jiggle: 2, lean: -2,
+    legs: BUMP_LEGS,
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [2.15, 1.7], front: [0.95, 1.35] },
+    seat: [7.4, 37.4, 4.6, 2.8],
+    tails: 1,
+    face: { brows: 'furrow', eyes: 'shut', mouth: 'grit' },
+    fx: (K) => { puff(K, 5, 2, { behind: true }); puff(K, 43, 2, { behind: true }); rub(K); },
+  },
+  { // 3 어질: 앉은 채 한 눈 풀림 + 혀. 두 손은 엉덩이 옆 바닥을 짚고, 머리띠 꼬리 처짐
+    chest: SIT, belly: 0.6, jiggle: 0, lean: 0,
+    legs: BUMP_LEGS,
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [2.3, 1.95], front: [1.05, 1.45] },
+    seat: [7.4, 37.4, 4.6, 2.8],
+    tails: 2,
+    face: { eyes: 'daze', mouth: 'tongue' },
+  },
+];
+
 export const SHEET = {
   name: 'mukjik-base',
   character: 'mukjik',
@@ -561,6 +633,8 @@ export const SHEET = {
     { name: 'sit_corner', frames: 3, ms: [400, 150, 700], cue: [1, 2] },
     // 공용 젖음(#529). 쭉이와 같은 박자. 맨 뒤에 붙여서 앞 칸 번호는 그대로다.
     { name: 'common.wet', frames: 4, ms: [100, 400, 300, 500] },
+    // 공용 엉덩방아(#734). 쭉이·삑삑이와 같은 박자. 맨 뒤에 붙여서 앞 칸 번호는 그대로다.
+    { name: 'common.bump_bottom', frames: 4, ms: [100, 400, 300, 500] },
   ],
   pose,
   drawFrame,
