@@ -182,24 +182,17 @@
         { "anim": ["jjuk", "take_up"] },
         { "fx": ["stretch_text", "jjuk"] },
         { "anim": ["jacket", "cover"] },
-        { "say": ["jjuk", "park_fountain.take"] },
         { "anim": ["guest", "run_in"] },
         { "anim": ["jjuk", "take_off"] },
         { "anim": ["guest", "cheer"] },
-        { "say": ["guest", "park_fountain.guest_thanks"] },
         { "fx": ["kokee_text", "alarm_clock"] },
         { "anim": ["alarm_clock", "ring_late"] },
         { "anim": ["keeper", "wake"] },
-        { "say": ["keeper", "park_fountain.keeper_again"] },
         { "anim": ["keeper", "clean_time"] },
         { "anim": ["fountain", "water_burst"] },
-        { "anim": ["guest", "soaked"] },
-        { "anim": ["jjuk", "common.wet"] },
-        { "anim": ["mukjik", "common.wet"] },
-        { "anim": ["ppik", "common.wet"] },
-        { "say": ["guest", "park_fountain.guest_hand"] }
+        { "anim": ["guest", "soaked"] }
       ],
-      "note": "#8 정답 → 클리어. 설계 8절 ①~④를 이 show 하나로 쓴다(step이 clear 이벤트를 show 뒤에 붙임). 마지막 プピ 한마디는 엔진이 <화면 ID>.clear로 띄운다(main.ts clearLine). ③ 물 다시 솟음은 do에서 fountain.off를 거짓으로 돌린다(그림 형식 11-3절). 보이는 플래그는 water_burst가 시작될 때 바뀌고, burst가 끝나면 멈춘 모드 on으로 계속 뿜는다. 안 돌리면 클리어 카드가 뜨는 틱(대기열 빔, hold 풀림)에 물이 꺼진다(PR #452 Luna 리뷰). 관리인 말은 wake 바로 뒤(말 → 꾹 → 솟음 순서로 물보라가 마지막 웃음, PR #446 Theo 리뷰 반영)"
+      "note": "#8 정답 → 클리어. 설계 8절 ①~④를 이 show 하나로 쓴다(step이 clear 이벤트를 show 뒤에 붙임). 마지막 プピ 한마디는 엔진이 <화면 ID>.clear로 띄운다(main.ts clearLine). ③ 물 다시 솟음은 do에서 fountain.off를 거짓으로 돌린다(그림 형식 11-3절). 보이는 플래그는 water_burst가 시작될 때 바뀌고, burst가 끝나면 멈춘 모드 on으로 계속 뿜는다. 안 돌리면 클리어 카드가 뜨는 틱(대기열 빔, hold 풀림)에 물이 꺼진다(PR #452 Luna 리뷰). 처음 볼 때 정답 행동 → 클리어 카드 12초 안(ADR-0761 H6 예외, #781): 말풍선 4개(take·guest_thanks·keeper_again·guest_hand)와 셋 차례 젖기를 뺐다. 성공(재회 만세) → 늦은 자명종 → 관리인 꾹 → 물 솟음·손님 흠뻑 → プピ 한마디(clear) 순서로 물보라가 마지막 웃음이다(PR #446 Theo 리뷰의 꾹 → 솟음 순서 유지)"
     },
     {
       "id": "fountain_tap",

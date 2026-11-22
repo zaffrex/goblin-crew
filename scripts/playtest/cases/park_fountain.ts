@@ -41,9 +41,9 @@ const CASES: FrameCase[] = [
     id: 'aha-take',
     pre: [{ char: 'ppik', verb: 'squeak', target: 'keeper' }, { char: 'mukjik', verb: 'stomp', target: 'fountain' }],
     action: { char: 'jjuk', verb: 'stretch', target: 'jacket' },
-    says: 'park_fountain.take',
-    every: 250, // 클리어 컷이 길어서 120ms로는 100칸 상한에 걸린다
-    why: '3절 8번 ★: 손 위 재킷을 장대로 집기 → 클리어 컷(8절). 클리어 카드 프레임은 진마씨께 보이는 자료에서 뺀다',
+    // 클리어 컷 안에 말풍선이 없다(#781, 끝 한마디는 엔진 clearLine). 12초 컷이라 120ms로는 100칸 상한에 걸린다
+    every: 150,
+    why: '3절 8번 ★: 손 위 재킷을 장대로 집기 → 클리어 컷(8절, #781 12초 판). 재회 만세 → 늦은 자명종 → 관리인 꾹 → 물 솟음·손님 흠뻑. 클리어 카드 프레임은 진마씨께 보이는 자료에서 뺀다',
   },
 
   // 장난감 오리(4절, 7절 P9). 단서가 아니라서 블라인드 대조 대상은 아니다. 그림이 물 위에 떠 있는지, 셋이 서로 다른 반응으로 읽히는지 본다(#529).
