@@ -16,13 +16,16 @@ describe('resumeFrom', () => {
     expect(resumeFrom(mk('magpie_nest', ['laundromat']), ORDER)).toMatchObject({ kind: 'continue', index: 1, screenId: 'magpie_nest' });
   });
   it('order.json에 없는 화면이면 새로 하기', () => expect(resumeFrom(mk('gone', ['laundromat']), ORDER)).toEqual({ kind: 'new' }));
+  it('새 화면이 중간에 끼면 그 안 깬 화면으로 간다', () => {
+    expect(resumeFrom(mk('park_fountain', ORDER), ['laundromat', 'new_mid', 'magpie_nest', 'park_fountain'])).toMatchObject({ kind: 'continue', screenId: 'new_mid' });
+  });
   it('다 깼으면 새로 하기(이어 하기 없음)', () => {
     const s = mk('park_fountain', ORDER);
     expect(isAllCleared(s, ORDER)).toBe(true);
     expect(resumeFrom(s, ORDER)).toEqual({ kind: 'new' });
   });
   it('화면이 늘면 이어 하기가 다시 나온다', () => {
-    expect(resumeFrom(mk('park_fountain', ORDER), [...ORDER, 'extra'])).toMatchObject({ kind: 'continue', index: 2 });
+    expect(resumeFrom(mk('park_fountain', ORDER), [...ORDER, 'extra'])).toMatchObject({ kind: 'continue', index: 3, screenId: 'extra' });
   });
 });
 
@@ -43,6 +46,11 @@ describe('saveOnCard', () => {
     const s = saveOnCard({ ...base, prev, index: 0 });
     expect(s.checkpoint.screenId).toBe('park_fountain');
     expect(s.progress.solvedScreens).toEqual(['laundromat', 'magpie_nest']);
+  });
+  it('맵 재도전: prev가 바로 다음 화면이어도 checkpoint(캐릭터 포함)가 그대로다', () => {
+    const prev = mk('park_fountain', ['laundromat', 'magpie_nest']);
+    const s = saveOnCard({ ...base, prev, index: 1, activeCharacter: 'pupi' });
+    expect(s.checkpoint).toEqual(prev.checkpoint);
   });
   it('같은 화면을 두 번 깨도 중복이 안 쌓인다', () => {
     const s = saveOnCard({ ...base, prev: mk('magpie_nest', ['laundromat']), index: 0 });

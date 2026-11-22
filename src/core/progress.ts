@@ -24,9 +24,17 @@ export type Resume =
  */
 export function resumeFrom(save: SaveData | null, order: readonly string[]): Resume {
   if (!save || isAllCleared(save, order)) return { kind: 'new' };
-  const index = order.indexOf(save.checkpoint.screenId);
-  if (index < 0) return { kind: 'new' };
-  return { kind: 'continue', index, screenId: save.checkpoint.screenId, activeCharacter: save.checkpoint.activeCharacter };
+  const at = order.indexOf(save.checkpoint.screenId);
+  if (at < 0) return { kind: 'new' };
+  const solved = new Set(save.progress.solvedScreens);
+  let index = at;
+  if (solved.has(order[at]!)) {
+    // 마지막 화면은 checkpoint가 자기 id라 이미 깬 화면일 수 있다. 그 뒤의 안 깬 화면, 없으면 순서 전체에서 처음 안 깬 화면.
+    index = order.findIndex((id, k) => k > at && !solved.has(id));
+    if (index < 0) index = order.findIndex((id) => !solved.has(id));
+    if (index < 0) return { kind: 'new' };
+  }
+  return { kind: 'continue', index, screenId: order[index]!, activeCharacter: save.checkpoint.activeCharacter };
 }
 
 export interface CardSaveInput {
@@ -43,18 +51,18 @@ export interface CardSaveInput {
 /**
  * 클리어 카드가 뜰 때 쓸 세이브(11-4절). 다음 화면 id가 `checkpoint`이고, 마지막 화면은 자기 id를 두고 `solvedScreens`만 채운다.
  * 이미 깬 화면은 다시 넣지 않는다(중복 없음). `solvedScreens`는 줄지 않는다.
- * 맵 재도전(#792)에서 이미 깬 화면을 다시 깼을 때 앞선 진행도를 되돌리지 않는 규칙: `checkpoint`는 `prev`가 더 앞이면 그대로 둔다.
+ * 맵 재도전(#792): `prev.solvedScreens`에 이미 있는 화면을 다시 깬 것이면 다시 하기로 보고 `checkpoint`(캐릭터 포함)를 그대로 둔다(`updatedAt`만 갱신).
+ * `새로 하기`는 호출 쪽에서 `prev = null`로 시작한다(옛 진행도를 넘기지 않는다).
  */
 export function saveOnCard(i: CardSaveInput): SaveData {
   const cleared = i.order[i.index];
   if (cleared === undefined) throw new Error(`order에 없는 위치 ${i.index}`);
-  const solved = [...(i.prev?.progress.solvedScreens ?? [])];
-  if (!solved.includes(cleared)) solved.push(cleared);
-  const nextId = i.order[i.index + 1] ?? cleared;
-  let checkpoint = { screenId: nextId, gauge: CHECKPOINT_GAUGE, activeCharacter: i.activeCharacter, carriedItems: [] as string[] };
-  if (i.prev) {
-    const prevAt = i.order.indexOf(i.prev.checkpoint.screenId);
-    if (prevAt > i.index + 1) checkpoint = { ...i.prev.checkpoint, carriedItems: [...i.prev.checkpoint.carriedItems] };
+  if (i.prev?.progress.solvedScreens.includes(cleared)) {
+    const c = i.prev.checkpoint;
+    return { ...i.prev, updatedAt: i.now.toISOString(), progress: { solvedScreens: [...i.prev.progress.solvedScreens] }, checkpoint: { ...c, carriedItems: [...c.carriedItems] } };
   }
+  const solved = [...(i.prev?.progress.solvedScreens ?? []), cleared];
+  const nextId = i.order[i.index + 1] ?? cleared;
+  const checkpoint = { screenId: nextId, gauge: CHECKPOINT_GAUGE, activeCharacter: i.activeCharacter, carriedItems: [] as string[] };
   return { version: 1, contentVersion: i.contentVersion, updatedAt: i.now.toISOString(), progress: { solvedScreens: solved }, checkpoint };
 }
