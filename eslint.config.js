@@ -2,7 +2,8 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist/', 'coverage/', 'node_modules/'] },
+  // .github/beaket/: 외부에서 받은 실험 플러그인 번들(#89). 팀 코드가 아니라서 린트하지 않는다.
+  { ignores: ['dist/', 'coverage/', 'node_modules/', '.github/beaket/'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
