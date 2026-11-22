@@ -87,6 +87,19 @@ interface Session {
   spriteTops: Partial<Record<CharacterId, SpriteTop>>;
 }
 
+/**
+ * 이번 페이지에서 클리어 연출을 끝까지 본 화면 ID(#765). 새 판(처음부터·다시 들어옴)의 `clearSeen`이 되어 두 번째부터 탭 하나로 카드까지 넘긴다.
+ * UI 상태라 새로고침하면 지워진다(세이브 안 함, M2 회의록). 클리어 규칙의 `clear` 이벤트가 시작되면(`cleared`) 본 것으로 센다.
+ */
+const seenClears = new Set<string>();
+
+/** 새 판. 이 화면 클리어를 이미 봤으면 건너뛰기를 켠다(#765). */
+function newScene(data: SceneData): SceneState {
+  const scene = createScene(data);
+  scene.clearSeen = seenClears.has(data.screen.id);
+  return scene;
+}
+
 function enterScreen(id: string): Session {
   const screen = SCREENS.get(id);
   if (!screen) throw new Error(`화면 ${id}가 번들에 없습니다`);
@@ -102,7 +115,7 @@ function enterScreen(id: string): Session {
     // 바닥 동료의 보이는 그림 칸 판정(2-1절, #736). 이미지가 오기 전에는 null → 얼굴 상자만.
     alpha: { sprite: spriteAlpha, objects: () => (art?.objectsReady ? art.alpha : null) },
   };
-  return { data, art, covered: art ? coveredIds(art.meta) : new Set<string>(), scene: createScene(data), loopClock: {}, spriteTops: {} };
+  return { data, art, covered: art ? coveredIds(art.meta) : new Set<string>(), scene: newScene(data), loopClock: {}, spriteTops: {} };
 }
 
 let session = enterScreen(ORDER ? ORDER[0]! : picked.id);
@@ -303,7 +316,7 @@ restartEl.addEventListener('click', () => {
   if (!restartPress(restart, playNow())) return;
   // 누른 뒤 초점이 남으면 Space 한 번에 다시 눌려서(두 번째 누름) 판이 또 날아간다.
   restartEl.blur();
-  session.scene = createScene(session.data);
+  session.scene = newScene(session.data);
   session.loopClock = {};
   touchLabel = null;
   hoverLabel = null;
@@ -882,6 +895,7 @@ startLoop({
     if (startCard.open) return;
     // 어두워지는 동안까지는 지난 판이 움직이고, 다 검어진 뒤(기다림·밝아짐)는 멈춘다. 새 판 진입 연출은 밝아진 뒤에 시작한다(11-1절).
     if (flow.phase === 'play' || flow.phase === 'card' || flow.phase === 'fadeOut') sceneTick(session.data, session.scene);
+    if (session.scene.cleared) seenClears.add(session.data.screen.id);
     pollWalkStart();
     noteWalkDone(notes, (c) => charWalking(session.scene, c));
     const busy = isBusy(session.scene);
