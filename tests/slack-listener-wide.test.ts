@@ -10,7 +10,7 @@ const script = fileURLToPath(new URL('../scripts/slack-listener.sh', import.meta
 
 const FAKE_CURL = `#!/usr/bin/env bash
 args="$*"
-now=$(date +%s)
+now=$FAKE_NOW
 case "$args" in
   *auth.test*) echo '{"ok":true,"user_id":"UPMBOT"}' ;;
   *conversations.open*) echo '{"ok":true,"channel":{"id":"DDM1"}}' ;;
@@ -20,7 +20,7 @@ case "$args" in
         oldest=$(grep -o 'oldest=[0-9]*' <<<"$args" | cut -d= -f2)
         if [ "$oldest" -lt $((now - 5 * 86400)) ]; then
           echo "{\\"ok\\":true,\\"messages\\":[{\\"ts\\":\\"$((now - 7 * 86400)).000100\\",\\"user\\":\\"UPMBOT\\",\\"thread_ts\\":\\"$((now - 7 * 86400)).000100\\",\\"latest_reply\\":\\"$((now - 5)).000200\\"}]}"
-        else echo '{"ok":true,"messages":[]}'; fi ;;
+        else echo "{\\"ok\\":true,\\"messages\\":[{\\"ts\\":\\"$((now - 2)).000300\\",\\"user\\":\\"UPMBOT\\"}]}"; fi ;;
       *) echo '{"ok":true,"messages":[]}' ;;
     esac ;;
   *conversations.replies*)
@@ -44,6 +44,7 @@ function run(wideEvery: string): string {
       POLL_SECONDS: '0',
       MAX_SECONDS: '2',
       WIDE_EVERY_CYCLES: wideEvery,
+      FAKE_NOW: String(Math.floor(Date.now() / 1000)),
     },
     encoding: 'utf8',
     timeout: 20000,
@@ -58,5 +59,10 @@ describe('scripts/slack-listener.sh wide thread scan', () => {
 
   it('does not see it on 72h-only ticks', () => {
     expect(run('100000')).not.toMatch(/DISPATCH pm/);
+  });
+
+  it('still wakes after a normal tick moved the cursor, and only once (separate wide cursor + SEEN)', () => {
+    const out = run('2');
+    expect(out.match(/DISPATCH pm ::/g)?.length).toBe(1);
   });
 });
