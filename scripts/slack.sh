@@ -14,7 +14,7 @@
 #
 # <channel>: general | dev | meeting | decisions | ceo | github | ceo-dm  (or a raw channel ID)
 #            ceo-dm = the DM between the CEO and <role>'s own bot (use with --as <role>).
-# <role>:    pm | designer | frontend | backend | infra | qa
+# <role>:    pm | designer | frontend | backend | infra | puzzle | qa
 #            qa(Mia)는 정답 차단 때문에 history·thread를 전부 못 읽는다(#516). 쓰기는 dev·general만(#751).
 #            general에서 읽는 건 read-mention으로 진마씨가 Mia를 멘션한 글 하나뿐이다.
 # text "-" reads the message body from stdin (use for multi-line messages).
@@ -30,7 +30,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEAM="$ROOT/team/team.json"
-ROLES=(pm designer frontend backend infra qa)
+ROLES=(pm designer frontend backend infra puzzle qa)
 CEO_ID=$(jq -r '.ceo.slack_user_id' "$TEAM")
 
 die() { echo "slack.sh: $*" >&2; exit 1; }
