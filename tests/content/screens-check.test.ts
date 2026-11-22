@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { checkScreen, formatReport, reportErrors, uniqueReactions } from '../../src/core/puzzle/check';
-import { difficultyReport, formatDifficulty } from './difficulty';
+import { difficultyReport, formatDifficulty, formatReactions, reactionReport } from './difficulty';
 import type { CharactersData, ScreenData } from '../../src/core/puzzle/types';
 
 // #67: BFS check for every screen in content/screens (ADR-0018, ADR-0096). Report goes to the CI log.
@@ -17,6 +17,7 @@ describe('screen BFS check', () => {
     const r = checkScreen(screen, characters);
     console.info(formatReport(screen, r));
     console.info(formatDifficulty(difficultyReport(screen, characters)));
+    console.info(formatReactions(reactionReport(screen, characters)));
     expect(reportErrors(r)).toEqual([]);
     for (const [k, v] of Object.entries(r.requiredAbilities)) expect(v, `${k} 판정`).not.toBeNull();
   });
