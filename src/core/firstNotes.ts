@@ -188,9 +188,14 @@ export function noteWalkStart(n: FirstNotes, char: CharacterId, dist: number, te
   n.note = { text, until: null, walk: char };
 }
 
-/** 걷기 건너뛰기를 썼다(자동이든 바닥이든). 그 판에서 긴 걷기 안내를 다시 안 띄운다. 탭이 이미 떠 있던 글을 지웠다(`noteTap`). */
+/**
+ * 걷기 건너뛰기를 썼다(자동이든 바닥이든). 그 판에서 긴 걷기 안내를 다시 안 띄운다. 탭이 이미 떠 있던 글을 지웠다(`noteTap`).
+ * 그 탭이 남긴 `walkCarry`도 비운다: 건너뛰기는 목표 바꾸기가 아니라서, 바로 다음 틱에 같은 사람의 긴 걷기가 시작돼도
+ * 안내를 이어 띄우지 않는다(#755 Luna 재리뷰 후속, "한 번이라도 쓰면 다시 안 띄운다").
+ */
 export function noteWalkSkipped(n: FirstNotes): void {
   n.walkSkipped = true;
+  n.walkCarry = null;
 }
 
 /**

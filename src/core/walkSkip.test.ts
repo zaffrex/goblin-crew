@@ -199,6 +199,19 @@ describe('긴 걷기 안내 (5-2-2절)', () => {
     expect(currentNote(n, 0)).toBeNull();
   });
 
+  it('4. 안내가 떠 있는 걷기를 건너뛴 탭은 목표 바꾸기가 아니다: 다음 틱 같은 사람의 긴 걷기에도 안 뜬다(#755 후속)', () => {
+    const n = createFirstNotes(5, 'jjuk');
+    noteWalkStart(n, 'jjuk', 200, MSG);
+    expect(currentNote(n, 0)).toBe(MSG);
+    // main.ts 탭 순서: noteTap → sceneTap(skipWalk) → noteWalkSkipped → poll
+    noteTap(n);
+    noteWalkSkipped(n);
+    expect(n.walkCarry).toBeNull();
+    noteWalkStart(n, 'jjuk', 200, MSG);
+    expect(currentNote(n, 0)).toBeNull();
+    expect(n.walkNotes).toBe(1);
+  });
+
   it('5. 다른 처음 한 번 안내가 떠 있으면 덮지 않고, 횟수도 세지 않는다', () => {
     const n = createFirstNotes(5, 'jjuk');
     noteSwitch(n, 'mukjik', 'intro');
