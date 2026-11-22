@@ -361,6 +361,46 @@ export function floorTarget(data: SceneData, p: Point): Point {
   return p;
 }
 
+const boxesOverlap = (a: HitBox, b: HitBox): boolean =>
+  a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height;
+
+/**
+ * 바닥 걷기 도착점에서 몸이 동료 몸과 겹치면 가장 가까운 안 겹치는 x로 비켜 선다(#825, Mia 5회차 "즛시가 노비와 겹쳐 섬").
+ * `to`는 걷기 영역 안 점이다. 몸은 서 있기 `characterHitBox`, 방향은 `walkTo`가 정할 방향이다. 동료는 걷는 중이면 목표 자리,
+ * 아니면 지금 판정 몸(`bodies`). 후보는 겹치는 동료 상자 양옆(`APPROACH_GAP` 틈)이고, 걷기 영역 안·누구와도 안 겹치는 것 중
+ * 누른 x에 가장 가까운 것(같으면 왼쪽). 겹치지 않은 동료 옆도 후보다(셋이 붙어 있을 때). 후보가 없으면 `to` 그대로. y는 안 바꾼다. 퍼즐 상태와 무관한 연출 계산이다.
+ */
+export function standAside(data: SceneData, s: SceneState, char: CharacterId, to: Point): Point {
+  const w = s.walkers[char];
+  const def = characterDef(char);
+  const now = bodies(data, s);
+  const others: HitBox[] = [];
+  for (const c of CHARACTERS) {
+    if (c.id === char) continue;
+    const o = s.walkers[c.id];
+    others.push(o.target ? characterHitBox(characterDef(c.id), o.target.x, o.target.y, o.facing) : now[c.id]);
+  }
+  const bodyAt = (x: number): HitBox => characterHitBox(def, x, to.y, x > w.x ? 1 : x < w.x ? -1 : w.facing);
+  const clear = (x: number): boolean => !others.some((b) => boxesOverlap(bodyAt(x), b));
+  if (clear(to.x)) return to;
+  const { dx, width } = def.hit;
+  const cands: number[] = [];
+  for (const b of others) {
+    // 오른쪽을 보면 몸 왼쪽 = x + dx, 왼쪽을 보면 몸 왼쪽 = x - (dx + width). 두 방향 다 후보로 두고 `clear`가 거른다.
+    for (const off of [dx, -(dx + width)]) {
+      cands.push(Math.floor(b.left - APPROACH_GAP - width - off));
+      cands.push(Math.ceil(b.left + b.width + APPROACH_GAP - off));
+    }
+  }
+  let best: number | null = null;
+  for (const x of cands) {
+    if (x < WALK_AREA.left || x > WALK_AREA.right || !clear(x)) continue;
+    const d = Math.abs(x - to.x);
+    if (best === null || d < Math.abs(best - to.x) || (d === Math.abs(best - to.x) && x < best)) best = x;
+  }
+  return best === null ? to : { x: best, y: to.y };
+}
+
 /** 처음 배치. 바닥 자리에 선 캐릭터는 자리 좌표를 중심으로 40px씩 벌려 세운다. */
 export function createScene(data: SceneData): SceneState {
   const puzzle = initialState(data.screen);
@@ -847,7 +887,7 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
     s.queue.push(face === null ? { type: 'walk', char: action.char, from: spot, to: spot } : { type: 'walk', char: action.char, from: spot, to: spot, face });
   }
   deferShown(data, s, before, events);
-  if (to) s.floorTo[action.char] = floorTarget(data, to);
+  if (to) s.floorTo[action.char] = standAside(data, s, action.char, clampToArea(floorTarget(data, to), WALK_AREA));
   // 장대 대상 점: `reachPoint`, 없으면 대상 상자 아래 끝 가운데(#284: 고리 뻗기 실패는 집게가 고리 "바로 아래"에서 멈춘다).
   const rp = data.screen.hotspots[action.target]?.reachPoint;
   const tb = rp ? null : targetBox(data.screen, prev, action.target);
@@ -1663,7 +1703,8 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
   if (intent.kind === 'walk' || intent.kind === 'act') s.faintCutUntil = 0;
   if (intent.kind === 'walk') {
     const w = s.walkers[s.ui.active];
-    const to = clampToArea(floorTarget(data, intent.to), WALK_AREA);
+    // 동료 몸과 겹치면 비켜 선 점(#825). 같은 탭은 같은 점이 되니 아래 다시 누르기 비교도 비켜 선 점끼리 한다.
+    const to = standAside(data, s, s.ui.active, clampToArea(floorTarget(data, intent.to), WALK_AREA));
     // 5-2-1절: 같은 캐릭터가 걷는 중 지금 목표와 같은 점(12px 안)을 다시 누르면 목표에 바로 선다. 다른 점은 목표를 바꾼다.
     if (w.target && Math.hypot(to.x - w.target.x, to.y - w.target.y) <= WALK_SKIP_SAME) {
       teleport(w, w.target);
