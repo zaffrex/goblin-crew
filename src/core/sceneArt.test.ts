@@ -209,6 +209,7 @@ describe('보이는 플래그 (형식 기록 4-2절)', () => {
       'ppik.common.squeeze_chicken:false',
       'fx:false',
       'magpie.fly_down:true',
+      'ppik.common.shiver:true', // #788 정답 박자: 내려온 까치에 움찔
       'say:true',
       'end:true',
     ]);
@@ -479,7 +480,7 @@ describe('효과 자리 (형식 기록 11절, 개정 4)', () => {
     const s = ready(d);
     sceneTap(d, s, center(CHAR_SLOTS.ppik), 0, false);
     sceneTap(d, s, MAGPIE, 0, false);
-    expect(trace(s, 'water', 'magpie.on_ground', d)).toEqual(['ppik.common.squeeze_chicken:false', 'fx:false', 'magpie.fly_down:true', 'say:true', 'end:true']);
+    expect(trace(s, 'water', 'magpie.on_ground', d)).toEqual(['ppik.common.squeeze_chicken:false', 'fx:false', 'magpie.fly_down:true', 'ppik.common.shiver:true', 'say:true', 'end:true']);
   });
 
   it('효과 anim의 busy 길이는 그 ms(300ms → 18틱)이고 재생 중인 물건은 효과 자리다', () => {
