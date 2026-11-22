@@ -24,6 +24,8 @@ const MISSING: Record<string, string[]> = {
   magpie_nest: [],
   // #380 화면 JSON. 클리어 컷 ③ 셋이 젖음. 쭉이 common.wet은 이미 있다. P6 `take_up`·`take_off`, 묵직이·삑삑이 common.wet은 #529에서 그렸다.
   park_fountain: [],
+  // M2 튜토리얼 화면 JSON(그림 전). 설계 7절 U1 pull_latch, U6 shutter_dangle(화면 1 U4 재사용 후보), U3 shutter_grab·shutter_sit, U7 shutter_ride.
+  laundromat: ['jjuk:pull_latch', 'jjuk:shutter_dangle', 'mukjik:shutter_grab', 'mukjik:shutter_ride', 'mukjik:shutter_sit'],
 };
 
 /** 시트가 있는 캐릭터의 `anims` 키. 시트가 없으면 빈 집합(모든 자세가 실루엣). */
