@@ -7,7 +7,8 @@
 
 import { screenHost } from '../../src/core/puzzle/check';
 import { foldedKey } from '../../src/core/puzzle/bfs';
-import type { Action, CharactersData, PuzzleState, ScreenData } from '../../src/core/puzzle/types';
+import { step } from '../../src/core/puzzle/step';
+import type { Action, CharactersData, PuzzleEvent, PuzzleState, ScreenData, StepResult } from '../../src/core/puzzle/types';
 
 const FLOOR = 'floor';
 
@@ -110,15 +111,13 @@ export interface ReactionReport {
 
 type Reaction = { key: string; common: boolean };
 
-function reactionsOf(events: { type: string }[]): Reaction[] {
+function reactionsOf(events: PuzzleEvent[]): Reaction[] {
   const out: Reaction[] = [];
   for (const e of events) {
     if (e.type === 'anim') {
-      const a = e as { target: string; name: string };
-      out.push({ key: `anim:${a.target}:${a.name}`, common: a.name.startsWith('common.') });
+      out.push({ key: `anim:${e.target}:${e.name}`, common: e.name.startsWith('common.') });
     } else if (e.type === 'say') {
-      const s = e as { speaker: string; text: string | string[] };
-      out.push({ key: `say:${s.speaker}:${JSON.stringify(s.text)}`, common: false });
+      out.push({ key: `say:${e.speaker}:${JSON.stringify(e.text)}`, common: false });
     }
   }
   return out;
@@ -126,6 +125,8 @@ function reactionsOf(events: { type: string }[]): Reaction[] {
 
 export function reactionReport(screen: ScreenData, characters?: CharactersData, limit = 5000): ReactionReport {
   const host = screenHost(screen, characters);
+  // host.step is typed as StepResultLike (no ruleId, loose events); call core step directly for the full StepResult.
+  const run = (st: PuzzleState, a: Action): StepResult => step(screen, st, a, characters);
   const warnings: string[] = [];
   const ruledTargets = new Set(screen.rules.map((r) => r.target));
   const decoys = Object.keys(screen.hotspots).filter((id) => !ruledTargets.has(id) && screen.fallbacks?.[id]);
@@ -148,7 +149,7 @@ export function reactionReport(screen: ScreenData, characters?: CharactersData, 
   let s = host.initial;
   const sol = screen.solution ?? [];
   sol.forEach((a, i) => {
-    const r = host.step(s, a);
+    const r = run(s, a);
     if (r.ruleId) solRules.add(r.ruleId);
     for (const x of reactionsOf(r.events)) {
       if (x.common) solCommon.add(x.key);
@@ -165,7 +166,7 @@ export function reactionReport(screen: ScreenData, characters?: CharactersData, 
   for (let i = 0; i < queue.length && queue.length < limit; i++) {
     const st = queue[i]!;
     for (const a of host.actions(st) as Action[]) {
-      const r = host.step(st, a);
+      const r = run(st, a);
       if (r.source === 'invalid') continue;
       const nk = foldedKey(r.state);
       if (r.ruleId?.startsWith('decoy.') && (progressKey(r.state) !== progressKey(st) || r.state.gauge !== st.gauge)) {
