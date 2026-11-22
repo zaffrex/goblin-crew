@@ -8,10 +8,10 @@ on:
   workflow_dispatch:
     inputs:
       role:
-        description: "pm | designer | frontend | backend | infra | qa (qa는 격리 실행, #516)"
+        description: "pm | designer | frontend | backend | infra | puzzle | qa (qa는 격리 실행, #516)"
         required: true
         type: choice
-        options: [pm, designer, frontend, backend, infra, qa]
+        options: [pm, designer, frontend, backend, infra, puzzle, qa]
       mode:
         description: "tick(정기 작업) | event(이벤트 대응) | meeting(회의 진행, pm 전용) | chat(qa 대화 모드, 진마씨의 general 멘션 답, #751)"
         required: true
@@ -47,6 +47,7 @@ jobs:
       SLACK_TOKEN_FRONTEND: ${{ inputs.role != 'qa' && secrets.SLACK_TOKEN_FRONTEND || '' }}
       SLACK_TOKEN_BACKEND: ${{ inputs.role != 'qa' && secrets.SLACK_TOKEN_BACKEND || '' }}
       SLACK_TOKEN_INFRA: ${{ inputs.role != 'qa' && secrets.SLACK_TOKEN_INFRA || '' }}
+      SLACK_TOKEN_PUZZLE: ${{ inputs.role != 'qa' && secrets.SLACK_TOKEN_PUZZLE || '' }}
       SLACK_TOKEN_QA: ${{ secrets.SLACK_TOKEN_QA }}
       SLACK_BOT_TOKEN: ${{ inputs.role != 'qa' && secrets.SLACK_BOT_TOKEN || '' }}   # 구버전 단일 앱 (없어도 됨)
       AGENT_ROLE: ${{ inputs.role }}
