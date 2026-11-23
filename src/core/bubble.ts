@@ -43,6 +43,18 @@ export interface BubblePlacement {
   tailY?: number;
 }
 
+/**
+ * 말풍선이 놓일 수 있는 영역(#601 묶음 1-1 `r2-b.png`): 게임 화면에서 **아래 라벨 줄 + 게이지 띠**를 뺀 것.
+ * 예전에는 게임 화면 전체여서, 발 아래로 뒤집힌 바닥 화자 말풍선이 아래끝까지 밀려 게이지 막대와 첫 감소 안내
+ * (`ゲージが1マス減った！…`)를 함께 덮었다. 첫 감소는 다치는 실패의 첫 말풍선과 같은 순간이라 늘 겹친다.
+ * `labelBottom`은 라벨 아래끝(화면 CSS px), `labelFontPx`는 라벨 글자 크기. 라벨 높이 = 줄 높이 1.3em + 위아래 여백 0.15em×2
+ * (index.html `#label`). 라벨이 안 떠 있어도 자리는 비워 둔다: 호버 라벨이 뜰 때마다 말풍선이 뛰지 않게.
+ */
+export function bubbleBounds(game: Rect, labelBottom: number, labelFontPx: number): Rect {
+  const floor = Math.floor(labelBottom - labelFontPx * 1.6);
+  return { left: game.left, top: game.top, width: game.width, height: Math.max(0, Math.min(game.height, floor - game.top)) };
+}
+
 /** 말풍선 최대 폭: 게임 화면 폭에서 양쪽 틈을 뺀 것. 이 안에서는 작가 줄바꿈(`\n`)에서만 줄이 바뀐다. */
 export function bubbleMaxWidth(bounds: Rect, opts: Pick<BubbleOptions, 'margin'>): number {
   return Math.max(0, Math.floor(bounds.width - opts.margin * 2));
