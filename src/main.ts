@@ -6,7 +6,7 @@
 import charactersJson from '../content/characters.json';
 import texts from '../content/text/ja.json';
 import { sayText } from './core/sayText';
-import { bubbleFontPx, bubbleMaxWidth, bubbleTailInset, placeBubble, type BubbleAnchor, type BubbleOptions, type KeepBox } from './core/bubble';
+import { bubbleBounds, bubbleFontPx, bubbleMaxWidth, bubbleTailInset, placeBubble, type BubbleAnchor, type BubbleOptions, type KeepBox } from './core/bubble';
 import { CHARACTERS, type CharacterId } from './core/characters';
 import { INTERNAL_HEIGHT, INTERNAL_WIDTH, WALK_AREA } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
@@ -553,7 +553,9 @@ function placeBubbleDom(text: string, speaker: BubbleAnchor | null, keep: readon
     const br = toScreen(k.left + k.width, k.top + k.height);
     return { left: tl.x, top: tl.y, width: br.x - tl.x, height: br.y - tl.y };
   };
-  const p = placeBubble(anchor, bubbleMeasured, r, { ...BUBBLE_OPTS, tailInset: bubbleTailInset(fontPx) }, bubbleAvoidBoxes(), keep.map((k) => ({ ...boxToScreen(k), toy: k.toy })), bodies.map(boxToScreen));
+  // 아래 라벨 줄·게이지 띠는 말풍선 자리가 아니다(#601 묶음 1-1). 최대 폭은 예전처럼 게임 화면 폭.
+  const area = bubbleBounds(r, toScreen(0, LABEL_BOTTOM).y, labelFontPx(r.width / INTERNAL_WIDTH));
+  const p = placeBubble(anchor, bubbleMeasured, area, { ...BUBBLE_OPTS, tailInset: bubbleTailInset(fontPx) }, bubbleAvoidBoxes(), keep.map((k) => ({ ...boxToScreen(k), toy: k.toy })), bodies.map(boxToScreen));
   bubble.style.left = `${Math.round(p.left)}px`;
   bubble.style.top = `${Math.round(p.top)}px`;
   bubble.style.setProperty('--tail-x', `${Math.round(p.tailX)}px`);

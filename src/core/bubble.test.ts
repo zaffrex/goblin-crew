@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bubbleFontPx, bubbleMaxWidth, bubbleTailInset, placeBubble, type BubbleOptions } from './bubble';
+import { bubbleBounds, bubbleFontPx, bubbleMaxWidth, bubbleTailInset, placeBubble, type BubbleOptions } from './bubble';
 
 const OPTS: BubbleOptions = { margin: 4, gap: 6, tailInset: 12 };
 // 667×375 @2 = CSS 1.0배: 게임 화면 480×270이 가운데.
@@ -274,5 +274,37 @@ describe('placeBubble side placement (#356, 6-5절)', () => {
     const q = placeBubble(lower, size, PHONE, O, [], keep);
     expect(q.side).toBeUndefined();
     expect(q).toEqual(placeBubble(lower, size, PHONE, O, []));
+  });
+});
+
+describe('bubbleBounds (#601 묶음 1-1: 아래 라벨 줄·게이지 띠 비우기)', () => {
+  // 1280×720 데스크톱 = 2배: 게임 화면 960×540이 (160,45). 라벨 아래끝 = 내부 254 → 45 + 508 = 553, 라벨 14px.
+  const DESK = { left: 160, top: 45, width: 960, height: 540 };
+  const LABEL_BOTTOM_CSS = 553;
+  const area = bubbleBounds(DESK, LABEL_BOTTOM_CSS, 14);
+
+  it('ends the bubble area at the top of the label line (14px × 1.6 = 22.4 → 530)', () => {
+    expect(area).toEqual({ left: 160, top: 45, width: 960, height: 530 - 45 });
+  });
+
+  it('keeps a flipped bubble of a floor speaker off the label line and the gauge band', () => {
+    // 묶음 1-1 `r2-b.png`: 바닥 ノビー(발끝 515) 말풍선이 발 아래로 갔다. 위가 막힌 경우를 머리 위끝 60으로 만든다.
+    const anchor = { x: 605, top: 60, bottom: 515 };
+    const size = { width: 190, height: 65 };
+    const p = placeBubble(anchor, size, area, OPTS);
+    expect(p.below).toBe(true);
+    expect(p.top + size.height).toBe(530 - OPTS.margin);
+    // 예전(게임 화면 전체)에는 아래끝 581까지 내려가 라벨(531~553)과 게이지 띠(557~585)를 덮었다.
+    const old = placeBubble(anchor, size, DESK, OPTS);
+    expect(old.top + size.height).toBe(581);
+  });
+
+  it('does not change a bubble above the head (same as before)', () => {
+    const anchor = { x: 605, top: 300, bottom: 400 };
+    expect(placeBubble(anchor, SIZE, area, OPTS)).toEqual(placeBubble(anchor, SIZE, DESK, OPTS));
+  });
+
+  it('never goes negative when the label sits above the game top', () => {
+    expect(bubbleBounds(DESK, 40, 14).height).toBe(0);
   });
 });
