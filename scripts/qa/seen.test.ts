@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CLOSE_BY_CLICK_MS, CLOSED_NOTE, formatSeen, LATE_REACTION_MS, MIXED_NOTE, SEEN_RECORDER, type Seen } from './seen';
+import { CLOSE_BY_CLICK_MS, CLOSED_NOTE, formatSeen, GAUGE_NOTE_TEXT, LATE_REACTION_MS, MIXED_NOTE, SEEN_RECORDER, type Seen } from './seen';
 
 describe('formatSeen (#601 7회차: 스크린샷 사이 말풍선)', () => {
   it('글마다 바로 앞 클릭 번호와 그 뒤 시간, 떠 있던 시간을 적는다', () => {
@@ -79,6 +79,25 @@ describe('formatSeen: 클릭이 닫은 글 (#601 묶음 1 「1.0초만 떠서 �
   });
 });
 
+describe('formatSeen: 첫 게이지 안내 (#601 P1-e)', () => {
+  it('다치는 실패 뒤 안내를 게이지 안내로 적고, 다음 클릭이 지웠으면 그렇게 적는다', () => {
+    // 묶음 1-3 #2·#3 재현(라이브 8c5046b): click 1(재킷) 뒤 +4.1초 칸 터짐 + 안내 + 젖는 대사, 1.2초 뒤 click 2(동상 팔, 걷기)가 안내를 지움.
+    const seen: Seen[] = [
+      { id: 'gaugeNote', text: GAUGE_NOTE_TEXT, start: 5_100, end: 6_250 },
+      { id: 'bubble', text: 'うわっ！冷たっ！\nびしょびしょやん…', start: 5_100, end: 8_400 },
+    ];
+    expect(formatSeen(seen, [1_000, 6_200])).toEqual([
+      `click 1 뒤 +4.1초, 1.1초 동안(click 2 뒤 닫힘) 게이지 안내: 「${GAUGE_NOTE_TEXT}」`,
+      'click 1 뒤 +4.1초, 3.3초 동안 말풍선: 「うわっ！冷たっ！ / びしょびしょやん…」',
+      CLOSED_NOTE,
+    ]);
+  });
+
+  it('안내 글은 화면 UI 글(ja.json `ui.hud.gauge_first_drop`)이다', () => {
+    expect(GAUGE_NOTE_TEXT).toMatch(/ゲージ/);
+  });
+});
+
 describe('SEEN_RECORDER', () => {
   afterEach(() => vi.useRealTimers());
 
@@ -90,6 +109,7 @@ describe('SEEN_RECORDER', () => {
       bubble: { hidden: true, textContent: '' },
       clear: { hidden: true, textContent: '' },
       faint: { hidden: true, textContent: '' },
+      label: { hidden: true, textContent: '' },
     };
     const win: { __qaSeen?: Seen[] } = {};
     const doc = { getElementById: (id: string) => els[id] ?? null };
@@ -126,5 +146,17 @@ describe('SEEN_RECORDER', () => {
       ['A', false],
       ['B', true],
     ]);
+  });
+
+  it('#label은 첫 게이지 안내 글자일 때만 적는다(호버 라벨은 안 적는다)', () => {
+    const p = fakePage();
+    p.els.label!.hidden = false;
+    p.els.label!.textContent = 'スーツの上着までのばす';
+    p.step(100);
+    p.els.label!.textContent = GAUGE_NOTE_TEXT;
+    p.step(100);
+    p.els.label!.textContent = 'あるく';
+    p.step(100);
+    expect(p.log()).toEqual([{ id: 'gaugeNote', text: GAUGE_NOTE_TEXT, start: 150, end: 250 }]);
   });
 });
