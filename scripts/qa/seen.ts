@@ -1,20 +1,18 @@
 // QA 화면 글 기록 (#601 7회차). 말풍선은 2~4초만 떠 있어서 스크린샷 사이에 지나가면 QA는 "아무 반응 없음"으로 적는다.
 // 사람은 화면을 계속 보니 다 읽는다. 그래서 재생 내내 화면에 뜬 글(말풍선·클리어 줄·기절 줄·첫 게이지 안내)만 시간과 함께 모아 끝에 알려 준다.
 // 읽는 건 사람 눈에 보이는 DOM 글자뿐이다. 게임 상태·규칙 ID·대사 키·숨은 요소는 읽지 않는다.
-import { readFileSync } from 'node:fs';
 
 /** 기록할 화면 글 종류. */
 export type SeenId = 'bubble' | 'clear' | 'faint' | 'gaugeNote';
 
 /**
  * 첫 게이지 감소 안내(`ui.hud.gauge_first_drop`, 설계 6-2-5절). 대상 라벨 자리(`#label`)에 2.5초 뜨고, 다음 클릭이 지운다.
+ * QA 실행은 sparse-checkout으로 `content/`를 안 받아서(대사 미리 보기 방지) ja.json을 읽을 수 없다. 그래서 글자를 여기 직접 둔다.
+ * `seen.test.ts`가 ja.json과 같은지 검사한다(테스트는 전체 checkout에서 돈다).
  * 묶음 1-3(#601 P1-e): 다치는 실패(#2) 직후 뜬 이 안내가 기록에 없어서, 다음 클릭(#3) 스크린샷에서야 줄어든 게이지를 보고
  * "걷기만 했는데 말풍선 없이 게이지 −1"로 적혔다. UI 글 하나라 정답 정보는 없다.
  */
-export const GAUGE_NOTE_TEXT = (JSON.parse(readFileSync(new URL('../../content/text/ja.json', import.meta.url), 'utf8')) as Record<string, string>)[
-  'ui.hud.gauge_first_drop'
-]!;
-
+export const GAUGE_NOTE_TEXT = 'ゲージが1マス減った！ゼロで全員スタートに戻る';
 /**
  * 어디서 읽나. 잠깐 떴다 사라지는 것만. `#label`은 마우스를 올린 동안 계속 보이는 대상 라벨이라 스크린샷으로 충분해서
  * 통째로는 안 읽고, 같은 자리에 잠깐 뜨는 첫 게이지 안내 글자일 때만 적는다(`only`).

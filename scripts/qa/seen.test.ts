@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CLOSE_BY_CLICK_MS, CLOSED_NOTE, formatSeen, GAUGE_NOTE_TEXT, LATE_REACTION_MS, MIXED_NOTE, SEEN_RECORDER, type Seen } from './seen';
 
@@ -95,6 +96,8 @@ describe('formatSeen: 첫 게이지 안내 (#601 P1-e)', () => {
 
   it('안내 글은 화면 UI 글(ja.json `ui.hud.gauge_first_drop`)이다', () => {
     expect(GAUGE_NOTE_TEXT).toMatch(/ゲージ/);
+    const ja = JSON.parse(readFileSync(new URL('../../content/text/ja.json', import.meta.url), 'utf8')) as Record<string, string>;
+    expect(GAUGE_NOTE_TEXT).toBe(ja['ui.hud.gauge_first_drop']);
   });
 });
 
