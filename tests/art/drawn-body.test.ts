@@ -470,6 +470,29 @@ describe('화면 2 앉은 ズッシー (2-1-4절)', () => {
     expect(r).toMatchObject({ kind: 'act', action: { char: 'mukjik', target: 'pigeons' } });
   });
 
+  it('오리 → `high` 뒤 비켜 선 ノビー가 화면의 퍼즐 대상(`hintAbility` 있음) 어느 상자도 먹지 않는다 (#862 Noah 우려 1)', () => {
+    const s = afterHigh();
+    const ctx = tapContext(fData, s);
+    const defs = { ...fData.screen.hotspots, ...fData.screen.spots };
+    const checked: string[] = [];
+    for (const [id, def] of Object.entries(defs)) {
+      if (def.hintAbility === undefined || !def.box) continue;
+      checked.push(id);
+      const [bx, by, bw, bh] = def.box;
+      for (const slop of SLOPS) {
+        let n = 0;
+        for (let y = by; y < by + bh; y++) {
+          for (let x = bx; x < bx + bw; x++) {
+            const r = resolveTap(ctx, ui('mukjik'), { x, y }, slop);
+            if (r.kind === 'switch' && r.char === 'jjuk') n++;
+          }
+        }
+        expect(n, `${id} slop ${slop}`).toBe(0);
+      }
+    }
+    expect(checked).toContain('pigeons');
+  });
+
   it('오리 → `high` → 동상 앉기(길 F) 뒤에도 전환 0px (#862)', () => {
     const s = afterHigh();
     runAction(fData, s, { char: 'mukjik', verb: 'stomp', target: 'statue' }, null);
