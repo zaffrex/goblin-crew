@@ -41,6 +41,14 @@ export interface ScreenReport {
   solutionProblems: string[];
 }
 
+/** Warning (not a failure): `solution` is longer than the BFS shortest, so the shortest route may skip the designed beats. */
+export function solutionLengthWarning(screen: ScreenData, e: ExploreResult<PuzzleState, Action>): string | null {
+  if (e.truncated || !screen.solution?.length) return null;
+  const shortest = e.safeClearReachable ? e.safeShortestLength : e.shortestLength;
+  if (shortest === null || screen.solution.length <= shortest) return null;
+  return `solution ${screen.solution.length}수 > 최단 ${shortest}수: 최단 길이 설계한 웃긴 박자를 건너뛸 수 있음`;
+}
+
 export function replaySolution(screen: ScreenData, characters?: CharactersData): string[] {
   const problems: string[] = [];
   const solution = screen.solution;
@@ -97,7 +105,7 @@ export function checkScreen(screen: ScreenData, characters?: CharactersData, max
   const req = requiredAbilitiesBoth(host, ['stretch', 'stomp', 'squeak'], maxStates);
   return {
     explore: full,
-    damageWarnings: damageWarnings(full),
+    damageWarnings: [...damageWarnings(full), ...[solutionLengthWarning(screen, full)].filter((w): w is string => w !== null)],
     requiredAbilities: req.primary,
     requiredAbilitiesFull: req.full,
     solutionProblems: replaySolution(screen, characters),
