@@ -44,6 +44,17 @@ const sec = (ms: number): string => `${(ms / 1000).toFixed(1)}초`;
  */
 export const LATE_REACTION_MS = 8_000;
 
+/**
+ * 글이 사라지기 전 이만큼 안에 클릭이 있었으면 "그 클릭이 닫았을 수 있음"으로 적는다(ms).
+ * 행동 뒤 말풍선은 뜬 뒤 1.0초(본 글 0.4초)부터, 시작 연출 말풍선은 바로 월드 클릭으로 닫힌다(#700). 그 전 클릭도 맡아 뒀다가 1.0초에 실행하며 닫는다(#832).
+ * 그래서 1.0초 + 기록기 주기 50ms + 여유. 묶음 1(#601): 「1.0초만 떠서 읽을 틈이 없었다」 두 건이 Mia 자기 클릭이 닫은 것이었다.
+ */
+export const CLOSE_BY_CLICK_MS = 1_100;
+
+/** 클릭 뒤에 닫힌 글이 있을 때 끝에 붙이는 안내. 도구·조작 안내만이고 정답 정보는 없다. */
+export const CLOSED_NOTE =
+  '※ "click N 뒤 닫힘"이 붙은 글은 그 클릭이 말풍선을 넘겼을 수 있어요(게임이 짧게 띄운 게 아닐 수 있어요). 말풍선은 클릭하면 닫혀요(행동 뒤 말풍선은 뜬 지 1.0초부터, 시작 대사는 바로). 끝까지 읽으려면 그 클릭 앞에 `wait 3000`을 더 띄우세요.';
+
 /** 같은 글의 원인 후보로 같이 적는 앞 클릭 수 상한. */
 const MAX_EARLIER = 1;
 
@@ -56,9 +67,11 @@ export const MIXED_NOTE =
  * 예: `click 5 뒤 +2.3초, 3.9초 동안 말풍선: 「…いい石だ。 / 落ち着く。」`
  * 글이 뜨기 전 `LATE_REACTION_MS` 안에 클릭이 더 있었으면 그 클릭도 같이 적는다(바로 앞 하나 더):
  * `click 16 뒤 +3.6초 / click 15 뒤 +4.0초, …`. 그런 줄이 하나라도 있으면 끝에 `MIXED_NOTE`를 붙인다.
+ * 떠 있는 동안 누른 클릭 뒤 `CLOSE_BY_CLICK_MS` 안에 사라진 글은 `1.0초 동안(click 6 뒤 닫힘)`처럼 적고 끝에 `CLOSED_NOTE`를 붙인다.
  */
 export function formatSeen(seen: readonly Seen[], clicks: readonly number[]): string[] {
   let mixed = false;
+  let closed = false;
   const lines = seen.map((s) => {
     let k = -1;
     for (let i = 0; i < clicks.length; i++) if (clicks[i]! <= s.start) k = i;
@@ -67,8 +80,23 @@ export function formatSeen(seen: readonly Seen[], clicks: readonly number[]): st
       parts.push(`click ${i + 1} 뒤 +${sec(s.start - clicks[i]!)}`);
     }
     if (parts.length > 1) mixed = true;
-    const dur = s.end === null ? '끝까지' : `${sec(s.end - s.start)} 동안`;
+    let dur = s.end === null ? '끝까지' : `${sec(s.end - s.start)} 동안`;
+    const c = s.end === null ? -1 : closingClick(clicks, s.start, s.end);
+    if (c >= 0) {
+      closed = true;
+      dur += `(click ${c + 1} 뒤 닫힘)`;
+    }
     return `${parts.join(' / ')}, ${dur} ${NAME[s.id]}: 「${s.text.replace(/\s*\n\s*/g, ' / ')}」`;
   });
-  return mixed ? [...lines, MIXED_NOTE] : lines;
+  return [...lines, ...(mixed ? [MIXED_NOTE] : []), ...(closed ? [CLOSED_NOTE] : [])];
+}
+
+/** 글이 떠 있는 동안(`start` 뒤 ~ `end`) 누른 클릭 중 `end` 전 `CLOSE_BY_CLICK_MS` 안의 마지막 것. 없으면 -1. */
+function closingClick(clicks: readonly number[], start: number, end: number): number {
+  for (let i = clicks.length - 1; i >= 0; i--) {
+    const c = clicks[i]!;
+    if (c > end) continue;
+    return c > start && end - c <= CLOSE_BY_CLICK_MS ? i : -1;
+  }
+  return -1;
 }
