@@ -1,5 +1,6 @@
 // QA용 브라우저 조작 (#516). 상태를 안 남기는 한 번짜리 실행이라, 매번 처음부터 actions 파일을 재생한 뒤 스크린샷을 찍는다.
 // 입력은 실제 마우스 클릭/터치 탭뿐이다. 게임 내부 함수 호출, 소스·네트워크·콘솔 조회는 일부러 노출하지 않는다.
+// 관찰은 스크린샷과, 재생 중 화면에 뜬 글(말풍선 등) 기록뿐이다(`seen.ts`, 사람 눈에 보인 글만).
 // 사용: node scripts/qa/browse.ts --url <URL> --viewport desktop|mobile|portrait (--actions <파일> | --steps "<동작>; <동작>") --shot <png> [--no-sandbox]
 // 동작 하나: `click <x> <y>` (스크린샷 픽셀 좌표) | `wait <ms>` | `shot <이름>` (그 순간을 `<shot>-<이름>.png`로 한 장 더, #643).
 // 파일은 한 줄에 하나, `--steps`는 `;`로 구분. `#`로 시작하면 메모.
@@ -7,6 +8,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Browser, sleep } from '../playtest/cdp.ts';
+import { formatSeen, SEEN_RECORDER, type Seen } from './seen.ts';
 import { midShotPath, parseSteps } from './steps.ts';
 import { assertPlayableUrl } from './url-guard.ts';
 
@@ -42,9 +44,11 @@ try {
   const page = await browser.newPage();
   await page.init();
   await page.setViewport(vp);
+  await page.addInitScript(SEEN_RECORDER);
   await page.goto(url.toString());
   await sleep(1500);
   const shots: string[] = [];
+  const clicks: number[] = [];
   for (const s of steps) {
     if (s.cmd === 'shot') {
       const file = midShotPath(args.shot, s.name);
@@ -53,6 +57,7 @@ try {
     } else if (s.cmd === 'click') {
       // 스크린샷은 기기 픽셀(모바일 1688x780)이고 입력 이벤트는 CSS 픽셀(844x390)이다. 스크린샷 좌표를 dpr로 나눠 넘긴다.
       const p = { x: s.x / vp.dpr, y: s.y / vp.dpr };
+      clicks.push(await page.evaluate<number>('performance.now()'));
       if (mobile) await page.tap(p); else await page.click(p);
       await sleep(400);
     } else await sleep(s.ms);
@@ -60,6 +65,9 @@ try {
   await page.screenshot(args.shot);
   const mid = shots.length ? `, mid-run ${shots.join(' ')}` : '';
   console.log(`ok: ${steps.length} actions, screenshot ${args.shot}${mid}`);
+  // 스크린샷 사이에 떴다 사라진 글도 사람은 읽는다. 시간 순서로 다 적는다.
+  const seen = formatSeen(await page.evaluate<Seen[]>('window.__qaSeen ?? []'), clicks);
+  console.log(seen.length ? `화면에 뜬 글 (스크린샷 사이 포함, 시간 순서):\n${seen.map((l) => `  ${l}`).join('\n')}` : '화면에 뜬 글: 없음');
 } finally {
   await browser.close();
 }
