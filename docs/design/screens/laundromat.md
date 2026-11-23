@@ -63,6 +63,7 @@
   - **세탁기 한 대 그림(11/23, #764 첫 L칸)**: [`art/scenes/laundromat.washer.mjs`](../../../art/scenes/laundromat.washer.mjs), 미리보기 `node docs/design/screens/laundromat-washer-preview.mjs` → [4배](laundromat-washer-4x.png)·[장면](laundromat-washer-scene-2x.png)·[명도](laundromat-washer-gray-2x.png). 38×56, 모습 셋(닫힘 빈 통 / 닫힘 빨래 / 문 열림, 문이 왼쪽으로 8px 나옴). 아직 빌드에 안 붙였다(배경 그림 PR에서 줄 세움). 퍼즐과 상관없는 방 껍데기라 #802 다시 보기 전에 먼저 그렸다.
   - 몸 주색은 민트 grnL(Y155): 시작하면 세 사람이 2~4번 바로 앞(240·280·320)에 서서, 몸 주색이 세 사람 주색 다섯과 모두 30 이상 떨어져야 한다(51~94). 흰 법랑은 ズッシー 셔츠·ノビー 줄무늬와 붙고, 회색 lint(Y178)는 우비와 딱 30이라 안 골랐다. 문 유리는 tealD(Y53)로 몸보다 102 어둡게 해서 1배에서 "둥근 문 = 세탁기"로 읽힌다.
   - 문 열린 칸은 **1번**: 시작 화면에서 사람에게 안 가리는 칸은 1번뿐이다. 벽 색·바닥 색은 아직 자리 표시(배경 그림에서 정함). 몸 주색과 벽은 30 이상 떨어뜨린다(지금 자리 표시 cotton과 67).
+  - **방 껍데기(11/23, #764 세 번째 L칸)**: [`art/scenes/laundromat.room.mjs`](../../../art/scenes/laundromat.room.mjs), 시안 `node docs/design/screens/laundromat-bg-sketch.mjs` → [장면](laundromat-bg-sketch-2x.png)·[명도](laundromat-bg-sketch-gray-2x.png)·[작은 것 4배](laundromat-bg-sketch-4x.png). 명도 띠는 천장 dusk / 벽 cotton / **아래 벽 띠 plum(y 172~235)** / 바닥 woodL. 아래 벽 띠를 어둡게 한 건 세탁기 몸(Y155)과 101 차로 줄이 한 덩어리로 뜨고, 세 사람 주색 다섯과도 모두 30 이상이라서다(바지 dusk 33·멜빵 teal 32가 가장 가깝다). 벽시계는 선반 위 (268, 100)로 올렸다: 세탁기 위 y 128~186은 시작 줄 말풍선이 뜨는 높이라 비워 둔다. 오른쪽 형광등은 꺼져 있고 3번 건조기 뒤로 배기 덕트가 천장까지 간다(범인 쪽이 한 단 어둡다). 게시판·선반 물건에 글자는 없다. 건조기·자판기·걸쇠는 Kai 다시 보기(#802) 뒤라 아직 자리 표시다.
 
 ### 1-2. 서는 자리 (퍼즐 상태)
 
