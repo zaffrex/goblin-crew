@@ -17,7 +17,7 @@ import { CHARACTERS, type CharacterId } from '../../src/core/characters';
 import { CHAR_SLOTS } from '../../src/core/hud';
 import { resolveTap, tap, type UiState } from '../../src/core/interact';
 import { frameOpaqueAt, parseSceneArt } from '../../src/core/sceneArt';
-import { charFacing, charPose, createScene, isBusy, runAction, sceneTick, tapContext, type SceneData, type SceneState } from '../../src/core/scene';
+import { charFacing, charPose, createScene, isBusy, runAction, sceneTap, sceneTick, tapContext, type SceneData, type SceneState } from '../../src/core/scene';
 import { parseSpriteMeta, spriteFrame, spriteOpaqueAt, type SpriteMeta } from '../../src/core/sprite';
 import type { CharactersData, ScreenData } from '../../src/core/puzzle/types';
 import type { Point } from '../../src/core/viewport';
@@ -433,5 +433,63 @@ describe('화면 2 앉은 ズッシー (2-1-4절)', () => {
       }
     }
     expect(sw).toBe(539);
+  });
+  /** 오리 → `high`(물 끈 뒤 재킷에 장대, 못 닿음)까지 마친 배치(#862). */
+  function afterHigh(): SceneState {
+    const s = ready(fData);
+    for (const a of [
+      { char: 'ppik', verb: 'squeak', target: 'duck' },
+      { char: 'jjuk', verb: 'stretch', target: 'jacket' },
+    ] as const) {
+      runAction(fData, s, a, null);
+      for (let i = 0; i < 5000 && isBusy(s); i++) sceneTick(fData, s);
+    }
+    expect(s.puzzle.flags['fountain.off']).toBe(true);
+    expect(s.puzzle.flags['jacket.on_hand']).toBe(false);
+    // 엔진 걷기(비켜 서기)는 busy가 아니라 따로 끝까지 돌린다.
+    for (let i = 0; i < 5000 && s.walkers.jjuk.target !== null; i++) sceneTick(fData, s);
+    return s;
+  }
+
+  /** 땅 비둘기 상자에서 ズッシー가 눌렀을 때 전환으로 바뀌는 px 수(여유 slop). */
+  function pigeonSwitches(s: SceneState, slop: number): number {
+    const ctx = tapContext(fData, s);
+    const [bx, by, bw, bh] = fData.screen.hotspots.pigeons!.box!;
+    let n = 0;
+    for (let y = by; y < by + bh; y++) for (let x = bx; x < bx + bw; x++) if (resolveTap(ctx, ui('mukjik'), { x, y }, slop).kind === 'switch') n++;
+    return n;
+  }
+
+  it('오리 → `high` 뒤 ノビー가 땅 비둘기 상자를 덮지 않는다: 전환 0px, 가운데는 비둘기 (#862)', () => {
+    const s = afterHigh();
+    expect([s.walkers.jjuk.x, s.walkers.jjuk.y]).toEqual([283, 244]);
+    for (const slop of SLOPS) expect(pigeonSwitches(s, slop), `slop ${slop}`).toBe(0);
+    const r = resolveTap(tapContext(fData, s), ui('mukjik'), { x: 232, y: 216 }, 8);
+    expect(r).toMatchObject({ kind: 'act', action: { char: 'mukjik', target: 'pigeons' } });
+  });
+
+  it('오리 → `high` → 동상 앉기(길 F) 뒤에도 전환 0px (#862)', () => {
+    const s = afterHigh();
+    runAction(fData, s, { char: 'mukjik', verb: 'stomp', target: 'statue' }, null);
+    for (let i = 0; i < 5000 && isBusy(s); i++) sceneTick(fData, s);
+    for (const slop of SLOPS) expect(pigeonSwitches(s, slop), `slop ${slop}`).toBe(0);
+  });
+  it('이미 본 `high` 대사(잠금 0.4초)를 걷기 중에 닫아도 닫는 탭은 비켜 선 몸으로 판정된다 (#862)', () => {
+    const s = afterHigh();
+    // 두 번 더 뻗으면 두 문구를 다 봐서 세 번째는 본 대사다.
+    for (let k = 0; k < 2; k++) {
+      runAction(fData, s, { char: 'jjuk', verb: 'stretch', target: 'jacket' }, null);
+      for (let i = 0; i < 5000 && (isBusy(s) || s.walkers.jjuk.target !== null); i++) sceneTick(fData, s);
+    }
+    runAction(fData, s, { char: 'jjuk', verb: 'stretch', target: 'jacket' }, null);
+    for (let i = 0; i < 5000 && s.current?.ev.type !== 'say'; i++) sceneTick(fData, s);
+    for (let i = 0; i < 25; i++) sceneTick(fData, s); // 0.42초: 본 대사 잠금(0.4초)은 지났고 걷기(0.66초)는 아직
+    expect(s.walkers.jjuk.target).not.toBeNull();
+    expect(s.walkers.jjuk.x).toBeLessThan(283);
+    s.ui = ui('mukjik');
+    const r = sceneTap(fData, s, { x: 232, y: 216 }, 8, true);
+    // 터치 첫 탭은 선택(2-2절). 전환이 아니라 비둘기가 골라졌는지 본다.
+    expect(r).toMatchObject({ kind: 'intent', intent: { kind: 'select', label: { target: 'pigeons' } } });
+    expect([s.walkers.jjuk.x, s.walkers.jjuk.y]).toEqual([283, 244]);
   });
 });

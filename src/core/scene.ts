@@ -134,7 +134,8 @@ export type PlayEvent =
   | (Extract<PuzzleEvent, { type: 'anim' }> & { onto?: string })
   /** `by`: 이 효과를 낸 행동의 캐릭터(#530). 소리 글자 자리 `'actor'`(`fx.ts` `fxTextSpot`)가 쓴다. 입장 연출은 없다. */
   | (Extract<PuzzleEvent, { type: 'fx' }> & { by?: CharacterId })
-  | { type: 'say'; speaker: string; text: string };
+  /** `stepOff`: 이 대사가 시작될 때 그 캐릭터가 이 점으로 엔진 걷기를 시작한다(높은 대상 뒤 비켜 서기, #862, `stepOffPoint`). */
+  | { type: 'say'; speaker: string; text: string; stepOff?: { char: CharacterId; to: Point } };
 
 export interface Playing {
   ev: PlayEvent;
@@ -769,6 +770,63 @@ export function approachPoint(data: SceneData, puzzle: PuzzleState, action: Acti
 }
 
 /**
+ * 높은 대상 뒤 비켜 설 점(#862, `ui-interaction.md` 5-1-1절). 바닥에서 높은 대상(상자 아래쪽이 `WALK_AREA.top` 위)으로 걸어가
+ * 행동했고 행동 뒤에도 바닥에 있는데, 설 곳(`ap`)의 서 있기 몸 상자가 **낮은 퍼즐 대상**(`hintAbility` 있는 핫스팟·자리, 행동 뒤 상자)과
+ * 겹치면, 그 대상들·동료 몸과 안 겹치는 가장 가까운 x를 준다. 온 쪽(`fromX`)을 먼저 보고 없으면 반대쪽. y는 그대로. 아니면 null.
+ * `hintAbility` 없는 핫스팟(장난감·배경 물건, #598)은 덮어도 된다: 분수 테두리처럼 높은 대상 바로 아래에 늘 있는 것이라서다.
+ * 퍼즐 상태와 무관한 연출 계산이고, 걷기는 그 행동의 이 캐릭터 첫 `say`가 시작될 때 엔진 걷기로 한다(말풍선 잠금 안에 끝난다).
+ * 화면 2: 오리 → 재킷 `high` 뒤 ノビー(x 224)가 땅 비둘기 상자 가운데를 덮어 ズッシー 탭이 전환으로 먹혔다(#601 모바일 1회 #27).
+ */
+function stepOffPoint(
+  data: SceneData,
+  s: SceneState,
+  before: PuzzleState,
+  after: PuzzleState,
+  action: Action,
+  events: readonly PuzzleEvent[],
+  ap: { x: number; y: number; face: Facing | null },
+  fromX: number,
+): Point | null {
+  const char = action.char;
+  const tb = targetBox(data.screen, before, action.target);
+  if (!tb || tb.top + tb.height > WALK_AREA.top) return null;
+  if (!isFree(data, after.at[char] ?? '')) return null;
+  if (events.some((e) => (e.type === 'walk' || e.type === 'place' || e.type === 'release') && e.char === char)) return null;
+  if (events.some((e) => e.type === 'faint' || e.type === 'clear')) return null;
+  const low: HitBox[] = [];
+  const ids = [...Object.keys(data.screen.hotspots), ...Object.keys(data.screen.spots)];
+  for (const id of ids) {
+    if (id === action.target) continue;
+    const def = data.screen.hotspots[id] ?? data.screen.spots[id];
+    if (def?.hintAbility === undefined) continue;
+    const b = targetBox(data.screen, after, id);
+    if (b && b.top + b.height > WALK_AREA.top) low.push(b);
+  }
+  const def = characterDef(char);
+  const face = ap.face ?? s.walkers[char].facing;
+  if (!low.some((b) => boxesOverlap(characterHitBox(def, ap.x, ap.y, face), b))) return null;
+  const now = bodies(data, s);
+  const mates: HitBox[] = [];
+  for (const c of CHARACTERS) {
+    if (c.id === char) continue;
+    const o = s.walkers[c.id];
+    mates.push(o.target ? characterHitBox(characterDef(c.id), o.target.x, o.target.y, o.facing) : now[c.id]);
+  }
+  const clear = (x: number, f: Facing): boolean => {
+    const body = characterHitBox(def, x, ap.y, f);
+    const grown = { left: body.left - APPROACH_GAP, top: body.top, width: body.width + 2 * APPROACH_GAP, height: body.height };
+    return !low.some((b) => boxesOverlap(grown, b)) && !mates.some((b) => boxesOverlap(body, b));
+  };
+  const first: Facing = fromX < ap.x ? -1 : 1;
+  for (const dir of [first, -first as Facing]) {
+    for (let x = ap.x + dir; x >= WALK_AREA.left && x <= WALK_AREA.right; x += dir) {
+      if (clear(x, dir)) return { x, y: ap.y };
+    }
+  }
+  return null;
+}
+
+/**
  * 높은 대상 앞 발 y(#575). 대상 지금 그림(시트 없으면 핫스팟 상자)을 몸 상자가 `HIDE_MAX`보다 많이 가리거나,
  * 작은 그림(`SMALL_ART`)에 얼굴이 붙으면(`headTouches`, #585) 몸 위 끝이 그림 아래 끝보다 `CLEAR_GAP` 아래가 되는 y까지
  * 앞(아래)으로 내려선다. 걷기 영역 아래 끝에서 멈춘다. 위로는 가지 않는다.
@@ -902,8 +960,12 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
   else if (tb) s.reach[action.char] = { x: tb.left + tb.width / 2, y: tb.top + tb.height };
   else delete s.reach[action.char];
   const n = bump(s, variantKey(r.source, r.ruleId, action));
+  let off = ap && fromFloor && !sb ? stepOffPoint(data, s, prev, r.state, action, events, ap, w.x) : null;
   for (const ev of events) {
-    if (ev.type === 'say') s.queue.push({ ...ev, text: pickText(ev.text, n) });
+    if (ev.type === 'say' && off && ev.speaker === action.char) {
+      s.queue.push({ ...ev, text: pickText(ev.text, n), stepOff: { char: action.char, to: off } });
+      off = null;
+    } else if (ev.type === 'say') s.queue.push({ ...ev, text: pickText(ev.text, n) });
     else if (ev.type === 'fx') s.queue.push({ ...ev, by: action.char });
     else if (ev === stay) s.queue.push({ ...ev, stay: true });
     else if (ev === jump && ev.type === 'anim') s.queue.push({ ...ev, onto: action.target });
@@ -1085,6 +1147,7 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
       s.cleared = true;
       return data.clearLine ? { ev, t: 0, duration: TIMING.clearCut, seq, cut: data.clearLine } : { ev, t: 0, duration: 0, seq };
     case 'say':
+      if (ev.stepOff) walkTo(s.walkers[ev.stepOff.char], ev.stepOff.to, WALK_AREA);
       return { ev, t: 0, duration: sayDuration(data, ev.speaker, ev.text), seq };
     case 'anim': {
       const char = isCharacter(ev.target) ? ev.target : null;
@@ -1557,6 +1620,12 @@ function endCurrent(s: SceneState): void {
   if (c.ev.type === 'faint') s.shownGauge = GAUGE_MAX;
   if (c.ev.type === 'walk' && c.ev.face !== undefined) s.walkers[c.ev.char].facing = c.ev.face;
   if (c.ev.type === 'say') s.seenSay[seenSayKey(c.ev.speaker, c.ev.text)] = true;
+  if (c.ev.type === 'say' && c.ev.stepOff) {
+    // 비켜 서기(#862)가 덜 끝났는데 대사가 닫히면(본 대사 잠금 0.4초) 그 점에 바로 선다. 닫는 탭이 덮인 몸에 먹히지 않게.
+    const { char, to } = c.ev.stepOff;
+    const w = s.walkers[char];
+    if (w.target && w.target.x === to.x && w.target.y === to.y) teleport(w, w.target);
+  }
   holdLast(s, c);
   commitShown(s, c.seq, 'end');
   s.current = null;

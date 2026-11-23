@@ -101,8 +101,10 @@ describe('높은 대상 앞 내려서기 (#575)', () => {
     Object.assign(s.walkers.mukjik, { x: 400, y: 205 });
     runAction(park, s, { char: 'mukjik', verb: 'stomp', target: 'duck' }, null);
     expect(s.queue[0]).toMatchObject({ type: 'walk', char: 'mukjik' });
-    settle(park, s);
+    // 행동 자리는 대사가 시작될 때 본다. 그 뒤에는 땅 비둘기 상자를 비켜 선다(#862, drawn-body.test).
+    for (let i = 0; i < 5000 && s.current?.ev.type !== 'say'; i++) sceneTick(park, s);
     expect([s.walkers.mukjik.x, s.walkers.mukjik.y]).toEqual([187, 242]);
+    settle(park, s);
   });
 
   it('화면 2 작은 높은 대상(오리·자명종·재킷): 발 y 200~252 어디서 와도 얼굴 그림 위 끝이 그림 아래 끝에서 3px 넘게 떨어진다 (#585)', () => {
