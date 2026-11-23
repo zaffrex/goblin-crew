@@ -340,9 +340,9 @@
       "show": [
         { "anim": ["mukjik", "sit_corner"] },
         { "anim": ["floor", "pigeons_turn"] },
-        { "say": ["mukjik", "park_fountain.sit_dry"] }
+        { "say": ["mukjik", "park_fountain.statue_sit_dry"] }
       ],
-      "note": "미끼(단서 사슬 S7 길 C, 설계 park_fountain-s2.md 16절). 물을 끈 뒤 \"흔들어 떨어뜨리기\"(Mia 7회차 #19·#21 像をドスン)가 sit_calm만 나와 아무 데도 안 가리켰다. 돌은 꿈쩍 안 하고 비둘기만 돌아본다(단서 ⑧과 같은 floor.pigeons_turn). jacket.on_hand 거짓이라 비둘기가 땅에 있어 순간이동하지 않는다(Luna #810 리뷰 A). 날린다·꼭대기는 말하지 않는다"
+      "note": "미끼(단서 사슬 S7 길 F, 설계 park_fountain-s2.md 18절). 물을 끈 뒤 장대가 짧으면(high) 나오는 생각 \"ズッシー를 발판으로\"(Mia 모바일 1회 #27)의 입구: 동상 밑 테두리에 털썩 앉으면 비둘기가 돌아보고, ズッシー가 발판 생각을 받아치며 \"동상 꼭대기는 비둘기 자리\"(누구나 아는 것)를 말한다. 날린다·쿵·재킷이 내려온다는 말하지 않는다. 분수대 쪽(decoy.fountain_sit_dry, 길 C)은 흔들기 생각을 받는 sit_dry 그대로. jacket.on_hand 거짓이라 비둘기가 땅에 있어 순간이동하지 않는다(Luna #810 리뷰 A)"
     },
     {
       "id": "decoy.statue_sit",

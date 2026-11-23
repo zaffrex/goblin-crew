@@ -68,9 +68,16 @@ const CASES: FrameCase[] = [
   {
     id: 'decoy-sit-dry',
     pre: [{ char: 'ppik', verb: 'squeak', target: 'duck' }],
-    action: { char: 'mukjik', verb: 'stomp', target: 'statue' },
+    action: { char: 'mukjik', verb: 'stomp', target: 'fountain' },
     says: 'park_fountain.sit_dry',
-    why: '16절 S7 길 C: 물을 끈 뒤 동상에 쿵(흔들어 떨어뜨리기) → 털썩, 돌은 꿈쩍 안 하고 땅 비둘기만 돌아봄 「ハトだけ落ち着かない」. 비둘기가 다음 대상으로 읽히는가',
+    why: '16절 S7 길 C: 물을 끈 뒤 분수대에 쿵(흔들어 떨어뜨리기) → 털썩, 돌은 꿈쩍 안 하고 땅 비둘기만 돌아봄 「ハトだけ落ち着かない」. 비둘기가 다음 대상으로 읽히는가',
+  },
+  {
+    id: 'decoy-statue-step',
+    pre: [{ char: 'ppik', verb: 'squeak', target: 'duck' }, { char: 'jjuk', verb: 'stretch', target: 'jacket' }],
+    action: { char: 'mukjik', verb: 'stomp', target: 'statue' },
+    says: 'park_fountain.statue_sit_dry',
+    why: '18절 S7 길 F: 물을 끈 뒤 장대가 짧아서(high) ズッシー를 발판으로 동상 밑에 앉힘(像をドスン) → 땅 비둘기가 돌아봄 「踏み台でも届かない。てっぺんはハトの席だ」. 발판 생각이 비둘기·꼭대기로 꺾이는가, ノビー 몸이 땅 비둘기를 가리지 않는가',
   },
   { id: 'decoy-tap', action: { char: 'jjuk', verb: 'stretch', target: 'fountain' }, says: 'park_fountain.tap', why: '3절 12번: 장대로 테두리 カーン → 비둘기만 돌아봄(단서 ⑧). 재킷 움찔이 없는가(예고편 뺌)' },
   {
