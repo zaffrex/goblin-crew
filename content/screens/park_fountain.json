@@ -29,6 +29,12 @@
       "note": "꼭대기(돌우산 위) 그림 214,32,20×14 / 손 그림 252,106,18×18. reachPoint 없음: 장대 대상 점 = 상자 아래 끝 가운데(꼭대기 224,51 못 닿음 / 손 261,124 닿음)"
     },
     "statue": { "box": [205, 102, 40, 70], "approach": { "default": "floor", "stomp": "fountain_seat" }, "reachPoint": [236, 140], "note": "reachPoint: 쭉이 x 236에 서서 왼쪽을 보고(상자 가운데 225) 장대 끝이 동상 옷자락(x 약 221, y 140)에 닿는다. 상자 아래 끝(172)을 겨누면 장대가 0px라 안 펴진다(stretch-pole). 팔·손(x 230..262, y 117..124)은 안 겨눈다(정답 자리 예고 금지). 미끼(#802 5회차 표 #3). 동상 몸·받침 그림 204..244, y 104..172. 화면 한가운데 가장 어두운 덩어리라 눈이 먼저 가는데 클릭 대상이 아니어서 그냥 걷기가 됐다. 오리 상자 175..199, 손 재킷 상자 249부터라 안 겹친다. 꼭대기 재킷 상자(y 27..51)와 돌우산(y 40..53)은 위라 안 가린다. 쿵은 분수대와 같은 테두리 앞 자리(물 속 동상에는 못 올라간다). hintAbility 없음(fountain과 같은 이유: 규칙이 decoy.와 폴백뿐). 반응은 정답을 예고하지 않는다: 오리·비둘기·손 얘기를 넣지 않고, 물이 돌우산 위로 떨어진다는 것만 보여 준다" },
+    "pigeons": {
+      "box": [196, 204, 72, 24],
+      "hintAbility": "stomp",
+      "variants": [{ "when": { "flags": { "jacket.on_hand": true } }, "box": [197, 27, 32, 24] }],
+      "note": "정답 대상(#802 8회차 전, PM 결정 A). Mia 7회차 #14 「ドスンでハトが飛ぶ」가 설계 인과와 같은데 비둘기가 대상이 아니라 걷기만 됐다. 흙길 그림 196..266, 204..219(시트 pigeons 물건, ids floor·pigeons). 쿵 반응은 재킷 쿵(7·8번)과 같다. jacket.on_hand 참이면 비둘기는 돌우산 꼭대기(그림 197,32 31×12)에 앉아 있어서 상자도 따라 올라간다(아래 끝 51 = 옛 꼭대기 재킷 상자와 같아 장대가 못 닿음)(흙길에 유령 대상이 남지 않게). 위 끝 204 = 분수대 상자 아래 끝이라 안 겹친다. hintAbility stomp: 땅에서 ノビー·プピ 폴백 두 번이면 ズッシー를 가리킨다. 꼭대기에서는 ノビー·プピ가 규칙(decoy.)이라 세지 않아서 쓸모없는 쿵을 가리키지 않는다. 폴백: stretch·squeak는 땅(on_hand 거짓)에서만 돌아 floor.pigeons_turn을 쓰고, stomp는 꼭대기에서만 돈다(땅 쿵은 규칙 둘이 먼저 가져감, 비둘기 anim 없음)"
+    },
     "keeper": { "box": [36, 114, 44, 36], "hintAbility": "squeak", "reachPoint": [73, 140], "note": "창 전체. 조는 얼굴 그림 40,118,36×30. 말풍선 화자(ADR-0065 개정 #434). reachPoint(#507): 쭉이 x 73에 서서 왼쪽을 보고(상자 가운데 58이 왼쪽) reach_wobble 장대(기준점 −13~−17, short 10)가 창 아래쪽 유리 x 54..62, y 142..150을 톡 친다" },
     "alarm_clock": { "box": [80, 134, 24, 24], "hintAbility": "squeak", "reachPoint": [107, 147], "note": "창턱 닭 자명종 그림 84,140,12×12(시트 83,139,13×14). プピッ는 관리인과 같은 결과. reachPoint(#507): 쭉이 x 107에 서서 왼쪽을 보고 reach_wobble 장대 집게(x 86..98, y 149..157)가 자명종 아래 4px에 닿는다. 발 y 222 미만이면 칸 안 장대 끝이 이미 자명종 높이라 잇지 않는다" },
     "duck": { "box": [175, 156, 24, 24], "hintAbility": "squeak", "note": "정답 대상(S2 duck_alarm, #802). 힌트 ②는 プピ(오리를 울리는 건 プピ 소리뿐). 연못 물 위 그림 181,167,14×9(외곽선 포함 180,166,16×11, 퍼덕 칸은 3px 뜸). 처음 자리(y 158)는 뒤 덤불 앞이라 떠 보이지 않아 9px 내렸다. 상자 아래 끝 180 = 테두리 위 끝이라 테두리(fountain) 상자와 안 겹친다" },
@@ -194,6 +200,38 @@
       "note": "S2 8번 정답(주 아하 2, #802). 물이 멈추면 쿵에 놀란 비둘기가 늘 앉던 돌우산 꼭대기로 간다. pigeons_perch(hold, 마지막 칸 = 가운데 새가 꼭지 222,39에 앉아 재킷 덩어리 앞)가 끝난 뒤 jacket.slide(재킷이 새 밑에서 빠져 동상 손으로). 물건 anim에는 cue가 없어 두 anim 순서로 나눈다(Luna·Theo #810 재리뷰). 보이는 플래그는 각자 anim 시작 때 바뀌어(deferShown) 비둘기가 나는 동안 재킷은 1px도 안 움직인다(N1 타이밍 조건)"
     },
     {
+      "id": "pigeons_stomp_wet",
+      "target": "pigeons",
+      "verb": "stomp",
+      "when": { "flags": { "fountain.off": false, "jacket.on_hand": false } },
+      "show": [
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "fx": ["poof_text", "mukjik"] },
+        { "anim": ["floor", "pigeons_splash_up"] },
+        { "fx": ["splash_text", "jacket"] },
+        { "anim": ["floor", "pigeons_splash_down"] },
+        { "say": ["mukjik", ["park_fountain.pigeons_wet", "park_fountain.pigeons_wet_again"]] }
+      ],
+      "note": "#802 8회차 전 PM 결정 A: ズッシー × 비둘기 = 재킷 쿵 7번(jacket_ground_stomp)과 같은 빗나감(단서 ⑤·⑥). Mia 7회차는 비둘기를 직접 쿵 하려 했고 재킷 쿵은 한 번도 안 해서 이 단서가 안 나왔다. 연출·대사는 7번 그대로"
+    },
+    {
+      "id": "pigeons_stomp_perch",
+      "target": "pigeons",
+      "verb": "stomp",
+      "when": { "flags": { "fountain.off": true, "jacket.on_hand": false } },
+      "do": { "set": { "jacket.on_hand": true } },
+      "show": [
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "fx": ["poof_text", "mukjik"] },
+        { "anim": ["floor", "pigeons_perch"] },
+        { "anim": ["jacket", "slide"] },
+        { "say": ["mukjik", "park_fountain.drop"] }
+      ],
+      "note": "#802 8회차 전 PM 결정 A: ズッシー × 비둘기 = 8번 정답(pigeons_perch)과 같은 효과·연출. 재킷 쿵(7·8번)도 남긴다(재킷 밑 흙길을 쿵 해도 같은 비둘기가 난다). 효과가 같아 BFS 상태는 그대로"
+    },
+    {
       "id": "jacket_take",
       "target": "jacket",
       "verb": "stretch",
@@ -315,6 +353,30 @@
         { "say": ["ppik", "park_fountain.jacket_squeak_seated"] }
       ],
       "note": "미끼(S2 14번). 꼭대기에 앉은 비둘기는 プピッ에도 꿈쩍 안 한다(자리를 되찾아서 이제 신경 안 씀). 비둘기 anim을 돌리면 땅 칸으로 순간이동해서 넣지 않는다(Luna #810 리뷰 A, 안 (나)). jacket.on_hand 거짓이면 아래 폴백(비둘기 돌아봄 + jacket_squeak)이 돈다"
+    },
+    {
+      "id": "decoy.pigeons_reach_top",
+      "target": "pigeons",
+      "verb": "stretch",
+      "when": { "flags": { "jacket.on_hand": true } },
+      "show": [
+        { "anim": ["jjuk", "common.reach_wobble"] },
+        { "fx": ["stretch_text", "jjuk"] },
+        { "say": ["jjuk", "park_fountain.pigeons_reach_top"] }
+      ],
+      "note": "미끼(#802). 꼭대기에 앉은 비둘기에 장대: 재킷 꼭대기와 같은 높이라 못 닿는다. 비둘기 anim 없음(땅 칸 순간이동 금지, Luna #810 리뷰 A). 폴백이 아니라 규칙이라 힌트 ②를 세지 않는다"
+    },
+    {
+      "id": "decoy.pigeons_squeak_seated",
+      "target": "pigeons",
+      "verb": "squeak",
+      "when": { "flags": { "jacket.on_hand": true } },
+      "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "say": ["ppik", "park_fountain.jacket_squeak_seated"] }
+      ],
+      "note": "미끼(#802). decoy.jacket_squeak_seated와 같은 반응·대사(꼭대기 비둘기는 꿈쩍 안 함). 규칙이라 힌트 ②를 세지 않는다"
     }
   ],
   "fallbacks": {
@@ -336,6 +398,24 @@
         { "anim": ["ppik", "common.squeeze_chicken"] },
         { "fx": ["squeak_text", "ppik"] },
         { "say": ["ppik", "park_fountain.statue_squeak"] }
+      ] }
+    },
+    "pigeons": {
+      "stretch": { "show": [
+        { "anim": ["jjuk", "common.stretch"] },
+        { "anim": ["floor", "pigeons_turn"] },
+        { "say": ["jjuk", "park_fountain.pigeons_poke"] }
+      ] },
+      "squeak": { "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "anim": ["floor", "pigeons_turn"] },
+        { "say": ["ppik", "park_fountain.pigeons_squeak"] }
+      ] },
+      "stomp": { "show": [
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "say": ["mukjik", "park_fountain.pigeons_stomp_top"] }
       ] }
     },
     "jacket": {
