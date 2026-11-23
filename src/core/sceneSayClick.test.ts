@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import charactersJson from '../../content/characters.json';
 import nestJson from '../../content/screens/magpie_nest.json';
 import fountainJson from '../../content/screens/park_fountain.json';
-import { bodies, createScene, currentBubble, isBusy, mouseHoverThroughSay, sceneTap, sceneTick, TIMING, type SceneData, type SceneState } from './scene';
+import { bodies, createScene, currentBubble, isBusy, mouseHoverThroughSay, sceneTap, sceneTick, takeHeldTap, TIMING, type SceneData, type SceneState } from './scene';
 import { hotspotBox } from './interact';
 import { CHAR_SLOTS } from './hud';
 import type { HitBox } from './hit';
@@ -84,11 +84,66 @@ describe('마우스, 행동 뒤 마지막 말풍선 클릭 (예외 넷 3, #601)'
     expect(currentBubble(s)).toBeNull();
   });
 
-  it('잠금 전 클릭은 지금처럼 버린다(말풍선 그대로)', () => {
+  it('잠금 전 다른 행동 클릭은 맡아 뒀다가 잠금이 풀리는 틱에 실행한다(#601 6회차)', () => {
     const s = nestSay();
     ticks(nest, s, 30);
-    expect(click(nest, s, at(nest, s, 'magpie')).kind).toBe('ignored');
+    const p = at(nest, s, 'magpie');
+    expect(click(nest, s, p).kind).toBe('held');
+    // 잠금 전에는 말풍선이 그대로이고 꺼낼 게 없다.
     expect(currentBubble(s)?.text).toBe('magpie_nest.nest_too_short');
+    expect(takeHeldTap(nest, s)).toBeNull();
+    let got: Point | null = null;
+    let tick = 0;
+    for (let i = 0; i < TIMING.saySkipAfter && !got; i++) {
+      sceneTick(nest, s);
+      got = takeHeldTap(nest, s);
+      tick = s.tick;
+    }
+    expect(got).toEqual(p);
+    // 잠금이 풀린 첫 틱에 꺼낸다. 엔진이 같은 점을 다시 누르면 잠금 뒤 클릭과 같다(닫고 실행).
+    expect(s.current?.ev.type === 'say' && s.current.t).toBe(TIMING.saySkipAfter);
+    expect(tick).toBeGreaterThan(0);
+    expect(click(nest, s, got!)).toMatchObject({ kind: 'intent', intent: { kind: 'act', action: { char: 'jjuk', verb: 'stretch', target: 'magpie' } } });
+    expect(s.heldTap).toBeNull();
+  });
+
+  it('잠금 전 같은 행동·바닥 클릭은 지금처럼 버린다(말풍선 그대로, 맡지 않음)', () => {
+    const s = nestSay();
+    ticks(nest, s, 30);
+    expect(click(nest, s, at(nest, s, 'nest')).kind).toBe('ignored');
+    expect(click(nest, s, { x: 60, y: 235 }).kind).toBe('ignored');
+    expect(s.heldTap).toBeNull();
+    expect(currentBubble(s)?.text).toBe('magpie_nest.nest_too_short');
+  });
+
+  it('맡아 둔 클릭은 새 탭(얼굴 칸 포함)이 오면 지워진다', () => {
+    const s = nestSay();
+    ticks(nest, s, 10);
+    expect(click(nest, s, at(nest, s, 'magpie')).kind).toBe('held');
+    click(nest, s, center(CHAR_SLOTS.ppik));
+    expect(s.heldTap).toBeNull();
+    ticks(nest, s, TIMING.saySkipAfter);
+    expect(takeHeldTap(nest, s)).toBeNull();
+  });
+
+  it('park_fountain 6회차 재현: 물이 멈춘 대사가 뜬 틱에 노비로 바꿔 재킷 클릭 → 잠금이 풀리면 장대가 나간다', () => {
+    const s = createScene(fountain);
+    idle(fountain, s);
+    click(fountain, s, center(CHAR_SLOTS.ppik));
+    click(fountain, s, at(fountain, s, 'duck'));
+    untilSay(fountain, s, 'park_fountain.fountain_off');
+    expect(lastEvent(s)).toBe(true);
+    click(fountain, s, center(CHAR_SLOTS.jjuk));
+    const p = at(fountain, s, 'jacket');
+    expect(click(fountain, s, p).kind).toBe('held');
+    let got: Point | null = null;
+    for (let i = 0; i < 200 && !got; i++) {
+      sceneTick(fountain, s);
+      got = takeHeldTap(fountain, s);
+    }
+    expect(got).toEqual(p);
+    expect(click(fountain, s, got!)).toMatchObject({ kind: 'intent', intent: { kind: 'act', action: { char: 'jjuk', verb: 'stretch', target: 'jacket' } } });
+    untilSay(fountain, s, 'park_fountain.high');
   });
 
   it('연출 중간 말풍선(뒤에 이벤트가 남음)은 다른 물건 클릭도 닫기만 한다(예외 넷 4)', () => {

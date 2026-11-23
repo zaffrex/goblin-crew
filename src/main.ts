@@ -25,7 +25,7 @@ import { CONTENT_VERSION, saveOnCard, startFromSave } from './core/progress';
 import { LocalSaveStore, probeStorage } from './core/save/store';
 import type { SaveData } from './core/save/schema';
 import orderJson from '../content/screens/order.json';
-import { activeFx, activeMarkerVisible, boardDrop, charPose, charWalking, createScene, currentBubble, drawOrder, gaugeDrop, introHoverScene, isBusy, isHanging, sceneArtView, sceneLayout, mouseHoverThroughSay, sceneTap, sceneTick, selectsDuringSay, takeWalkStart, tapContext, type SceneData, type SceneState } from './core/scene';
+import { activeFx, activeMarkerVisible, boardDrop, charPose, charWalking, createScene, currentBubble, drawOrder, gaugeDrop, introHoverScene, isBusy, isHanging, sceneArtView, sceneLayout, mouseHoverThroughSay, sceneTap, sceneTick, selectsDuringSay, takeHeldTap, takeWalkStart, tapContext, type SceneData, type SceneState } from './core/scene';
 import { animFrameBox, coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
 import { isTapKey } from './core/keys';
@@ -304,7 +304,8 @@ function stepFlow(): void {
 const inBox = (p: Point, b: HitBox): boolean => p.x >= b.left && p.x < b.left + b.width && p.y >= b.top && p.y < b.top + b.height;
 
 window.addEventListener('resize', () => display.resize());
-onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
+/** 캔버스 탭 하나(마우스 slop 0). 맡아 둔 클릭(`takeHeldTap`, #601)도 같은 길로 다시 누른다. */
+function worldTap(p: Point, slop: number): void {
   if (!loaded || rotating() || startCard.open || flow.phase !== 'play') return; // 로딩·세로 안내 중이거나 카드 몫(window 핸들러가 닫는다)
   noteTap(notes); // 걷기 안내가 떠 있었으면 그 주인을 남긴다: 같은 사람이 목표를 바꾸면 횟수 없이 이어 띄운다(#755)
   if (slop > 0) lastMouse = null;
@@ -326,7 +327,8 @@ onPointerTap(canvas, display.rect, display.internal, (p, slop) => {
     if (slop === 0) updateHover(p);
     noteSwitched(notes, switchText(r.intent.char, t), session.scene.tick, slop > 0, labelKey(hoverLabel));
   }
-});
+}
+onPointerTap(canvas, display.rect, display.internal, worldTap);
 /**
  * 처음부터 버튼(#387): 두 번 눌러야 한다(3초 안, `core/restart.ts`). 새로고침 없이 장면만 새 판으로 바꾼다.
  * 시작 카드는 다시 띄우지 않고, 처음 한 번 안내(firstNotes)도 이미 본 건 다시 안 띄운다(같은 사람이 다시 하는 것).
@@ -943,6 +945,11 @@ startLoop({
     const busy = isBusy(session.scene);
     if (wasBusy && !busy && flow.phase === 'play' && !session.scene.cleared) onSettled();
     wasBusy = busy;
+    // 말풍선 잠금 전에 맡아 둔 마우스 클릭(예외 넷 3, #601 6회차): 잠금이 풀리는 틱에 같은 점을 다시 누른다.
+    if (flow.phase === 'play') {
+      const held = takeHeldTap(session.data, session.scene);
+      if (held) worldTap(held, 0);
+    }
     stepFlow();
   },
   render,
