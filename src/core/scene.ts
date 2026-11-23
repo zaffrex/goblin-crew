@@ -135,7 +135,14 @@ export type PlayEvent =
   /** `by`: 이 효과를 낸 행동의 캐릭터(#530). 소리 글자 자리 `'actor'`(`fx.ts` `fxTextSpot`)가 쓴다. 입장 연출은 없다. */
   | (Extract<PuzzleEvent, { type: 'fx' }> & { by?: CharacterId })
   /** `stepOff`: 이 대사가 시작될 때 그 캐릭터가 이 점으로 엔진 걷기를 시작한다(높은 대상 뒤 비켜 서기, #862, `stepOffPoint`). */
-  | { type: 'say'; speaker: string; text: string; stepOff?: { char: CharacterId; to: Point } };
+  | { type: 'say'; speaker: string; text: string; stepOff?: StepOff };
+
+/** 높은 대상 뒤 비켜 서기(#862): `char`가 `to`로 걷고, 도착하면 `face`(처음 대상 쪽)로 돌아선다. */
+export interface StepOff {
+  char: CharacterId;
+  to: Point;
+  face: Facing;
+}
 
 export interface Playing {
   ev: PlayEvent;
@@ -243,6 +250,11 @@ export interface SceneState {
    * 몸이 그 점(`x`, `y`)을 떠나거나 다시 판에 타거나 깡충을 시작하면 쓰지 않는다. 그림 전용이다.
    */
   pinDrop: Partial<Record<CharacterId, { x: number; y: number; drop: number }>>;
+  /**
+   * 비켜 서기(#862) 걷기 중인 사람 → 도착하면 돌아설 방향. 도착(또는 대사를 닫아 순간이동)하면 `face`로 돌고 지운다.
+   * 그 전에 다른 곳으로 걷기 시작하면(목표가 `to`가 아니게 되면) 돌지 않고 지운다. 그림 전용이다.
+   */
+  stepOff: Partial<Record<CharacterId, StepOff>>;
   cleared: boolean;
   /**
    * 남은 이벤트가 모두 시작 연출(`onEnter`)인가(`ui-interaction.md` 5절 예외 넷 1, #700). 월드 탭이 오면 남은 시작 연출을 끝내고 그 탭을 평소대로 처리한다.
@@ -443,6 +455,7 @@ export function createScene(data: SceneData): SceneState {
     hops: {},
     riding,
     pinDrop: {},
+    stepOff: {},
     cleared: false,
     intro: false,
     walkStart: null,
@@ -786,7 +799,7 @@ function stepOffPoint(
   events: readonly PuzzleEvent[],
   ap: { x: number; y: number; face: Facing | null },
   fromX: number,
-): Point | null {
+): { to: Point; face: Facing } | null {
   const char = action.char;
   const tb = targetBox(data.screen, before, action.target);
   if (!tb || tb.top + tb.height > WALK_AREA.top) return null;
@@ -820,7 +833,8 @@ function stepOffPoint(
   const first: Facing = fromX < ap.x ? -1 : 1;
   for (const dir of [first, -first as Facing]) {
     for (let x = ap.x + dir; x >= WALK_AREA.left && x <= WALK_AREA.right; x += dir) {
-      if (clear(x, dir)) return { x, y: ap.y };
+      // 도착하면 처음 대상 쪽으로 돌아선다(#865 Luna): 등지고 서면 "포기하고 간다"로 읽힌다.
+      if (clear(x, dir)) return { to: { x, y: ap.y }, face: tb.left + tb.width / 2 < x ? -1 : 1 };
     }
   }
   return null;
@@ -963,7 +977,7 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
   let off = ap && fromFloor && !sb ? stepOffPoint(data, s, prev, r.state, action, events, ap, w.x) : null;
   for (const ev of events) {
     if (ev.type === 'say' && off && ev.speaker === action.char) {
-      s.queue.push({ ...ev, text: pickText(ev.text, n), stepOff: { char: action.char, to: off } });
+      s.queue.push({ ...ev, text: pickText(ev.text, n), stepOff: { char: action.char, ...off } });
       off = null;
     } else if (ev.type === 'say') s.queue.push({ ...ev, text: pickText(ev.text, n) });
     else if (ev.type === 'fx') s.queue.push({ ...ev, by: action.char });
@@ -1063,6 +1077,16 @@ export function charWalking(s: SceneState, char: CharacterId): boolean {
   return s.walkers[char].target !== null || s.hops[char] !== undefined || (cur?.type === 'walk' && cur.char === char);
 }
 
+/** 비켜 서기(#862) 도착: `to`에 서 있으면 처음 대상 쪽으로 돈다. 다른 곳으로 걷기 시작했으면 돌지 않고 잊는다. */
+function landStepOff(s: SceneState, char: CharacterId): void {
+  const off = s.stepOff[char];
+  if (!off) return;
+  const w = s.walkers[char];
+  if (w.target && w.target.x === off.to.x && w.target.y === off.to.y) return;
+  if (!w.target && w.x === off.to.x && w.y === off.to.y) w.facing = off.face;
+  delete s.stepOff[char];
+}
+
 function teleport(w: Walker, p: Point): void {
   w.x = p.x;
   w.y = p.y;
@@ -1147,7 +1171,10 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
       s.cleared = true;
       return data.clearLine ? { ev, t: 0, duration: TIMING.clearCut, seq, cut: data.clearLine } : { ev, t: 0, duration: 0, seq };
     case 'say':
-      if (ev.stepOff) walkTo(s.walkers[ev.stepOff.char], ev.stepOff.to, WALK_AREA);
+      if (ev.stepOff) {
+        walkTo(s.walkers[ev.stepOff.char], ev.stepOff.to, WALK_AREA);
+        s.stepOff[ev.stepOff.char] = ev.stepOff;
+      }
       return { ev, t: 0, duration: sayDuration(data, ev.speaker, ev.text), seq };
     case 'anim': {
       const char = isCharacter(ev.target) ? ev.target : null;
@@ -1593,6 +1620,7 @@ export function sceneTick(data: SceneData, s: SceneState): void {
   s.tick += 1;
   // 엔진 걷기와 자동 걷기 모두 같은 속도로 진행한다. 다른 캐릭터의 걷기는 연출 중에도 계속된다.
   for (const c of CHARACTERS) stepWalker(s.walkers[c.id], TIMING.walkSpeed);
+  for (const c of CHARACTERS) landStepOff(s, c.id);
   tickHops(data, s);
   tickOverlays(s);
   // 이벤트를 시작한 틱이 그 이벤트의 t=0 프레임이다. 길이 0 이벤트(clear)나 이미 도착한 걷기는 같은 틱에 다음으로 넘어간다.
@@ -1625,6 +1653,7 @@ function endCurrent(s: SceneState): void {
     const { char, to } = c.ev.stepOff;
     const w = s.walkers[char];
     if (w.target && w.target.x === to.x && w.target.y === to.y) teleport(w, w.target);
+    landStepOff(s, char);
   }
   holdLast(s, c);
   commitShown(s, c.seq, 'end');

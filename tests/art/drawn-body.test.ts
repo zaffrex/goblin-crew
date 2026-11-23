@@ -463,6 +463,8 @@ describe('화면 2 앉은 ズッシー (2-1-4절)', () => {
   it('오리 → `high` 뒤 ノビー가 땅 비둘기 상자를 덮지 않는다: 전환 0px, 가운데는 비둘기 (#862)', () => {
     const s = afterHigh();
     expect([s.walkers.jjuk.x, s.walkers.jjuk.y]).toEqual([283, 244]);
+    // 도착하면 재킷 쪽(왼쪽)으로 돌아선다(#865 Luna). 등지고 서면 "포기하고 간다"로 읽힌다.
+    expect(charFacing(fData, s, 'jjuk')).toBe(-1);
     for (const slop of SLOPS) expect(pigeonSwitches(s, slop), `slop ${slop}`).toBe(0);
     const r = resolveTap(tapContext(fData, s), ui('mukjik'), { x: 232, y: 216 }, 8);
     expect(r).toMatchObject({ kind: 'act', action: { char: 'mukjik', target: 'pigeons' } });
@@ -491,5 +493,18 @@ describe('화면 2 앉은 ズッシー (2-1-4절)', () => {
     // 터치 첫 탭은 선택(2-2절). 전환이 아니라 비둘기가 골라졌는지 본다.
     expect(r).toMatchObject({ kind: 'intent', intent: { kind: 'select', label: { target: 'pigeons' } } });
     expect([s.walkers.jjuk.x, s.walkers.jjuk.y]).toEqual([283, 244]);
+    expect(s.walkers.jjuk.facing).toBe(-1);
+  });
+
+  it('비켜 서는 중 다른 곳으로 걸으면 도착해도 재킷 쪽으로 돌지 않는다 (#865)', () => {
+    const s = afterHigh();
+    runAction(fData, s, { char: 'jjuk', verb: 'stretch', target: 'jacket' }, null);
+    for (let i = 0; i < 5000 && s.current?.ev.type !== 'say'; i++) sceneTick(fData, s);
+    expect(s.stepOff.jjuk).toBeDefined();
+    s.walkers.jjuk.target = { x: 400, y: 244 };
+    s.walkers.jjuk.facing = 1;
+    for (let i = 0; i < 5000 && s.walkers.jjuk.target !== null; i++) sceneTick(fData, s);
+    expect(s.stepOff.jjuk).toBeUndefined();
+    expect(s.walkers.jjuk.facing).toBe(1);
   });
 });
