@@ -33,6 +33,8 @@ export interface ScreenReport {
   explore: ExploreResult<PuzzleState, Action>;
   /** Warnings (not CI failures): damage-dependent clear, damage shortcut, states that clear only by damage. */
   damageWarnings: string[];
+  /** Warnings (not CI failures) about `solution` itself, e.g. longer than the BFS shortest. Kept apart from `damageWarnings`: a deliberately long solution must not fail the damage-free playthrough tests. */
+  solutionWarnings: string[];
   /** true = removing the ability makes clear unreachable. `null` = could not be judged (the search was truncated). */
   requiredAbilities: Record<string, boolean | null>;
   /** Same over the full graph; shown in the report only when it differs from `requiredAbilities`. */
@@ -46,7 +48,7 @@ export function solutionLengthWarning(screen: ScreenData, e: ExploreResult<Puzzl
   if (e.truncated || !screen.solution?.length) return null;
   const shortest = e.safeClearReachable ? e.safeShortestLength : e.shortestLength;
   if (shortest === null || screen.solution.length <= shortest) return null;
-  return `solution ${screen.solution.length}수 > 최단 ${shortest}수: 최단 길이 설계한 웃긴 박자를 건너뛸 수 있음`;
+  return `solution ${screen.solution.length}수 > 최단 ${shortest}수: 최단 길로 깨면 설계한 박자를 건너뛸 수 있음 (의도된 길이면 무시)`;
 }
 
 export function replaySolution(screen: ScreenData, characters?: CharactersData): string[] {
@@ -105,7 +107,8 @@ export function checkScreen(screen: ScreenData, characters?: CharactersData, max
   const req = requiredAbilitiesBoth(host, ['stretch', 'stomp', 'squeak'], maxStates);
   return {
     explore: full,
-    damageWarnings: [...damageWarnings(full), ...[solutionLengthWarning(screen, full)].filter((w): w is string => w !== null)],
+    damageWarnings: damageWarnings(full),
+    solutionWarnings: [solutionLengthWarning(screen, full)].filter((w): w is string => w !== null),
     requiredAbilities: req.primary,
     requiredAbilitiesFull: req.full,
     solutionProblems: replaySolution(screen, characters),
@@ -125,6 +128,7 @@ export function formatReport(screen: ScreenData, r: ScreenReport): string {
   for (const d of e.deadEnds) lines.push(`  막다른: 게이지 ${d.gauges.join(',')} 경로 ${fmtPath(d.path)}`);
   for (const f of e.failures.slice(0, 3)) lines.push(`  예외: ${f.message}`);
   for (const w of r.damageWarnings) lines.push(`  경고: ${w}`);
+  for (const w of r.solutionWarnings) lines.push(`  경고(solution): ${w}`);
   for (const p of r.solutionProblems) lines.push(`  solution: ${p}`);
   return lines.join('\n');
 }
