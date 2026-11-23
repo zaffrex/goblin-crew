@@ -12,7 +12,7 @@ const CASES: FrameCase[] = [
   { id: 'idle', why: '9절 대기: 관리인 꾸벅 + 고개가 자명종 쪽, 손님 시계·동동. 재킷은 가만히 있는가(움찔 loop 없음)', minMs: 17_000, every: 200 },
 
   // 주 아하(물을 끈 뒤 흙길 쿵 → 비둘기가 꼭대기 지정석에 앉으며 재킷을 밀어냄) 단서.
-  { id: 'clue-main-1-pigeons-wet', action: { char: 'mukjik', verb: 'stomp', target: 'jacket' }, says: 'park_fountain.pigeons_wet', why: 'T4·단서 ⑤(3절 7번): 물 켜짐에 흙길 쿵 → 비둘기가 돌우산 꼭대기로 날았다가 물보라에 맞고 쫓겨 옴. 재킷은 1px도 안 움직이는가' },
+  { id: 'clue-main-1-pigeons-wet', action: { char: 'mukjik', verb: 'stomp', target: 'jacket' }, says: 'park_fountain.pigeons_wet', why: 'T4·단서 ⑤(3절 7번, 16절 S7): 물 켜짐에 흙길 쿵 → 비둘기가 돌우산 꼭대기로 날았다가 물보라에 맞고 쫓겨 옴. 대사 「ハト、てっぺんで水に追い返された」가 비행을 놓쳐도 혼자 읽히는가. 재킷은 1px도 안 움직이는가' },
   {
     id: 'clue-main-2-seat',
     pre: [{ char: 'mukjik', verb: 'stomp', target: 'jacket' }],
@@ -35,7 +35,7 @@ const CASES: FrameCase[] = [
     action: { char: 'ppik', verb: 'squeak', target: 'keeper' },
     says: 'park_fountain.snoozed_again',
     // 대사 두 번째는 규칙 ID별로 센다(scene.ts variantKey). 관리인 → 자명종 순이면 `keeper_snooze_clock`의 첫 번째(snoozed)가 다시 뜬다.
-    why: '단서 ②(3절 1번 두 번째): 「目覚まし扱いされてます…」. 끌 수 없는 자명종을 찾게 하는 혼잣말이 읽히는가',
+    why: '단서 ②(3절 1번 두 번째, 16절 S4): 「目覚まし扱い…ずっと鳴る音なら…」. 탁 뒤에 오리가 돌아보고(길 A), "계속 울리는 소리"를 찾게 하는 혼잣말이 읽히는가',
   },
   { id: 'clue-aux-3-poke', action: { char: 'jjuk', verb: 'stretch', target: 'keeper' }, says: 'park_fountain.keeper_poke', why: '단서 ④(폴백 그대로): 창 톡톡 → 커튼, 잠꼬대에 닭 울음과 "5분만"(스누즈 버릇을 미리 보여 줌)' },
 
@@ -65,6 +65,13 @@ const CASES: FrameCase[] = [
 
   // 미끼 규칙(ADR-0761 H4). 그럴듯한 첫 시도가 빗나가고 아무 상태도 안 바뀌는지 본다.
   { id: 'decoy-sit-wet', action: { char: 'mukjik', verb: 'stomp', target: 'fountain' }, says: 'park_fountain.sit_wet', why: 'T3·3절 10번: 테두리에 털썩 → 젖은 돌이라 엉덩이만 젖음, 분수대는 꿈쩍 안 함, 비둘기는 돌아보기만(단서 ⑧)' },
+  {
+    id: 'decoy-sit-dry',
+    pre: [{ char: 'ppik', verb: 'squeak', target: 'duck' }],
+    action: { char: 'mukjik', verb: 'stomp', target: 'statue' },
+    says: 'park_fountain.sit_dry',
+    why: '16절 S7 길 C: 물을 끈 뒤 동상에 쿵(흔들어 떨어뜨리기) → 털썩, 돌은 꿈쩍 안 하고 땅 비둘기만 돌아봄 「ハトだけ落ち着かない」. 비둘기가 다음 대상으로 읽히는가',
+  },
   { id: 'decoy-tap', action: { char: 'jjuk', verb: 'stretch', target: 'fountain' }, says: 'park_fountain.tap', why: '3절 12번: 장대로 테두리 カーン → 비둘기만 돌아봄(단서 ⑧). 재킷 움찔이 없는가(예고편 뺌)' },
   {
     id: 'decoy-tap-left',
