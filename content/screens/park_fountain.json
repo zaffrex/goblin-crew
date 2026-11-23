@@ -59,10 +59,11 @@
         { "anim": ["ppik", "common.squeeze_chicken"] },
         { "fx": ["squeak_text", "ppik"] },
         { "anim": ["keeper", "swat"] },
+        { "anim": ["duck", "turn"] },
         { "say": ["keeper", "park_fountain.keeper_snooze"] },
         { "say": ["ppik", ["park_fountain.snoozed", "park_fountain.snoozed_again"]] }
       ],
-      "note": "S2 1번 빗나감(설계 park_fountain-s2.md 1절 T2, #802). 가장 뻔한 첫 시도: 관리인은 눈도 안 뜨고 자명종을 탁 끄고 계속 존다(keeper.swat, 스누즈 버릇). 손 닿는 데서 한 번 나는 소리는 자면서 끈다 → 끌 수 없게 이어지는 소리가 필요하다(단서 ①·②). 오리라는 답은 이 반응에 넣지 않는다(예고편 금지)"
+      "note": "S2 1번 빗나감(설계 park_fountain-s2.md 1절 T2, #802). 가장 뻔한 첫 시도: 관리인은 눈도 안 뜨고 자명종을 탁 끄고 계속 존다(keeper.swat, 스누즈 버릇). 손 닿는 데서 한 번 나는 소리는 자면서 끈다 → 끌 수 없게 이어지는 소리가 필요하다(단서 ①·②). 오리라는 답은 이 반응에 넣지 않는다(예고편 금지). 단서 사슬 S4 길 A(설계 16절): 탁 뒤에 오리가 고개만 돌린다(duck.turn, 정답 3번 첫 박자와 같은 anim, 새 칸 0). 울지는 않는다(울면 관리인이 또 탁 해야 맞다). \"이 소리를 듣는 다른 생물\"까지만 보여 준다"
     },
     {
       "id": "keeper_snooze_clock",
@@ -73,10 +74,11 @@
         { "anim": ["ppik", "common.squeeze_chicken"] },
         { "fx": ["squeak_text", "ppik"] },
         { "anim": ["keeper", "swat"] },
+        { "anim": ["duck", "turn"] },
         { "say": ["keeper", "park_fountain.keeper_snooze"] },
         { "say": ["ppik", ["park_fountain.snoozed", "park_fountain.snoozed_again"]] }
       ],
-      "note": "S2 1번 빗나감(자명종을 눌렀을 때). keeper_snooze와 같은 연출"
+      "note": "S2 1번 빗나감(자명종을 눌렀을 때). keeper_snooze와 같은 연출(오리 돌아보기 포함)"
     },
     {
       "id": "keeper_wake_done",
@@ -268,15 +270,27 @@
       "note": "미끼(S2 10번, ADR-0761 H4, 설계 1절 T3). \"흔들어 떨어뜨리기\" 첫 시도: 테두리에 털썩 앉았는데 물보라에 젖은 돌이라 엉덩이만 젖는다. 돌 분수대는 꿈쩍 안 한다. 앉기는 땅을 구르지 않아 비둘기는 돌아보기만(단서 ⑧). 물 켜짐이면 jacket.on_hand는 늘 거짓이라 땅 비둘기 anim이 순간이동하지 않는다(클리어 뒤는 입력을 안 받음, Theo #810)"
     },
     {
+      "id": "decoy.fountain_sit_dry",
+      "target": "fountain",
+      "verb": "stomp",
+      "when": { "flags": { "fountain.off": true, "jacket.on_hand": false } },
+      "show": [
+        { "anim": ["mukjik", "sit_corner"] },
+        { "anim": ["floor", "pigeons_turn"] },
+        { "say": ["mukjik", "park_fountain.sit_dry"] }
+      ],
+      "note": "미끼(단서 사슬 S7 길 C, 설계 park_fountain-s2.md 16절). 물을 끈 뒤 \"흔들어 떨어뜨리기\"(Mia 7회차 #19·#21 像をドスン)가 sit_calm만 나와 아무 데도 안 가리켰다. 돌은 꿈쩍 안 하고 비둘기만 돌아본다(단서 ⑧과 같은 floor.pigeons_turn). jacket.on_hand 거짓이라 비둘기가 땅에 있어 순간이동하지 않는다(Luna #810 리뷰 A). 날린다·꼭대기는 말하지 않는다"
+    },
+    {
       "id": "decoy.fountain_sit",
       "target": "fountain",
       "verb": "stomp",
-      "when": { "flags": { "fountain.off": true } },
+      "when": { "flags": { "fountain.off": true, "jacket.on_hand": true } },
       "show": [
         { "anim": ["mukjik", "sit_corner"] },
         { "say": ["mukjik", "park_fountain.sit_calm"] }
       ],
-      "note": "미끼(S2 11번). 물이 멈춘 돌에 앉으면 그냥 편하다. 비둘기 anim 없음: jacket.on_hand 참이면 비둘기가 꼭대기에 있어 땅 칸이 순간이동한다(Luna #810 리뷰 A)"
+      "note": "미끼(S2 11번, 16절부터 jacket.on_hand 참일 때만). 비둘기가 자리를 되찾은 뒤 물이 멈춘 돌에 앉으면 그냥 편하다. 비둘기 anim 없음: jacket.on_hand 참이면 비둘기가 꼭대기에 있어 땅 칸이 순간이동한다(Luna #810 리뷰 A)"
     },
     {
       "id": "decoy.fountain_tap",
@@ -318,15 +332,27 @@
       "note": "미끼(S2 15번, #802 5회차 표 #3). \"동상을 밟아 물을 멈춘다\" 첫 시도: 물 속 동상에는 못 올라가 테두리에 털썩 앉고 엉덩이만 젖는다(10번과 같은 연출, 새 칸 0). 돌우산을 쓴 동상만 멀쩡하다 → 물이 돌우산 위로 떨어진다(단서 ⑥ 쪽, 비둘기·손은 말하지 않음). 물 켜짐이면 jacket.on_hand는 늘 거짓이라 땅 비둘기 anim이 순간이동하지 않는다"
     },
     {
+      "id": "decoy.statue_sit_dry",
+      "target": "statue",
+      "verb": "stomp",
+      "when": { "flags": { "fountain.off": true, "jacket.on_hand": false } },
+      "show": [
+        { "anim": ["mukjik", "sit_corner"] },
+        { "anim": ["floor", "pigeons_turn"] },
+        { "say": ["mukjik", "park_fountain.sit_dry"] }
+      ],
+      "note": "미끼(단서 사슬 S7 길 C, 설계 park_fountain-s2.md 16절). 물을 끈 뒤 \"흔들어 떨어뜨리기\"(Mia 7회차 #19·#21 像をドスン)가 sit_calm만 나와 아무 데도 안 가리켰다. 돌은 꿈쩍 안 하고 비둘기만 돌아본다(단서 ⑧과 같은 floor.pigeons_turn). jacket.on_hand 거짓이라 비둘기가 땅에 있어 순간이동하지 않는다(Luna #810 리뷰 A). 날린다·꼭대기는 말하지 않는다"
+    },
+    {
       "id": "decoy.statue_sit",
       "target": "statue",
       "verb": "stomp",
-      "when": { "flags": { "fountain.off": true } },
+      "when": { "flags": { "fountain.off": true, "jacket.on_hand": true } },
       "show": [
         { "anim": ["mukjik", "sit_corner"] },
         { "say": ["mukjik", "park_fountain.sit_calm"] }
       ],
-      "note": "미끼(S2 16번). 물이 멈추면 11번과 같다. 비둘기 anim 없음(jacket.on_hand 참일 수 있음)"
+      "note": "미끼(S2 16번, 16절부터 jacket.on_hand 참일 때만). 11번과 같다. 비둘기 anim 없음(jacket.on_hand 참일 수 있음)"
     },
     {
       "id": "decoy.statue_poke_wet",
