@@ -165,7 +165,7 @@ function hedge(bg) {
 /**
  * 매점만 한 작은 집. 크림빛 가로 판벽, 진한 빨강 줄무늬 차양. 창(관리인 핫스팟 36,114 44×36) 안쪽은 물건이 그린다.
  * 벽시계는 7시 57분에 멈춰 있다("8시 청소"의 확인, 설계 1-1 배경 / 9절 벽시계). 간판은 글자 없이 빗자루·물방울.
- * 아래 벽: 호스 걸이 + 물뿌리개 + 양동이·대걸레(관리인이 분수를 청소한다는 것).
+ * 아래 벽: 물뿌리개 + 양동이·대걸레(관리인이 분수를 청소한다는 것).
  */
 function keeperHouse(bg) {
   const X0 = 16, X1 = 120, TOP = 94;
@@ -207,13 +207,15 @@ function keeperHouse(bg) {
   stamp(bg, 38, 101, ['.yy', 'yyY', 'yY.'], { y: C.yelD, Y: C.yel }); // 빗자루 솔
   stamp(bg, 60, 98, ['..a..', '.aAa.', 'aAwaa', '.aaa.'], { a: C.tealL, A: C.aqua, w: C.white }); // 물방울
   bg.set(36, 98, C.lint); bg.set(72, 98, C.lint); // 간판 못
-  // 벽시계 7시 57분: 나무 테 + 흰 판 + 12·3·6·9 점, 왼쪽 위 빛
+  // 벽시계 7시 57분: 나무 테 + 바랜 판 + 12·3·6·9 점, 왼쪽 위 빛
+  // 판은 white가 아니라 cotton: 흰 판이 화면에서 가장 밝은 점이라 "누르는 물건"처럼 보였다(#601 모바일 1회).
+  // 관리인 `keeper.clean_time`이 돌아보는 확인 단서라 지우지 않고 한 톤만 내린다.
   ellipse(bg, 98, 105, 6.5, 6.5, (x, y) => {
     const d = Math.hypot(x + 0.5 - 98, y + 0.5 - 105);
     if (d > 5.4) return x + y < 98 + 105 - 2 ? C.wood : C.woodD;
-    return d > 4.6 && x + y > 98 + 105 + 2 ? C.cotton : C.white;
+    return d > 4.6 && x + y > 98 + 105 + 2 ? C.lint : C.cotton;
   });
-  for (const [dx, dy] of [[0, -4], [4, 0], [0, 4], [-4, 0]]) bg.set(98 + dx, 105 + dy, C.lint);
+  for (const [dx, dy] of [[0, -4], [4, 0], [0, 4], [-4, 0]]) bg.set(98 + dx, 105 + dy, C.lav);
   {
     const hand = (deg, len, c) => { const a = (deg - 90) * Math.PI / 180; line(bg, 98, 105, Math.round(98 + Math.cos(a) * len), Math.round(105 + Math.sin(a) * len), c); };
     hand(7 * 30 + 57 * 0.5, 3, C.plum); // 시침: 8 바로 앞
@@ -228,15 +230,8 @@ function keeperHouse(bg) {
   for (const bx of [32, 102]) { R(bg, bx, 154, 3, 3, C.wood); bg.set(bx + 2, 156, C.woodD); } // 창턱 받침
   // 창턱 위 화분 하나(자명종 자리 x 80~104 밖, 왼쪽)
   stamp(bg, 28, 143, ['..g.g.', '.gGgg.', 'gGgGgg', '.gggG.', 'rrrrrr', '.rRrr.', '.rrrr.'], { g: C.grn, G: C.grnL, r: C.redL, R: C.pinkL });
-  // 아래 벽: 접힌 호스 걸이(초록 호스 감김) + 물뿌리개 + 양동이·대걸레
-  R(bg, 50, 162, 4, 3, C.lav); R(bg, 50, 162, 4, 1, C.lint);
-  ellipse(bg, 52, 172, 7, 7, (x, y, ex, ey) => {
-    const d = Math.hypot(ex, ey);
-    if (d < 0.38) return undefined;
-    const ring = Math.floor((d * 7 + (x - 52) * 0.15) % 2);
-    return ex + ey < -0.4 ? (ring ? C.grnL : C.grn) : ring ? C.grn : C.grnD;
-  });
-  line(bg, 46, 177, 44, 196, C.grn); line(bg, 45, 177, 43, 196, C.grnD); stamp(bg, 41, 194, ['lll', '.L.'], { l: C.lint, L: C.lav }); // 늘어진 호스 끝 + 쇠 꼭지
+  // 아래 벽: 물뿌리개 + 양동이·대걸레
+  // (호스 걸이는 지웠다: 초록 고리 + 쇠 꼭지가 "물 잠그는 곳"으로 읽히는데 반응이 없어서 불공정한 미끼였다. #601 모바일 1회)
   stamp(bg, 84, 184, ['......t..', '..tttt.t.', '.tTTttt.t', 'tTTtttttt', 'tTttttt.t', '.ttttt..t', '.ttttt...', '.dddd....'], { t: C.tealM, T: C.tealL, d: C.teal });
   // 대걸레(벽에 기대 비스듬히) + 양동이
   // (오른쪽 창턱 아래 x 92~110 흙길 가장자리는 자명종이 떨어지는 자리(objects `fallen` 96,189)라 비워 둔다)
