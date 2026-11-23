@@ -1,10 +1,30 @@
 // QA 화면 글 기록 (#601 7회차). 말풍선은 2~4초만 떠 있어서 스크린샷 사이에 지나가면 QA는 "아무 반응 없음"으로 적는다.
-// 사람은 화면을 계속 보니 다 읽는다. 그래서 재생 내내 화면에 뜬 글(말풍선·클리어 줄·기절 줄)만 시간과 함께 모아 끝에 알려 준다.
+// 사람은 화면을 계속 보니 다 읽는다. 그래서 재생 내내 화면에 뜬 글(말풍선·클리어 줄·기절 줄·첫 게이지 안내)만 시간과 함께 모아 끝에 알려 준다.
 // 읽는 건 사람 눈에 보이는 DOM 글자뿐이다. 게임 상태·규칙 ID·대사 키·숨은 요소는 읽지 않는다.
+import { readFileSync } from 'node:fs';
 
-/** 기록할 화면 글. 잠깐 떴다 사라지는 것만. 대상 라벨(`#label`)은 마우스를 올린 동안 계속 보여서 스크린샷으로 충분하다. */
-export const SEEN_IDS = ['bubble', 'clear', 'faint'] as const;
-export type SeenId = (typeof SEEN_IDS)[number];
+/** 기록할 화면 글 종류. */
+export type SeenId = 'bubble' | 'clear' | 'faint' | 'gaugeNote';
+
+/**
+ * 첫 게이지 감소 안내(`ui.hud.gauge_first_drop`, 설계 6-2-5절). 대상 라벨 자리(`#label`)에 2.5초 뜨고, 다음 클릭이 지운다.
+ * 묶음 1-3(#601 P1-e): 다치는 실패(#2) 직후 뜬 이 안내가 기록에 없어서, 다음 클릭(#3) 스크린샷에서야 줄어든 게이지를 보고
+ * "걷기만 했는데 말풍선 없이 게이지 −1"로 적혔다. UI 글 하나라 정답 정보는 없다.
+ */
+export const GAUGE_NOTE_TEXT = (JSON.parse(readFileSync(new URL('../../content/text/ja.json', import.meta.url), 'utf8')) as Record<string, string>)[
+  'ui.hud.gauge_first_drop'
+]!;
+
+/**
+ * 어디서 읽나. 잠깐 떴다 사라지는 것만. `#label`은 마우스를 올린 동안 계속 보이는 대상 라벨이라 스크린샷으로 충분해서
+ * 통째로는 안 읽고, 같은 자리에 잠깐 뜨는 첫 게이지 안내 글자일 때만 적는다(`only`).
+ */
+export const SEEN_SOURCES: readonly { id: SeenId; el: string; only?: string }[] = [
+  { id: 'bubble', el: 'bubble' },
+  { id: 'clear', el: 'clear' },
+  { id: 'faint', el: 'faint' },
+  { id: 'gaugeNote', el: 'label', only: GAUGE_NOTE_TEXT },
+];
 
 export interface Seen {
   id: SeenId;
@@ -17,15 +37,16 @@ export interface Seen {
 
 /** 페이지에 먼저 넣는 기록기(`Page.addInitScript`). 50ms마다 보이는 글이 바뀌었는지만 본다. */
 export const SEEN_RECORDER = `(() => {
-  const ids = ${JSON.stringify(SEEN_IDS)};
+  const sources = ${JSON.stringify(SEEN_SOURCES)};
   const log = [];
   const open = {};
   Object.defineProperty(window, '__qaSeen', { value: log });
   setInterval(() => {
     const now = performance.now();
-    for (const id of ids) {
-      const el = document.getElementById(id);
-      const text = el && !el.hidden ? (el.textContent || '').trim() : '';
+    for (const { id, el: elId, only } of sources) {
+      const el = document.getElementById(elId);
+      let text = el && !el.hidden ? (el.textContent || '').trim() : '';
+      if (only !== undefined && text !== only) text = '';
       const cur = open[id];
       if (cur && cur.text !== text) { cur.end = now; open[id] = null; }
       if (text && !open[id]) { const e = { id, text, start: now, end: null }; log.push(e); open[id] = e; }
@@ -33,7 +54,7 @@ export const SEEN_RECORDER = `(() => {
   }, 50);
 })();`;
 
-const NAME: Record<SeenId, string> = { bubble: '말풍선', clear: '클리어 줄', faint: '기절 줄' };
+const NAME: Record<SeenId, string> = { bubble: '말풍선', clear: '클리어 줄', faint: '기절 줄', gaugeNote: '게이지 안내' };
 
 const sec = (ms: number): string => `${(ms / 1000).toFixed(1)}초`;
 
@@ -53,7 +74,7 @@ export const CLOSE_BY_CLICK_MS = 1_100;
 
 /** 클릭 뒤에 닫힌 글이 있을 때 끝에 붙이는 안내. 도구·조작 안내만이고 정답 정보는 없다. */
 export const CLOSED_NOTE =
-  '※ "click N 뒤 닫힘"이 붙은 글은 그 클릭이 말풍선을 넘겼을 수 있어요(게임이 짧게 띄운 게 아닐 수 있어요). 말풍선은 클릭하면 닫혀요(행동 뒤 말풍선은 뜬 지 1.0초부터, 시작 대사는 바로). 끝까지 읽으려면 그 클릭 앞에 `wait 3000`을 더 띄우세요.';
+  '※ "click N 뒤 닫힘"이 붙은 글은 그 클릭이 말풍선을 넘겼을 수 있어요(게임이 짧게 띄운 게 아닐 수 있어요). 말풍선은 클릭하면 닫혀요(행동 뒤 말풍선은 뜬 지 1.0초부터, 시작 대사는 바로). 게이지 안내는 아무 클릭에나 바로 닫혀요. 끝까지 읽으려면 그 클릭 앞에 `wait 3000`을 더 띄우세요.';
 
 /** 같은 글의 원인 후보로 같이 적는 앞 클릭 수 상한. */
 const MAX_EARLIER = 1;
