@@ -38,15 +38,37 @@ const NAME: Record<SeenId, string> = { bubble: '말풍선', clear: '클리어 �
 const sec = (ms: number): string => `${(ms / 1000).toFixed(1)}초`;
 
 /**
+ * 한 클릭의 글이 그 클릭 뒤 얼마까지 늦게 뜰 수 있나(ms). 캐릭터는 대상까지 걸어간 뒤에 반응한다.
+ * 걷기 1.5px/틱 × 60틱 = 90px/초라 화면 폭 480px을 다 걸으면 약 5.3초, 반응 anim(쿵·젖기)이 말풍선 앞에 2~3초 더 붙는다.
+ * 8회차(#601): 대상까지 걸어가는 동안 다음 클릭을 보냈더니 앞 클릭의 대사가 뒤 클릭 밑으로 적혀, 앞 대상이 "반응 없음"으로 읽혔다.
+ */
+export const LATE_REACTION_MS = 8_000;
+
+/** 같은 글의 원인 후보로 같이 적는 앞 클릭 수 상한. */
+const MAX_EARLIER = 1;
+
+/** 클릭 후보가 둘 이상인 글이 있을 때 끝에 붙이는 안내. 정답 정보는 없고 도구 사용법만. */
+export const MIXED_NOTE =
+  '※ 클릭이 둘 이상 적힌 글은 그중 어느 클릭의 결과인지 화면 글만으로는 몰라요. 캐릭터는 걸어간 뒤에 반응해서 글이 클릭 뒤 최대 약 8초에 떠요. 행동 하나마다 `wait 5000; wait 3000`을 띄우면 안 섞여요.';
+
+/**
  * 기록을 사람이 읽는 줄로. `clicks`는 각 클릭(탭)을 보낸 페이지 시각이다.
  * 예: `click 5 뒤 +2.3초, 3.9초 동안 말풍선: 「…いい石だ。 / 落ち着く。」`
+ * 글이 뜨기 전 `LATE_REACTION_MS` 안에 클릭이 더 있었으면 그 클릭도 같이 적는다(바로 앞 하나 더):
+ * `click 16 뒤 +3.6초 / click 15 뒤 +4.0초, …`. 그런 줄이 하나라도 있으면 끝에 `MIXED_NOTE`를 붙인다.
  */
 export function formatSeen(seen: readonly Seen[], clicks: readonly number[]): string[] {
-  return seen.map((s) => {
+  let mixed = false;
+  const lines = seen.map((s) => {
     let k = -1;
     for (let i = 0; i < clicks.length; i++) if (clicks[i]! <= s.start) k = i;
-    const when = k < 0 ? `첫 클릭 전` : `click ${k + 1} 뒤 +${sec(s.start - clicks[k]!)}`;
+    const parts = k < 0 ? [`첫 클릭 전`] : [`click ${k + 1} 뒤 +${sec(s.start - clicks[k]!)}`];
+    for (let i = k - 1; i >= 0 && parts.length <= MAX_EARLIER && s.start - clicks[i]! <= LATE_REACTION_MS; i--) {
+      parts.push(`click ${i + 1} 뒤 +${sec(s.start - clicks[i]!)}`);
+    }
+    if (parts.length > 1) mixed = true;
     const dur = s.end === null ? '끝까지' : `${sec(s.end - s.start)} 동안`;
-    return `${when}, ${dur} ${NAME[s.id]}: 「${s.text.replace(/\s*\n\s*/g, ' / ')}」`;
+    return `${parts.join(' / ')}, ${dur} ${NAME[s.id]}: 「${s.text.replace(/\s*\n\s*/g, ' / ')}」`;
   });
+  return mixed ? [...lines, MIXED_NOTE] : lines;
 }
