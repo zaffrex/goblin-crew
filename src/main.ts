@@ -25,7 +25,7 @@ import { CONTENT_VERSION, saveOnCard, startFromSave } from './core/progress';
 import { LocalSaveStore, probeStorage } from './core/save/store';
 import type { SaveData } from './core/save/schema';
 import orderJson from '../content/screens/order.json';
-import { activeFx, activeMarkerVisible, boardDrop, charPose, charWalking, createScene, currentBubble, drawOrder, gaugeDrop, introHoverScene, isBusy, isHanging, sceneArtView, sceneLayout, mouseHoverThroughSay, sceneTap, sceneTick, selectsDuringSay, takeHeldTap, takeWalkStart, tapContext, type SceneData, type SceneState } from './core/scene';
+import { activeFx, activeMarkerVisible, boardDrop, charPose, charWalking, createScene, currentBubble, drawOrder, stepOffBubbleBox, gaugeDrop, introHoverScene, isBusy, isHanging, sceneArtView, sceneLayout, mouseHoverThroughSay, sceneTap, sceneTick, selectsDuringSay, takeHeldTap, takeWalkStart, tapContext, type SceneData, type SceneState } from './core/scene';
 import { animFrameBox, coveredIds, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
 import { isTapKey } from './core/keys';
@@ -861,7 +861,10 @@ function render(): void {
     if (bubble.dataset.speaker !== b.speaker) bubble.dataset.speaker = b.speaker;
     // 핫스팟 화자가 지금 anim 칸(재생 중·붙든 hold)을 그리면 그 칸에 붙인다(#450). 캐릭터 ID는 물건 `ids`에 없어서(ADR-0065 예약어) null이다.
     const frameBox = art && artView ? animFrameBox(art.meta, artView, b.speaker) : null;
-    placeBubbleDom(sayText(TEXT, b.text, b.speaker), speakerBox(b.speaker, layout, frameBox), bubbleKeepBoxes(b.speaker, layout), bubbleBodyBoxes(b.speaker, layout));
+    // 비켜 서는 화자(#862)는 도착점 몸으로 자리를 한 번 정한다(#866). 걷는 동안 프레임마다 다시 고르면 휴대폰에서 튄다.
+    const stepBox = stepOffBubbleBox(data, scene);
+    const at = stepBox ? { ...layout, chars: { ...layout.chars, [b.speaker]: stepBox } } : layout;
+    placeBubbleDom(sayText(TEXT, b.text, b.speaker), speakerBox(b.speaker, at, frameBox), bubbleKeepBoxes(b.speaker, layout), bubbleBodyBoxes(b.speaker, layout));
   }
 }
 

@@ -1898,6 +1898,24 @@ export function currentBubble(s: SceneState): { speaker: string; text: string } 
   return ev?.type === 'say' ? { speaker: ev.speaker, text: ev.text } : null;
 }
 
+/**
+ * 비켜 서기(#862) 대사의 말풍선 기준 몸 상자(#866): 화자가 그 대사로 비켜 서는 캐릭터면, 도착점에 도착 방향으로 선 몸 상자.
+ * 걷는 0.66초 동안 지금 몸으로 자리를 고르면 휴대폰에서 옆자리가 동료 몸에 막혀 옆 → 위로 튄다. 그래서 도착점 기준 한 자리로 고정한다.
+ * 도착 뒤 서 있는 몸과 같은 상자라 도착할 때도 안 움직인다. 다른 곳으로 걷기 시작했으면(#865) null(지금 몸을 따라간다).
+ */
+export function stepOffBubbleBox(data: SceneData, s: SceneState): HitBox | null {
+  const ev = s.current?.ev;
+  if (ev?.type !== 'say' || !ev.stepOff || ev.stepOff.char !== ev.speaker) return null;
+  const { char, to, face } = ev.stepOff;
+  const w = s.walkers[char];
+  const at = (p: Point | null): boolean => p !== null && p.x === to.x && p.y === to.y;
+  if (!(w.target ? at(w.target) : at(w))) return null;
+  const meta = data.sprites?.[char];
+  const y = to.y + Math.round(boardDrop(data, s, char));
+  const pose: Pose = { ...charPose(data, s, char), walkedPx: null };
+  return (meta ? spriteHit(meta, pose, to.x, y, face) : null) ?? characterHitBox(characterDef(char), to.x, y, face);
+}
+
 /** 지금 떠 있는 화면 가운데 컷 글 ID. 없으면 null. busy가 끝난 뒤에도 잠깐 남을 수 있다. */
 export function currentCut(s: SceneState): string | null {
   if (s.current?.cut) return s.current.cut;
