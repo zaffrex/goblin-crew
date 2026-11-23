@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { checkScreen, formatReport, reportErrors, uniqueReactions } from '../../src/core/puzzle/check';
+import { checkScreen, solutionLengthWarning, formatReport, reportErrors, uniqueReactions } from '../../src/core/puzzle/check';
 import { difficultyReport, formatDifficulty, formatReactions, reactionReport } from './difficulty';
 import type { CharactersData, ScreenData } from '../../src/core/puzzle/types';
 
@@ -20,6 +20,15 @@ describe('screen BFS check', () => {
     console.info(formatReactions(reactionReport(screen, characters)));
     expect(reportErrors(r)).toEqual([]);
     for (const [k, v] of Object.entries(r.requiredAbilities)) expect(v, `${k} 판정`).not.toBeNull();
+  });
+
+  it('warns when solution is longer than the BFS shortest (warning only)', () => {
+    const screen = load(dir('../../content/screens/laundromat.json')) as ScreenData;
+    const r = checkScreen(screen, characters);
+    expect(solutionLengthWarning(screen, r.explore)).toBeNull();
+    const padded = { ...screen, solution: [...screen.solution!.slice(0, -1), screen.solution![0]!, screen.solution!.at(-1)!] } as ScreenData;
+    expect(solutionLengthWarning(padded, r.explore)).toMatch(/최단/);
+    expect(solutionLengthWarning({ ...screen, solution: undefined } as ScreenData, r.explore)).toBeNull();
   });
 
   it('counts unique reactions without common.*', () => {
