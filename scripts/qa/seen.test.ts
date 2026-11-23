@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { formatSeen, LATE_REACTION_MS, MIXED_NOTE, SEEN_RECORDER, type Seen } from './seen';
+import { CLOSE_BY_CLICK_MS, CLOSED_NOTE, formatSeen, LATE_REACTION_MS, MIXED_NOTE, SEEN_RECORDER, type Seen } from './seen';
 
 describe('formatSeen (#601 7회차: 스크린샷 사이 말풍선)', () => {
   it('글마다 바로 앞 클릭 번호와 그 뒤 시간, 떠 있던 시간을 적는다', () => {
@@ -44,6 +44,38 @@ describe('formatSeen (#601 7회차: 스크린샷 사이 말풍선)', () => {
 
   it('클릭과 같은 시각에 뜬 글은 그 클릭 뒤로 센다', () => {
     expect(formatSeen([{ id: 'faint', text: 'x', start: 2_000, end: 2_100 }], [1_000, 2_000])[0]).toMatch(/^click 2 뒤 \+0\.0초/);
+  });
+});
+
+describe('formatSeen: 클릭이 닫은 글 (#601 묶음 1 「1.0초만 떠서 읽을 틈이 없었다」)', () => {
+  it('떠 있는 동안 누른 클릭 바로 뒤에 사라지면 그 클릭이 닫았을 수 있다고 적고 끝에 안내를 붙인다', () => {
+    // 묶음 1-2 #2 재현: 대사가 뜨고 1.0초 뒤 다음 클릭을 눌렀더니 0.05초 뒤 사라졌다(잠금 뒤 클릭 = 닫기).
+    const seen: Seen[] = [{ id: 'bubble', text: 'うわっ！冷たっ！\nびしょびしょやん…', start: 5_000, end: 6_050 }];
+    expect(formatSeen(seen, [1_000, 6_000])).toEqual([
+      'click 1 뒤 +4.0초, 1.1초 동안(click 2 뒤 닫힘) 말풍선: 「うわっ！冷たっ！ / びしょびしょやん…」',
+      CLOSED_NOTE,
+    ]);
+  });
+
+  it('잠금 전에 눌러 맡아 둔 클릭(#832)이 1.0초에 닫은 것도 잡는다', () => {
+    const seen: Seen[] = [{ id: 'bubble', text: 'x', start: 5_000, end: 6_000 }];
+    expect(formatSeen(seen, [1_000, 5_200])[0]).toBe('click 1 뒤 +4.0초, 1.0초 동안(click 2 뒤 닫힘) 말풍선: 「x」');
+  });
+
+  it('클릭 뒤 오래 떠 있다가 사라졌으면(버려진 클릭 뒤 제 시간에 끝남) 닫힘으로 안 적는다', () => {
+    const at = 10_000;
+    const one = (end: number) => formatSeen([{ id: 'bubble', text: 'x', start: 5_000, end }], [1_000, at])[0];
+    expect(one(at + CLOSE_BY_CLICK_MS)).toMatch(/\(click 2 뒤 닫힘\)/);
+    expect(one(at + CLOSE_BY_CLICK_MS + 1)).not.toMatch(/닫힘/);
+  });
+
+  it('글을 띄운 클릭(뜨기 전·같은 시각)과 사라진 뒤 클릭은 닫은 클릭이 아니다', () => {
+    expect(formatSeen([{ id: 'bubble', text: 'x', start: 2_000, end: 2_500 }], [2_000, 3_000])).toEqual(['click 1 뒤 +0.0초, 0.5초 동안 말풍선: 「x」']);
+  });
+
+  it('두 안내가 다 필요하면 섞임 안내 다음에 닫힘 안내', () => {
+    const seen: Seen[] = [{ id: 'bubble', text: 'x', start: 14_000, end: 15_100 }];
+    expect(formatSeen(seen, [10_000, 10_400, 15_000]).slice(1)).toEqual([MIXED_NOTE, CLOSED_NOTE]);
   });
 });
 
