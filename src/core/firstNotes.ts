@@ -5,6 +5,8 @@
 import { characterDef, type CharacterId } from './characters';
 import { targetIntent, type Label, type PuzzleView } from './interact';
 import { FLOOR, type Action, type RuleDef } from './puzzle/types';
+import type { Point } from './viewport';
+import type { WalkArea } from './walk';
 
 /** 첫 감소 안내가 떠 있는 시간(틱, 2.5초 @ 60Hz, 설계 6-2-5절). */
 export const GAUGE_NOTE_TICKS = 150;
@@ -205,4 +207,19 @@ export function noteWalkSkipped(n: FirstNotes): void {
 export function noteWalkDone(n: FirstNotes, walking: (char: CharacterId) => boolean): void {
   n.walkCarry = null;
   if (n.note?.walk !== undefined && !walking(n.note.walk)) n.note = null;
+}
+
+/** 걷기 영역 밖 터치 탭에 `あるく`를 띄우는 시간(틱, 0.6초 @ 60Hz, `ui-interaction.md` 5-2-6절). 다음 탭이 먼저 오면 그때 지운다. */
+export const WALK_TAP_NOTE_TICKS = 36;
+
+/**
+ * 터치 탭이 바닥 걷기가 됐다(`intent.kind === 'walk'`). 누른 점이 걷기 영역(`area`, 양 끝 포함) 밖이면 `text`(`ui.verb.walk`)를
+ * 0.6초 또는 다음 탭까지 띄우고 true를 준다(5-2-6절, #601 모바일 2회). 영역 안이면 몸이 누른 자리로 가니 아무것도 안 한다.
+ * 걷기가 시작되기 **전에** 부른다: 글이 떠 있으면 `noteWalkStart`가 그 탭의 긴 걷기 안내를 건너뛰고 횟수도 안 센다.
+ * 마우스는 부르지 않는다(호버가 이미 `あるく`를 보여 준다).
+ */
+export function noteWalkTap(n: FirstNotes, p: Point, area: WalkArea, text: string, tick: number): boolean {
+  if (p.x >= area.left && p.x <= area.right && p.y >= area.top && p.y <= area.bottom) return false;
+  n.note = { text, until: tick + WALK_TAP_NOTE_TICKS };
+  return true;
 }
