@@ -17,7 +17,7 @@ import { CHARACTERS, type CharacterId } from '../../src/core/characters';
 import { CHAR_SLOTS } from '../../src/core/hud';
 import { resolveTap, tap, type UiState } from '../../src/core/interact';
 import { frameOpaqueAt, parseSceneArt } from '../../src/core/sceneArt';
-import { charFacing, charPose, createScene, isBusy, runAction, sceneTap, sceneTick, tapContext, type SceneData, type SceneState } from '../../src/core/scene';
+import { bodies, charFacing, charPose, createScene, isBusy, runAction, sceneTap, sceneTick, stepOffBubbleBox, tapContext, type SceneData, type SceneState } from '../../src/core/scene';
 import { parseSpriteMeta, spriteFrame, spriteOpaqueAt, type SpriteMeta } from '../../src/core/sprite';
 import type { CharactersData, ScreenData } from '../../src/core/puzzle/types';
 import type { Point } from '../../src/core/viewport';
@@ -517,6 +517,50 @@ describe('화면 2 앉은 ズッシー (2-1-4절)', () => {
     expect(r).toMatchObject({ kind: 'intent', intent: { kind: 'select', label: { target: 'pigeons' } } });
     expect([s.walkers.jjuk.x, s.walkers.jjuk.y]).toEqual([283, 244]);
     expect(s.walkers.jjuk.facing).toBe(-1);
+  });
+
+  it('비켜 서는 대사의 말풍선 기준 몸은 걷는 내내 도착점 몸 하나다: 도착해서 선 몸과 같다 (#866)', () => {
+    const s = afterHigh();
+    runAction(fData, s, { char: 'jjuk', verb: 'stretch', target: 'jacket' }, null);
+    for (let i = 0; i < 5000 && s.current?.ev.type !== 'say'; i++) sceneTick(fData, s);
+    const boxes = new Set<string>();
+    let walked = 0;
+    for (let i = 0; i < 5000 && s.current?.ev.type === 'say'; i++) {
+      if (s.walkers.jjuk.target !== null) walked++;
+      const b = stepOffBubbleBox(fData, s);
+      expect(b, `tick ${i}`).not.toBeNull();
+      boxes.add(JSON.stringify(b));
+      if (s.walkers.jjuk.target === null) {
+        // 도착해서 선 뒤에는 입력 판정 몸과 같다. 도착할 때 말풍선이 안 움직인다.
+        expect(b).toEqual(bodies(fData, s).jjuk);
+      }
+      sceneTick(fData, s);
+    }
+    expect(walked).toBeGreaterThan(30);
+    expect(boxes.size).toBe(1);
+  });
+
+  it('비켜 서는 중 다른 곳으로 걸으면 말풍선은 지금 몸을 따라간다 (#866)', () => {
+    const s = afterHigh();
+    runAction(fData, s, { char: 'jjuk', verb: 'stretch', target: 'jacket' }, null);
+    for (let i = 0; i < 5000 && s.current?.ev.type !== 'say'; i++) sceneTick(fData, s);
+    expect(stepOffBubbleBox(fData, s)).not.toBeNull();
+    s.walkers.jjuk.target = { x: 400, y: 244 };
+    expect(stepOffBubbleBox(fData, s)).toBeNull();
+  });
+
+  it('비켜 서기가 없는 대사는 말풍선 기준 몸을 바꾸지 않는다 (#866)', () => {
+    const s = ready(fData);
+    runAction(fData, s, { char: 'ppik', verb: 'squeak', target: 'duck' }, null);
+    let says = 0;
+    for (let i = 0; i < 5000 && isBusy(s); i++) {
+      if (s.current?.ev.type === 'say') {
+        says++;
+        expect(stepOffBubbleBox(fData, s)).toBeNull();
+      }
+      sceneTick(fData, s);
+    }
+    expect(says).toBeGreaterThan(0);
   });
 
   it('비켜 서는 중 다른 곳으로 걸으면 도착해도 재킷 쪽으로 돌지 않는다 (#865)', () => {
