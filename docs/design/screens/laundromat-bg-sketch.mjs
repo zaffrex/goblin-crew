@@ -25,7 +25,7 @@ import { C, PALETTE, EMPTY, Image, indexedPng } from '../../../art/lib/pixel.mjs
 import { fill } from '../../../art/lib/texture.mjs';
 import { room, W, H, FLOOR_Y, WAINSCOT_Y, CEIL_Y, KEY_HOOK, CLOCK } from '../../../art/scenes/laundromat.room.mjs';
 import { washer, WASHER_H } from '../../../art/scenes/laundromat.washer.mjs';
-import { shutter, SHUTTER } from '../../../art/scenes/laundromat.shutter.mjs';
+import { shutter } from '../../../art/scenes/laundromat.shutter.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '../../..');
