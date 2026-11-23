@@ -57,6 +57,7 @@ export const FX_STYLE: Readonly<Record<string, { color: FxColor; height: number 
   kokee_text: { color: 'pinkL', height: 10 },
   shaa_text: { color: 'aqua', height: 8 },
   splash_text: { color: 'tealM', height: 8 },
+  shiin_text: { color: 'lint', height: 8 },
 };
 
 /**
