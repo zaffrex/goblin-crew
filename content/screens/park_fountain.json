@@ -123,6 +123,7 @@
         { "say": ["keeper", "park_fountain.keeper_wake"] },
         { "anim": ["keeper", "clean_time"] },
         { "anim": ["fountain", "water_off"] },
+        { "fx": ["shiin_text", "statue"] },
         { "say": ["ppik", "park_fountain.fountain_off"] }
       ],
       "note": "S2 3번 정답(주 아하 1, #802). プピッ에 오리가 クワッ 대답 → 관리인이 자면서 탁(swat_quick 300ms, 탁 한 번: H5 PM 판단 #810) → 그래도 또 クワッ(끌 수 없는 자명종) → 벌떡(wake_quiet = keeper.wake에서 swat 칸을 뺀 것, hold) → 벽시계 → 제어판 꾹 → 물줄기 꺼짐. 오답 1번(스누즈)과의 대비 \"아까는 꺼졌는데 이번엔 안 꺼진다\"가 웃음이다(설계 8절 H2)"
