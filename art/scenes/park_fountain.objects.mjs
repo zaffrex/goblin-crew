@@ -993,7 +993,7 @@ Object.assign(pigeonsPic, {
 });
 
 OBJECTS.pigeons = {
-  ids: ['floor'],
+  ids: ['floor', 'pigeons'],
   draw: pigeonsPic.rest,
   // S2(#802): 재킷이 손으로 내려온 뒤(`jacket.on_hand`)는 돌우산 꼭대기에 앉아 있다(설계 2절). 클리어 뒤에도 그대로(Theo 안 A).
   // 보이는 플래그는 `floor.pigeons_perch`가 시작될 때 바뀌고(deferShown), perch 마지막 칸과 같은 그림이라 hold가 풀려도 안 튄다.

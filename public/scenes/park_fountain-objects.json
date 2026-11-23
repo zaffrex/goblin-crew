@@ -819,7 +819,8 @@
     {
       "key": "pigeons",
       "ids": [
-        "floor"
+        "floor",
+        "pigeons"
       ],
       "default": {
         "frame": 5,
