@@ -114,8 +114,8 @@ const nestEmpty = pic((im) => {
 // 사장님 피드백(#154 "까치가 덜 뻔뻔"): 오른쪽(사람들이 오는 쪽)을 보고 부리를 치켜들고, 가슴을 내밀고, 눈은 반쯤 감아
 // 내려다본다. 한쪽 발은 열쇠 고리를 밟고 있다("내 거다", 둥지 위만). 흑백 몸 + 청록 광택 날개·꼬리.
 // 포즈: 'smug'(기본), 'flick'(U8: 고개를 홱 뒤로), 'puff'(U8: 깃털 부풀리기). (fx, fy) = 앞발 끝(그림 아래 오른쪽 기준).
-const MAGPIE_LEGEND = { k: C.ink, g: C.dusk, p: C.plum, w: C.white, c: C.cotton, l: C.lint, t: C.tealD, T: C.teal, m: C.tealM, d: C.dusk, e: C.white, b: C.lav };
-const MAGPIE = {
+export const MAGPIE_LEGEND = { k: C.ink, g: C.dusk, p: C.plum, w: C.white, c: C.cotton, l: C.lint, t: C.tealD, T: C.teal, m: C.tealM, d: C.dusk, e: C.white, b: C.lav };
+export const MAGPIE = {
   smug: [
     '..................kk',
     '...............kkkk.',
