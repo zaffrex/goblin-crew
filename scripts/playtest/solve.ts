@@ -15,6 +15,8 @@
 // `--via-map`(#792 완료 조건 4, `--deploy`와 같이): `?playtest=1&title=1`로 열어 타이틀 `はじめ` → 첫 판 클리어 → 카드 → 둘째 판까지 간 뒤,
 // 같은 프로필로 다시 열어 타이틀 `マップ` → 첫 판 카드 → 다시 클리어 → 카드 다음 줄 `ui.map.return` → 탭 → 맵인지 본다.
 // 다시 깨는 동안 세이브 checkpoint·깬 화면이 그대로인지도 본다(`saveOnCard` 다시 하기 경로, 설계 3-4절).
+// `--via-map-last`(설계 7절 5번, `--deploy`와 같이): 타이틀 `はじめ` → 모든 판 클리어 → 끝 카드까지 간 뒤 같은 프로필로 다시 열어
+// `マップ` → 마지막 판 카드 → 다시 클리어 → 끝 카드(`ui.end` + `ui.map.return`) → 탭 → 맵(타이틀 아님)인지 본다. 세 판을 다 깨서 약 2분 더 걸린다.
 // 종료 코드: 클리어 못 했거나, 콘솔 에러가 있거나, 누를 곳을 못 찾거나, 화면 전환·끝 카드가 기대와 다르면 1.
 
 import { mkdirSync, readFileSync } from 'node:fs';
@@ -35,6 +37,7 @@ const { values: args } = parseArgs({
     order: { type: 'string' },
     deploy: { type: 'boolean', default: false },
     'via-map': { type: 'boolean', default: false },
+    'via-map-last': { type: 'boolean', default: false },
     url: { type: 'string', default: 'http://localhost:4173/' },
     out: { type: 'string', default: 'playtest-out/solve' },
     touch: { type: 'boolean', default: false },
@@ -43,7 +46,8 @@ const { values: args } = parseArgs({
 });
 
 if (args.deploy && args.order) throw new Error('--deploy와 --order는 같이 못 쓴다');
-if (args['via-map'] && !args.deploy) throw new Error('--via-map은 --deploy와 같이 쓴다(세이브가 켜진 배포 순서라야 맵이 있다)');
+if ((args['via-map'] || args['via-map-last']) && !args.deploy) throw new Error('--via-map·--via-map-last는 --deploy와 같이 쓴다(세이브가 켜진 배포 순서라야 맵이 있다)');
+if (args['via-map'] && args['via-map-last']) throw new Error('--via-map과 --via-map-last는 같이 못 쓴다');
 const linked = args.deploy || args.order !== undefined;
 const ids: string[] = args.deploy
   ? (JSON.parse(readFileSync('content/screens/order.json', 'utf8')) as string[])
@@ -206,12 +210,14 @@ async function waitHooks(page: Page): Promise<void> {
 }
 
 /**
- * `--via-map` 뒷부분(#792 완료 조건 4, 설계 3-4절). 첫 판을 깨고 둘째 판에 들어간 페이지를 같은 프로필로 다시 연다.
- * 타이틀 `マップ` → 맵(첫 판 cleared, 나머지 locked) → 첫 판 카드 → 시작 카드(전체) → 다시 클리어 →
- * 카드 다음 줄이 `ui.map.return`(터치)·`_click`(마우스) → 탭 → 맵(첫 판 카드에 초점). 그동안 세이브가 그대로인지 본다.
+ * `--via-map`·`--via-map-last` 뒷부분(#792 완료 조건 4, 설계 3-4절·7절 5번). `k`번째 판까지 깬 페이지를 같은 프로필로 다시 연다.
+ * 타이틀 `マップ` → 맵(0..k cleared, 나머지 locked) → `k`번째 판 카드 → 시작 카드(첫 판이면 전체, 아니면 짧은 카드) → 다시 클리어 →
+ * 카드 다음 줄이 `ui.map.return`(터치)·`_click`(마우스) → 탭 → 맵(그 판 카드에 초점). 마지막 판이면 카드 본문이 끝 카드 `ui.end`다.
+ * 그동안 세이브가 그대로인지 본다.
  */
-async function viaMap(page: Page, href: string, problems: string[]): Promise<void> {
-  const id = ids[0]!;
+async function viaMap(page: Page, href: string, k: number, problems: string[]): Promise<void> {
+  const id = ids[k]!;
+  const last = k === ids.length - 1;
   const tag = `map-${id}`;
   const before = await savedOf(page);
   if (!before) return void problems.push(`${tag}: 첫 판을 깼는데 세이브가 없음`);
@@ -219,7 +225,7 @@ async function viaMap(page: Page, href: string, problems: string[]): Promise<voi
   await pressTitleMap(page, (at) => send(page, at));
   const m = await mapState(page);
   await page.screenshot(join(args.out!, `${tag}-0-map.png`));
-  const wantCards = Object.fromEntries(ids.map((s, k) => [s, k === 0 ? 'cleared' : 'locked']));
+  const wantCards = Object.fromEntries(ids.map((s, j) => [s, j <= k ? 'cleared' : 'locked']));
   if (JSON.stringify(m.cards) !== JSON.stringify(wantCards)) problems.push(`${tag}: 맵 카드 ${JSON.stringify(m.cards)} (기대 ${JSON.stringify(wantCards)})`);
   const box = await mapCardBox(page, id);
   const at = box && screenToInternal({ x: box.left + box.width / 2, y: box.top + box.height / 2 }, await canvasRect(page), { width: INTERNAL_WIDTH, height: INTERNAL_HEIGHT });
@@ -227,16 +233,20 @@ async function viaMap(page: Page, href: string, problems: string[]): Promise<voi
   await send(page, at);
   // 맵 → 어두워짐 → 그 판. 훅은 타이틀이 끝난 뒤 붙는다(타이틀이 판보다 먼저, top-level await).
   await waitHooks(page);
+  const kind = await waitFor('맵에서 연 판 시작 카드가 안 뜸', () => flowOf(page), (f) => f?.card !== null && f?.card !== undefined);
+  const wantKind = k === 0 ? 'full' : 'short';
+  if (kind?.card !== wantKind) problems.push(`${tag}: 맵에서 연 판 시작 카드가 ${wantKind}가 아님(${kind?.card})`);
   await closeStartCard(page, (p) => send(page, p), { expect: true });
   const f = await flowOf(page);
-  if (f?.screen !== id || f.index !== 0 || !f.replay) problems.push(`${tag}: 맵에서 연 판이 ${id} 다시 하기가 아님: ${JSON.stringify(f)}`);
+  if (f?.screen !== id || f.index !== k || !f.replay) problems.push(`${tag}: 맵에서 연 판이 ${id} 다시 하기가 아님: ${JSON.stringify(f)}`);
   await waitIdle(page);
-  await solveScreen(page, screens[0]!, 0, problems, tag);
+  await solveScreen(page, screens[k]!, k, problems, tag);
   if (problems.length) return;
   const c = await waitFor('다시 한 판 카드에 다음 줄이 안 보임', () => clearCard(page), (c) => c.next);
   await page.screenshot(join(args.out!, `${tag}-card.png`));
   const returns = [texts['ui.map.return'], texts['ui.map.return_click']].filter((x): x is string => x !== undefined);
   if (!returns.some((r) => c.text.endsWith(r))) problems.push(`${tag}: 카드 다음 줄이 ui.map.return이 아님: ${JSON.stringify(c.text)}`);
+  if (last && !c.text.startsWith(texts['ui.end']!)) problems.push(`${tag}: 마지막 판을 다시 깼는데 카드 본문이 끝 카드 ui.end가 아님: ${JSON.stringify(c.text)}`);
   const same = (s: SavedState | null) => s !== null && s.screenId === before.screenId && s.solved.join() === before.solved.join();
   const onCard = await savedOf(page);
   if (!same(onCard)) problems.push(`${tag}: 다시 깬 카드에서 세이브가 바뀜 ${JSON.stringify(onCard)} (전 ${JSON.stringify(before)})`);
@@ -254,7 +264,9 @@ async function main(): Promise<number> {
   mkdirSync(args.out!, { recursive: true });
   const u = new URL(args.url!);
   u.searchParams.set('playtest', '1');
-  const viaMapMode = args['via-map'] === true;
+  const viaMapFirst = args['via-map'] === true;
+  const viaMapLast = args['via-map-last'] === true;
+  const viaMapMode = viaMapFirst || viaMapLast;
   if (viaMapMode) u.searchParams.set('title', '1');
   if (args.order) u.searchParams.set('order', ids.join(','));
   else if (!args.deploy) u.searchParams.set('screen', ids[0]!);
@@ -279,22 +291,27 @@ async function main(): Promise<number> {
       if (!f?.order) throw new Error(`순서가 안 먹음(훅 __gcFlow: ${JSON.stringify(f)}). ${args.deploy ? '배포 순서(#766)' : '연결 2단계'} 이전 빌드인가?`);
       if (f.order.join() !== ids.join()) throw new Error(`게임 순서 ${f.order.join(',')}가 기대 ${ids.join(',')}와 다름(배포본이 로컬 order.json과 다른가?)`);
     }
-    // `--via-map`은 첫 판만 깨고 둘째 판에 들어간 뒤(세이브: 첫 판 깸) 맵 길로 간다.
-    for (const [k, screen] of (viaMapMode ? screens.slice(0, 1) : screens).entries()) {
+    // `--via-map`은 첫 판만 깨고 둘째 판에 들어간 뒤(세이브: 첫 판 깸) 맵 길로 간다. `--via-map-last`는 끝 카드까지 다 깬 뒤 간다.
+    for (const [k, screen] of (viaMapFirst ? screens.slice(0, 1) : screens).entries()) {
       await solveScreen(page, screen, k, problems);
       if (problems.length) break;
       if (linked) await crossCard(page, k, problems);
       else await soloCard(page, problems);
     }
-    if (viaMapMode && !problems.length) await viaMap(page, u.href, problems);
+    if (viaMapMode && !problems.length) await viaMap(page, u.href, viaMapFirst ? 0 : ids.length - 1, problems);
     if (!args.deploy && (await savedOf(page)) !== null) problems.push('세이브를 끄는 판(--order·--screen)인데 세이브가 생김');
     for (const e of page.errors) problems.push(`콘솔(${e.source}): ${e.text}`);
   } finally {
     await browser.close();
   }
   console.log(`URL: ${u.href}`);
-  const acts = viaMapMode ? 2 * screens[0]!.solution!.length : screens.reduce((n, s) => n + s.solution!.length, 0);
-  const route = viaMapMode ? `${ids[0]} → ${ids[1]} 입구 → 타이틀 マップ → ${ids[0]} 다시 → 맵` : ids.join(' → ');
+  const all = screens.reduce((n, s) => n + s.solution!.length, 0);
+  const acts = viaMapFirst ? 2 * screens[0]!.solution!.length : viaMapLast ? all + screens.at(-1)!.solution!.length : all;
+  const route = viaMapFirst
+    ? `${ids[0]} → ${ids[1]} 입구 → 타이틀 マップ → ${ids[0]} 다시 → 맵`
+    : viaMapLast
+      ? `${ids.join(' → ')} 끝 카드 → 타이틀 マップ → ${ids.at(-1)} 다시 → 끝 카드 → 맵`
+      : ids.join(' → ');
   console.log(problems.length ? problems.map((p) => `❌ ${p}`).join('\n') : `✅ ${route} 클리어 (${acts}행동, ${input})`);
   return problems.length ? 1 : 0;
 }

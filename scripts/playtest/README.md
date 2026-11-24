@@ -36,6 +36,12 @@ node --import ./scripts/playtest/register.mjs scripts/playtest/solve.ts --screen
 node --import ./scripts/playtest/register.mjs scripts/playtest/solve.ts --deploy --via-map [--touch] --url http://localhost:4173/ --out /tmp/via-map --no-sandbox
 ```
 
+**마지막 판 다시 하기(설계 7절 5번)**: `--via-map-last`는 `はじめ` → 모든 판 클리어 → 끝 카드(`ui.end`)까지 간 뒤 같은 프로필로 다시 열어 `マップ` → 마지막 판 카드(짧은 시작 카드) → 다시 클리어 → 끝 카드 본문 `ui.end` + 다음 줄 `ui.map.return` → 탭 → 맵(타이틀 아님)을 탄다. 세 판을 다 깨서 `--via-map`보다 약 2분 더 걸린다(로컬 2분 32초).
+
+```bash
+node --import ./scripts/playtest/register.mjs scripts/playtest/solve.ts --deploy --via-map-last [--touch] --url http://localhost:4173/ --out /tmp/via-map-last --no-sandbox
+```
+
 **타이틀(#792, #885)**: 기본 링크(쿼리 없음)에는 카드 앞에 타이틀이 뜬다. `card.ts` `passTitle`이 `#title`의 `はじめ`(`button[data-button="new"]`) 가운데를 실제 클릭/탭으로 누르고, 확인(노랑)이 뜨면 0.5초 뒤 한 번 더 눌러 늘 첫 판 처음부터 간다(세이브가 있으면 지워진다). 그다음 밝아짐 0.3초 동안 숨은 카드가 뜰 때까지 기다린다. `closeStartCard`가 이걸 먼저 부르고, `smoke.ts`는 카드 맞춤 검사 전에 따로 부른다. `?screen=`·`?playtest=1`이면 타이틀이 없어서 아무것도 안 누른다.
 
 결과: `<out>/report.md`, `report.json`, 뷰포트별 PNG. A4 콘솔 에러나 입력 경로 실패면 종료 코드 1, A5·A6는 경고만.
