@@ -12,6 +12,9 @@
 // `--deploy`(#766)는 `?playtest=1`만 붙여(훅용) 쿼리 없는 배포본 경로를 탄다. 순서는 로컬 `content/screens/order.json`이고, 게임이 같은 순서를 쓰는지 본다.
 // 세이브(#767): `--deploy`면 카드가 뜰 때마다 localStorage 세이브의 checkpoint가 다음 화면(마지막은 자기)이고 깬 화면이 쌓였는지 본다.
 // `--order`·`--screen`(세이브를 끄는 판)이면 끝까지 세이브가 하나도 안 생겼는지 본다. 헤드리스는 매번 새 프로필이라 빈 저장소에서 시작한다.
+// `--via-map`(#792 완료 조건 4, `--deploy`와 같이): `?playtest=1&title=1`로 열어 타이틀 `はじめ` → 첫 판 클리어 → 카드 → 둘째 판까지 간 뒤,
+// 같은 프로필로 다시 열어 타이틀 `マップ` → 첫 판 카드 → 다시 클리어 → 카드 다음 줄 `ui.map.return` → 탭 → 맵인지 본다.
+// 다시 깨는 동안 세이브 checkpoint·깬 화면이 그대로인지도 본다(`saveOnCard` 다시 하기 경로, 설계 3-4절).
 // 종료 코드: 클리어 못 했거나, 콘솔 에러가 있거나, 누를 곳을 못 찾거나, 화면 전환·끝 카드가 기대와 다르면 1.
 
 import { mkdirSync, readFileSync } from 'node:fs';
@@ -19,9 +22,11 @@ import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { soloCardKey } from '../../src/core/flow.ts';
 import type { ScreenData } from '../../src/core/puzzle/types.ts';
-import { CARD_TAP, closeStartCard } from './card.ts';
+import { CARD_TAP, closeStartCard, pressTitleMap } from './card.ts';
 import { Browser, sleep, type Page } from './cdp.ts';
 import { internalToPage, type Rect } from './coords.ts';
+import { INTERNAL_HEIGHT, INTERNAL_WIDTH } from '../../src/core/config.ts';
+import { screenToInternal } from '../../src/core/viewport.ts';
 import { planAction, type Input, type Layout } from './plan.ts';
 
 const { values: args } = parseArgs({
@@ -29,6 +34,7 @@ const { values: args } = parseArgs({
     screen: { type: 'string', default: 'magpie_nest' },
     order: { type: 'string' },
     deploy: { type: 'boolean', default: false },
+    'via-map': { type: 'boolean', default: false },
     url: { type: 'string', default: 'http://localhost:4173/' },
     out: { type: 'string', default: 'playtest-out/solve' },
     touch: { type: 'boolean', default: false },
@@ -37,6 +43,7 @@ const { values: args } = parseArgs({
 });
 
 if (args.deploy && args.order) throw new Error('--deploy와 --order는 같이 못 쓴다');
+if (args['via-map'] && !args.deploy) throw new Error('--via-map은 --deploy와 같이 쓴다(세이브가 켜진 배포 순서라야 맵이 있다)');
 const linked = args.deploy || args.order !== undefined;
 const ids: string[] = args.deploy
   ? (JSON.parse(readFileSync('content/screens/order.json', 'utf8')) as string[])
@@ -73,7 +80,7 @@ async function waitIdle(page: Page, timeoutMs = 60_000): Promise<Layout> {
   }
 }
 
-interface FlowState { order: string[] | null; index: number; screen: string; phase: string; card?: 'full' | 'short' | null }
+interface FlowState { order: string[] | null; index: number; screen: string; phase: string; replay?: boolean; card?: 'full' | 'short' | null }
 const flowOf = (page: Page) => page.evaluate<FlowState | null>(`typeof window.__gcFlow === 'function' ? window.__gcFlow() : null`);
 const clearCard = (page: Page) =>
   page.evaluate<{ shown: boolean; next: boolean; text: string }>(`(() => { const c = document.querySelector('#clear'); return { shown: !c.hidden, next: c.hasAttribute('data-next'), text: c.textContent }; })()`);
@@ -105,8 +112,8 @@ async function waitFor<T>(what: string, read: () => Promise<T>, ok: (v: T) => bo
 }
 
 /** 화면 하나의 정답을 누른다. 끝에 cleared가 아니면 problems에 적는다. */
-async function solveScreen(page: Page, screen: ScreenData, k: number, problems: string[]): Promise<void> {
-  const tag = ids.length > 1 ? `${k + 1}-${screen.id}` : screen.id;
+async function solveScreen(page: Page, screen: ScreenData, k: number, problems: string[], tagAs?: string): Promise<void> {
+  const tag = tagAs ?? (ids.length > 1 ? `${k + 1}-${screen.id}` : screen.id);
   await page.screenshot(join(args.out!, `${tag}-0-start.png`));
   for (const [i, action] of screen.solution!.entries()) {
     const plan = planAction(screen, await layoutOf(page), action, input);
@@ -179,10 +186,76 @@ async function crossCard(page: Page, k: number, problems: string[]): Promise<voi
   await waitIdle(page);
 }
 
+const mapShown = (page: Page) => page.evaluate<boolean>(`!document.querySelector('#map').hidden`);
+/** 맵 카드 상태(`data-state`)와 초점 받은 카드 화면 id. */
+const mapState = (page: Page) =>
+  page.evaluate<{ cards: Record<string, string>; focus: string | null }>(`(() => {
+    const cards = {};
+    for (const b of document.querySelectorAll('#map .cards button')) cards[b.dataset.screen] = b.dataset.state;
+    const a = document.activeElement;
+    return { cards, focus: a && a.closest('#map') && a.dataset.screen ? a.dataset.screen : null };
+  })()`);
+const mapCardBox = (page: Page, id: string) =>
+  page.evaluate<Rect | null>(`(() => { const b = document.querySelector('#map .cards button[data-screen="${id}"]'); if (!b) return null; const r = b.getBoundingClientRect(); return { left: r.left, top: r.top, width: r.width, height: r.height }; })()`);
+
+async function waitHooks(page: Page): Promise<void> {
+  for (let i = 0; !(await page.evaluate<boolean>(`typeof window.__gcLayout === 'function'`)); i++) {
+    if (i > 100) throw new Error('5초 안에 window.__gcLayout 훅이 생기지 않음 (?playtest=1 빌드인가?)');
+    await sleep(50);
+  }
+}
+
+/**
+ * `--via-map` 뒷부분(#792 완료 조건 4, 설계 3-4절). 첫 판을 깨고 둘째 판에 들어간 페이지를 같은 프로필로 다시 연다.
+ * 타이틀 `マップ` → 맵(첫 판 cleared, 나머지 locked) → 첫 판 카드 → 시작 카드(전체) → 다시 클리어 →
+ * 카드 다음 줄이 `ui.map.return`(터치)·`_click`(마우스) → 탭 → 맵(첫 판 카드에 초점). 그동안 세이브가 그대로인지 본다.
+ */
+async function viaMap(page: Page, href: string, problems: string[]): Promise<void> {
+  const id = ids[0]!;
+  const tag = `map-${id}`;
+  const before = await savedOf(page);
+  if (!before) return void problems.push(`${tag}: 첫 판을 깼는데 세이브가 없음`);
+  await page.goto(href);
+  await pressTitleMap(page, (at) => send(page, at));
+  const m = await mapState(page);
+  await page.screenshot(join(args.out!, `${tag}-0-map.png`));
+  const wantCards = Object.fromEntries(ids.map((s, k) => [s, k === 0 ? 'cleared' : 'locked']));
+  if (JSON.stringify(m.cards) !== JSON.stringify(wantCards)) problems.push(`${tag}: 맵 카드 ${JSON.stringify(m.cards)} (기대 ${JSON.stringify(wantCards)})`);
+  const box = await mapCardBox(page, id);
+  const at = box && screenToInternal({ x: box.left + box.width / 2, y: box.top + box.height / 2 }, await canvasRect(page), { width: INTERNAL_WIDTH, height: INTERNAL_HEIGHT });
+  if (!at) return void problems.push(`${tag}: 맵에 ${id} 카드가 없거나 가운데가 캔버스 밖`);
+  await send(page, at);
+  // 맵 → 어두워짐 → 그 판. 훅은 타이틀이 끝난 뒤 붙는다(타이틀이 판보다 먼저, top-level await).
+  await waitHooks(page);
+  await closeStartCard(page, (p) => send(page, p), { expect: true });
+  const f = await flowOf(page);
+  if (f?.screen !== id || f.index !== 0 || !f.replay) problems.push(`${tag}: 맵에서 연 판이 ${id} 다시 하기가 아님: ${JSON.stringify(f)}`);
+  await waitIdle(page);
+  await solveScreen(page, screens[0]!, 0, problems, tag);
+  if (problems.length) return;
+  const c = await waitFor('다시 한 판 카드에 다음 줄이 안 보임', () => clearCard(page), (c) => c.next);
+  await page.screenshot(join(args.out!, `${tag}-card.png`));
+  const returns = [texts['ui.map.return'], texts['ui.map.return_click']].filter((x): x is string => x !== undefined);
+  if (!returns.some((r) => c.text.endsWith(r))) problems.push(`${tag}: 카드 다음 줄이 ui.map.return이 아님: ${JSON.stringify(c.text)}`);
+  const same = (s: SavedState | null) => s !== null && s.screenId === before.screenId && s.solved.join() === before.solved.join();
+  const onCard = await savedOf(page);
+  if (!same(onCard)) problems.push(`${tag}: 다시 깬 카드에서 세이브가 바뀜 ${JSON.stringify(onCard)} (전 ${JSON.stringify(before)})`);
+  await send(page, CARD_TAP);
+  await waitFor('카드를 눌렀는데 맵이 안 뜸', () => mapShown(page), (v) => v, 5000);
+  const back = await mapState(page);
+  await page.screenshot(join(args.out!, `${tag}-1-map-again.png`));
+  if (back.focus !== id) problems.push(`${tag}: 돌아온 맵 초점이 ${id} 카드가 아님(${back.focus})`);
+  const after = await savedOf(page);
+  if (!same(after)) problems.push(`${tag}: 맵으로 돌아온 뒤 세이브가 바뀜 ${JSON.stringify(after)} (전 ${JSON.stringify(before)})`);
+  if (!problems.length) console.log(`${tag} ✅ 타이틀 マップ → ${id} 다시 클리어 → ${JSON.stringify(c.text.split('\n').at(-1))} → 맵(초점 ${back.focus}), 세이브 checkpoint ${before.screenId}·깬 화면 ${before.solved.join(',')} 그대로`);
+}
+
 async function main(): Promise<number> {
   mkdirSync(args.out!, { recursive: true });
   const u = new URL(args.url!);
   u.searchParams.set('playtest', '1');
+  const viaMapMode = args['via-map'] === true;
+  if (viaMapMode) u.searchParams.set('title', '1');
   if (args.order) u.searchParams.set('order', ids.join(','));
   else if (!args.deploy) u.searchParams.set('screen', ids[0]!);
   const browser = await Browser.launch({ noSandbox: args['no-sandbox'] });
@@ -191,31 +264,38 @@ async function main(): Promise<number> {
     const page = await browser.newPage();
     await page.setViewport(viewport);
     await page.goto(u.href);
-    for (let i = 0; !(await page.evaluate<boolean>(`typeof window.__gcLayout === 'function'`)); i++) {
-      if (i > 100) throw new Error('5초 안에 window.__gcLayout 훅이 생기지 않음 (?playtest=1 빌드인가?)');
-      await sleep(50);
+    if (viaMapMode) {
+      // 타이틀이 판보다 먼저라 훅은 `はじめ` 뒤에 생긴다. 타이틀이 뜰 때까지 보고 지나간다(`passTitle`은 로딩 뒤 상태로 판단한다).
+      await waitFor('타이틀이 안 뜸(`?playtest=1&title=1`을 모르는 빌드인가?)', () => page.evaluate<boolean>(`!document.querySelector('#title').hidden`), (v) => v, 15_000);
+      await closeStartCard(page, (at) => send(page, at));
+      await waitHooks(page);
+    } else {
+      await waitHooks(page);
+      await closeStartCard(page, (at) => send(page, at));
     }
-    await closeStartCard(page, (at) => send(page, at));
     await waitIdle(page);
     if (linked) {
       const f = await flowOf(page);
       if (!f?.order) throw new Error(`순서가 안 먹음(훅 __gcFlow: ${JSON.stringify(f)}). ${args.deploy ? '배포 순서(#766)' : '연결 2단계'} 이전 빌드인가?`);
       if (f.order.join() !== ids.join()) throw new Error(`게임 순서 ${f.order.join(',')}가 기대 ${ids.join(',')}와 다름(배포본이 로컬 order.json과 다른가?)`);
     }
-    for (const [k, screen] of screens.entries()) {
+    // `--via-map`은 첫 판만 깨고 둘째 판에 들어간 뒤(세이브: 첫 판 깸) 맵 길로 간다.
+    for (const [k, screen] of (viaMapMode ? screens.slice(0, 1) : screens).entries()) {
       await solveScreen(page, screen, k, problems);
       if (problems.length) break;
       if (linked) await crossCard(page, k, problems);
       else await soloCard(page, problems);
     }
+    if (viaMapMode && !problems.length) await viaMap(page, u.href, problems);
     if (!args.deploy && (await savedOf(page)) !== null) problems.push('세이브를 끄는 판(--order·--screen)인데 세이브가 생김');
     for (const e of page.errors) problems.push(`콘솔(${e.source}): ${e.text}`);
   } finally {
     await browser.close();
   }
   console.log(`URL: ${u.href}`);
-  const acts = screens.reduce((n, s) => n + s.solution!.length, 0);
-  console.log(problems.length ? problems.map((p) => `❌ ${p}`).join('\n') : `✅ ${ids.join(' → ')} 클리어 (${acts}행동, ${input})`);
+  const acts = viaMapMode ? 2 * screens[0]!.solution!.length : screens.reduce((n, s) => n + s.solution!.length, 0);
+  const route = viaMapMode ? `${ids[0]} → ${ids[1]} 입구 → 타이틀 マップ → ${ids[0]} 다시 → 맵` : ids.join(' → ');
+  console.log(problems.length ? problems.map((p) => `❌ ${p}`).join('\n') : `✅ ${route} 클리어 (${acts}행동, ${input})`);
   return problems.length ? 1 : 0;
 }
 

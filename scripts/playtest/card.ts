@@ -27,15 +27,16 @@ const STATE = `(() => {
   return c.hasAttribute('data-ready') ? 'ready' : 'locked';
 })()`;
 
-/** 타이틀 `はじめ` 버튼과 캔버스의 페이지 상자. 타이틀이 안 떠 있으면 null. */
-const TITLE_NEW = `(() => {
+/** 타이틀 버튼(`data-button`: `new`·`continue`·`map`)과 캔버스의 페이지 상자. 타이틀이 안 떠 있거나 그 버튼이 없으면 null. */
+const titleButton = (name: string): string => `(() => {
   const t = document.querySelector('#title');
-  const b = t && !t.hidden ? t.querySelector('button[data-button="new"]') : null;
+  const b = t && !t.hidden ? t.querySelector('button[data-button="${name}"]') : null;
   const g = document.querySelector('#game');
   if (!b || !g) return null;
   const box = (e) => { const r = e.getBoundingClientRect(); return { left: r.left, top: r.top, width: r.width, height: r.height }; };
   return { button: box(b), canvas: box(g), armed: b.hasAttribute('data-armed') };
 })()`;
+const TITLE_NEW = titleButton('new');
 
 /**
  * 버튼 상자 가운데를 게임 내부 좌표로. 도구는 내부 좌표로 탭을 보내니(`internalToPage`) 게임 입력과 같은 식(`screenToInternal`)으로 되돌린다.
@@ -90,6 +91,31 @@ export async function passTitle(page: Page, tapAt: TapAt): Promise<boolean> {
     await sleep(50);
   }
   return true;
+}
+
+/**
+ * 타이틀 `マップ`(#792 3절)를 실제로 눌러 맵을 연다. 타이틀이 뜰 때까지(로딩 포함) 기다린다.
+ * `マップ`는 깬 판이 하나 이상이고 맵 글이 다 있을 때만 있다(2-1절). 없으면 실패다.
+ */
+export async function pressTitleMap(page: Page, tapAt: TapAt): Promise<void> {
+  if ((await waitLoaded(page)) !== 'title') {
+    const deadline = Date.now() + LOAD_TIMEOUT_MS;
+    while ((await stateOf(page)) !== 'title') {
+      if (Date.now() > deadline) throw new Error('타이틀이 안 뜸(`?playtest=1&title=1`을 모르는 빌드인가?)');
+      await sleep(50);
+    }
+  }
+  const t = await page.evaluate<{ button: Rect; canvas: Rect } | null>(titleButton('map'));
+  if (!t) throw new Error('타이틀에 `マップ` 버튼이 없음(깬 판이 없거나 맵 글이 빠짐)');
+  const at = titleTapPoint(t.button, t.canvas);
+  if (!at) throw new Error('타이틀 `マップ` 버튼 가운데가 캔버스 밖');
+  const deadline = Date.now() + 5000;
+  // 타이틀은 그림이 다 오기 전(`shown` 전) 누름을 버린다. 맵이 뜰 때까지 다시 누른다(`マップ`는 확인 단계가 없다).
+  while (!(await page.evaluate<boolean>(`!document.querySelector('#map').hidden`))) {
+    if (Date.now() > deadline) throw new Error('`マップ`를 눌렀는데 5000ms 지나도 맵이 안 뜸');
+    await tapAt(at);
+    await sleep(300);
+  }
 }
 
 /**
