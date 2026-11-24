@@ -172,7 +172,8 @@ export function parseSceneArt(raw: unknown): SceneArtMeta {
       continue;
     }
     const o = raw as ScenePictureObject;
-    if (typeof o?.key !== 'string' || !Array.isArray(o.ids) || o.ids.length === 0 || !o.ids.every((t) => typeof t === 'string')) fail(`${w}: key·ids`);
+    // 15절(개정 11): `ids: []`는 장식 물건(대상 없음, anim 원본 `object`로만 바뀐다).
+    if (typeof o?.key !== 'string' || !Array.isArray(o.ids) || !o.ids.every((t) => typeof t === 'string')) fail(`${w}: key·ids`);
     picture(o.default, `${w}.default`);
     for (const [j, s] of (o.states ?? []).entries()) {
       picture(s, `${w}.states[${j}]`, true);
@@ -237,6 +238,16 @@ const matches = (w: When, flags: Flags): boolean => Object.entries(w.flags).ever
 /** 대상 ID(hotspot·spot) → 그 대상을 맡은 물건. 없으면 null(임시 상자). 효과 자리는 ID가 없어서 나오지 않는다. */
 export function objectOf(meta: SceneArtMeta, target: string): ScenePictureObject | null {
   return (meta.objects.find((o) => !isFxObject(o) && o.ids.includes(target)) as ScenePictureObject | undefined) ?? null;
+}
+
+/**
+ * anim 하나가 바꿔 그리는 그림 물건(4-2절 (a)의 "그 물건"). 메타 `object`가 그림 물건이면 그것(개정 11: 장식 물건 `nest`처럼
+ * 대상 ID를 안 맡아도 된다), 아니면 대상 ID를 맡은 물건이다. 효과 anim(`object` = 효과 자리)·시트에 없는 anim은 대상의 물건.
+ */
+export function animObject(meta: SceneArtMeta, target: string, name: string): ScenePictureObject | null {
+  const key = meta.anims[`${target}.${name}`]?.object;
+  const o = key == null ? undefined : meta.objects.find((x) => x.key === key && !isFxObject(x));
+  return (o as ScenePictureObject | undefined) ?? objectOf(meta, target);
 }
 
 /** 멈춘 모습(효과 자리면 멈춘 모드): `when` 첫 일치, 없으면 `default`(4절, hotspot `variants`와 같은 규칙). */

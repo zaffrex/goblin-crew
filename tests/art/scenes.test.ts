@@ -278,6 +278,50 @@ describe('scene build (format v1)', () => {
       expect(problemsOf((s) => { s.anims!['magpie.fly_down']!.tilt = [1, 2]; })).toEqual([expect.stringContaining('대상 물건에 tilt가 없다')]);
     });
   });
+  describe('장식 물건 `ids: []`와 anim 원본 `object`(15절, 개정 11, #901)', () => {
+    /** 까치 대상 anim이 핫스팟 없는 둥지 장식을 바꿔 그린다(laundromat `magpie.key_in`과 같은 모양). */
+    const withDecor = (s: SceneSrc) => {
+      s.objects!.perch = { ids: [], draw: box(126, 52, 40, 4) };
+      s.anims!['magpie.key_in'] = { object: 'perch', ms: 100, frames: [box(126, 50, 40, 6), box(126, 52, 40, 4)] };
+    };
+    it('정상: 장식 물건은 ids []로 메타에 남고, anim은 원본 object 물건을 바꾼다', () => {
+      const s = goodScene();
+      withDecor(s);
+      const r = buildScene(s, screen);
+      expect(r.problems).toEqual([]);
+      expect(r.meta!.objects.find((o) => o.key === 'perch')).toMatchObject({ ids: [] });
+      expect(r.meta!.anims['magpie.key_in']!.object).toBe('perch');
+      expect(r.meta!.anims['magpie.fly_down']!.object).toBe('magpie');
+    });
+    it('ids를 안 적은 물건은 여전히 키가 ID다(빈 배열은 적어야만 장식)', () => {
+      expect(problemsOf((s) => (s.objects!.perch = { draw: box(126, 52, 40, 4) }))).toEqual([expect.stringContaining("'perch'는 화면 JSON")]);
+    });
+    it('object가 없는 물건·효과 자리·대상을 이미 맡은 물건이면 잡는다', () => {
+      expect(problemsOf((s) => {
+        withDecor(s);
+        s.anims!['magpie.key_in']!.object = 'nope';
+      })).toEqual([expect.stringContaining("'nope'는 그림 물건 키가 아니다")]);
+      expect(problemsOf((s) => {
+        withDecor(s);
+        s.objects!.water = { effect: 'fountain_water', area: [152, 8, 144, 172], colors: [26, 25, 6, 24], mode: 'on' };
+        s.anims!['magpie.key_in']!.object = 'water';
+      })).toEqual([expect.stringContaining("'water'는 그림 물건 키가 아니다")]);
+      expect(problemsOf((s) => (s.anims!['magpie.fly_down']!.object = 'magpie'))).toEqual([expect.stringContaining('이미 맡은 물건')]);
+    });
+    it('object가 있어도 대상은 화면 JSON ID여야 한다', () => {
+      expect(problemsOf((s) => {
+        withDecor(s);
+        s.anims!['crow.key_in'] = s.anims!['magpie.key_in']!;
+      })).toEqual([expect.stringContaining("대상 'crow'")]);
+    });
+    it('장식 물건은 앞판·기울기·판 밑 바닥을 못 둔다', () => {
+      expect(problemsOf((s) => {
+        withDecor(s);
+        s.objects!.perch!.noFloor = { box: [126, 200, 40, 20], y: 240 };
+      })).toEqual([expect.stringContaining('장식 물건(ids: [])')]);
+    });
+  });
+
   describe('붙드는 anim `hold`(13절, 개정 8, #450)', () => {
     it('정상: 그림 anim·효과 anim 모두 메타에 hold: true, 없으면 필드도 없다', () => {
       const s = goodScene();
