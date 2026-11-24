@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { checkScreen } from '../../src/core/puzzle/check';
 import type { CharactersData, ScreenData } from '../../src/core/puzzle/types';
 
-// #67 on the M2 tutorial screen (#230): design laundromat.md 12절 BFS expectations, so a data change that adds a
-// dead end, a damage shortcut, or a third required ability fails CI.
+// #67 on stage 3 B (#897, #909): design laundromat.md 3절·6절 BFS expectations, so a data change that adds a
+// dead end, a damage shortcut, or drops a required ability fails CI.
 const load = (rel: string): unknown => JSON.parse(readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8'));
 const screen = load('../../content/screens/laundromat.json') as ScreenData;
 const characters = load('../../content/characters.json') as CharactersData;
@@ -19,13 +19,14 @@ describe('laundromat BFS check', () => {
     expect(r.explore.deadEnds).toEqual([]);
   });
   it('matches the expected size and shortest path', () => {
-    // latch.open × shutter.up, clear ends the search: 3 puzzle states × gauge 5..1 = 15. One free spot, no hold.
-    expect(r.explore.stateCount).toBe(15);
-    expect(r.explore.shortestLength).toBe(2);
-    expect(r.explore.safeShortestLength).toBe(2);
+    // 6-3: (forward, street) (reverse, street) (forward, nest) (reverse, duct) + clear = 5 puzzle states × gauge 5..1 = 25.
+    // One free spot, no hold. Both orders (stomp → squeak → stretch, squeak → stomp → stretch) are 3.
+    expect(r.explore.stateCount).toBe(25);
+    expect(r.explore.shortestLength).toBe(3);
+    expect(r.explore.safeShortestLength).toBe(3);
   });
-  it('needs stretch and stomp, squeak is optional (matrix ●●○)', () => {
-    expect(r.requiredAbilities).toEqual({ stretch: true, stomp: true, squeak: false });
+  it('needs all three abilities (matrix ●●●, design 6-1 M1·M2)', () => {
+    expect(r.requiredAbilities).toEqual({ stretch: true, stomp: true, squeak: true });
   });
   it('has no damage dependence or shortcut', () => {
     expect(r.damageWarnings).toEqual([]);

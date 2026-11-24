@@ -33,8 +33,8 @@ const NO_POLE: Record<(typeof SCREENS)[number], string[]> = {
   magpie_nest: [],
   // 화면 2: 분수·오리·손님은 안 A로 글자를 뺐다(바닥이거나 tip보다 낮음, 오리는 `reach_wobble`이어도 0px). 남은 줄 없음.
   park_fountain: [],
-  // M2 튜토리얼(화면 JSON만, 그림 전): 걸쇠 정답은 U1 `pull_latch`가 시트에 없어 장대가 0px이다. U1 그림 PR이 이 줄을 지운다.
-  laundromat: ['latch latch_pull_open'],
+  // 스테이지 3 B(#909, 화면 JSON만): 높은 대상 덕트·까치는 `reach_wobble`로 펴지고, 바닥 틈·셔터는 안 A로 글자를 뺐다. 남은 줄 없음.
+  laundromat: [],
 };
 
 function sceneData(id: string): SceneData {
