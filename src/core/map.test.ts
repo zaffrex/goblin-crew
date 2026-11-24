@@ -61,9 +61,13 @@ describe('map layout (title-and-map 3절)', () => {
 });
 
 describe('thumbOrigin (3-3절, content/map.json)', () => {
-  it('reads the deployed origins and they fit in the scene', () => {
-    expect(thumbOrigin(mapJson, 'magpie_nest', SCENE)).toEqual({ origin: { x: 88, y: 18 }, error: null });
-    expect(thumbOrigin(mapJson, 'park_fountain', SCENE)).toEqual({ origin: { x: 165, y: 60 }, error: null });
+  // 숫자는 Luna가 content/map.json 한 곳만 고치면 되게 여기 박지 않는다 (#890 리뷰).
+  it('reads every deployed origin as-is and each fits in the scene', () => {
+    const entries = Object.entries(mapJson.thumbOrigin);
+    expect(entries.map(([id]) => id).sort()).toEqual(['magpie_nest', 'park_fountain']);
+    for (const [id, [x, y]] of entries) {
+      expect(thumbOrigin(mapJson, id, SCENE)).toEqual({ origin: { x, y }, error: null });
+    }
   });
 
   it('a screen without art yet has no origin and no error (dusk fill)', () => {
