@@ -4,9 +4,10 @@
 //
 // 지금 있는 것:
 //   O1 열쇠 + 나무 패(1칸): 길바닥·둥지·혹 속에서 같은 그림. 패가 넓어서 덕트 아래 끝에 걸린다(S5). 패가 열쇠보다 크고 밝게.
-//   O2 후드 위 빈 둥지(1칸).
+//   O2 후드 위 빈 둥지(1칸) + 열쇠 든 둥지·반짝(2칸, `NEST_KEY`: 대기 반복, `magpie.key_in`·`key_out`).
 //   O3 틈 속 까치 머리·부리(2칸, `gap.snatch`).
-// 미리보기·검사: node docs/design/screens/laundromat-bg-sketch.mjs (들창·틈·열쇠), node docs/design/screens/laundromat-gap-snatch-preview.mjs (틈 속 머리)
+// 미리보기·검사: node docs/design/screens/laundromat-bg-sketch.mjs (들창·틈·열쇠), node docs/design/screens/laundromat-gap-snatch-preview.mjs (틈 속 머리),
+//   node docs/design/screens/laundromat-nest-key-preview.mjs (둥지 속 열쇠)
 
 import { C, Image, EMPTY } from '../lib/pixel.mjs';
 import { stamp, outlined } from '../lib/texture.mjs';
@@ -38,7 +39,7 @@ export function keyTag(img, x, y) {
   img.blit(t, x, y);
 }
 
-// ═════════════ O2 후드 위 둥지 (빈 둥지 1칸. 열쇠 든 반짝 2칸은 다음 PR) ═════════════
+// ═════════════ O2 후드 위 둥지 (빈 둥지 1칸 + 열쇠 든 둥지·반짝 2칸) ═════════════
 // 들창 왼쪽 칸 안, 배기 후드(laundromat.room.mjs HOOD) 위에 얹힌다. magpie_nest 둥지(36×13)보다 작은 22×11:
 // 창 칸 높이 48 안에 까치 18 + 둥지 11 + 후드 9가 들어가야 한다(laundromat.md 2-1).
 // 이번 둥지는 잔가지 반, **날아간 손님 양말 반**으로 지었다: 테두리에 줄무늬 양말이 감겨 있고, 분홍 양말 한 귀퉁이가
@@ -65,6 +66,65 @@ export function nestEmpty(img) {
   stamp(t, NEST.x, NEST.y, NEST_ROWS, NEST_LEGEND);
   img.blit(outlined(t), 0, 0);
 }
+
+// 열쇠 든 둥지(1칸) + 반짝(1칸). 3-1 `fly_in` 뒤·2-2 혹이 거꾸로 달려 나간 뒤의 둥지, 1-2에서 빨려 사라지기 전 둥지.
+// 까치가 둥지 위에 앉아 있어도 가리지 않는 두 자리에 나눠 그렸다(앉은 까치 자리 60,27 20×18 · 배 오른쪽 끝 x 78 · 발 아래 끝 y 44가 전제. O3 앉음 PR에서 지킨다):
+//   ① 금색 고리: 둥지 오른쪽 끝 잔가지에 꽂혀 x 80~84, y 37~45로 하늘(purD)에 솟는다. magpie_nest와 같은 금색 = 열쇠 약속.
+//      고리 구멍은 외곽선이 메워 ink로 보인다. 왼쪽 위 1px white = 광원.
+//   ② 나무 패: 둥지 앞면에 걸려 늘어진다(70,46 9×6). O1 길바닥 패와 같은 tan 윗면·woodL 몸·새긴 홈 → "길바닥에 있던 그 패".
+//      패가 둥지 앞(까치 발 아래)이라 앉은 까치와 안 겹치고, 혹 속에 걸리는 S5 패와도 같은 물건으로 읽힌다.
+//   끈(lint) 4px이 패 오른쪽 위에서 고리 자루로 이어진다.
+// 반짝 칸은 고리 위에 큰 별(magpie_nest `sparkle` 2번과 같은 모양: yel 팔 + white 가운데)과 자루 빛 1px. 효과라 외곽선 없음.
+const NEST_KEY_BOW = { x: 80, y: 37 };
+const NEST_KEY_BOW_ROWS = [
+  '.YYy.',
+  'YW.yy',
+  'Y...y',
+  'yy.yy',
+  '.yYy.',
+  '..Yy.',
+  '..Yy.',
+  '..Yy.',
+  '..Yy.',
+];
+const NEST_TAG = { x: 70, y: 46 };
+const NEST_TAG_ROWS = [
+  'kkkkkkkkk',
+  'kTTTTTTwk',
+  'kLkLLLLwk',
+  'kLLwwwLwk',
+  'kLLLLLLwk',
+  'kkkkkkkkk',
+];
+const NEST_STRING = [[79, 45], [79, 44], [80, 43], [81, 42]];
+/** 반짝 별 가운데(고리 오른쪽 위 하늘). 팔 x 79~85, y 30~36 */
+export const NEST_SPARK = { x: 82, y: 33 };
+
+/** O2 열쇠 든 둥지. shine: true면 반짝 칸(별 + 자루 빛). */
+export function nestWithKey(img, { shine = false } = {}) {
+  const t = new Image(img.w, img.h);
+  stamp(t, NEST.x, NEST.y, NEST_ROWS, NEST_LEGEND);
+  stamp(t, NEST_KEY_BOW.x, NEST_KEY_BOW.y, NEST_KEY_BOW_ROWS, { Y: C.yelL, y: C.yel, W: C.white });
+  stamp(t, NEST_TAG.x, NEST_TAG.y, NEST_TAG_ROWS, { k: C.ink, T: C.tan, L: C.woodL, w: C.wood });
+  for (const [x, y] of NEST_STRING) t.set(x, y, C.lint);
+  img.blit(outlined(t), 0, 0);
+  if (!shine) return;
+  const { x, y } = NEST_SPARK;
+  stamp(img, x - 3, y - 3, ['...l...', '...y...', '..yWy..', 'lyWWWyl', '..yWy..', '...y...', '...l...'], { y: C.yel, l: C.yelL, W: C.white });
+  img.set(82, 41, C.white); // 자루 빛
+}
+
+/**
+ * O2 둥지 열쇠 anim(그림 물건 `nest`, 대상 `magpie`. 설계 4절 "그림 물건과 바뀌는 시점").
+ *   loop  : 열쇠 든 둥지의 대기 반짝(첫 칸 = 멈춘 모습, 형식 개정 3).
+ *   key_in: 3-1 `fly_in` 뒤·2-2 혹이 돌아간 뒤. 빈 둥지 → 반짝 → 열쇠 든 둥지(4-2 (a) 첫 칸 출발, 마지막 칸 도착).
+ *   key_out: 1-2 역회전. 열쇠 든 둥지 → 반짝 → 빈 둥지("반짝이 쏙 사라짐"). 새 칸 0(같은 세 그림 재사용).
+ */
+export const NEST_KEY = {
+  loop: { ms: [1600, 160], frames: [(img) => nestWithKey(img), (img) => nestWithKey(img, { shine: true })] },
+  key_in: { ms: [100, 160, 120], frames: [nestEmpty, (img) => nestWithKey(img, { shine: true }), (img) => nestWithKey(img)] },
+  key_out: { ms: [100, 140, 120], frames: [(img) => nestWithKey(img), (img) => nestWithKey(img, { shine: true }), nestEmpty] },
+};
 
 // ═════════════ O3 틈 속 까치 머리·부리 (2칸, `gap.snatch`, 설계 laundromat.md 4절 3-1·3-2, 9-2 O3) ═════════════
 // 까치는 셔터 바깥 길바닥에 서서 고개를 숙이고, 찌그러진 틈(laundromat.shutter.mjs DENT, 꼭짓점 x 111~112에서 14px)으로
