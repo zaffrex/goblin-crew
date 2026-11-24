@@ -95,11 +95,19 @@ export async function passTitle(page: Page, tapAt: TapAt): Promise<boolean> {
 /**
  * 타이틀이 있으면 먼저 지나간다(`passTitle`). 그다음 카드가 있으면 잠금(1.0초)이 풀릴 때까지 기다렸다가 화면 가운데를 눌러 닫는다. 닫혔으면 true.
  * 카드가 없으면 누르지 않고 false(카드 없는 빌드에서 그 탭은 바닥 걷기라 결과가 바뀐다).
+ * `expect`(다음 판 짧은 카드, 11-1-1절 "재생 도구" 줄, #892): 밝아짐 0.3초 동안은 카드가 아직 없다. 그 틈을 "카드 없음"으로 읽지 않고
+ * 뜰 때까지 기다린다. `timeoutMs` 안에 안 뜨면 실패다(그냥 지나가면 다음 첫 클릭이 카드에 먹힌다).
  */
-export async function closeStartCard(page: Page, tapAt: TapAt, timeoutMs = 5000): Promise<boolean> {
+export async function closeStartCard(page: Page, tapAt: TapAt, opts: { timeoutMs?: number; expect?: boolean } = {}): Promise<boolean> {
+  const timeoutMs = opts.timeoutMs ?? 5000;
   await passTitle(page, tapAt);
   let s = await waitLoaded(page);
   const deadline = Date.now() + timeoutMs;
+  while (opts.expect && s === 'none') {
+    if (Date.now() > deadline) throw new Error(`${timeoutMs}ms 지나도 다음 판 시작 카드가 안 뜸`);
+    await sleep(50);
+    s = await stateOf(page);
+  }
   if (s === 'none') return false;
   while (s === 'locked') {
     if (Date.now() > deadline) throw new Error(`${timeoutMs}ms 지나도 시작 카드 잠금이 안 풀림`);

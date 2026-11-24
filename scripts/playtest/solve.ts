@@ -73,7 +73,7 @@ async function waitIdle(page: Page, timeoutMs = 60_000): Promise<Layout> {
   }
 }
 
-interface FlowState { order: string[] | null; index: number; screen: string; phase: string }
+interface FlowState { order: string[] | null; index: number; screen: string; phase: string; card?: 'full' | 'short' | null }
 const flowOf = (page: Page) => page.evaluate<FlowState | null>(`typeof window.__gcFlow === 'function' ? window.__gcFlow() : null`);
 const clearCard = (page: Page) =>
   page.evaluate<{ shown: boolean; next: boolean; text: string }>(`(() => { const c = document.querySelector('#clear'); return { shown: !c.hidden, next: c.hasAttribute('data-next'), text: c.textContent }; })()`);
@@ -166,6 +166,11 @@ async function crossCard(page: Page, k: number, problems: string[]): Promise<voi
   await send(page, CARD_TAP);
   const f = (await waitFor('다음 화면이 play가 안 됨', () => flowOf(page), (f) => f !== null && f.index === k + 1 && f.phase === 'play'))!;
   const took = Date.now() - tapAt;
+  // 밝아진 뒤 짧은 시작 카드(11-1-1절, #892). 닫아야 진입 연출이 돈다. 안 뜨면 실패.
+  const kind = await waitFor('다음 화면 시작 카드가 안 뜸', () => flowOf(page), (f) => f?.card !== null && f?.card !== undefined);
+  await page.screenshot(join(args.out!, `${tag}-short-card.png`));
+  if (kind?.card !== 'short') problems.push(`${tag}: 다음 화면 카드가 짧은 카드가 아님(${kind?.card})`);
+  await closeStartCard(page, (at) => send(page, at), { expect: true });
   const now = await layoutOf(page);
   if (f.screen !== ids[k + 1]) problems.push(`${tag}: 다음 화면이 ${ids[k + 1]}가 아니라 ${f.screen}`);
   if (now.gauge !== 5) problems.push(`${tag}: 다음 화면 게이지가 가득이 아님(${now.gauge})`);

@@ -18,6 +18,24 @@ export function createStartCard(): StartCard {
   return { open: true, ticks: 0 };
 }
 
+/** 카드를 다시 띄운다(다음 판 밝아짐이 끝난 틱, 11-1-1절). 잠금 1.0초를 처음부터 센다. */
+export function reopenCard(c: StartCard): void {
+  c.open = true;
+  c.ticks = 0;
+}
+
+/**
+ * 판에 들어갈 때 카드 종류(11-1-1절, #892). 입구(페이지 첫 판·타이틀·맵·다음 판 넘어가기)와 상관없이 이 규칙 하나다.
+ * - `full`: 6-2-1 전체 카드(목표·이유·특기 3줄·게이지). 순서의 첫 판(`index` 0)이거나 순서가 없는 판(`?screen=<id>`, 특기를 아직 못 봤을 수 있다).
+ * - `short`: 목표·이유·시작 줄만. 첫 판이 아닌 판(다음 판, 이어 하기, 맵에서 고른 2번째 판 이후).
+ * 같은 id가 순서에 두 번 나와도(`?playtest=1&order=a,a`) 위치로 센다(`flow.ts` nextIndex와 같다).
+ */
+export type CardKind = 'full' | 'short';
+
+export function entryCardKind(order: readonly string[] | null, index: number): CardKind {
+  return order === null || index <= 0 ? 'full' : 'short';
+}
+
 /** 고정 틱마다 부른다. 카드가 떠 있으면 시간을 센다. */
 export function cardTick(c: StartCard): void {
   if (c.open) c.ticks++;
@@ -85,8 +103,10 @@ export interface CardRow {
 export interface CardText {
   goal: string;
   why: string;
+  /** 짧은 카드(11-1-1절)는 빈 배열. */
   rows: CardRow[];
-  gauge: string;
+  /** 짧은 카드는 null(게이지 줄을 뺀다). */
+  gauge: string | null;
   start: string;
 }
 
@@ -107,13 +127,17 @@ function abilityRow(t: (id: string) => string, ability: string): string {
   return t('ui.card.ability_row').replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m);
 }
 
-/** 카드 글(6-2-6절 키). 특기 줄은 캐릭터 정의 순서(HUD 칸 순서와 같다). 마지막 줄만 입력 방식에 따라 다르다(#364). */
-export function cardText(t: (id: string) => string, pointer: CardPointer = 'mouse'): CardText {
+/**
+ * 카드 글(6-2-6절 키). 특기 줄은 캐릭터 정의 순서(HUD 칸 순서와 같다). 마지막 줄만 입력 방식에 따라 다르다(#364).
+ * 짧은 카드(11-1-1절)는 특기 줄·게이지 줄을 뺀다. 목표·이유는 `t`가 화면 키(`<id>.card.goal`, #380)로 찾는다.
+ */
+export function cardText(t: (id: string) => string, pointer: CardPointer = 'mouse', kind: CardKind = 'full'): CardText {
+  const full = kind === 'full';
   return {
     goal: t('ui.card.goal'),
     why: t('ui.card.why'),
-    rows: CHARACTERS.map((c) => ({ id: c.id, name: t(`char.${c.id}.name`), ability: abilityRow(t, c.ability) })),
-    gauge: t('ui.card.gauge'),
+    rows: full ? CHARACTERS.map((c) => ({ id: c.id, name: t(`char.${c.id}.name`), ability: abilityRow(t, c.ability) })) : [],
+    gauge: full ? t('ui.card.gauge') : null,
     start: t(pointer === 'touch' ? 'ui.card.start' : 'ui.card.start_click'),
   };
 }
