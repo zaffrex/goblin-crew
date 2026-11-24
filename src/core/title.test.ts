@@ -92,7 +92,15 @@ describe('mapCards / mapPress (3-1, 3-4절)', () => {
 });
 
 describe('skipsTitle (1절)', () => {
-  const q = (s: string) => (k: string) => new URLSearchParams(s).get(k);
+  // core는 DOM lib 없이 타입체크한다(tsconfig.core.json). URLSearchParams 대신 작은 파서.
+  const q = (s: string) => (k: string): string | null => {
+    for (const pair of s.replace(/^\?/, '').split('&')) {
+      if (!pair) continue;
+      const [key, value = ''] = pair.split('=');
+      if (key === k) return value;
+    }
+    return null;
+  };
   it('기본 링크는 타이틀부터', () => expect(skipsTitle(q(''))).toBe(false));
   it('팀 도구 쿼리는 건너뛴다', () => {
     expect(skipsTitle(q('?screen=magpie_nest'))).toBe(true);
