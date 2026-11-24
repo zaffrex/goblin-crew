@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import type { ScreenData } from '../../src/core/puzzle/types.ts';
 import { sayTextVariants } from '../../src/core/sayText.ts';
-import { CARD_TAP, closeStartCard } from './card.ts';
+import { closeStartCard } from './card.ts';
 import { Browser, sleep, type ConsoleError, type Page } from './cdp.ts';
 import { bubbleCovers, internalToPage, type Rect } from './coords.ts';
 import { planAction, type Input, type Layout } from './plan.ts';
@@ -133,7 +133,7 @@ async function openGame(page: Page, v: Viewport): Promise<void> {
   await page.goto(playtestUrl(args.url!));
   for (let i = 0; i < 100; i++) {
     if (await page.evaluate<boolean>(`typeof window.__gcLayout === 'function'`)) {
-      await closeStartCard(page, () => send(page, v, CARD_TAP));
+      await closeStartCard(page, (at) => send(page, v, at));
       await waitIdle(page, async () => {});
       return;
     }

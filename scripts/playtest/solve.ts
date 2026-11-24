@@ -190,7 +190,7 @@ async function main(): Promise<number> {
       if (i > 100) throw new Error('5초 안에 window.__gcLayout 훅이 생기지 않음 (?playtest=1 빌드인가?)');
       await sleep(50);
     }
-    await closeStartCard(page, () => send(page, CARD_TAP));
+    await closeStartCard(page, (at) => send(page, at));
     await waitIdle(page);
     if (linked) {
       const f = await flowOf(page);

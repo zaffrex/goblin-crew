@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { GAUGE_SEGS } from '../../src/core/hud.ts';
 import type { ScreenData } from '../../src/core/puzzle/types.ts';
-import { CARD_TAP, closeStartCard } from './card.ts';
+import { closeStartCard } from './card.ts';
 import { CASES_BY_SCREEN, type FrameCase } from './cases/index.ts';
 import { Browser, sleep, type Page } from './cdp.ts';
 import { INTERNAL, internalToPage, type Rect } from './coords.ts';
@@ -99,7 +99,7 @@ async function runCase(browser: Browser, c: FrameCase, vp: Viewport, outDir: str
       if (vp.input === 'touch') await page.tap(p);
       else await page.click(p);
     };
-    await closeStartCard(page, () => send(CARD_TAP));
+    await closeStartCard(page, send);
     await waitBusy(page, false);
     const opts = c.floor ? { floorPoint: { x: c.floor[0], y: c.floor[1] } } : {};
     for (const a of c.pre ?? []) {

@@ -14,7 +14,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import type { ScreenData } from '../../src/core/puzzle/types.ts';
-import { CARD_TAP, closeStartCard } from './card.ts';
+import { closeStartCard } from './card.ts';
 import { CASES_BY_SCREEN, type FrameCase } from './cases/index.ts';
 import { Browser, sleep, type Page } from './cdp.ts';
 import { internalToPage, type Rect } from './coords.ts';
@@ -136,9 +136,9 @@ async function runCase(browser: Browser, c: FrameCase, outDir: string): Promise<
     let from = 0;
     if (!c.action) {
       from = await page.evaluate<number>('window.__ptSaid.length');
-      await closeStartCard(page, () => send(CARD_TAP));
+      await closeStartCard(page, send);
     } else {
-      await closeStartCard(page, () => send(CARD_TAP)); // 시작 카드(#285): 닫아야 장면이 돈다
+      await closeStartCard(page, send); // 시작 카드(#285): 닫아야 장면이 돈다
       await waitBusy(page, false); // 처음 연출(onEnter)
       const opts = c.floor ? { floorPoint: { x: c.floor[0], y: c.floor[1] } } : {};
       for (const a of c.pre ?? []) {
