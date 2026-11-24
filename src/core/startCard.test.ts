@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import texts from '../../content/text/ja.json';
 import { screenTextKey } from './screenPick';
 import { INTERNAL_WIDTH } from './config';
-import { CARD_LOCK_TICKS, cardFacePx, cardPointer, cardRowGapPx, cardTight, cardInput, cardReady, cardText, cardTick, createStartCard } from './startCard';
+import { CARD_LOCK_TICKS, entryCardKind, reopenCard, cardFacePx, cardPointer, cardRowGapPx, cardTight, cardInput, cardReady, cardText, cardTick, createStartCard } from './startCard';
 
 const TEXT: Readonly<Record<string, string>> = texts;
 const t = (id: string): string => TEXT[id] ?? id;
@@ -35,18 +35,18 @@ describe('시작 카드 (ui-interaction.md 6-2-1절, #285)', () => {
 
   it('글은 6-2-6절 키를 다 채우고, 특기 줄은 `동사: 설명`이다', () => {
     const card = cardText(t);
-    const all = [card.goal, card.why, card.gauge, card.start, ...card.rows.flatMap((r) => [r.name, r.ability])];
+    const all = [card.goal, card.why, card.gauge!, card.start, ...card.rows.flatMap((r) => [r.name, r.ability])];
     expect(all.filter((s) => s === '' || /^(ui|char)\./.test(s) || s.includes(': ui.'))).toEqual([]);
     expect(card.rows.map((r) => r.id)).toEqual(['jjuk', 'mukjik', 'ppik']);
     expect(card.rows[1]).toEqual({ id: 'mukjik', name: 'ズッシー', ability: '特技「ドスン」全体重で踏みつける' });
   });
 
   it('카드 글은 줄마다 30자 이하(휴대폰 13px × 30 < 카드 폭, 6-2-6절). 화면마다 바뀌는 목표·이유 줄도(#380)', () => {
-    for (const screen of ['magpie_nest', 'park_fountain']) {
+    for (const screen of ['magpie_nest', 'park_fountain', 'laundromat']) {
       const ts = (id: string): string => TEXT[screenTextKey(TEXT, screen, id)] ?? id;
       for (const pointer of ['touch', 'mouse'] as const) {
         const card = cardText(ts, pointer);
-        const lines = [card.goal, card.why, card.gauge, card.start, ...card.rows.map((r) => r.ability)];
+        const lines = [card.goal, card.why, card.gauge!, card.start, ...card.rows.map((r) => r.ability)];
         expect(lines.filter((s) => [...s].length > 30), `${screen} ${pointer}`).toEqual([]);
       }
     }
@@ -71,7 +71,7 @@ describe('시작 카드 (ui-interaction.md 6-2-1절, #285)', () => {
 
   it('목표·이유 줄은 자동 줄바꿈이 걸려서 더 짧게: 목표 16자, 이유 20자 이하(#380)', () => {
     // 667×375 압축 카드에서 27자 이유 줄이 `出られ／ない`로 낱말 중간에서 접혔다(PR 스크린샷). 화면 1은 11자·18자.
-    for (const screen of ['magpie_nest', 'park_fountain']) {
+    for (const screen of ['magpie_nest', 'park_fountain', 'laundromat']) {
       const card = cardText((id) => TEXT[screenTextKey(TEXT, screen, id)] ?? id);
       expect([...card.goal].length, `${screen} ${card.goal}`).toBeLessThanOrEqual(16);
       expect([...card.why].length, `${screen} ${card.why}`).toBeLessThanOrEqual(20);
@@ -132,5 +132,47 @@ describe('시작 카드 (ui-interaction.md 6-2-1절, #285)', () => {
       const device = cardRowGapPx(font, dpr) * dpr;
       expect(Math.abs(device - Math.round(device)), `${font}@${dpr}`).toBeLessThan(1e-9);
     }
+  });
+});
+
+describe('판에 들어갈 때 카드 종류 (ui-interaction.md 11-1-1절, #892)', () => {
+  const ORDER = ['magpie_nest', 'park_fountain', 'laundromat'];
+
+  // #892 표 다섯 입구. 입구는 함수에 안 들어간다: 어디서 왔든 "순서 몇 번째 판이냐"만 본다.
+  it.each([
+    ['다음 판 넘어가기(2번째 판)', ORDER, 1, 'short'],
+    ['다음 판 넘어가기(마지막 판)', ORDER, 2, 'short'],
+    ['타이틀 つづき, 첫 판 아님', ORDER, 1, 'short'],
+    ['타이틀 はじめ / つづき 첫 판', ORDER, 0, 'full'],
+    ['맵 → 깬 첫 판', ORDER, 0, 'full'],
+    ['맵 → 깬 2번째 판', ORDER, 1, 'short'],
+    ['게임 안 타이틀 はじめ(order[0])', ORDER, 0, 'full'],
+    ['?screen=<id> 화면 하나(순서 없음)', null, 0, 'full'],
+    ['?playtest=1&order=a,a 같은 id 두 번째', ['magpie_nest', 'magpie_nest'], 1, 'short'],
+  ] as const)('%s → %s', (_, order, index, kind) => {
+    expect(entryCardKind(order, index)).toBe(kind);
+  });
+
+  it('짧은 카드는 목표·이유·시작 줄만: 특기 줄·게이지 줄을 뺀다', () => {
+    const ts = (id: string): string => TEXT[screenTextKey(TEXT, 'park_fountain', id)] ?? id;
+    const full = cardText(ts, 'touch', 'full');
+    const short = cardText(ts, 'touch', 'short');
+    expect(short.rows).toEqual([]);
+    expect(short.gauge).toBeNull();
+    expect({ goal: short.goal, why: short.why, start: short.start }).toEqual({ goal: full.goal, why: full.why, start: full.start });
+    expect(full.rows).toHaveLength(3);
+    expect(cardText(ts).gauge).toBe(full.gauge); // 기본은 전체 카드
+  });
+
+  it('다시 띄우면 잠금 1.0초를 처음부터 센다', () => {
+    const c = createStartCard();
+    for (let i = 0; i < CARD_LOCK_TICKS; i++) cardTick(c);
+    cardInput(c);
+    expect(c.open).toBe(false);
+    reopenCard(c);
+    expect(c.open).toBe(true);
+    expect(cardReady(c)).toBe(false);
+    expect(cardInput(c)).toBe(true);
+    expect(c.open).toBe(true);
   });
 });

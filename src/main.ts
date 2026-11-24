@@ -14,7 +14,7 @@ import { actorEdgeAt, besideFeetAt, dustPush, FX_COLORS, FX_STYLE, fxTextSpot, S
 import { drawnByShape, frameNudges, fxNudges, particleFx, shapeParticles, type Nudge } from './core/fxShape';
 import type { HitBox } from './core/hit';
 import { cutCenter } from './core/cutPlace';
-import { cardFacePx, cardInput, cardPointer, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
+import { cardFacePx, cardInput, cardPointer, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard, entryCardKind, reopenCard, type CardKind } from './core/startCard';
 import { createFirstNotes, currentNote, labelKey, noteAction, noteGauge, noteHover, noteStood, noteSwitch, noteSwitched, noteTap, noteWalkDone, noteWalkSkipped, noteWalkStart, noteWalkTap, selectLabelText, standLabel, standSelect } from './core/firstNotes';
 import { cutFontPx, firstSwitchText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, switchText, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
@@ -235,7 +235,7 @@ if (PLAYTEST) {
   w.__gcLayout = () => sceneLayout(session.data, session.scene);
   w.__gcFallbacks = () => [...fallbacks].sort();
   // 여러 화면 연결(11-6절): 재생 도구가 지금 화면·순서 위치·흐름 단계를 읽는다. `order`가 null이면 연결을 안 타는 판이다.
-  w.__gcFlow = () => ({ order: ORDER, index: orderIndex, screen: session.data.screen.id, phase: flow.phase, replay: replaying });
+  w.__gcFlow = () => ({ order: ORDER, index: orderIndex, screen: session.data.screen.id, phase: flow.phase, replay: replaying, card: startCard.open ? cardKind : null });
 }
 
 /** 터치 첫 탭으로 고른 대상의 라벨. 실행하거나 다른 걸 누르면 지운다. */
@@ -257,6 +257,11 @@ function buildTag(sha: string | undefined): string {
 
 /** 시작 카드(설계 6-2-1절). 떠 있는 동안 장면은 멈추고(진입 연출 포함) 입력은 카드만 받는다. */
 const startCard = createStartCard();
+/**
+ * 지금 카드 종류(11-1-1절, #892). 첫 판(또는 `?screen=` 화면 하나)은 전체, 그 밖은 짧은 카드다.
+ * 페이지 첫 판은 여기서, 그 뒤 판(다음 판·게임 안 맵·타이틀)은 밝아짐이 끝난 틱에 `openEntryCard`가 정한다.
+ */
+let cardKind: CardKind = entryCardKind(ORDER, orderIndex);
 
 /**
  * 세로 화면 안내(설계 9절, #624). 안내 자체는 index.html CSS가 같은 쿼리로 띄운다(JS 전부터 보인다).
@@ -272,12 +277,10 @@ const playNow = (): number => gameNow(pause, performance.now());
 const cardFaces = buildCard();
 
 function buildCard(): { id: CharacterId; el: HTMLCanvasElement; ctx: CanvasRenderingContext2D | null; drawn: boolean }[] {
-  const text = cardText(t, cardPointer(window.matchMedia?.bind(window)));
-  need('#card .goal').textContent = text.goal;
-  need('#card .why').textContent = text.why;
-  need('#card .gauge').textContent = text.gauge;
-  need('#card .start').textContent = `${text.start} ▶`;
+  // 특기 줄은 화면과 상관없어서 한 번만 만든다. 화면마다 바뀌는 줄·카드 종류는 `fillCard`가 넣는다.
+  const text = cardText(t, 'mouse', 'full');
   need('#card .build').textContent = buildTag(import.meta.env.VITE_BUILD_SHA);
+  fillCard();
   // 카드는 로딩이 끝난 뒤 renderCard가 띄운다(#387). 재생 도구(`card.ts`)는 `#loading`이 사라질 때까지 기다렸다가 카드를 찾는다.
   const list = need('#card ul');
   return text.rows.map((row) => {
@@ -295,6 +298,29 @@ function buildCard(): { id: CharacterId; el: HTMLCanvasElement; ctx: CanvasRende
     list.append(li);
     return { id: row.id, el: face, ctx: face.getContext('2d'), drawn: false };
   });
+}
+
+/**
+ * 카드 글을 지금 판·종류로(11-1-1절). 짧은 카드는 특기 줄(`ul`)·게이지 줄을 숨긴다. 목표·이유는 `t`가 지금 화면 키로 찾는다(#380).
+ * 시작 줄은 띄울 때마다 장치 특성으로 다시 고른다(#364).
+ */
+function fillCard(): void {
+  const text = cardText(t, cardPointer(window.matchMedia?.bind(window)), cardKind);
+  need('#card .goal').textContent = text.goal;
+  need('#card .why').textContent = text.why;
+  need('#card .start').textContent = `${text.start} ▶`;
+  const gauge = need('#card .gauge');
+  gauge.hidden = text.gauge === null;
+  gauge.textContent = text.gauge ?? '';
+  need('#card ul').hidden = cardKind === 'short';
+  cardEl.dataset.kind = cardKind;
+}
+
+/** 다음 판·메뉴에서 고른 판이 다 밝아진 틱에 카드를 띄운다(11-1 표 "밝아짐 → 짧은 시작 카드"). 닫기 전까지 진입 연출은 멈춰 있다. */
+function openEntryCard(): void {
+  cardKind = entryCardKind(ORDER, orderIndex);
+  fillCard();
+  reopenCard(startCard);
 }
 
 // 카드 닫기: 카드 위·캔버스 밖·키보드 어디서든. 캔버스 탭은 캔버스 핸들러가 먼저 받아 버리고(카드가 떠 있으면 무시) 여기로 올라온다.
@@ -349,8 +375,10 @@ function stepFlow(): void {
     writeSave(orderIndex, pending ? enterCharacter(active, pending.session.data.screen.start.at, CHARACTERS.map((c) => c.id)) : active);
     return;
   }
+  const fadingIn = flow.phase === 'fadeIn';
   const r = flowTick(flow, pending !== null && artReady(pending.session.art));
   flow = r.flow;
+  if (fadingIn && flow.phase === 'play') openEntryCard();
   if (flow.phase === 'menu') {
     if (!menuOpen) void openMenu();
     return;
@@ -372,7 +400,7 @@ function stepFlow(): void {
 
 /**
  * 다시 한 판의 카드를 탭해 다 어두워지면 맵(3-4절). 맵 `もどる`는 타이틀이고, 거기서 다시 고른 판으로 들어간다.
- * 고른 판은 다음 판 넘어가기와 같은 길(다 검은 채 그림 기다림 → 바꾸기 → 밝아짐)이다. 시작 카드는 다시 안 띄운다(11-1-1 짧은 카드는 아직 없음).
+ * 고른 판은 다음 판 넘어가기와 같은 길(다 검은 채 그림 기다림 → 바꾸기 → 밝아짐 → 시작 카드)이다. 카드 종류는 고른 판 위치로 정한다(`entryCardKind`, #892).
  * `はじめ`(두 번 눌러 확인)면 페이지 첫 타이틀과 같이 세이브를 지운다.
  */
 async function openMenu(): Promise<void> {
