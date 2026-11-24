@@ -123,7 +123,13 @@ export function mapPress(card: MapCard, prev: SaveData | null): TitleAction | nu
 // 도구용 쿼리를 새로 만들면 여기에 같이 넣는다. 빠지면 그 도구만 타이틀에서 멈춘다(#876 Luna 리뷰).
 export const TITLE_SKIP_KEYS = ['screen', 'playtest', 'order'] as const;
 
+/**
+ * 예외 하나: `?playtest=1&title=1`이면 타이틀을 띄운다. 재생 도구가 훅을 켠 채 타이틀 → 맵 → 다시 하기 길을 실제 클릭으로
+ * 타야 해서다(`solve.ts --via-map`, #792 완료 조건 4). `title=1`만 있거나 `playtest`가 없으면 예외가 아니다(기본 링크 동작 변화 0).
+ * `?screen=`·`?order=`와 같이 오면 순서·세이브가 없는 판이라 main.ts가 어차피 타이틀을 안 띄운다.
+ */
 export function skipsTitle(query: (key: string) => string | null): boolean {
+  if (query('playtest') === '1' && query('title') === '1') return false;
   return TITLE_SKIP_KEYS.some((k) => query(k) !== null);
 }
 

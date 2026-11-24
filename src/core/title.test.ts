@@ -118,6 +118,13 @@ describe('skipsTitle (1절)', () => {
     expect(skipsTitle(q('?playtest=1&order=magpie_nest,park_fountain'))).toBe(true);
   });
   it('모르는 쿼리는 타이틀을 막지 않는다', () => expect(skipsTitle(q('?utm_source=x'))).toBe(false));
+  it('재생 도구 `?playtest=1&title=1`만 타이틀을 띄운다(--via-map)', () => {
+    expect(skipsTitle(q('?playtest=1&title=1'))).toBe(false);
+    expect(skipsTitle(q('?title=1&playtest=1'))).toBe(false);
+    expect(skipsTitle(q('?playtest=1&title=0'))).toBe(true);
+    expect(skipsTitle(q('?playtest=0&title=1'))).toBe(true);
+    expect(skipsTitle(q('?screen=magpie_nest&title=1'))).toBe(true);
+  });
 });
 
 describe('타이틀 자리·글 (2절, 4절)', () => {

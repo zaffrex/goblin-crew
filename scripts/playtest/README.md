@@ -30,6 +30,12 @@ node --import ./scripts/playtest/register.mjs scripts/playtest/solve.ts --screen
 
 **시작 카드(#285)**: 게임을 열면 카드가 떠 있고 그동안 장면이 멈춘다. 세 도구 모두 `card.ts` `closeStartCard`로 잠금(1.0초, `#card[data-ready]`)이 풀리길 기다렸다가 화면 가운데를 한 번 눌러 닫는다. 카드가 없는 빌드면 누르지 않는다(그 탭은 바닥 걷기라 결과가 바뀐다).
 
+**맵 다시 하기(#792 완료 조건 4)**: `solve.ts --deploy --via-map`은 `?playtest=1&title=1`로 연다(이 둘이 같이 있을 때만 훅을 켠 채 타이틀이 뜬다, `core/title.ts` `skipsTitle`). `はじめ` → 첫 판 클리어 → 카드 → 둘째 판 입구까지 간 뒤, 같은 프로필로 다시 열어 `マップ` → 첫 판 카드 → 다시 클리어 → 카드 다음 줄 `ui.map.return`(마우스면 `_click`) → 탭 → 맵(그 카드에 초점)을 실제 클릭·탭으로 탄다. 다시 깨는 동안 세이브 checkpoint·깬 화면이 그대로인지 본다. `--touch`로 휴대폰 가로도 같다.
+
+```bash
+node --import ./scripts/playtest/register.mjs scripts/playtest/solve.ts --deploy --via-map [--touch] --url http://localhost:4173/ --out /tmp/via-map --no-sandbox
+```
+
 **타이틀(#792, #885)**: 기본 링크(쿼리 없음)에는 카드 앞에 타이틀이 뜬다. `card.ts` `passTitle`이 `#title`의 `はじめ`(`button[data-button="new"]`) 가운데를 실제 클릭/탭으로 누르고, 확인(노랑)이 뜨면 0.5초 뒤 한 번 더 눌러 늘 첫 판 처음부터 간다(세이브가 있으면 지워진다). 그다음 밝아짐 0.3초 동안 숨은 카드가 뜰 때까지 기다린다. `closeStartCard`가 이걸 먼저 부르고, `smoke.ts`는 카드 맞춤 검사 전에 따로 부른다. `?screen=`·`?playtest=1`이면 타이틀이 없어서 아무것도 안 누른다.
 
 결과: `<out>/report.md`, `report.json`, 뷰포트별 PNG. A4 콘솔 에러나 입력 경로 실패면 종료 코드 1, A5·A6는 경고만.
