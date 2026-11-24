@@ -21,7 +21,7 @@ const TILT_KEYS = ['rest', 'weight', 'pivot', 'run', 'draw'];
 const NO_FLOOR_KEYS = ['box', 'y'];
 const STATE_KEYS = ['when', 'draw', 'loop', 'layer'];
 const OVERLAY_KEYS = ['sortY', 'draw'];
-const ANIM_KEYS = ['ms', 'frames', 'layer', 'tilt', 'variants', 'hold'];
+const ANIM_KEYS = ['ms', 'frames', 'layer', 'tilt', 'variants', 'hold', 'object'];
 const VARIANT_KEYS = ['when', 'ms', 'frames', 'layer', 'tilt'];
 const LOOP_KEYS = ['ms', 'frames'];
 // 11절(개정 4): 효과 자리와 효과 anim
@@ -228,10 +228,13 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
     }
     unknownKeys(o, OBJECT_KEYS, w, problems);
     const ids = o.ids ?? [key];
-    if (!Array.isArray(ids) || ids.length === 0) {
-      problems.push(`${w}: ids는 비어 있지 않은 배열이어야 한다`);
+    // 15절(개정 11): `ids: []`(적어서 비움) = 장식 물건. 대상 ID를 맡지 않고, anim은 원본 `object`로만 받는다.
+    if (!Array.isArray(ids) || (ids.length === 0 && o.ids === undefined)) {
+      problems.push(`${w}: ids는 배열이어야 한다(장식 물건만 [])`);
       continue;
     }
+    if (ids.length === 0 && (o.overlay !== undefined || o.tilt !== undefined || o.noFloor !== undefined))
+      problems.push(`${w}: 장식 물건(ids: [])은 앞판(overlay)·기울기(tilt)·판 밑 바닥(noFloor)을 둘 수 없다(개정 11)`);
     for (const t of ids) {
       if (!knownIds.has(t)) problems.push(`${w}: '${t}'는 화면 JSON의 hotspot·spot ID가 아니다`);
       if (owner.has(t)) problems.push(`${w}: '${t}'를 '${owner.get(t)}'도 맡는다(한 ID는 물건 하나만)`);
@@ -320,6 +323,7 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
   // ── 일시 연출(4·5절). 대상은 어떤 물건의 ID, ms 합 ≤ 1500. 연출은 움직이므로 히트 박스 겹침은 보지 않는다.
   const anims = {};
   const tiltKeys = new Set(objects.filter((o) => o.tilt).map((o) => o.key));
+  const pictureKeys = new Set(objects.filter((o) => o.effect === undefined).map((o) => o.key));
   for (const [name, a] of Object.entries(SCENE.anims ?? {})) {
     const w = `anims['${name}']`;
     const isFx = a.effect !== undefined;
@@ -343,7 +347,14 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
       anims[name] = { object: fxSlots.has(a.effect) ? a.effect : null, frames: [], ms: [a.ms], layer: 'back', mode: a.mode, ...(hold ? { hold } : {}) };
       continue;
     }
-    if (!owner.has(target)) problems.push(`${w}: 대상 '${target}'을 맡은 물건이 없다(objects 키 또는 ids)`);
+    // 15절(개정 11): 원본 `object`가 있으면 그 그림 물건을 바꿔 그린다. 대상은 화면 JSON ID면 되고 그 물건이 맡지 않아도 된다.
+    let objectKey = owner.get(target) ?? null;
+    if (a.object !== undefined) {
+      if (!pictureKeys.has(a.object)) problems.push(`${w}.object: '${a.object}'는 그림 물건 키가 아니다(${[...pictureKeys].join(', ')})`);
+      else if (a.object === objectKey) problems.push(`${w}.object: '${a.object}'는 대상 '${target}'을 이미 맡은 물건이다(필드를 뺀다)`);
+      if (!knownIds.has(target)) problems.push(`${w}: 대상 '${target}'는 화면 JSON의 hotspot·spot ID가 아니다`);
+      objectKey = pictureKeys.has(a.object) ? a.object : null;
+    } else if (!owner.has(target)) problems.push(`${w}: 대상 '${target}'을 맡은 물건이 없다(objects 키 또는 ids, 장식 물건이면 object)`);
     if (!Array.isArray(a.frames) || a.frames.length === 0) {
       problems.push(`${w}: frames가 비었다`);
       continue;
@@ -358,16 +369,16 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
       const res = { frames, ms: ms ?? [], layer: layerOf(src.layer, where) };
       // 12-5절(개정 6): 칸별 기울기 d. 판 위 발이 그 칸의 판 높이를 따른다. 기울기 물건의 anim만, 칸 수와 같은 길이의 정수.
       if (src.tilt !== undefined) {
-        if (!tiltKeys.has(owner.get(target))) problems.push(`${where}.tilt: 대상 물건에 tilt가 없다(칸별 기울기는 기울기 물건 anim만)`);
+        if (!tiltKeys.has(objectKey)) problems.push(`${where}.tilt: 대상 물건에 tilt가 없다(칸별 기울기는 기울기 물건 anim만)`);
         else if (!Array.isArray(src.tilt) || src.tilt.length !== frames.length || !src.tilt.every(Number.isInteger))
           problems.push(`${where}.tilt: frames와 같은 길이(${frames.length})의 정수 배열이어야 한다`);
         else res.tilt = [...src.tilt];
       }
       return res;
     };
-    const out = { object: owner.get(target) ?? null, ...one(a, w), ...(hold ? { hold } : {}) };
+    const out = { object: objectKey, ...one(a, w), ...(hold ? { hold } : {}) };
     // 기울기 물건은 판 위 발이 멈춘 기울기(`tiltOf`)를 따라서, 붙든 anim 칸과 발이 어긋난다.
-    if (hold && tiltKeys.has(owner.get(target))) problems.push(`${w}.hold: 기울기 물건 anim은 붙들 수 없다(판 위 발이 멈춘 기울기를 따른다)`);
+    if (hold && tiltKeys.has(objectKey)) problems.push(`${w}.hold: 기울기 물건 anim은 붙들 수 없다(판 위 발이 멈춘 기울기를 따른다)`);
     // 4-1절(개정 1): 갈래는 첫 일치, 없으면 기본. 갈래 layer는 기본을 물려받지 않는다(없으면 back).
     if (a.variants !== undefined) {
       const variants = [];

@@ -11,7 +11,7 @@ import { hitTest, type HitBox } from './hit';
 import { inHudZone } from './hud';
 import type { AlphaMask } from './alpha';
 import { hotspotBox, hudTargets, tap, type DrawnBody, type Intent, type TapContext, type UiState } from './interact';
-import { animOf, animTicks, coverFrames, frameOpaqueAt, restingBox, tiltDrop, timedIndex, type SceneAnim, type SceneArtMeta, type SceneObject, type SceneView } from './sceneArt';
+import { animObject, animOf, animTicks, coverFrames, frameOpaqueAt, restingBox, tiltDrop, timedIndex, type SceneAnim, type SceneArtMeta, type SceneObject, type SceneView } from './sceneArt';
 import { FX_TICKS, fxTicks } from './fx';
 import { sayText, seenSayKey } from './sayText';
 import { cueMs, spriteBox, spriteFacing, spriteFrame, spriteHit, spriteOpaqueAt, type Pose, type SpriteAnim, type SpriteMeta } from './sprite';
@@ -665,7 +665,8 @@ function hintEvent(data: SceneData, s: SceneState, source: StepSource, a: Action
 /**
  * 형식 기록 4-2절: `step`은 이벤트 재생 전에 플래그를 바꾸지만, 그림은 그 행동의 이전 플래그로 그리다가
  * (a) 그 물건(`ids` 포함, 효과 자리면 그 자리를 바꾸는 효과 anim)의 anim이 시작될 때, (b) 없으면 첫 anim이 끝날 때 바꾼다. anim이 하나도 없으면 바로 바꾼다.
- * 시트에 그 anim이 있는지는 보지 않는다(그림이 붙는 순서와 상관없이 시점이 같다).
+ * 시트에 그 anim이 있는지는 보지 않는다(그림이 붙는 순서와 상관없이 시점이 같다). 예외는 개정 11 원본 `object`다:
+ * `magpie.key_in`(메타 `object: 'nest'`)은 장식 물건 `nest`의 anim이고 `magpie`의 것이 아니다. 시트가 없으면 대상의 물건으로 본다.
  */
 function deferShown(data: SceneData, s: SceneState, before: Record<string, boolean>, events: readonly PuzzleEvent[]): void {
   const art = data.art;
@@ -679,7 +680,8 @@ function deferShown(data: SceneData, s: SceneState, before: Record<string, boole
   if (firstAnim < 0) return;
   for (const o of art.objects) {
     // 효과 자리(11-3절)는 ID가 없다. 메타에서 그 자리를 바꾸는 효과 anim(`object` = 자리 키)이 자기 anim이다.
-    const own = events.findIndex((e) => e.type === 'anim' && (o.ids.includes(e.target) || art.anims[`${e.target}.${e.name}`]?.object === o.key));
+    // 그림 물건은 그 anim이 바꿔 그리는 물건(개정 11: 메타 `object`가 대상의 물건보다 먼저)이 자기 것이다.
+    const own = events.findIndex((e) => e.type === 'anim' && (animObject(art, e.target, e.name)?.key === o.key || art.anims[`${e.target}.${e.name}`]?.object === o.key));
     s.shown[o.key] = own >= 0 ? { flags: { ...before }, seq: base + own, edge: 'start' } : { flags: { ...before }, seq: base + firstAnim, edge: 'end' };
   }
 }
@@ -1207,7 +1209,7 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
         return p;
       }
       // 물건 anim은 갈래를 anim 직전 보이는 플래그로 고르고(4-1절), 그 길이가 busy 길이다(5절). 없으면 임시 길이.
-      const obj = data.art?.objects.find((o) => o.ids.includes(ev.target));
+      const obj = data.art ? animObject(data.art, ev.target, ev.name) : null;
       const art = data.art && obj ? animOf(data.art, ev.target, ev.name, shownFlags(s, obj.key)) : null;
       if (art) {
         // 같은 물건의 다음 anim이 붙든 칸을 바꾼다(13절). 끝나면 이 anim이 `hold`인지에 따라 다시 붙들거나 멈춘 모습이다.

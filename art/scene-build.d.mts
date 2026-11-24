@@ -27,7 +27,7 @@ export interface SceneSrc {
     tilt?: { rest: number; weight: Record<string, number>; pivot: number; run: number; draw: Record<string, Draw> };
     noFloor?: { box: [number, number, number, number]; y: number };
   } & Record<string, unknown>>;
-  anims?: Record<string, { ms: number | number[]; frames: Draw[]; layer?: 'back' | 'front'; tilt?: number[]; hold?: boolean; variants?: ({ when: { flags: Record<string, boolean> }; ms: number | number[]; frames: Draw[]; layer?: 'back' | 'front'; tilt?: number[] } & Record<string, unknown>)[] } & Record<string, unknown>>;
+  anims?: Record<string, { ms: number | number[]; frames: Draw[]; layer?: 'back' | 'front'; tilt?: number[]; hold?: boolean; object?: string; variants?: ({ when: { flags: Record<string, boolean> }; ms: number | number[]; frames: Draw[]; layer?: 'back' | 'front'; tilt?: number[] } & Record<string, unknown>)[] } & Record<string, unknown>>;
 }
 export interface Frame { src: [number, number, number, number]; at: [number, number] }
 interface PicMeta { frame: number | null; layer: 'back' | 'front'; loop?: { frames: number[]; ms: number[] }; mode?: string }
