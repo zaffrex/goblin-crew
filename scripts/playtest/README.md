@@ -30,6 +30,8 @@ node --import ./scripts/playtest/register.mjs scripts/playtest/solve.ts --screen
 
 **시작 카드(#285)**: 게임을 열면 카드가 떠 있고 그동안 장면이 멈춘다. 세 도구 모두 `card.ts` `closeStartCard`로 잠금(1.0초, `#card[data-ready]`)이 풀리길 기다렸다가 화면 가운데를 한 번 눌러 닫는다. 카드가 없는 빌드면 누르지 않는다(그 탭은 바닥 걷기라 결과가 바뀐다).
 
+**타이틀(#792, #885)**: 기본 링크(쿼리 없음)에는 카드 앞에 타이틀이 뜬다. `card.ts` `passTitle`이 `#title`의 `はじめ`(`button[data-button="new"]`) 가운데를 실제 클릭/탭으로 누르고, 확인(노랑)이 뜨면 0.5초 뒤 한 번 더 눌러 늘 첫 판 처음부터 간다(세이브가 있으면 지워진다). 그다음 밝아짐 0.3초 동안 숨은 카드가 뜰 때까지 기다린다. `closeStartCard`가 이걸 먼저 부르고, `smoke.ts`는 카드 맞춤 검사 전에 따로 부른다. `?screen=`·`?playtest=1`이면 타이틀이 없어서 아무것도 안 누른다.
+
 결과: `<out>/report.md`, `report.json`, 뷰포트별 PNG. A4 콘솔 에러나 입력 경로 실패면 종료 코드 1, A5·A6는 경고만.
 
 **A7 임시 그림(#142, 판정 2 시작 조건)**: 재생 내내 엔진이 실제 그림 대신 임시 그림으로 그린 것을 `?playtest=1` 훅 `window.__gcFallbacks()`로 모아 `report.md`에 표로 적는다. 이름은 `bg`(임시 방, 배경 draft), `box:<대상 ID>`(물건 시트가 안 그리는 임시 상자), `char:<캐릭터>:<자세>`(실루엣, 시트에 그 자세가 없음). 그림이 읽히는 중인 프레임은 세지 않는다. 기본은 경고만이고, 판정 2 요청 전에는 `--require-art`로 돌려 하나라도 있으면 종료 코드 1을 받는다.

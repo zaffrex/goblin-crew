@@ -9,7 +9,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
-import { CARD_TAP, closeStartCard } from './card.ts';
+import { closeStartCard } from './card.ts';
 import { Browser, sleep, type Page } from './cdp.ts';
 import { internalToPage, type Rect } from './coords.ts';
 import { MAX_STEPS_PER_FRAME, TICK_MS, WALK_AREA, WALK_SPEED } from '../../src/core/config.ts';
@@ -144,7 +144,7 @@ async function measure(args: Cli, browser: Browser, v: Viewport, rate: number): 
   const url = new URL(args.url!);
   url.searchParams.set('playtest', '1');
   await page.goto(url.toString());
-  await closeStartCard(page, () => send(page, v, CARD_TAP));
+  await closeStartCard(page, (at) => send(page, v, at));
   // 진입 연출이 끝날 때까지
   for (let i = 0; (await layoutOf(page)).busy; i++) {
     if (i > 400) throw new Error('진입 연출이 20초 넘게 안 끝남');
