@@ -9,6 +9,7 @@ on:
     - cron: "29 * * * *"   # frontend tick
     - cron: "41 * * * *"   # backend tick
     - cron: "53 * * * *"   # infra tick
+    - cron: "11 * * * *"   # puzzle tick (tick_every_hours_by_role로 6시간 간격, #915)
     - cron: "0 8 * * 5"    # 금 17:00 KST 회고 + 주간 리포트
   workflow_dispatch:
 
@@ -38,7 +39,7 @@ jobs:
           run() { echo "dispatch: $*"; gh workflow run agent.yml -f role="$1" -f mode="$2" -f context="$3"; }
           tick() {
             jq -e --arg r "$1" '.tick_roles | index($r)' $cfg >/dev/null || { echo "$1 not in tick_roles"; return; }
-            every=$(jq -r .tick_every_hours $cfg)
+            every=$(jq -r --arg r "$1" '.tick_every_hours_by_role[$r] // .tick_every_hours' $cfg)
             if [ $(( $(date -u +%-H) % every )) -ne 0 ]; then echo "skip tick (every ${every}h)"; return; fi
             # cron이 늦게 오면 slack-listener 감시가 먼저 깨웠을 수 있다. 45분 안에 같은 역할 tick이 있으면 건너뛴다.
             since=$(date -u -d '-45 min' +%Y-%m-%dT%H:%M:%SZ)
@@ -59,6 +60,7 @@ jobs:
             "29 * * * *")  tick frontend ;;
             "41 * * * *")  tick backend ;;
             "53 * * * *")  tick infra ;;
+            "11 * * * *")  tick puzzle ;;
             "0 8 * * 5")   meeting "retro: 주간 회고, 끝나면 진마씨께 주간 리포트" ;;
             manual)        for r in pm designer frontend backend infra; do run "$r" tick "수동 전체 실행"; done ;;
           esac
