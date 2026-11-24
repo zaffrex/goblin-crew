@@ -93,6 +93,40 @@ describe("ja.json 줄 규칙 (ja-text.md 2절, #280)", () => {
         expect(len(line), `${k} ${line}`).toBeLessThanOrEqual(12);
   });
 
+  it("타이틀·맵 글은 예산 안 (title-and-map.md 4절, #792)", () => {
+    const budget: Record<string, number> = {
+      "ui.title.continue": 6,
+      "ui.title.new": 6,
+      "ui.title.map": 6,
+      "ui.title.new_confirm": 20,
+      "ui.map.back": 4,
+      "ui.map.locked": 20,
+      "ui.map.return": 12,
+      "ui.map.return_click": 12,
+    };
+    for (const [k, max] of Object.entries(budget)) {
+      expect(texts[k], k).toBeTruthy();
+      expect(len(texts[k]!), `${k} ${texts[k]}`).toBeLessThanOrEqual(max);
+    }
+    const order = JSON.parse(
+      readFileSync(new URL("../../content/screens/order.json", import.meta.url), "utf8"),
+    ) as string[];
+    for (const id of order) {
+      const name = texts[`${id}.map.name`];
+      expect(name, `${id}.map.name`).toBeTruthy();
+      expect(len(name!), `${id}.map.name ${name}`).toBeLessThanOrEqual(8);
+    }
+  });
+
+  it("타이틀 버튼 셋은 첫 글자가 다르고, 게임 안 처음부터 버튼과 같은 말이 아니다 (#792)", () => {
+    const buttons = ["ui.title.continue", "ui.title.new", "ui.title.map"].map((k) => texts[k]!);
+    expect(new Set(buttons.map((b) => [...b][0])).size).toBe(3);
+    expect(texts["ui.title.new"]).not.toBe(texts["ui.restart"]);
+    // 게임 안 버튼의 호버·확인 글은 "이 화면만"이라는 걸 말한다 (ui-interaction 6-7-4).
+    for (const k of ["ui.restart_hover", "ui.restart_confirm"])
+      expect(texts[k], k).toContain("このステージ");
+  });
+
   it("검사기 자체: 예외 1·2는 넘기고 문장 중간 줄 머리 금칙은 잡는다", () => {
     expect(kinsokuViolations("…痛い。")).toEqual([]); // 예외 1
     expect(kinsokuViolations("やった！\n…あれ？")).toEqual([]); // 예외 2
