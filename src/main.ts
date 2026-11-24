@@ -40,7 +40,9 @@ import { drawParticles, drawSceneBg, drawSceneFrame, drawSceneFx, loadSceneArt, 
 import { drawHead, drawSprite, spriteAlpha, spriteMetas, spriteState, type SpriteTop } from './engine/sprites';
 import { drawFxText, fxTextState, fxTextWidth } from './engine/fxText';
 import { hudIconState, paintHudIcon } from './engine/hudIcons';
-import { runTitle } from './engine/title';
+import { fadeOutCanvas, runTitle } from './engine/title';
+import { runMap } from './engine/map';
+import { mapReady } from './core/map';
 import { entryFadeCover, ENTRY_FADE_TICKS, loadingTextShown, skipsTitle, titleMenu, titleTextReady, withoutMap } from './core/title';
 
 function need<T extends HTMLElement>(selector: string): T {
@@ -94,21 +96,31 @@ const display = createDisplay(canvas, { width: INTERNAL_WIDTH, height: INTERNAL_
 
 /**
  * 타이틀(#792 2/3, 설계 `title-and-map.md`). 세이브가 켜진 기본 링크에서만 뜬다. 쿼리(팀 도구)면 건너뛴다(1절).
- * 버튼 글(Kai)이 글 파일에 아직 없으면 키 이름이 찍히지 않게 건너뛴다(`titleTextReady`). 맵 버튼은 3/3에서 붙인다.
+ * 버튼 글(Kai)이 글 파일에 아직 없으면 키 이름이 찍히지 않게 건너뛴다(`titleTextReady`). `マップ`는 맵 글이 있을 때만(`mapReady`, 3/3).
  * 판을 만들기 전에 기다리므로, 고른 시작 화면·세이브가 아래 판 만들기에 그대로 들어간다. 게임 입력 게이트는 안 바뀐다.
  */
-const TITLE =
-  saveStore && ORDER && !skipsTitle(query) && titleTextReady(TEXT)
-    ? await runTitle({
-        display,
-        menu: withoutMap(titleMenu(LOADED_SAVE, ORDER)),
-        order: ORDER,
-        text: (id) => TEXT[id] ?? id,
-        build: buildTag(import.meta.env.VITE_BUILD_SHA),
-        reload: () => saveStore.load(),
-        rotating: () => window.matchMedia?.(ROTATE_QUERY).matches ?? false,
-      })
-    : null;
+const TITLE = saveStore && ORDER && !skipsTitle(query) && titleTextReady(TEXT) ? await showTitle(saveStore, ORDER) : null;
+
+/**
+ * 타이틀과 맵(#792 3/3). 맵 글(`ui.map.*`, `<id>.map.name`)이 다 있고 카드 자리(3개)에 판이 다 들어갈 때만 `マップ`를 둔다.
+ * 맵에서 깬 카드를 누르면 그 판 처음부터 다시 한다(`prev` 그대로, `saveOnCard` 다시 하기 경로라 checkpoint 안 바뀜).
+ */
+function showTitle(store: LocalSaveStore, order: readonly string[]): ReturnType<typeof runTitle> {
+  const menu = titleMenu(LOADED_SAVE, order);
+  const text = (id: string): string => TEXT[id] ?? id;
+  const rotating = (): boolean => window.matchMedia?.(ROTATE_QUERY).matches ?? false;
+  const reload = (): ReturnType<LocalSaveStore['load']> => store.load();
+  return runTitle({
+    display,
+    menu: mapReady(TEXT, order) ? menu : withoutMap(menu),
+    order,
+    text,
+    build: buildTag(import.meta.env.VITE_BUILD_SHA),
+    reload,
+    rotating,
+    openMap: () => runMap({ display, order, prev: menu.prev, text, reload, rotating, fadeOut: fadeOutCanvas, startView: (id, art) => mapStartView(id, art) }),
+  });
+}
 // `はじめ`(두 번 눌러 확인함)은 세이브를 지운다(2-2절 ①). 안 지우면 첫 카드 전에 새로고침했을 때 옛 `つづき`가 다시 뜬다.
 if (TITLE && !TITLE.prev && LOADED_SAVE) await saveStore!.clear().catch((e: unknown) => console.warn('세이브를 지우지 못했습니다', e));
 /** 타이틀 뒤 밝아짐 남은 틱(2-4절). 로딩이 끝난 뒤 줄고, 0이 되면 시작 카드가 뜬다. 타이틀 없이 연 판은 0. */
@@ -148,10 +160,22 @@ function newScene(data: SceneData): SceneState {
 }
 
 function enterScreen(id: string): Session {
+  const art = loadSceneArt(id);
+  const data = screenData(id, art);
+  return { data, art, covered: art ? coveredIds(art.meta) : new Set<string>(), scene: newScene(data), loopClock: {}, spriteTops: {} };
+}
+
+/** 맵 썸네일(3-3절): 그 판 시작 상태의 그림 보기. 새 판 하나를 만들어 보기만 읽는다(캐릭터는 맵이 안 그린다). */
+function mapStartView(id: string, art: SceneArt): SceneView | null {
+  if (!SCREENS.has(id)) return null;
+  const data = screenData(id, art);
+  return sceneArtView(data, createScene(data));
+}
+
+function screenData(id: string, art: SceneArt | null): SceneData {
   const screen = SCREENS.get(id);
   if (!screen) throw new Error(`화면 ${id}가 번들에 없습니다`);
-  const art = loadSceneArt(id);
-  const data: SceneData = {
+  return {
     screen,
     characters: charactersJson as CharactersData,
     art: sceneArtMeta(id) ?? undefined,
@@ -162,7 +186,6 @@ function enterScreen(id: string): Session {
     // 바닥 동료의 보이는 그림 칸 판정(2-1절, #736). 이미지가 오기 전에는 null → 얼굴 상자만.
     alpha: { sprite: spriteAlpha, objects: () => (art?.objectsReady ? art.alpha : null) },
   };
-  return { data, art, covered: art ? coveredIds(art.meta) : new Set<string>(), scene: newScene(data), loopClock: {}, spriteTops: {} };
 }
 
 /** 순서 안 지금 위치. 같은 id가 두 번 나와도 위치로 센다(`flow.ts` nextIndex). 세이브에서 이어 하면 그 화면 위치다. */
