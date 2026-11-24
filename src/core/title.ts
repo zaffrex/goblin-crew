@@ -181,7 +181,7 @@ export function titleTextReady(text: Readonly<Record<string, string>>): boolean 
   return [TITLE_TEXT_KEYS.continue, TITLE_TEXT_KEYS.new, TITLE_CONFIRM_KEY].every((k) => typeof text[k] === 'string' && text[k] !== '');
 }
 
-/** 맵이 붙기 전(#792 2/3) 메뉴: `マップ`를 뺀다. 다 깬 세이브는 `はじめ`만 남는다(두 번 누르기는 그대로). */
+/** 맵을 못 띄우는 판(맵 글이 없거나 카드 자리보다 판이 많음, `core/map.ts` `mapReady`)의 메뉴: `マップ`를 뺀다. 다 깬 세이브는 `はじめ`만 남는다(두 번 누르기는 그대로). */
 export function withoutMap(menu: TitleMenu): TitleMenu {
   return { ...menu, buttons: menu.buttons.filter((b) => b !== 'map') };
 }

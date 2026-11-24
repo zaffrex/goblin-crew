@@ -51,3 +51,15 @@ export function paintHudIcon(el: HTMLElement, id: string, scale: number): boolea
   el.style.backgroundPosition = `${-cw * i * scale}px 0px`;
   return true;
 }
+
+/**
+ * 캔버스에 아이콘 칸 하나(20×20)를 1배로 그린다(맵 깸 도장, #792 3/3). 칸 왼쪽 위가 (x, y)다.
+ * 시트가 아직이거나 없는 id면 false(안 그린다).
+ */
+export function drawHudIcon(ctx: CanvasRenderingContext2D, id: string, x: number, y: number): boolean {
+  const i = META.icons[id];
+  if (i === undefined || state !== 'ready') return false;
+  const [cw = 20, ch = 20] = META.cell;
+  ctx.drawImage(image, cw * i, 0, cw, ch, x, y, cw, ch);
+  return true;
+}

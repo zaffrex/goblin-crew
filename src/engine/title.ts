@@ -14,6 +14,7 @@ import { assetUrl } from './assets';
 import type { Display } from './display';
 import { drawSceneBg, loadSceneArt } from './sceneArt';
 import { drawSprite, spriteState } from './sprites';
+import type { MapResult } from './map';
 
 interface LogoMeta {
   image: string;
@@ -38,6 +39,22 @@ export interface TitleDeps {
   reload: () => Promise<SaveData | null>;
   /** 세로 안내가 떠 있나. 떠 있으면 버튼을 안 받는다(9-5절). */
   rotating: () => boolean;
+  /** `マップ`(3절). 맵을 띄우고 닫힐 때까지 기다린다. 메뉴에 `マップ`가 없으면 안 불린다. */
+  openMap: () => Promise<MapResult>;
+}
+
+/** 캔버스를 0.3초 ink로 덮어 간다(2-4절, 11-1절). 다 검은 프레임을 그린 뒤 끝난다. 타이틀과 맵이 같이 쓴다. */
+export function fadeOutCanvas(draw: (cover: number) => void): Promise<void> {
+  return new Promise((resolve) => {
+    const from = performance.now();
+    const step = (): void => {
+      const cover = titleFadeCover(performance.now() - from);
+      draw(cover);
+      if (cover < 1) requestAnimationFrame(step);
+      else resolve();
+    };
+    step();
+  });
 }
 
 function need<T extends HTMLElement>(root: ParentNode, selector: string): T {
@@ -96,34 +113,42 @@ export function runTitle(deps: TitleDeps): Promise<TitleStart> {
   return new Promise<TitleStart>((resolve) => {
     let shown = false;
     let done = false;
+    /** 맵이 떠 있나. 그동안 타이틀은 그리지도 누르지도 않는다(캔버스는 맵이 쓴다). */
+    let inMap = false;
     let frame = 0;
 
-    function finish(start: TitleStart): void {
+    /** `faded`: 맵이 이미 어둡게 덮었으면 타이틀 그림으로 다시 덮지 않는다. */
+    function finish(start: TitleStart, faded = false): void {
       if (done) return;
       done = true;
       cancelAnimationFrame(frame);
       root.hidden = true;
       list.replaceChildren();
       // 어두워짐(2-4절, 11-1절 0.3초). 버튼 DOM은 바로 숨기고 캔버스(배경·셋·로고)만 ink로 덮어 간다. 다 검은 프레임을 그린 뒤 넘긴다.
-      const from = performance.now();
-      const fade = (): void => {
-        const cover = titleFadeCover(performance.now() - from);
-        draw(cover);
-        if (cover < 1) {
-          frame = requestAnimationFrame(fade);
-          return;
-        }
+      void (faded ? Promise.resolve() : fadeOutCanvas(draw)).then(() => {
         window.removeEventListener('resize', onResize);
         resolve(start);
-      };
-      fade();
+      });
+    }
+
+    async function openMap(): Promise<void> {
+      inMap = true;
+      root.hidden = true;
+      confirm.hidden = true;
+      const r = await deps.openMap();
+      if (r.kind === 'start') return finish(r.start, true);
+      inMap = false;
+      root.hidden = false;
+      // 돌아오면 `マップ` 버튼에 초점(들어간 곳으로 돌아온다).
+      buttons.find((el) => el.dataset.button === 'map')?.focus({ preventScroll: true });
     }
 
     async function press(el: HTMLButtonElement): Promise<void> {
-      if (done || !shown || deps.rotating()) return;
+      if (done || inMap || !shown || deps.rotating()) return;
       const b = el.dataset.button as keyof typeof TITLE_TEXT_KEYS;
       const action = titlePress(title, b, performance.now());
-      if (!action || action.kind === 'map') return;
+      if (!action) return;
+      if (action.kind === 'map') return openMap();
       if (action.kind === 'arm') return; // 노랑·확인 줄은 프레임에서 `titleArmed`로 그린다
       if (b !== 'continue') return finish(action);
       // 다른 탭이 그 사이 더 갔으면 그 세이브로 이어 간다. 이어 할 곳이 없어졌으면(다른 탭이 다 깸) 처음 화면에서 그 세이브를 이어 쓴다.
@@ -196,6 +221,7 @@ export function runTitle(deps: TitleDeps): Promise<TitleStart> {
         // 주 버튼에 초점(2-1절). Enter·Space로 바로 누른다.
         buttons[0]?.focus({ preventScroll: true });
       }
+      if (inMap) return;
       draw();
       placeRoot();
       const armed = titleArmed(title, performance.now());

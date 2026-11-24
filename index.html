@@ -148,6 +148,34 @@
           0.07em 0.07em 0 #000, -0.07em -0.07em 0 #000, 0.07em -0.07em 0 #000, -0.07em 0.07em 0 #000;
       }
       #title .confirm[hidden] { display: none; }
+      /* 깬 판 맵(#792 3/3, 설계 title-and-map.md 3절). `#title`과 같은 자리 맞추기(--s). 카드 그림(썸네일·테두리·도장)은 캔버스,
+         버튼은 그 위 투명 상자라 클릭·초점·키보드가 DOM으로 된다. 이름 줄은 카드 y +78, 높이 16, 12px. */
+      #map { position: fixed; margin: 0; --s: 1; user-select: none; }
+      #map[hidden] { display: none; }
+      #map button {
+        position: absolute; box-sizing: border-box; margin: 0; padding: 0; cursor: pointer; touch-action: manipulation;
+        font: 600 calc(14px * var(--s)) / 1 system-ui, sans-serif; color: #fffdf5;
+      }
+      #map .back { background: rgb(27 23 32 / 0.88); border: max(1px, calc(1px * var(--s))) solid #8a7d8f; border-radius: calc(2px * var(--s)); }
+      #map .cards button { background: transparent; border: 0; }
+      #map .cards .name {
+        position: absolute; left: 0; right: 0; top: calc(78 / 100 * 100%); height: calc(16 / 100 * 100%);
+        display: flex; align-items: center; justify-content: center; font-size: calc(12px * var(--s)); white-space: nowrap; color: #fff8ee;
+      }
+      #map .cards [data-state='locked'] .name { color: #b9adb5; }
+      #map .cards .q {
+        position: absolute; left: calc(4 / 128 * 100%); top: calc(4 / 100 * 100%); width: calc(120 / 128 * 100%); height: calc(68 / 100 * 100%);
+        display: flex; align-items: center; justify-content: center; font-size: calc(24px * var(--s)); color: #e6dcd6;
+      }
+      #map button:focus-visible { outline: 2px solid #fffdf5; outline-offset: 2px; }
+      /* 잠금 안내 줄: y 200, 가운데, 2초만(3-2절). cotton 글자 + 잉크 테두리(타이틀 확인 줄과 같은 0.07em 8방향). */
+      #map .locked {
+        position: absolute; left: 50%; top: calc(200 / 270 * 100%); transform: translateX(-50%); margin: 0; width: max-content;
+        font: 600 calc(14px * var(--s)) / 1 system-ui, sans-serif; color: #e6dcd6; pointer-events: none;
+        text-shadow: 0.07em 0 0 #000, -0.07em 0 0 #000, 0 0.07em 0 #000, 0 -0.07em 0 #000,
+          0.07em 0.07em 0 #000, -0.07em -0.07em 0 #000, 0.07em -0.07em 0 #000, -0.07em 0.07em 0 #000;
+      }
+      #map .locked[hidden] { display: none; }
       #title .build { position: absolute; right: 0.4em; bottom: 0.2em; margin: 0; font: 9px/1 system-ui, sans-serif; color: #fffdf5; opacity: 0.45; pointer-events: none; }
       /* 세로 화면 안내(#624, 설계 9절). 쿼리는 `core/rotate.ts` ROTATE_QUERY와 같은 문자열이다(rotate.test.ts가 본다).
          창 전체를 0번 ink로 불투명하게 덮어 밑의 카드·목표 줄·이름표가 비치지 않게 하고, 맨 위에 둔다(로딩 위도).
@@ -189,6 +217,11 @@
       <div class="buttons"></div>
       <p class="confirm" role="status" hidden></p>
       <p class="build"></p>
+    </div>
+    <div id="map" hidden>
+      <button class="back" type="button"></button>
+      <div class="cards"></div>
+      <p class="locked" role="status" hidden></p>
     </div>
     <div id="card" role="dialog" aria-modal="true" aria-labelledby="card-goal" hidden>
       <p id="card-goal" class="goal"></p>
