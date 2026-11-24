@@ -6,8 +6,9 @@
 //   O1 열쇠 + 나무 패(1칸): 길바닥·둥지·혹 속에서 같은 그림. 패가 넓어서 덕트 아래 끝에 걸린다(S5). 패가 열쇠보다 크고 밝게.
 //   O2 후드 위 빈 둥지(1칸) + 열쇠 든 둥지·반짝(2칸, `NEST_KEY`: 대기 반복, `magpie.key_in`·`key_out`).
 //   O3 틈 속 까치 머리·부리(2칸, `gap.snatch`).
+//   O6 덕트 혹(3칸, `DUCT_LUMP`: 가로 1 + 세로 걸림·끙끙 2. lump_travel·stuck·lump_back·lump_pop).
 // 미리보기·검사: node docs/design/screens/laundromat-bg-sketch.mjs (들창·틈·열쇠), node docs/design/screens/laundromat-gap-snatch-preview.mjs (틈 속 머리),
-//   node docs/design/screens/laundromat-nest-key-preview.mjs (둥지 속 열쇠)
+//   node docs/design/screens/laundromat-nest-key-preview.mjs (둥지 속 열쇠), node docs/design/screens/laundromat-duct-lump-preview.mjs (덕트 혹)
 
 import { C, Image, EMPTY } from '../lib/pixel.mjs';
 import { stamp, outlined } from '../lib/texture.mjs';
@@ -200,4 +201,135 @@ export const GAP_SNATCH = {
     (img) => gapHead(img, 'bite', GAP_HEAD_WITHDRAW),
     () => {},
   ],
+};
+
+// ═════════════ O6 덕트 혹 (3칸: 가로 1 + 세로 걸림 끙끙 2, 설계 laundromat.md 4절 1-2·3-2·2-2·6, 9-2 O6, E2) ═════════════
+// 열쇠 + 나무 패(O1)가 은색 주름관(laundromat.room.mjs DUCT) 속을 지나며 관을 밀어 부풀린 혹. 관은 찢어지지 않아 패는 안 보이고,
+// **모양으로만** 말한다: 둥근 공이 아니라 어깨가 각진 상자 모양 = "속에 넓적한 게 들었다"(S5 "패가 넓다").
+// 가운데 부푼 곳은 주름이 늘어나 간격이 넓어진다(관 주름 8px → 혹 위 5~6px 두세 줄이 휘어 벌어짐).
+// 만질 수 있는 것이라 ink 외곽선(ADR-0007 결정 3-1). 단 관과 이어지는 양 끝(관 안쪽 픽셀)은 외곽선을 지운다: 관 자체엔 외곽선이 없어서
+// 거기 세로 ink 줄이 남으면 "관 위에 붙인 스티커"로 보인다. 그래서 혹은 관에서 튀어나온 부분만 테두리가 있다.
+// 색은 관과 같은 은색 단(cotton 빛 / lint 몸 / lav·dusk 그늘). 뒤 벽 cotton(Y222)과는 ink 외곽선이 가른다.
+// 움직임은 그리지 않는다(E2): 칸 하나를 자리 여러 곳에 찍고(`at`만 다름) 보간 없이 80ms씩 건너뛴다. 빌드가 시트 칸으로 복사한다.
+//   가로 칸 `lumpH(cx)`: 가로 구간(y 52~63) 위를 왼쪽 판자 → 오른쪽 꺾임으로. 위아래로 3px씩 부푼 24×18.
+//   세로 칸 `lumpV(cy, { strain })`: 세로 구간(x 360~373). 좌우로 4px씩 부푼 22×22. 걸린 자리는 cy 150(= `duct` reachPoint 367,150,
+//     건조기 위 끝 164 바로 위). 세로 구간을 내려오는 자리도 같은 칸(0칸).
+//   strain(끙끙): 혹이 좌우 1px 더 부풀고, 바로 위 관(y 122~137)이 압력으로 1px씩 불룩, 양옆에 힘쓰는 금 둘씩.
+// 건조기(위 끝 164)보다 아래 픽셀은 잘라 낸다: 혹이 건조기 뒤 입구로 쑥 빠지는 `lump_pop`이 건조기 그림 앞에 그려지면 안 된다.
+const DUCT_GEO = { x: 360, w: 14, runY: 52, runH: 12, endX: 92, bottom: 164 }; // laundromat.room.mjs DUCT와 같은 값(검사가 대조한다)
+/** 걸린 자리(세로 칸 가운데). `duct` reachPoint와 같다 */
+export const LUMP_STUCK = { x: 367, y: 150 };
+/** lump_travel 자리: 가로 넷(cx) → 세로 하나(cy, 꺾인 뒤 내려오는 중) → 걸림(cy 150) */
+export const LUMP_PATH = { h: [110, 188, 268, 330], v: [96], stuck: LUMP_STUCK.y }; // 가로 자리는 걸이 줄(x 150·236·316)을 피한다
+
+const lumpExt = (c, half) => (Math.abs(c) <= half - 5 ? 3 : Math.abs(c) <= half - 3 ? 2 : Math.abs(c) <= half - 1.5 ? 1 : 0);
+
+/** 관 속 픽셀이면 참(외곽선을 지울 자리) */
+function insideDuct(x, y) {
+  const { x: vx, w, runY, runH, endX, bottom } = DUCT_GEO;
+  return (y >= runY && y < runY + runH && x >= endX && x < vx + w) || (x >= vx && x < vx + w && y >= runY && y < bottom);
+}
+
+/** 외곽선을 붙이고, 관 속 외곽선은 지우고, 건조기 위 끝 아래는 잘라 img에 겹친다 */
+function placeLump(img, t) {
+  const o = outlined(t);
+  for (let y = 0; y < o.h; y++)
+    for (let x = 0; x < o.w; x++) {
+      const c = o.get(x, y);
+      if (c === EMPTY || y >= DUCT_GEO.bottom) continue;
+      if (c === C.ink && t.get(x, y) === EMPTY && insideDuct(x, y)) continue;
+      img.set(x, y, c);
+    }
+}
+
+/** 가로 칸(새 칸 1). cx = 혹 가운데 x. 가로 구간 y 52~63에서 위아래로 3px 부푼다. */
+export function lumpH(img, cx) {
+  const { runY, runH } = DUCT_GEO;
+  const t = new Image(img.w, img.h);
+  const half = 12;
+  for (let dx = -half; dx < half; dx++) {
+    const c = dx + 0.5, e = lumpExt(c, half);
+    const y0 = runY - e, y1 = runY + runH - 1 + e; // 몸 위·아래 끝
+    for (let y = y0; y <= y1; y++) {
+      let col = C.lint;
+      if (y === y0) col = C.cotton; // 윗면 빛
+      else if (y === y0 + 1 && c < 0 && e >= 2) col = C.cotton; // 왼쪽 위 어깨 빛(광원)
+      else if (y === y1) col = e >= 2 ? C.dusk : C.lav; // 아래 그늘
+      else if (y >= y1 - 2) col = C.lav;
+      else if ([-9, -4, 2, 8].includes(dx) && y > y0 + 1) col = C.lav; // 늘어난 주름(가운데일수록 벌어짐)
+      t.set(cx + dx, y, col);
+    }
+  }
+  t.set(cx - 7, runY - 2, C.white); // 왼쪽 어깨 반짝 1px = 패 모서리가 관을 민 자리
+  placeLump(img, t);
+}
+
+/** 세로 칸(새 칸 2: strain 거짓/참). cy = 혹 가운데 y. 세로 구간 x 360~373에서 좌우로 4px(strain 5px) 부푼다. */
+export function lumpV(img, cy, { strain = false } = {}) {
+  const { x, w } = DUCT_GEO;
+  const t = new Image(img.w, img.h);
+  const half = 11;
+  for (let dy = -half; dy < half; dy++) {
+    const c = dy + 0.5;
+    let e = lumpExt(c, half);
+    if (e === 3) e = strain ? 5 : 4;
+    else if (strain && e > 0) e += 1;
+    const x0 = x - e, x1 = x + w - 1 + e;
+    for (let px = x0; px <= x1; px++) {
+      let col = C.lint;
+      if (px === x0) col = C.lav; // 왼쪽 끝 한 줄 그늘(관 dx 0과 같은 약속)
+      if (px === x0 + 1) col = C.cotton; // 왼쪽 빛
+      else if (px === x0 + 2 && c < 0 && e >= 3) col = C.cotton;
+      else if (px === x1) col = e >= 2 ? C.dusk : C.lav;
+      else if (px >= x1 - 2) col = C.lav;
+      else if ([-8, -3, 3, 8].includes(dy) && px > x0 + 1) col = C.lav; // 늘어난 주름
+      t.set(px, cy + dy, col);
+    }
+  }
+  t.set(x - 2, cy - 6, C.white); // 왼쪽 위 어깨 반짝(패 모서리)
+  if (strain) {
+    // 위 관이 압력으로 불룩(y 122~137, 좌우 1px. duct 핫스팟 위 끝 120 안)
+    for (let py = 122; py < cy - half; py++) {
+      if (py === 132 || py === 133) continue; // 고정 밴드는 안 부푼다(밴드가 허리띠처럼 조인다)
+      t.set(x - 1, py, C.lav);
+      t.set(x + w, py, C.lav);
+    }
+    // 힘쓰는 금(양옆 둘씩, 2px 사선, 혹 어깨 위아래). 외곽선 없이 ink 그대로. 핫스팟(x 352~381) 안
+    for (const [ax, ay, sx, sy] of [[-7, -8, -1, -1], [-7, 8, -1, 1]]) {
+      for (const side of [-1, 1]) {
+        const bx = side < 0 ? x + ax : x + w - 1 - ax, k = side;
+        img.set(bx, cy + ay, C.ink);
+        img.set(bx + sx * k, cy + ay + sy, C.ink);
+      }
+    }
+  }
+  placeLump(img, t);
+}
+
+/**
+ * O6 덕트 혹 anim(그림 물건 `duct`). 형식 4-2 (a): 그 물건 anim 시작 때 `key.stuck` 그림으로 바뀐다.
+ *   lump_travel: 1-2·3-2. 창 쪽 판자 앞에서 한 박자 머문 뒤(200ms, PR #900 재리뷰 1) 가로 넷 → 세로 하나 → 걸림 덜컥(100ms, 재리뷰 2: 80~120).
+ *                마지막 칸 = 걸린 멈춘 모습(`stuck` 첫 칸).
+ *   stuck      : `key.stuck` 참일 때 대기 반복(첫 칸 = 멈춘 모습, 형식 개정 3). 쉬었다가 두 번 끙끙.
+ *   lump_back  : 2-2. lump_travel 칸 거꾸로(0칸). 끝나면 `key.stuck` 거짓 = 혹 없음.
+ *   lump_pop   : 6(클리어 1번). 쿡에 한 번 더 끙 → 건조기 뒤 입구로 쑥(건조기 위 끝 아래는 잘림). 끝나면 혹 없음.
+ * 빈 칸(0px)은 두지 않는다: 빌드 `picture()`가 "아무것도 그리지 않았다"로 실패한다(Theo, PR #917 리뷰).
+ */
+const travelFrames = [
+  ...LUMP_PATH.h.map((cx) => (img) => lumpH(img, cx)),
+  ...LUMP_PATH.v.map((cy) => (img) => lumpV(img, cy)),
+  (img) => lumpV(img, LUMP_PATH.stuck),
+];
+const travelMs = [200, 80, 80, 80, 80, 100];
+export const DUCT_LUMP = {
+  lump_travel: { ms: travelMs, frames: travelFrames },
+  stuck: {
+    ms: [1400, 120, 120, 120],
+    frames: [(img) => lumpV(img, LUMP_STUCK.y), (img) => lumpV(img, LUMP_STUCK.y, { strain: true }), (img) => lumpV(img, LUMP_STUCK.y), (img) => lumpV(img, LUMP_STUCK.y, { strain: true })],
+  },
+  lump_back: { ms: [100, 80, 80, 80, 80, 160], frames: [...travelFrames].reverse() },
+  lump_pop: {
+    ms: [160, 100, 100, 100],
+    frames: [(img) => lumpV(img, LUMP_STUCK.y, { strain: true }), (img) => lumpV(img, 158), (img) => lumpV(img, 166), (img) => lumpV(img, 173)],
+  },
 };
