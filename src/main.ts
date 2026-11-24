@@ -41,7 +41,7 @@ import { drawHead, drawSprite, spriteAlpha, spriteMetas, spriteState, type Sprit
 import { drawFxText, fxTextState, fxTextWidth } from './engine/fxText';
 import { hudIconState, paintHudIcon } from './engine/hudIcons';
 import { runTitle } from './engine/title';
-import { skipsTitle, titleMenu, titleTextReady, withoutMap } from './core/title';
+import { entryFadeCover, ENTRY_FADE_TICKS, loadingTextShown, skipsTitle, titleMenu, titleTextReady, withoutMap } from './core/title';
 
 function need<T extends HTMLElement>(selector: string): T {
   const el = document.querySelector<T>(selector);
@@ -111,6 +111,8 @@ const TITLE =
     : null;
 // `はじめ`(두 번 눌러 확인함)은 세이브를 지운다(2-2절 ①). 안 지우면 첫 카드 전에 새로고침했을 때 옛 `つづき`가 다시 뜬다.
 if (TITLE && !TITLE.prev && LOADED_SAVE) await saveStore!.clear().catch((e: unknown) => console.warn('세이브를 지우지 못했습니다', e));
+/** 타이틀 뒤 밝아짐 남은 틱(2-4절). 로딩이 끝난 뒤 줄고, 0이 되면 시작 카드가 뜬다. 타이틀 없이 연 판은 0. */
+let entryLeft = TITLE ? ENTRY_FADE_TICKS : 0;
 /** 클리어 카드가 이어 쓸 마지막 세이브(이 페이지에서 쓴 것 포함). */
 let saved: SaveData | null = TITLE ? TITLE.prev : (START?.prev ?? null);
 
@@ -667,7 +669,8 @@ function renderLoading(): void {
   ctx.fillRect(0, 0, internal.width, internal.height);
   display.present();
   for (const el of [hud, bubble, label, clearCut, faintCut, cardEl, restartEl]) el.hidden = true;
-  loadingEl.hidden = false;
+  // 타이틀 뒤에는 0.5초 넘게 걸릴 때만 글을 띄운다(번쩍임 방지). 캔버스는 타이틀 어두워짐 끝과 같은 ink다.
+  loadingEl.hidden = !loadingTextShown(TITLE !== null, performance.now() - loadStart);
   placeDom(loadingEl, { x: INTERNAL_WIDTH / 2, y: INTERNAL_HEIGHT / 2 });
 }
 
@@ -822,10 +825,11 @@ function render(): void {
   }
   ctx.restore();
   drawHud(ctx, layout.hud, { band: GAUGE_BAND, track: GAUGE_TRACK, segs: GAUGE_SEGS }, { active: layout.active, gauge: layout.gauge, gaugeDrop: gaugeDrop(scene) }, drawHead);
-  // 화면 전환 덮개(11-1절): 0번 ink로 HUD까지 덮는다. ORDER가 없으면 늘 0이다.
+  // 화면 전환 덮개(11-1절): 0번 ink로 HUD까지 덮는다. ORDER가 없으면 늘 0이다. 타이틀 뒤 밝아짐(2-4절)도 같은 덮개다.
   const fv = flowView(flow, false);
-  if (fv.cover > 0) {
-    ctx.globalAlpha = Math.min(1, fv.cover);
+  const cover = Math.max(fv.cover, entryFadeCover(entryLeft));
+  if (cover > 0) {
+    ctx.globalAlpha = Math.min(1, cover);
     ctx.fillStyle = FX_COLORS.ink;
     ctx.fillRect(0, 0, internal.width, internal.height);
     ctx.globalAlpha = 1;
@@ -857,7 +861,7 @@ function render(): void {
 
   placeClearCut(fv, scene);
   // 덮개가 있는 동안은 캔버스 위 DOM(목표 줄·이름표·라벨·말풍선·처음부터)도 숨긴다. 안 그러면 검은 화면 위에 글자만 떠 있다.
-  const covered = fv.cover > 0;
+  const covered = cover > 0;
   hudTagLayer.hidden = covered;
   if (flow.phase !== 'play') label.hidden = restartEl.hidden = true;
   hud.hidden = scene.cleared || covered;
@@ -935,8 +939,9 @@ function placeClearCut(fv: ReturnType<typeof flowView>, scene: SceneState): void
 const CARD_PX = 8;
 const CARD_MIN_CSS = 13;
 function renderCard(): void {
-  cardEl.hidden = !startCard.open;
-  if (!startCard.open) return;
+  // 타이틀 뒤 밝아지는 동안은 카드를 아직 안 띄운다(2-4절: 밝아짐 → 시작 카드).
+  cardEl.hidden = !startCard.open || entryLeft > 0;
+  if (cardEl.hidden) return;
   const r = display.rect();
   const scale = r.width / INTERNAL_WIDTH;
   const fontPx = Math.max(CARD_MIN_CSS, Math.round(CARD_PX * scale));
@@ -968,6 +973,11 @@ startLoop({
     // 안내가 떠 있으면 판 시간을 멈춘다. 뜨는 순간 카드가 떠 있으면 잠금 1초를 처음부터 다시 센다(9-5절: 안내가 사라진 뒤부터).
     if (setPaused(pause, rotating(), performance.now()) && pause.since !== null && startCard.open) startCard.ticks = 0;
     if (pause.since !== null) return;
+    // 타이틀 뒤 밝아짐(2-4절). 이 동안 판은 멈추고 카드 잠금도 안 센다. 카드가 떠 있어 캔버스·카드 입력은 원래 막혀 있다.
+    if (entryLeft > 0) {
+      entryLeft--;
+      return;
+    }
     cardTick(startCard);
     if (startCard.open) return;
     // 어두워지는 동안까지는 지난 판이 움직이고, 다 검어진 뒤(기다림·밝아짐)는 멈춘다. 새 판 진입 연출은 밝아진 뒤에 시작한다(11-1절).

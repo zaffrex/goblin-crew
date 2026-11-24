@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { saveOnCard } from './progress';
 import { RESTART_ARM_MS } from './restart';
 import type { SaveData } from './save/schema';
-import { centerIn, createTitle, mapCards, mapPress, skipsTitle, titleArmed, titleButtonBox, titleCrew, titleMenu, titlePress, titleTextReady, TITLE_LAYOUT, TITLE_SECOND_PRESS_MIN_MS, withoutMap } from './title';
+import { FLOW_TIMING, flowTick, flowView, type Flow } from './flow';
+import { centerIn, createTitle, entryFadeCover, ENTRY_FADE_TICKS, loadingTextShown, titleFadeCover, TITLE_FADE_OUT_MS, mapCards, mapPress, skipsTitle, titleArmed, titleButtonBox, titleCrew, titleMenu, titlePress, titleTextReady, TITLE_LAYOUT, TITLE_SECOND_PRESS_MIN_MS, withoutMap } from './title';
 import { CHARACTERS } from './characters';
 
 const ORDER = ['laundromat', 'magpie_nest', 'park_fountain'];
@@ -148,5 +149,36 @@ describe('타이틀 자리·글 (2절, 4절)', () => {
     const done = withoutMap(titleMenu(mk('park_fountain', ORDER), ORDER));
     expect(done).toMatchObject({ buttons: ['new'], newNeedsConfirm: true });
     expect(titlePress(createTitle(done), 'map', 0)).toBeNull();
+  });
+});
+
+describe('타이틀 → 게임 페이드 (2-4절, 11-1절 같은 0.3초)', () => {
+  it('어두워짐은 0.3초에 덮개 1, 그 전은 비례', () => {
+    expect(TITLE_FADE_OUT_MS).toBe(300);
+    expect(titleFadeCover(0)).toBe(0);
+    expect(titleFadeCover(150)).toBeCloseTo(0.5);
+    expect(titleFadeCover(300)).toBe(1);
+    expect(titleFadeCover(1000)).toBe(1);
+    expect(titleFadeCover(-5)).toBe(0);
+  });
+  it('밝아짐 덮개 줄은 화면 전환 fadeIn과 같다(덮개 > 0 칸 수·값)', () => {
+    const flowCovers: number[] = [];
+    let f: Flow = { phase: 'fadeIn', t: 0 };
+    while (f.phase === 'fadeIn') {
+      flowCovers.push(flowView(f, false).cover);
+      f = flowTick(f, true).flow;
+    }
+    const entryCovers: number[] = [];
+    for (let left = ENTRY_FADE_TICKS; left > 0; left--) entryCovers.push(entryFadeCover(left));
+    expect(entryCovers.length).toBe(flowCovers.length);
+    entryCovers.forEach((c, k) => expect(c).toBeCloseTo(flowCovers[k]!));
+    expect(entryFadeCover(0)).toBe(0);
+    expect(FLOW_TIMING.fadeIn).toBe(18);
+  });
+  it('타이틀 뒤 로딩 글은 0.5초 뒤에만, 타이틀 없으면 바로', () => {
+    expect(loadingTextShown(true, 0)).toBe(false);
+    expect(loadingTextShown(true, 499)).toBe(false);
+    expect(loadingTextShown(true, 500)).toBe(true);
+    expect(loadingTextShown(false, 0)).toBe(true);
   });
 });

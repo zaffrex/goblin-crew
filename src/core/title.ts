@@ -3,6 +3,7 @@
 // 세이브 규칙은 `progress.ts` 그대로다(`startFromSave`, `saveOnCard`의 다시 하기 경로). 스키마는 안 바꾼다.
 
 import { CHARACTERS, type CharacterId } from './characters';
+import { FLOW_TIMING } from './flow';
 import { isAllCleared, startFromSave, type Resume } from './progress';
 import { RESTART_ARM_MS } from './restart';
 import type { SaveData } from './save/schema';
@@ -183,4 +184,36 @@ export function titleTextReady(text: Readonly<Record<string, string>>): boolean 
 /** 맵이 붙기 전(#792 2/3) 메뉴: `マップ`를 뺀다. 다 깬 세이브는 `はじめ`만 남는다(두 번 누르기는 그대로). */
 export function withoutMap(menu: TitleMenu): TitleMenu {
   return { ...menu, buttons: menu.buttons.filter((b) => b !== 'map') };
+}
+
+/**
+ * 타이틀 → 게임 사이(2-4절): 11-1절과 같은 어두워짐 0.3초 → 밝아짐 0.3초. 새 연출은 없다.
+ * 타이틀은 고정 틱 루프 전에 돌아서 어두워짐은 벽시계 ms로 센다. 밝아짐은 게임 루프 틱으로 센다(`entryFadeCover`).
+ */
+export const TITLE_FADE_OUT_MS = (FLOW_TIMING.fadeOut * 1000) / 60;
+
+/** 타이틀 어두워짐 덮개(ink 불투명도 0~1). 1이 된 프레임을 그린 뒤 게임으로 넘긴다. */
+export function titleFadeCover(elapsedMs: number): number {
+  return Math.min(1, Math.max(0, elapsedMs / TITLE_FADE_OUT_MS));
+}
+
+/**
+ * 타이틀 뒤 밝아짐에 쓸 틱 수. 로딩이 끝난 틱부터 하나씩 줄고, 0이 되면 시작 카드가 뜬다(카드 잠금도 그때부터 센다).
+ * `flowTick`의 fadeIn과 덮개 칸 수를 맞춘다: 덮개 1인 칸은 앞(어두워짐 끝·로딩)이 맡고, 덮개 0인 칸은 카드가 맡는다.
+ */
+export const ENTRY_FADE_TICKS = FLOW_TIMING.fadeIn - 1;
+
+/** 밝아짐 남은 틱 → 덮개. `flowView` fadeIn과 같은 값(17/18 … 1/18). */
+export function entryFadeCover(left: number): number {
+  return Math.min(1, Math.max(0, left / FLOW_TIMING.fadeIn));
+}
+
+/**
+ * 타이틀 뒤 로딩 글(`読み込み中…`)은 0.5초(11-1절 `waitDots`와 같은 값)가 지나야 띄운다.
+ * 타이틀에서 이미 그림을 받아 로딩이 몇 프레임이면, 검은 화면에 글이 번쩍이고 사라진다(#880 Luna 리뷰). 타이틀 없이 여는 판은 지금처럼 바로 띄운다.
+ */
+export const TITLE_LOADING_TEXT_MS = (FLOW_TIMING.waitDots * 1000) / 60;
+
+export function loadingTextShown(afterTitle: boolean, elapsedMs: number): boolean {
+  return !afterTitle || elapsedMs >= TITLE_LOADING_TEXT_MS;
 }

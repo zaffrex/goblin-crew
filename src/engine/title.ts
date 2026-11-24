@@ -6,7 +6,7 @@ import raw from '../../public/ui/title-logo.json';
 import { FX_COLORS } from '../core/fx';
 import type { Loaded } from '../core/fallbacks';
 import { INTERNAL_WIDTH } from '../core/config';
-import { centerIn, createTitle, titleArmed, titleButtonBox, titleCrew, titlePress, TITLE_CONFIRM_KEY, TITLE_LAYOUT, TITLE_TEXT_KEYS, type TitleMenu } from '../core/title';
+import { centerIn, createTitle, titleArmed, titleButtonBox, titleCrew, titleFadeCover, titlePress, TITLE_CONFIRM_KEY, TITLE_LAYOUT, TITLE_TEXT_KEYS, type TitleMenu } from '../core/title';
 import { loadingDone } from '../core/restart';
 import type { SaveData } from '../core/save/schema';
 import { startFromSave } from '../core/progress';
@@ -58,7 +58,8 @@ function loadLogo(): { image: HTMLImageElement; state: () => Loaded } {
 
 /**
  * 타이틀을 띄우고 시작 버튼이 눌릴 때까지 기다린다. 로딩(`#loading`)은 배경·캐릭터·로고가 올 때까지(상한 `LOAD_TIMEOUT_MS`) 그대로 둔다.
- * 끝나면 `#title`을 숨기고 `#loading`을 다시 띄운다. 그 뒤는 지금 게임 로딩 → 시작 카드 그대로다.
+ * 누르면 `#title`을 숨기고 캔버스를 0.3초 어둡게 한 뒤(2-4절) 끝난다. `#loading`은 다시 띄우지 않는다:
+ * 게임 쪽이 로딩이 0.5초를 넘길 때만 띄우고(`loadingTextShown`), 다 오면 0.3초 밝아진 뒤 시작 카드다.
  */
 export function runTitle(deps: TitleDeps): Promise<TitleStart> {
   const { display, menu, order, text } = deps;
@@ -98,13 +99,24 @@ export function runTitle(deps: TitleDeps): Promise<TitleStart> {
     let frame = 0;
 
     function finish(start: TitleStart): void {
+      if (done) return;
       done = true;
       cancelAnimationFrame(frame);
-      window.removeEventListener('resize', onResize);
       root.hidden = true;
       list.replaceChildren();
-      loadingEl.hidden = false;
-      resolve(start);
+      // 어두워짐(2-4절, 11-1절 0.3초). 버튼 DOM은 바로 숨기고 캔버스(배경·셋·로고)만 ink로 덮어 간다. 다 검은 프레임을 그린 뒤 넘긴다.
+      const from = performance.now();
+      const fade = (): void => {
+        const cover = titleFadeCover(performance.now() - from);
+        draw(cover);
+        if (cover < 1) {
+          frame = requestAnimationFrame(fade);
+          return;
+        }
+        window.removeEventListener('resize', onResize);
+        resolve(start);
+      };
+      fade();
     }
 
     async function press(el: HTMLButtonElement): Promise<void> {
@@ -126,7 +138,8 @@ export function runTitle(deps: TitleDeps): Promise<TitleStart> {
     }
     window.addEventListener('resize', onResize);
 
-    function draw(): void {
+    /** `cover`: 어두워짐 덮개(ink 불투명도). 0이면 안 그린다. */
+    function draw(cover = 0): void {
       const { ctx, internal } = display;
       if (!drawSceneBg(ctx, art)) {
         ctx.fillStyle = FX_COLORS.ink;
@@ -146,6 +159,13 @@ export function runTitle(deps: TitleDeps): Promise<TitleStart> {
           const at = centerIn(TITLE_LAYOUT[key], w, h);
           ctx.drawImage(logo.image, sx, sy, w, h, at.x, at.y, w, h);
         }
+      }
+      if (cover > 0) {
+        ctx.save();
+        ctx.globalAlpha = cover;
+        ctx.fillStyle = FX_COLORS.ink;
+        ctx.fillRect(0, 0, internal.width, internal.height);
+        ctx.restore();
       }
       display.present();
     }
