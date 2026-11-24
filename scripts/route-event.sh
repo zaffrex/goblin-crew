@@ -40,7 +40,8 @@ strip_quoted() {
   perl -0pe 's/<!--.*?-->//gs; s/^[ \t]*```.*?^[ \t]*```[ \t]*$//gms; s/^[ \t]*~~~.*?^[ \t]*~~~[ \t]*$//gms; s/``[^\n]*?``//g; s/`[^`\n]*`//g' <<<"$1"
 }
 declare -A wake=()
-for r in $(grep -oE '\[\[(pm|designer|frontend|backend|infra)\]\]' <<<"$(strip_quoted "$body")" | tr -d '[]' | sort -u); do wake[$r]=1; done
+# qa는 토큰으로 깨우지 않는다(격리 실행, #516). puzzle은 Kai 결정 기록(2026-11-22)대로 토큰으로 부른다.
+for r in $(grep -oE '\[\[(pm|designer|frontend|backend|infra|puzzle)\]\]' <<<"$(strip_quoted "$body")" | tr -d '[]' | sort -u); do wake[$r]=1; done
 
 if [ "$EVENT_NAME" = issues ] && [ "$ACTION" = labeled ]; then
   label=$(jq -r '.label.name' "$EV")
