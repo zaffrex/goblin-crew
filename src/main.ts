@@ -15,7 +15,7 @@ import { drawnByShape, frameNudges, fxNudges, particleFx, shapeParticles, type N
 import type { HitBox } from './core/hit';
 import { cutCenter } from './core/cutPlace';
 import { cardFacePx, cardInput, cardPointer, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard } from './core/startCard';
-import { createFirstNotes, currentNote, labelKey, noteAction, noteGauge, noteHover, noteStood, noteSwitch, noteSwitched, noteTap, noteWalkDone, noteWalkSkipped, noteWalkStart, selectLabelText, standLabel, standSelect } from './core/firstNotes';
+import { createFirstNotes, currentNote, labelKey, noteAction, noteGauge, noteHover, noteStood, noteSwitch, noteSwitched, noteTap, noteWalkDone, noteWalkSkipped, noteWalkStart, noteWalkTap, selectLabelText, standLabel, standSelect } from './core/firstNotes';
 import { cutFontPx, firstSwitchText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, switchText, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
@@ -313,6 +313,9 @@ function worldTap(p: Point, slop: number): void {
   const before = { ...session.scene.puzzle.at };
   const r = sceneTap(session.data, session.scene, p, slop, slop > 0);
   if (r.kind === 'skipWalk') noteWalkSkipped(notes);
+  // 터치로 걷기 영역 밖(벽·소품 그림)을 눌러 바닥 걷기가 됐으면 `あるく`(5-2-6절). 몸이 누른 데가 아닌 아래 바닥으로 가서 반응 없음과 구분이 안 됐다(#601).
+  // 걷기 시작(`pollWalkStart`) 전이라 이 탭에서는 긴 걷기 안내가 안 뜨고 횟수도 안 센다.
+  if (slop > 0 && r.kind === 'intent' && r.intent.kind === 'walk') noteWalkTap(notes, p, WALK_AREA, t('ui.verb.walk'), session.scene.tick);
   pollWalkStart();
   if (r.kind !== 'intent') return;
   touchLabel = r.intent.kind === 'select' ? r.intent.label : null;
