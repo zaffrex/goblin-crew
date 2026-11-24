@@ -1,5 +1,5 @@
-// 화면 1 `laundromat` 배경 구도 시안 (#764). 방 껍데기(art/scenes/laundromat.room.mjs) + 세탁기 줄(#853) + 셔터(#856) + 3번 건조기 정지 그림은 진짜 그림,
-// 세제 자판기·걸쇠는 Kai 다시 보기(#802) 뒤라 **자리 표시**다.
+// 화면 1 `laundromat` 배경 구도 시안 (#764). 방 껍데기(art/scenes/laundromat.room.mjs) + 세탁기 줄(#853) + 셔터(#856) + 3번 건조기(#879)·세제 자판기(#882)
+// 정지 그림은 진짜 그림, 걸쇠는 Kai 다시 보기(#802) 뒤라 **자리 표시**다.
 // 실행: node docs/design/screens/laundromat-bg-sketch.mjs
 // 출력(같은 폴더):
 //   laundromat-bg-sketch-2x.png       시작 3초 화면(잠긴 셔터 + 세 사람 시작 위치 240·280·320). 세 사람은 배포 시트 0칸
@@ -13,6 +13,8 @@
 //   - 셔터 오른쪽 벽(x 152~158, y 140~152): 빨강·갈색 없음 + 걸쇠 red와 차 ≥ 30 (laundromat.md 9-1)
 //   - 빈 열쇠 걸이 판 주색과 둘레 벽 차 ≥ 30 (클리어 컷 `clear_hook`이 가리키는 물건)
 //   - 벽시계 판과 벽 차 ≥ 20(흰 판이 벽보다 밝게) — 숫자 대신 테두리·바늘로 읽힌다
+//   - 꺼진 오른쪽 구석(x ≥ 340)의 켜진 불은 3번 건조기 표시등 하나: 건조기 상자 밖 yel 2×2 덩어리 0(세제 상자 6개는 뺀다)
+//   - 건조기·자판기 바닥 그림자(y 236, 상자 밖 한 줄)가 장면에 남아 있다 — 물건 시트로 옮길 때 배경에 구워야 하는 줄(#882 Theo 리뷰)
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { inflateSync, deflateSync } from 'node:zlib';
@@ -27,6 +29,7 @@ import { room, W, H, FLOOR_Y, WAINSCOT_Y, CEIL_Y, KEY_HOOK, CLOCK } from '../../
 import { washer, WASHER_H } from '../../../art/scenes/laundromat.washer.mjs';
 import { shutter } from '../../../art/scenes/laundromat.shutter.mjs';
 import { dryer } from '../../../art/scenes/laundromat.dryer.mjs';
+import { vending, VEND_BOX } from '../../../art/scenes/laundromat.vending.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '../../..');
@@ -45,11 +48,8 @@ room(scene);
 for (let i = 0; i < 4; i++) washer(scene, ROW.x0 + i * ROW.pitch + 1, ROW.y, { n: i + 1, door: ROW_DOORS[i] });
 shutter(scene, 'locked');
 dryer(scene, SCREEN.hotspots.dryer_3.box[0], SCREEN.hotspots.dryer_3.box[1]); // 정지 그림(검사: laundromat-dryer-preview.mjs)
-// 자리 표시: 자판기(lint 상자 + dusk 테두리), 걸쇠(빨간 상자)
-{
-  const [x, y, w, h] = SCREEN.hotspots.soap_vending.box;
-  fill(scene, x, y, w, h, (px, py) => (px === x || py === y || px === x + w - 1 || py === y + h - 1 ? C.dusk : C.lint));
-}
+vending(scene, SCREEN.hotspots.soap_vending.box[0], SCREEN.hotspots.soap_vending.box[1]); // 정지 그림(검사: laundromat-vending-preview.mjs)
+// 자리 표시: 걸쇠(빨간 상자)
 fill(scene, LATCH[0], LATCH[1], LATCH[2], LATCH[3], (px, py) => (px === LATCH[0] || py === LATCH[1] ? C.redL : C.red));
 
 function readIndexedPng(file) {
@@ -67,6 +67,8 @@ function readIndexedPng(file) {
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = raw[y * (w + 1) + 1 + x]; img.c[y * w + x] = i >= 32 ? EMPTY : i; }
   return img;
 }
+const props = new Image(W, H); // 사람 올리기 전(켜진 불·그림자 검사용)
+props.c.set(scene.c);
 const START = { jjuk: 240, mukjik: 280, ppik: 320 }; // 화면 JSON note: 시작 좌표 floor ±40
 for (const [id, sx] of Object.entries(START)) {
   const meta = JSON.parse(readFileSync(join(ROOT, 'public/sprites', `${id}-base.json`), 'utf8'));
@@ -109,9 +111,28 @@ const faceMain = main(shell, CLOCK.cx - 4, CLOCK.cy - 4, 8, 8);
 const clockAround = main(shell, CLOCK.cx - CLOCK.r - 4, CLOCK.cy - 2, 2, 4);
 check(Y[faceMain] - Y[clockAround] >= 20, `시계 판 ${name(faceMain)}이 벽 ${name(clockAround)}보다 ${Y[faceMain] - Y[clockAround]} 밝음 ≥ 20`);
 // 참고(검사 아님): 쿵 글자(teal, 묵직이 약속) 자리 뒤 배경. 설계 13절 Q5(머리 위 vs 발치) 판단 재료
-const HEAD = { '셔터 앞 머리 위(171, 176)': [166, 172, 10, 8], '건조기 앞 머리 위(409, 176)': [404, 172, 10, 8] };
+const HEAD = { '셔터 앞 머리 위(171, 176)': [166, 172, 10, 8], '건조기 앞 머리 위(409, 176)': [404, 172, 10, 8], '자판기 앞 머리 위(417, 176)': [412, 172, 10, 8] };
 for (const [n, [x, y, w, h]] of Object.entries(HEAD)) { const m = main(scene, x, y, w, h); console.log(`참고 쿵 글자 teal vs ${n} ${name(m)} 차 ${dY(C.teal, m)}`); }
 console.log(`참고 쿵 글자 teal vs 바닥(발치) ${name(floorMain)} 차 ${dY(C.teal, floorMain)}`);
+// 켜진 불: 형광등이 꺼진 오른쪽(x ≥ 340, 건조기·자판기 구석)의 노랑(yel) 2×2 덩어리. 사람 올리기 전 그림에서,
+// 건조기 상자 안(표시등)과 자판기 세제 상자 줄은 뺀다. 왼쪽 선반의 큰 세제 상자(room.mjs)는 불이 아니라 범위 밖이다
+const DARK_X0 = 340;
+{
+  const [dx, dy, dw, dh] = SCREEN.hotspots.dryer_3.box;
+  const [vx, vy] = SCREEN.hotspots.soap_vending.box;
+  const inBox = (x, y, [bx, by, bw, bh]) => x >= bx && x < bx + bw && y >= by && y < by + bh;
+  const soapBoxes = VEND_BOX.rows.flatMap((ry) => VEND_BOX.cols.map((cx) => [vx + cx, vy + ry, VEND_BOX.w, VEND_BOX.h]));
+  const lit = [];
+  for (let y = 0; y < H - 1; y++) for (let x = DARK_X0; x < W - 1; x++) {
+    if (![[0, 0], [1, 0], [0, 1], [1, 1]].every(([a, b]) => props.get(x + a, y + b) === C.yel)) continue;
+    if (inBox(x, y, [dx, dy, dw, dh]) || soapBoxes.some((b) => inBox(x, y, b))) continue;
+    lit.push(`${x},${y}`);
+  }
+  check(lit.length === 0, `오른쪽 구석 켜진 불은 건조기 표시등 하나(그 밖 yel 2×2 ${lit.length}곳${lit.length ? `: ${lit.slice(0, 4).join(' ')}` : ''})`);
+  const shadowRow = (x0, w) => { let n = 0; for (let x = x0 + 1; x < x0 + w + 1; x++) if (props.get(x, FLOOR_Y) === C.lav) n++; return n; };
+  check(shadowRow(dx, dw) >= dw * 0.7, `건조기 바닥 그림자 y ${FLOOR_Y} lav ${shadowRow(dx, dw)}/${dw}칸 (배경에 구울 줄)`);
+  check(shadowRow(vx, SCREEN.hotspots.soap_vending.box[2]) >= SCREEN.hotspots.soap_vending.box[2] * 0.7, `자판기 바닥 그림자 y ${FLOOR_Y} lav ${shadowRow(vx, SCREEN.hotspots.soap_vending.box[2])}/${SCREEN.hotspots.soap_vending.box[2]}칸 (배경에 구울 줄)`);
+}
 console.log(`방 껍데기 쓴 색 ${used.size}개, 장면 ${count(scene, 0, 0, W, H).size}개`);
 
 // ── 4배: 작은 것 셋(걸쇠 자리·열쇠 걸이·시계) 둘레
