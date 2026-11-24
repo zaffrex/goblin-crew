@@ -2,6 +2,7 @@
 // main.ts가 타이틀·맵 DOM을 그릴 때 어떤 버튼을 어떤 순서로 둘지, 버튼을 누르면 어느 화면에서 어떤 세이브로 시작할지를 여기서 고른다.
 // 세이브 규칙은 `progress.ts` 그대로다(`startFromSave`, `saveOnCard`의 다시 하기 경로). 스키마는 안 바꾼다.
 
+import { CHARACTERS, type CharacterId } from './characters';
 import { isAllCleared, startFromSave, type Resume } from './progress';
 import { RESTART_ARM_MS } from './restart';
 import type { SaveData } from './save/schema';
@@ -53,6 +54,9 @@ export interface TitleState {
   armedAt: number | null;
 }
 
+/** `はじめ` 두 번째 누름은 첫 누름 뒤 이만큼 지나야 먹는다(ms, #876 Luna 리뷰). 휴대폰 더블 탭 간격(약 300ms)보다 길다. */
+export const TITLE_SECOND_PRESS_MIN_MS = 400;
+
 export function createTitle(menu: TitleMenu): TitleState {
   return { menu, armedAt: null };
 }
@@ -72,6 +76,8 @@ export function titleArmed(t: TitleState, now: number): boolean {
 export function titlePress(t: TitleState, button: TitleButton, now: number): TitleAction | null {
   if (!t.menu.buttons.includes(button)) return null;
   const armed = titleArmed(t, now);
+  // 더블 탭·키 반복 한 번에 맵 기록까지 날아가지 않게(#876 Luna 리뷰). 너무 이른 두 번째 누름은 버리고 arm을 그대로 둔다.
+  if (button === 'new' && armed && now - t.armedAt! < TITLE_SECOND_PRESS_MIN_MS) return null;
   t.armedAt = null;
   if (button === 'map') return { kind: 'map' };
   if (button === 'continue') {
@@ -113,8 +119,68 @@ export function mapPress(card: MapCard, prev: SaveData | null): TitleAction | nu
  * 쿼리가 있으면 타이틀을 건너뛰고 지금처럼 바로 게임이다(1절). 쿼리는 팀 도구용이다
  * (`?screen=`, `?playtest=1&order=`, 재생 훅은 `playtest=1`). 기본 링크(쿼리 없음)는 늘 타이틀부터.
  */
+// 도구용 쿼리를 새로 만들면 여기에 같이 넣는다. 빠지면 그 도구만 타이틀에서 멈춘다(#876 Luna 리뷰).
 export const TITLE_SKIP_KEYS = ['screen', 'playtest', 'order'] as const;
 
 export function skipsTitle(query: (key: string) => string | null): boolean {
   return TITLE_SKIP_KEYS.some((k) => query(k) !== null);
+}
+
+/**
+ * 타이틀 자리(내부 px, 설계 2절 표). 목업 `docs/design/title-map-mock.mjs` `TITLE`과 같은 숫자다.
+ * 로고 칸(`public/ui/title-logo.json`, #874)은 `ja`·`en` 상자 가운데에 1배로 놓는다.
+ */
+export const TITLE_LAYOUT = {
+  /** 배포 순서 첫 화면 배경 위 ink 덮개 투명도. */
+  dim: 0.55,
+  ja: { x: 90, y: 46, w: 300, h: 36 },
+  en: { x: 160, y: 88, w: 160, h: 14 },
+  buttons: { x: 174, y: 132, w: 132, h: 28, gap: 8 },
+  confirm: { y: 240, w: 280, h: 14 },
+  /**
+   * 캐릭터 셋: 그리는 순서(뒤 → 앞), 몸 상자 왼끝, 발 y. 셋을 합친 폭이 100px이라 겹쳐 세운다(#880 Luna 리뷰).
+   * 제일 넓은 묵직이를 가운데 한 발(3px) 뒤에 두어 세 얼굴이 다 보이고, 오른끝 63+33=96이 확인 줄 왼끝 x 100과 안 겹친다.
+   */
+  crew: [
+    { id: 'mukjik', left: 32, footY: 249 },
+    { id: 'jjuk', left: 8, footY: 252 },
+    { id: 'ppik', left: 63, footY: 252 },
+  ],
+} as const;
+
+/** `k`번째 버튼 상자(위 → 아래). 맨 위는 버튼 수와 상관없이 y 132다(2-1절). */
+export function titleButtonBox(k: number): { left: number; top: number; width: number; height: number } {
+  const b = TITLE_LAYOUT.buttons;
+  return { left: b.x, top: b.y + k * (b.h + b.gap), width: b.w, height: b.h };
+}
+
+/** 로고 칸(w×h)을 상자 가운데에 놓을 왼쪽 위. 정수 px(1배 픽셀 그림이라 반 px이면 번진다). */
+export function centerIn(box: { x: number; y: number; w: number; h: number }, w: number, h: number): { x: number; y: number } {
+  return { x: box.x + Math.floor((box.w - w) / 2), y: box.y + Math.floor((box.h - h) / 2) };
+}
+
+/** 캐릭터 셋 발 자리. 몸 상자 왼끝이 `crew[].left`가 되게 `CHARACTERS` 히트 상자(dx)만큼 민다. 그리는 순서 = 배열 순서(`CHARACTERS` 키 순서와 다르다). */
+export function titleCrew(): { id: CharacterId; x: number; y: number }[] {
+  return TITLE_LAYOUT.crew.map((m) => {
+    const c = CHARACTERS.find((k) => k.id === m.id)!;
+    return { id: c.id, x: m.left - c.hit.dx, y: m.footY };
+  });
+}
+
+/** 버튼 글 키(일본어는 Kai, 설계 4절). */
+export const TITLE_TEXT_KEYS: Readonly<Record<TitleButton, string>> = { continue: 'ui.title.continue', new: 'ui.title.new', map: 'ui.title.map' };
+export const TITLE_CONFIRM_KEY = 'ui.title.new_confirm';
+
+/**
+ * 1단계 타이틀이 쓰는 글이 글 파일에 다 있나. 없으면 타이틀을 건너뛰고 지금처럼 바로 게임이다.
+ * 글 키 이름(`ui.title.new`)이 버튼에 그대로 찍히는 판이 기본 링크로 나가지 않게 한다. Kai 글 PR이 들어오면 코드 수정 없이 켜진다.
+ * `マップ`는 맵 PR(#792 3/3)이 붙이므로 여기서 보지 않는다.
+ */
+export function titleTextReady(text: Readonly<Record<string, string>>): boolean {
+  return [TITLE_TEXT_KEYS.continue, TITLE_TEXT_KEYS.new, TITLE_CONFIRM_KEY].every((k) => typeof text[k] === 'string' && text[k] !== '');
+}
+
+/** 맵이 붙기 전(#792 2/3) 메뉴: `マップ`를 뺀다. 다 깬 세이브는 `はじめ`만 남는다(두 번 누르기는 그대로). */
+export function withoutMap(menu: TitleMenu): TitleMenu {
+  return { ...menu, buttons: menu.buttons.filter((b) => b !== 'map') };
 }

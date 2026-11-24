@@ -40,6 +40,8 @@ import { drawParticles, drawSceneBg, drawSceneFrame, drawSceneFx, loadSceneArt, 
 import { drawHead, drawSprite, spriteAlpha, spriteMetas, spriteState, type SpriteTop } from './engine/sprites';
 import { drawFxText, fxTextState, fxTextWidth } from './engine/fxText';
 import { hudIconState, paintHudIcon } from './engine/hudIcons';
+import { runTitle } from './engine/title';
+import { skipsTitle, titleMenu, titleTextReady, withoutMap } from './core/title';
 
 function need<T extends HTMLElement>(selector: string): T {
   const el = document.querySelector<T>(selector);
@@ -84,9 +86,33 @@ if (query('order') !== null && !playtestOrder(query, new Set(SCREENS.keys()))) c
  */
 const saveStore = ORDER && usesSave(playtestOrder(query, new Set(SCREENS.keys()))) ? new LocalSaveStore(probeStorage(() => window.localStorage).storage) : null;
 /** 페이지를 열 때 읽은 세이브. 손상·상위 버전은 store가 백업에 옮기고 null을 준다(새로 하기). */
-const START = saveStore && ORDER ? startFromSave(await saveStore.load(), ORDER) : null;
+const LOADED_SAVE = saveStore && ORDER ? await saveStore.load() : null;
+const START = saveStore && ORDER ? startFromSave(LOADED_SAVE, ORDER) : null;
+
+// 타이틀이 먼저 캔버스를 쓴다(아래 판보다 앞).
+const display = createDisplay(canvas, { width: INTERNAL_WIDTH, height: INTERNAL_HEIGHT });
+
+/**
+ * 타이틀(#792 2/3, 설계 `title-and-map.md`). 세이브가 켜진 기본 링크에서만 뜬다. 쿼리(팀 도구)면 건너뛴다(1절).
+ * 버튼 글(Kai)이 글 파일에 아직 없으면 키 이름이 찍히지 않게 건너뛴다(`titleTextReady`). 맵 버튼은 3/3에서 붙인다.
+ * 판을 만들기 전에 기다리므로, 고른 시작 화면·세이브가 아래 판 만들기에 그대로 들어간다. 게임 입력 게이트는 안 바뀐다.
+ */
+const TITLE =
+  saveStore && ORDER && !skipsTitle(query) && titleTextReady(TEXT)
+    ? await runTitle({
+        display,
+        menu: withoutMap(titleMenu(LOADED_SAVE, ORDER)),
+        order: ORDER,
+        text: (id) => TEXT[id] ?? id,
+        build: buildTag(import.meta.env.VITE_BUILD_SHA),
+        reload: () => saveStore.load(),
+        rotating: () => window.matchMedia?.(ROTATE_QUERY).matches ?? false,
+      })
+    : null;
+// `はじめ`(두 번 눌러 확인함)은 세이브를 지운다(2-2절 ①). 안 지우면 첫 카드 전에 새로고침했을 때 옛 `つづき`가 다시 뜬다.
+if (TITLE && !TITLE.prev && LOADED_SAVE) await saveStore!.clear().catch((e: unknown) => console.warn('세이브를 지우지 못했습니다', e));
 /** 클리어 카드가 이어 쓸 마지막 세이브(이 페이지에서 쓴 것 포함). */
-let saved: SaveData | null = START?.prev ?? null;
+let saved: SaveData | null = TITLE ? TITLE.prev : (START?.prev ?? null);
 
 /**
  * 한 화면 판(#230 여러 화면 연결 1단계, 설계 `ui-interaction.md` 11절). 화면에 묶인 상태는 전부 여기 있다.
@@ -138,18 +164,17 @@ function enterScreen(id: string): Session {
 }
 
 /** 순서 안 지금 위치. 같은 id가 두 번 나와도 위치로 센다(`flow.ts` nextIndex). 세이브에서 이어 하면 그 화면 위치다. */
-let orderIndex = START?.resume.kind === 'continue' ? START.resume.index : 0;
+let orderIndex = TITLE ? TITLE.index : START?.resume.kind === 'continue' ? START.resume.index : 0;
 let session = enterScreen(ORDER ? ORDER[orderIndex]! : picked.id);
 // 이어 하는 화면의 지금 캐릭터: 저장한 캐릭터가 그 화면 `start.at`에 없으면 다음 화면 들어갈 때와 같은 대체 규칙(11-3절).
-if (START?.resume.kind === 'continue') session.scene.ui.active = enterCharacter(START.resume.activeCharacter, session.data.screen.start.at, CHARACTERS.map((c) => c.id)) as CharacterId;
+const resumeCharacter = TITLE ? TITLE.activeCharacter : START?.resume.kind === 'continue' ? START.resume.activeCharacter : null;
+if (resumeCharacter !== null) session.scene.ui.active = enterCharacter(resumeCharacter, session.data.screen.start.at, CHARACTERS.map((c) => c.id)) as CharacterId;
 /** 화면 사이 흐름(ui-interaction 11-1절). `ORDER`가 없으면 늘 `play`다. */
 let flow: Flow = PLAYING;
 /** 클리어 카드가 뜰 때 미리 만든 다음 화면 판. 그림을 카드 보는 동안 받는다(11-1절 "다음 화면 그림 기다림 0초가 목표"). */
 let pending: { index: number; session: Session } | null = null;
 /** 글 ID → 지금 화면의 글(`<화면 ID>.card.goal` 등이 있으면 그것, #380). */
 const t = (id: string): string => TEXT[screenTextKey(TEXT, session.data.screen.id, id)] ?? id;
-
-const display = createDisplay(canvas, { width: INTERNAL_WIDTH, height: INTERNAL_HEIGHT });
 
 /**
  * 로딩 화면(#387, #286 P1-7): 그림이 다 오기 전에는 장면 대신 `#loading`(index.html, JS 전부터 떠 있음)만 보인다.

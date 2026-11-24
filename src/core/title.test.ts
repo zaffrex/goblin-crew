@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { saveOnCard } from './progress';
 import { RESTART_ARM_MS } from './restart';
 import type { SaveData } from './save/schema';
-import { createTitle, mapCards, mapPress, skipsTitle, titleArmed, titleMenu, titlePress } from './title';
+import { centerIn, createTitle, mapCards, mapPress, skipsTitle, titleArmed, titleButtonBox, titleCrew, titleMenu, titlePress, titleTextReady, TITLE_LAYOUT, TITLE_SECOND_PRESS_MIN_MS, withoutMap } from './title';
+import { CHARACTERS } from './characters';
 
 const ORDER = ['laundromat', 'magpie_nest', 'park_fountain'];
 const mk = (screenId: string, solved: string[]): SaveData => ({
@@ -51,6 +52,14 @@ describe('titlePress', () => {
     expect(titlePress(t, 'new', 1000)).toEqual({ kind: 'arm' });
     expect(titleArmed(t, 1000 + RESTART_ARM_MS - 1)).toBe(true);
     expect(titlePress(t, 'new', 1000 + RESTART_ARM_MS - 1)).toEqual({ kind: 'start', index: 0, prev: null, activeCharacter: null });
+  });
+  it('두 번째 누름이 400ms 안이면 버리고 arm을 그대로 둔다(더블 탭)', () => {
+    const t = createTitle(titleMenu(mk('magpie_nest', ['laundromat']), ORDER));
+    titlePress(t, 'new', 1000);
+    expect(titlePress(t, 'new', 1000 + TITLE_SECOND_PRESS_MIN_MS - 1)).toBeNull();
+    expect(titleArmed(t, 1000 + TITLE_SECOND_PRESS_MIN_MS - 1)).toBe(true);
+    // 버린 누름은 3초를 다시 세지 않는다: 첫 누름 기준 그대로.
+    expect(titlePress(t, 'new', 1000 + TITLE_SECOND_PRESS_MIN_MS)).toEqual({ kind: 'start', index: 0, prev: null, activeCharacter: null });
   });
   it('3초가 지나면 다시 첫 누름', () => {
     const t = createTitle(titleMenu(mk('magpie_nest', ['laundromat']), ORDER));
@@ -108,4 +117,36 @@ describe('skipsTitle (1절)', () => {
     expect(skipsTitle(q('?playtest=1&order=magpie_nest,park_fountain'))).toBe(true);
   });
   it('모르는 쿼리는 타이틀을 막지 않는다', () => expect(skipsTitle(q('?utm_source=x'))).toBe(false));
+});
+
+describe('타이틀 자리·글 (2절, 4절)', () => {
+  it('맨 위 버튼은 y 132, 아래로 8 간격', () => {
+    expect([0, 1, 2].map((k) => titleButtonBox(k).top)).toEqual([132, 168, 204]);
+    expect(titleButtonBox(0)).toMatchObject({ left: 174, width: 132, height: 28 });
+  });
+  it('로고 칸은 상자 가운데 정수 px', () => {
+    expect(centerIn({ x: 90, y: 46, w: 300, h: 36 }, 250, 36)).toEqual({ x: 115, y: 46 });
+    expect(centerIn({ x: 160, y: 88, w: 160, h: 14 }, 110, 11)).toEqual({ x: 185, y: 89 });
+  });
+  it('캐릭터 셋은 묵직이를 맨 뒤(발 y 249)에 그리고, 몸 상자 왼끝 쭉이 8 · 묵직이 32 · 삑삑이 63', () => {
+    expect(titleCrew().map((c) => [c.id, c.x, c.y])).toEqual([['mukjik', 54, 249], ['jjuk', 21, 252], ['ppik', 77, 252]]);
+  });
+  it('캐릭터 셋 몸 상자 오른끝이 확인 줄 왼끝(x 100)보다 왼쪽, 셋 다 한 번씩', () => {
+    const right = Math.max(...titleCrew().map((m) => { const c = CHARACTERS.find((k) => k.id === m.id)!; return m.x + c.hit.dx + c.hit.width; }));
+    expect(right).toBe(96);
+    expect(right).toBeLessThan((480 - TITLE_LAYOUT.confirm.w) / 2);
+    expect(titleCrew().map((c) => c.id).sort()).toEqual(CHARACTERS.map((c) => c.id).sort());
+  });
+  it('버튼 글이 하나라도 없으면 타이틀을 안 띄운다(키 이름이 찍히지 않게)', () => {
+    const all = { 'ui.title.continue': 'a', 'ui.title.new': 'b', 'ui.title.new_confirm': 'c' };
+    expect(titleTextReady(all)).toBe(true);
+    expect(titleTextReady({ ...all, 'ui.title.new_confirm': '' })).toBe(false);
+    expect(titleTextReady({ 'ui.title.new': 'b' })).toBe(false);
+  });
+  it('맵 전(2/3)에는 マップ를 뺀다. 다 깬 세이브는 はじめ만, 두 번 누르기 그대로', () => {
+    expect(withoutMap(titleMenu(mk('magpie_nest', ['laundromat']), ORDER)).buttons).toEqual(['continue', 'new']);
+    const done = withoutMap(titleMenu(mk('park_fountain', ORDER), ORDER));
+    expect(done).toMatchObject({ buttons: ['new'], newNeedsConfirm: true });
+    expect(titlePress(createTitle(done), 'map', 0)).toBeNull();
+  });
 });
