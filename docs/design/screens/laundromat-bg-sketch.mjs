@@ -1,5 +1,5 @@
-// 화면 1 `laundromat` 배경 구도 시안 (#764). 방 껍데기(art/scenes/laundromat.room.mjs) + 세탁기 줄(#853) + 셔터(#856)는 진짜 그림,
-// 3번 건조기·세제 자판기·걸쇠는 Kai 다시 보기(#802) 뒤라 **자리 표시**다.
+// 화면 1 `laundromat` 배경 구도 시안 (#764). 방 껍데기(art/scenes/laundromat.room.mjs) + 세탁기 줄(#853) + 셔터(#856) + 3번 건조기 정지 그림은 진짜 그림,
+// 세제 자판기·걸쇠는 Kai 다시 보기(#802) 뒤라 **자리 표시**다.
 // 실행: node docs/design/screens/laundromat-bg-sketch.mjs
 // 출력(같은 폴더):
 //   laundromat-bg-sketch-2x.png       시작 3초 화면(잠긴 셔터 + 세 사람 시작 위치 240·280·320). 세 사람은 배포 시트 0칸
@@ -26,6 +26,7 @@ import { fill } from '../../../art/lib/texture.mjs';
 import { room, W, H, FLOOR_Y, WAINSCOT_Y, CEIL_Y, KEY_HOOK, CLOCK } from '../../../art/scenes/laundromat.room.mjs';
 import { washer, WASHER_H } from '../../../art/scenes/laundromat.washer.mjs';
 import { shutter } from '../../../art/scenes/laundromat.shutter.mjs';
+import { dryer } from '../../../art/scenes/laundromat.dryer.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '../../..');
@@ -43,9 +44,10 @@ const scene = new Image(W, H);
 room(scene);
 for (let i = 0; i < 4; i++) washer(scene, ROW.x0 + i * ROW.pitch + 1, ROW.y, { n: i + 1, door: ROW_DOORS[i] });
 shutter(scene, 'locked');
-// 자리 표시: 장난감 둘(lint 상자 + dusk 테두리), 걸쇠(빨간 상자)
-for (const id of ['dryer_3', 'soap_vending']) {
-  const [x, y, w, h] = SCREEN.hotspots[id].box;
+dryer(scene, SCREEN.hotspots.dryer_3.box[0], SCREEN.hotspots.dryer_3.box[1]); // 정지 그림(검사: laundromat-dryer-preview.mjs)
+// 자리 표시: 자판기(lint 상자 + dusk 테두리), 걸쇠(빨간 상자)
+{
+  const [x, y, w, h] = SCREEN.hotspots.soap_vending.box;
   fill(scene, x, y, w, h, (px, py) => (px === x || py === y || px === x + w - 1 || py === y + h - 1 ? C.dusk : C.lint));
 }
 fill(scene, LATCH[0], LATCH[1], LATCH[2], LATCH[3], (px, py) => (px === LATCH[0] || py === LATCH[1] ? C.redL : C.red));
