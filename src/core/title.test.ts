@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { saveOnCard } from './progress';
 import { RESTART_ARM_MS } from './restart';
 import type { SaveData } from './save/schema';
-import { centerIn, createTitle, mapCards, mapPress, skipsTitle, titleArmed, titleButtonBox, titleCrew, titleMenu, titlePress, titleTextReady, TITLE_SECOND_PRESS_MIN_MS, withoutMap } from './title';
+import { centerIn, createTitle, mapCards, mapPress, skipsTitle, titleArmed, titleButtonBox, titleCrew, titleMenu, titlePress, titleTextReady, TITLE_LAYOUT, TITLE_SECOND_PRESS_MIN_MS, withoutMap } from './title';
+import { CHARACTERS } from './characters';
 
 const ORDER = ['laundromat', 'magpie_nest', 'park_fountain'];
 const mk = (screenId: string, solved: string[]): SaveData => ({
@@ -127,8 +128,14 @@ describe('타이틀 자리·글 (2절, 4절)', () => {
     expect(centerIn({ x: 90, y: 46, w: 300, h: 36 }, 250, 36)).toEqual({ x: 115, y: 46 });
     expect(centerIn({ x: 160, y: 88, w: 160, h: 14 }, 110, 11)).toEqual({ x: 185, y: 89 });
   });
-  it('캐릭터 셋 몸 상자 왼끝이 16·42·68, 발 y 252', () => {
-    expect(titleCrew().map((c) => [c.id, c.x, c.y])).toEqual([['jjuk', 29, 252], ['mukjik', 64, 252], ['ppik', 82, 252]]);
+  it('캐릭터 셋은 묵직이를 맨 뒤(발 y 249)에 그리고, 몸 상자 왼끝 쭉이 8 · 묵직이 32 · 삑삑이 63', () => {
+    expect(titleCrew().map((c) => [c.id, c.x, c.y])).toEqual([['mukjik', 54, 249], ['jjuk', 21, 252], ['ppik', 77, 252]]);
+  });
+  it('캐릭터 셋 몸 상자 오른끝이 확인 줄 왼끝(x 100)보다 왼쪽, 셋 다 한 번씩', () => {
+    const right = Math.max(...titleCrew().map((m) => { const c = CHARACTERS.find((k) => k.id === m.id)!; return m.x + c.hit.dx + c.hit.width; }));
+    expect(right).toBe(96);
+    expect(right).toBeLessThan((480 - TITLE_LAYOUT.confirm.w) / 2);
+    expect(titleCrew().map((c) => c.id).sort()).toEqual(CHARACTERS.map((c) => c.id).sort());
   });
   it('버튼 글이 하나라도 없으면 타이틀을 안 띄운다(키 이름이 찍히지 않게)', () => {
     const all = { 'ui.title.continue': 'a', 'ui.title.new': 'b', 'ui.title.new_confirm': 'c' };

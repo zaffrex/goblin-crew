@@ -137,8 +137,15 @@ export const TITLE_LAYOUT = {
   en: { x: 160, y: 88, w: 160, h: 14 },
   buttons: { x: 174, y: 132, w: 132, h: 28, gap: 8 },
   confirm: { y: 240, w: 280, h: 14 },
-  /** 캐릭터 셋: 몸 상자 왼끝(키 순서 쭉이 → 묵직이 → 삑삑이, 뒤 → 앞)과 발 y. */
-  crew: { lefts: [16, 42, 68], footY: 252 },
+  /**
+   * 캐릭터 셋: 그리는 순서(뒤 → 앞), 몸 상자 왼끝, 발 y. 셋을 합친 폭이 100px이라 겹쳐 세운다(#880 Luna 리뷰).
+   * 제일 넓은 묵직이를 가운데 한 발(3px) 뒤에 두어 세 얼굴이 다 보이고, 오른끝 63+33=96이 확인 줄 왼끝 x 100과 안 겹친다.
+   */
+  crew: [
+    { id: 'mukjik', left: 32, footY: 249 },
+    { id: 'jjuk', left: 8, footY: 252 },
+    { id: 'ppik', left: 63, footY: 252 },
+  ],
 } as const;
 
 /** `k`번째 버튼 상자(위 → 아래). 맨 위는 버튼 수와 상관없이 y 132다(2-1절). */
@@ -152,10 +159,12 @@ export function centerIn(box: { x: number; y: number; w: number; h: number }, w:
   return { x: box.x + Math.floor((box.w - w) / 2), y: box.y + Math.floor((box.h - h) / 2) };
 }
 
-/** 캐릭터 셋 발 자리. 몸 상자 왼끝이 `crew.lefts`가 되게 `CHARACTERS` 히트 상자(dx)만큼 민다. 그리는 순서 = 배열 순서. */
+/** 캐릭터 셋 발 자리. 몸 상자 왼끝이 `crew[].left`가 되게 `CHARACTERS` 히트 상자(dx)만큼 민다. 그리는 순서 = 배열 순서(`CHARACTERS` 키 순서와 다르다). */
 export function titleCrew(): { id: CharacterId; x: number; y: number }[] {
-  const { lefts, footY } = TITLE_LAYOUT.crew;
-  return CHARACTERS.map((c, i) => ({ id: c.id, x: lefts[i]! - c.hit.dx, y: footY }));
+  return TITLE_LAYOUT.crew.map((m) => {
+    const c = CHARACTERS.find((k) => k.id === m.id)!;
+    return { id: c.id, x: m.left - c.hit.dx, y: m.footY };
+  });
 }
 
 /** 버튼 글 키(일본어는 Kai, 설계 4절). */
