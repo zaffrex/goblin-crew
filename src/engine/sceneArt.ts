@@ -85,6 +85,26 @@ export function drawSceneFrame(ctx: CanvasRenderingContext2D, art: SceneArt, fra
   ctx.drawImage(source, sx, sy, w, h, f.at[0] + (nudge?.dx ?? 0), f.at[1] + (nudge?.dy ?? 0), w, h);
 }
 
+/**
+ * 머리 위 칸(형식 기록 16절) 하나를 `headPlace` 자리에 그린다. `flip`이면 좌우로 뒤집는다(캐릭터가 왼쪽을 본다).
+ * 외곽선은 없다(대상 아님). 시트가 아직이면 아무것도 안 한다.
+ */
+export function drawHeadFrame(ctx: CanvasRenderingContext2D, art: SceneArt, frame: number, at: { x: number; y: number; flip: boolean }): void {
+  if (!art.objectsReady) return;
+  const f = art.meta.frames[frame];
+  if (!f) return;
+  const [sx, sy, w, h] = f.src;
+  if (!at.flip) {
+    ctx.drawImage(art.objects, sx, sy, w, h, at.x, at.y, w, h);
+    return;
+  }
+  ctx.save();
+  ctx.translate(at.x + w, at.y);
+  ctx.scale(-1, 1);
+  ctx.drawImage(art.objects, sx, sy, w, h, 0, 0, w, h);
+  ctx.restore();
+}
+
 /** 입자 fx(core/fxShape.ts `shapeParticles`: 물 입자, 글자 곁 흙먼지) 사각형을 팔레트 색으로 칠한다. */
 export function drawParticles(ctx: CanvasRenderingContext2D, particles: readonly FxParticle[]): void {
   for (const p of particles) {

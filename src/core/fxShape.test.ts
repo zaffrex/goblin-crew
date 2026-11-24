@@ -77,7 +77,7 @@ describe('frameNudges: 대상 물건의 칸이 다 같이 움직인다', () => {
     const meta = parseSceneArt(clone(sheetJson));
     const hook = meta.objects.find((o) => o.key === 'hook')!;
     const target = hook.ids[0]!;
-    const draws: SceneDraws = { back: [], front: [], overlays: [], byObject: { hook: [3, 4], nest: [1] } };
+    const draws: SceneDraws = { back: [], front: [], overlays: [], heads: [], byObject: { hook: [3, 4], nest: [1] } };
     const m = frameNudges(meta, draws, { [target]: { dx: 0, dy: 1 } });
     expect([...m.entries()]).toEqual([
       [3, { dx: 0, dy: 1 }],

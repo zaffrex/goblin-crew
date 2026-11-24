@@ -21,7 +21,7 @@ const TILT_KEYS = ['rest', 'weight', 'pivot', 'run', 'draw'];
 const NO_FLOOR_KEYS = ['box', 'y'];
 const STATE_KEYS = ['when', 'draw', 'loop', 'layer'];
 const OVERLAY_KEYS = ['sortY', 'draw'];
-const ANIM_KEYS = ['ms', 'frames', 'layer', 'tilt', 'variants', 'hold', 'object'];
+const ANIM_KEYS = ['ms', 'frames', 'layer', 'tilt', 'variants', 'hold', 'object', 'anchor'];
 const VARIANT_KEYS = ['when', 'ms', 'frames', 'layer', 'tilt'];
 const LOOP_KEYS = ['ms', 'frames'];
 // 11절(개정 4): 효과 자리와 효과 anim
@@ -32,6 +32,14 @@ const FX_ANIM_KEYS = ['effect', 'mode', 'ms', 'hold'];
  * 엔진 효과 표(src/core/sceneFx.ts `SCENE_FX`)의 모드 이름. 빌드는 TS를 못 읽어서 같은 표를 여기 둔다.
  * 두 표가 같은지는 src/core/sceneFx.test.ts가 본다. still = 멈춘 모드(default·state), play = 연출 모드(효과 anim).
  */
+/**
+ * 16절(개정 12): 머리 위 anim(`anchor`)의 칸은 이 점을 "얼굴 상자 위 가운데"로 보고 그린다. 메타 `at`은 이 점에서 잰 상대 좌표다.
+ * 캐릭터 ID는 src/core/characters.ts `CHARACTERS`와 같다(tests/art/scenes.test.ts가 본다).
+ */
+export const ANCHOR_ORIGIN = [240, 135];
+export const ANCHOR_CHARS = ['jjuk', 'mukjik', 'ppik'];
+const ANCHOR_KEYS = ['char', 'point'];
+
 export const FX_MODES = {
   fountain_water: { still: ['on', 'off'], play: ['stop', 'burst'] },
 };
@@ -124,7 +132,7 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
   // ── 그림 한 장 그리기 → 잘라서 프레임 목록에 넣기
   const pics = []; // { img, at: [x, y], where }
   /** draw(img)를 투명 화면에 그려서 프레임 번호를 돌려준다. boxes가 비어 있지 않으면 불투명 영역이 그중 하나와 겹쳐야 한다(모르는 ID는 이미 따로 잡는다). */
-  function picture(draw, where, boxes) {
+  function picture(draw, where, boxes, anchored = false) {
     if (typeof draw !== 'function') {
       problems.push(`${where}: draw가 함수가 아니다`);
       return -1;
@@ -143,9 +151,10 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
       problems.push(`${where}: 그림 [${b.x},${b.y},${b.w},${b.h}]이 히트 박스 ${boxes.map((x) => `[${x}]`).join(' / ')}와 겹치지 않는다`);
     const img = crop(full, b);
     // 같은 자리·같은 픽셀이면 한 장으로 합친다(반복 첫 칸 = 멈춘 모습인 경우가 많다, PR #165 리뷰).
-    const same = pics.findIndex((p) => p.at[0] === b.x && p.at[1] === b.y && p.img.w === img.w && p.img.h === img.h && p.img.c.every((v, i) => v === img.c[i]));
+    // 머리 위 칸(16절)은 `at`이 상대 좌표라 제자리 칸과 합치지 않는다.
+    const same = pics.findIndex((p) => p.anchored === anchored && p.at[0] === b.x && p.at[1] === b.y && p.img.w === img.w && p.img.h === img.h && p.img.c.every((v, i) => v === img.c[i]));
     if (same >= 0) return same;
-    pics.push({ img, at: [b.x, b.y], where });
+    pics.push({ img, at: [b.x, b.y], where, anchored });
     return pics.length - 1;
   }
 
@@ -243,8 +252,11 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
     const boxesAt = (flags) => ids.map((t) => boxFor(screen, t, flags)).filter(Boolean);
 
     const baseBoxes = boxesAt(screenFlags);
-    const def = { frame: picture(o.draw, `${w}.draw`, baseBoxes), layer: layerOf(o.layer, w) };
-    const defLoop = loopOf(o.loop, `${w}.loop`, baseBoxes);
+    // 16절(개정 12): 장식 물건은 평소 안 보일 수 있다(`draw: null`, 머리 위 양말처럼 anim 때만 보이는 물건). 대상 물건은 지금처럼 오류.
+    const hiddenDecor = o.draw === null && ids.length === 0;
+    if (hiddenDecor && o.loop !== undefined) problems.push(`${w}: draw가 null(안 그림)이면 loop를 둘 수 없다(개정 9·12)`);
+    const def = { frame: hiddenDecor ? null : picture(o.draw, `${w}.draw`, baseBoxes), layer: layerOf(o.layer, w) };
+    const defLoop = hiddenDecor ? undefined : loopOf(o.loop, `${w}.loop`, baseBoxes);
     if (defLoop) def.loop = defLoop;
     loopStartsAtRest(defLoop, def.frame, `${w}.loop`);
 
@@ -359,14 +371,24 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
       problems.push(`${w}: frames가 비었다`);
       continue;
     }
+    // 16절(개정 12): 머리 위 anim. 칸을 그 캐릭터 얼굴 상자 위 가운데(ANCHOR_ORIGIN) 기준으로 그리고, 늘 front(사람 위)다.
+    let anchor;
+    if (a.anchor !== undefined) {
+      unknownKeys(a.anchor, ANCHOR_KEYS, `${w}.anchor`, problems);
+      if (!ANCHOR_CHARS.includes(a.anchor?.char)) problems.push(`${w}.anchor.char: '${a.anchor?.char}'는 캐릭터 ID가 아니다(${ANCHOR_CHARS.join(', ')})`);
+      else if (a.anchor.point !== 'head') problems.push(`${w}.anchor.point: 'head'만 된다`);
+      else anchor = { char: a.anchor.char, point: 'head' };
+      if (a.tilt !== undefined) problems.push(`${w}.anchor: 머리 위 anim은 칸별 기울기(tilt)를 못 둔다`);
+    }
     const one = (src, where) => {
-      const frames = src.frames.map((d, i) => picture(d, `${where}[${i}]`, null));
+      const frames = src.frames.map((d, i) => picture(d, `${where}[${i}]`, null, a.anchor !== undefined));
+      if (a.anchor !== undefined && src.layer !== undefined && src.layer !== 'front') problems.push(`${where}.layer: 머리 위 anim(anchor)은 front만 된다(빼면 front)`);
       const ms = normMs(src.ms, frames.length, where, problems);
       if (ms) {
         const sum = ms.reduce((s, v) => s + v, 0);
         if (sum > ANIM_MAX_MS) problems.push(`${where}: ms 합 ${sum} > ${ANIM_MAX_MS}(busy 길이 상한, 넘으면 L1로 올린다)`);
       }
-      const res = { frames, ms: ms ?? [], layer: layerOf(src.layer, where) };
+      const res = { frames, ms: ms ?? [], layer: a.anchor !== undefined ? 'front' : layerOf(src.layer, where) };
       // 12-5절(개정 6): 칸별 기울기 d. 판 위 발이 그 칸의 판 높이를 따른다. 기울기 물건의 anim만, 칸 수와 같은 길이의 정수.
       if (src.tilt !== undefined) {
         if (!tiltKeys.has(objectKey)) problems.push(`${where}.tilt: 대상 물건에 tilt가 없다(칸별 기울기는 기울기 물건 anim만)`);
@@ -376,7 +398,7 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
       }
       return res;
     };
-    const out = { object: objectKey, ...one(a, w), ...(hold ? { hold } : {}) };
+    const out = { object: objectKey, ...one(a, w), ...(hold ? { hold } : {}), ...(anchor ? { anchor } : {}) };
     // 기울기 물건은 판 위 발이 멈춘 기울기(`tiltOf`)를 따라서, 붙든 anim 칸과 발이 어긋난다.
     if (hold && tiltKeys.has(objectKey)) problems.push(`${w}.hold: 기울기 물건 anim은 붙들 수 없다(판 위 발이 멈춘 기울기를 따른다)`);
     // 4-1절(개정 1): 갈래는 첫 일치, 없으면 기본. 갈래 layer는 기본을 물려받지 않는다(없으면 back).
@@ -414,7 +436,7 @@ export function buildScene(SCENE, screen, { bgMaxBytes = BG_MAX_BYTES } = {}) {
         x = 0;
         rowH = 0;
       }
-      frames.push({ src: [x, y, p.img.w, p.img.h], at: p.at });
+      frames.push({ src: [x, y, p.img.w, p.img.h], at: p.anchored ? [p.at[0] - ANCHOR_ORIGIN[0], p.at[1] - ANCHOR_ORIGIN[1]] : p.at });
       p.sx = x;
       p.sy = y;
       x += p.img.w;

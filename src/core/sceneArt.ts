@@ -8,8 +8,11 @@
 //   `hold` anim(13절, 개정 8)은 끝난 뒤에도 대기열이 빌 때까지 마지막 칸(효과 자리면 그 연출 모드)을 붙든다(`SceneView.held`).
 // - 시트에 없는 대상은 null → 엔진이 임시 상자를 그린다(9절 폴백).
 // - 효과 자리(11절, 개정 4): 그림 없이 엔진 입자를 `back` 안 그 순서에 끼운다. 대상 ID가 없다(클릭·외곽선 밖).
+// - 머리 위 anim(16절, 개정 12): `anchor` anim의 칸은 제자리가 아니라 그 캐릭터 얼굴 상자 위 가운데에 놓는다(`heads`, `headPlace`).
 
 import { opaqueAt, type AlphaMask } from './alpha';
+import { CHARACTERS, type CharacterId } from './characters';
+import type { HitBox } from './hit';
 import { TICK_MS } from './config';
 import { SCENE_FX, type SceneFxDraw } from './sceneFx';
 import { parseNthName } from './sprite';
@@ -92,6 +95,16 @@ export interface SceneAnim extends Timed {
    * 메타에는 anim에만 적고, 갈래는 `animOf`가 물려받게 한다.
    */
   hold?: true;
+  /**
+   * 머리 위 anim(16절, 개정 12, #901). 칸 `at`이 그 캐릭터 얼굴 상자 위 가운데에서 잰 상대 좌표이고, 왼쪽을 보면 좌우로 뒤집힌다.
+   * 늘 `front`(사람 위). 메타에는 anim에만 적고 갈래는 `animOf`가 물려받게 한다. 외곽선·덮개·말풍선 상자에서 빠진다.
+   */
+  anchor?: SceneAnchor;
+}
+
+export interface SceneAnchor {
+  char: CharacterId;
+  point: 'head';
 }
 
 export interface SceneArtMeta {
@@ -174,7 +187,8 @@ export function parseSceneArt(raw: unknown): SceneArtMeta {
     const o = raw as ScenePictureObject;
     // 15절(개정 11): `ids: []`는 장식 물건(대상 없음, anim 원본 `object`로만 바뀐다).
     if (typeof o?.key !== 'string' || !Array.isArray(o.ids) || !o.ids.every((t) => typeof t === 'string')) fail(`${w}: key·ids`);
-    picture(o.default, `${w}.default`);
+    // 16절(개정 12): 장식 물건만 평소 안 그릴 수 있다(default `frame: null`). 대상이 없어 임시 상자·히트 박스 문제가 없다.
+    picture(o.default, `${w}.default`, Array.isArray(o.ids) && o.ids.length === 0);
     for (const [j, s] of (o.states ?? []).entries()) {
       picture(s, `${w}.states[${j}]`, true);
       when(s.when, `${w}.states[${j}]`);
@@ -199,8 +213,14 @@ export function parseSceneArt(raw: unknown): SceneArtMeta {
     }
   }
   if (!isObj(m.anims)) return fail('anims 없음');
+  const charIds: readonly string[] = CHARACTERS.map((c) => c.id);
   for (const [name, a] of Object.entries(m.anims)) {
     if (a.hold !== undefined && a.hold !== true) fail(`anims['${name}'].hold: true만 쓴다`);
+    if (a.anchor !== undefined) {
+      const an = a.anchor as Partial<SceneAnchor> | undefined;
+      if (!isObj(an) || !charIds.includes(an.char as string) || an.point !== 'head') fail(`anims['${name}'].anchor`);
+      if (a.layer !== 'front' || a.tilt !== undefined || fxKeys.has(a.object as string)) fail(`anims['${name}'].anchor: front 그림 anim만, tilt 없음`);
+    }
     const fxName = a.object === null ? undefined : fxKeys.get(a.object);
     if (fxName !== undefined) {
       // 효과 anim(11-3절): 효과 자리를 연출 모드로 바꿔 그린다. 칸·갈래·기울기가 없다.
@@ -218,6 +238,8 @@ export function parseSceneArt(raw: unknown): SceneArtMeta {
     for (const [j, v] of (a.variants ?? []).entries()) {
       timed(v, `anims['${name}'].variants[${j}]`);
       if (v.hold !== undefined) fail(`anims['${name}'].variants[${j}].hold: hold는 anim에만 적는다`);
+      if (v.anchor !== undefined) fail(`anims['${name}'].variants[${j}].anchor: anchor는 anim에만 적는다`);
+      if (a.anchor !== undefined && v.layer !== 'front') fail(`anims['${name}'].variants[${j}]: 머리 위 anim 갈래는 front`);
       layer(v.layer, `anims['${name}'].variants[${j}]`);
       animTilt(v, `anims['${name}'].variants[${j}]`);
       when(v.when, `anims['${name}'].variants[${j}]`);
@@ -227,7 +249,8 @@ export function parseSceneArt(raw: unknown): SceneArtMeta {
       // n번째 변형(#765 2/2): 같은 물건, 같은 `hold`. 다르면 끝난 뒤 붙드는 칸·보이는 플래그 시점이 처음 판과 갈린다.
       const base = m.anims[nth.base];
       if (!base) fail(`anims['${name}']: 변형의 원래 anim '${nth.base}'가 없음`);
-      else if (base.object !== a.object || base.hold !== a.hold) fail(`anims['${name}']: 변형은 '${nth.base}'와 object·hold가 같아야 한다`);
+      else if (base.object !== a.object || base.hold !== a.hold || base.anchor?.char !== a.anchor?.char)
+        fail(`anims['${name}']: 변형은 '${nth.base}'와 object·hold·anchor가 같아야 한다`);
     }
   }
   return m as SceneArtMeta;
@@ -263,7 +286,7 @@ export function animOf(meta: SceneArtMeta, target: string, name: string, flags: 
   const a = meta.anims[`${target}.${name}`];
   if (!a || a.object === null) return null;
   const v = a.variants?.find((x) => matches(x.when, flags));
-  return { object: a.object, anim: v ? (a.hold ? { ...v, hold: true } : v) : a };
+  return { object: a.object, anim: v ? (a.hold || a.anchor ? { ...v, ...(a.hold ? { hold: true as const } : {}), ...(a.anchor ? { anchor: a.anchor } : {}) } : v) : a };
 }
 
 /** anim 하나의 busy 길이(60Hz 틱, ms 합을 올림). 5절: 시트에 있는 anim은 이 길이가 그 이벤트의 busy 길이다. */
@@ -295,6 +318,11 @@ export interface SceneDraws {
   back: (number | SceneFxDraw)[];
   front: number[];
   overlays: { sortY: number; frame: number }[];
+  /**
+   * 머리 위 칸(16절): `front` 다음, 사람 위에 그 캐릭터 얼굴 상자 기준으로 그린다(`headPlace`). 적은 순서대로.
+   * 제자리가 아니라서 `byObject`(외곽선·끄덕임)와 덮개(`coverFrames`)에 안 들어간다.
+   */
+  heads: { frame: number; char: CharacterId }[];
   /** 물건 키 → 이번 프레임에 그 물건이 그리는 프레임(앞판 포함). 호버 외곽선(10-1절)이 쓴다. */
   byObject: Record<string, number[]>;
 }
@@ -365,7 +393,7 @@ export function loopStarts(meta: SceneArtMeta, view: SceneView, prev: LoopStarts
  * 기울기 칸(12절)이 있으면 멈춘 모습 대신 그 칸을 같은 층에 그린다. anim이 기울기보다 앞선다(U6 튕김).
  */
 export function sceneDraws(meta: SceneArtMeta, view: SceneView): SceneDraws {
-  const out: SceneDraws = { back: [], front: [], overlays: [], byObject: {} };
+  const out: SceneDraws = { back: [], front: [], overlays: [], heads: [], byObject: {} };
   for (const o of meta.objects) {
     const p = artNow(view, o.key);
     if (isFxObject(o)) {
@@ -380,6 +408,12 @@ export function sceneDraws(meta: SceneArtMeta, view: SceneView): SceneDraws {
       continue;
     }
     let frame: number;
+    if (p?.anim.anchor) {
+      // 16절: 머리 위 칸. 그동안 그 물건의 제자리 그림은 없다(anim이 멈춘 모습을 대신하는 4절 규칙 그대로).
+      out.heads.push({ frame: timedFrame(p.anim, p.ms, false), char: p.anim.anchor.char });
+      out.byObject[o.key] = [];
+      continue;
+    }
     if (p) {
       frame = timedFrame(p.anim, p.ms, false);
       out[p.anim.layer].push(frame);
@@ -422,9 +456,24 @@ export function restingBox(meta: SceneArtMeta, target: string, flags: Flags): { 
 export function animFrameBox(meta: SceneArtMeta, view: SceneView, target: string): { left: number; top: number; width: number; height: number } | null {
   const o = objectOf(meta, target);
   const a = o ? artNow(view, o.key) : null;
-  if (!a || a.anim.frames.length === 0) return null;
+  if (!a || a.anim.frames.length === 0 || a.anim.anchor) return null;
   const f = meta.frames[timedFrame(a.anim, a.ms, false)];
   return f ? { left: f.at[0], top: f.at[1], width: f.src[2], height: f.src[3] } : null;
+}
+
+/**
+ * 머리 위 칸(16절) 하나를 그릴 자리. `face`는 그 캐릭터의 그린 얼굴 상자(`characterFaceBox`, 그리는 방향 그대로)다.
+ * 칸 `at`은 얼굴 상자 위 가운데에서 잰 값이고, 왼쪽(`facing` -1)을 보면 그 가운데 세로줄로 좌우를 뒤집는다(`flip`).
+ * 반환 x·y는 그린 그림의 왼쪽 위(화면 좌표). 칸이 없으면 null.
+ */
+export function headPlace(meta: SceneArtMeta, frame: number, face: HitBox, facing: 1 | -1): { x: number; y: number; w: number; h: number; flip: boolean } | null {
+  const f = meta.frames[frame];
+  if (!f) return null;
+  const w = f.src[2];
+  const h = f.src[3];
+  const cx = face.left + Math.round(face.width / 2);
+  const x = facing === 1 ? cx + f.at[0] : cx - f.at[0] - w;
+  return { x, y: face.top + f.at[1], w, h, flip: facing === -1 };
 }
 
 /**

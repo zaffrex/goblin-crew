@@ -5,7 +5,8 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildScene, type Img, type SceneSrc } from '../../art/scene-build.mjs';
+import { ANCHOR_CHARS, ANCHOR_ORIGIN, buildScene, type Img, type SceneSrc } from '../../art/scene-build.mjs';
+import { CHARACTERS } from '../../src/core/characters';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const screen = JSON.parse(readFileSync(join(ROOT, 'content', 'screens', 'magpie_nest.json'), 'utf8'));
@@ -449,5 +450,49 @@ describe('scene build (format v1)', () => {
       expect(fxProblems((s) => (s.anims!['basket.water_off'] = { effect: 'water', mode: 'stop', ms: 1600 } as never))).toEqual([expect.stringContaining('1600 > 1500')]);
       expect(fxProblems((s) => (s.anims!['basket.water_off'] = { effect: 'water', mode: 'stop', ms: 900, layer: 'front' } as never))).toEqual([expect.stringContaining("모르는 필드 'layer'")]);
     });
+  });
+});
+
+describe('머리 위 anim `anchor`(16절, 개정 12, #901)', () => {
+  // 빨래방 ★① 양말처럼: 평소 안 보이는 장식 물건 `sock`을 까치 대상 anim이 ズッシー(mukjik) 머리 위에 그린다.
+  const [OX, OY] = ANCHOR_ORIGIN;
+  const withHead = (s: SceneSrc) => {
+    s.objects!.sock = { ids: [], draw: null };
+    s.anims!['magpie.sock_on'] = { object: 'sock', anchor: { char: 'mukjik', point: 'head' }, ms: 80, hold: true, frames: [box(OX - 8, OY - 16, 16, 8), box(OX - 8, OY - 8, 16, 8)] };
+  };
+  it('정상: 장식 default null, anim에 anchor·front, 칸 at은 얼굴 상자 위 가운데 기준 상대 좌표', () => {
+    const s = goodScene();
+    withHead(s);
+    const r = buildScene(s, screen);
+    expect(r.problems).toEqual([]);
+    expect(r.meta!.objects.find((o) => o.key === 'sock')).toMatchObject({ ids: [], default: { frame: null, layer: 'back' } });
+    const a = r.meta!.anims['magpie.sock_on']!;
+    expect(a).toMatchObject({ object: 'sock', anchor: { char: 'mukjik', point: 'head' }, layer: 'front', hold: true });
+    expect(a.frames.map((f) => r.meta!.frames[f]!.at)).toEqual([[-8, -16], [-8, -8]]);
+    expect(r.meta!.anims['magpie.fly_down']!.anchor).toBeUndefined();
+  });
+  it('제자리 칸과 픽셀·자리가 같아도 합치지 않는다(at 뜻이 다르다)', () => {
+    const s = goodScene();
+    s.anims!['magpie.on_head'] = { object: 'nest', anchor: { char: 'jjuk', point: 'head' }, ms: 80, frames: [box(130, 34, 30, 16)] };
+    const r = buildScene(s, screen);
+    expect(r.problems).toEqual([]);
+    const rest = r.meta!.objects.find((o) => o.key === 'nest')!.default.frame!;
+    const head = r.meta!.anims['magpie.on_head']!.frames[0]!;
+    expect(head).not.toBe(rest);
+    expect(r.meta!.frames[head]!.at).toEqual([130 - OX, 34 - OY]);
+  });
+  it('캐릭터 ID·point·layer·tilt를 잡는다', () => {
+    const anchorOf = (s: SceneSrc) => s.anims!['magpie.sock_on']!;
+    expect(problemsOf((s) => { withHead(s); anchorOf(s).anchor = { char: 'nobby', point: 'head' }; })).toEqual([expect.stringContaining("'nobby'는 캐릭터 ID가 아니다")]);
+    expect(problemsOf((s) => { withHead(s); anchorOf(s).anchor = { char: 'ppik', point: 'foot' }; })).toEqual([expect.stringContaining("'head'만 된다")]);
+    expect(problemsOf((s) => { withHead(s); anchorOf(s).layer = 'back'; })).toEqual([expect.stringContaining('front만 된다')]);
+    expect(problemsOf((s) => { withHead(s); (anchorOf(s).anchor as Record<string, unknown>).side = 1; })).toEqual([expect.stringContaining("모르는 필드 'side'")]);
+  });
+  it('draw null default는 장식 물건만, loop는 못 둔다', () => {
+    expect(problemsOf((s) => (s.objects!.nest!.draw = null))).toEqual([expect.stringContaining('draw가 함수가 아니다')]);
+    expect(problemsOf((s) => { withHead(s); s.objects!.sock!.loop = { ms: 100, frames: [box(10, 10, 4, 4)] }; })).toEqual([expect.stringContaining('loop를 둘 수 없다')]);
+  });
+  it('빌드의 캐릭터 ID 표가 core CHARACTERS와 같다', () => {
+    expect(ANCHOR_CHARS).toEqual(CHARACTERS.map((c) => c.id));
   });
 });
