@@ -1,3 +1,5 @@
+> 대체됨(2번 "#764 머지 날 회의록 순서로 바꾼다"만): [ADR-0905](../adr/0905-m2-screen-order-laundromat-third.md). 지금 순서 `magpie_nest` → `park_fountain` → `laundromat`가 M2 확정 순서다.
+
 # 결정: 기본 배포 링크도 3화면을 잇되, `laundromat` 그림 전까지는 임시 순서로 둔다
 
 - 레벨: L1
