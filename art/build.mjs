@@ -26,6 +26,7 @@ import { buildScene } from './scene-build.mjs';
 import { clippedEdge } from './lib/finish.mjs';
 import { buildIcons, previewIcons } from './ui/hud-icons-build.mjs';
 import { buildFxText, previewFxText } from './ui/fx-text-build.mjs';
+import { buildTitleLogo, previewTitleLogo } from './ui/title-logo.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'public', 'sprites');
@@ -312,6 +313,11 @@ const fxText = buildFxText();
 outputs.push([join(UI_OUT, 'fx-text.png'), indexedPng(fxText.sheet)]);
 outputs.push([join(UI_OUT, 'fx-text.json'), Buffer.from(JSON.stringify(fxText.meta, null, 2) + '\n')]);
 
+// ── 타이틀 로고(#792, title-and-map.md 2절): [ja | en] 가로 한 줄 + 칸 메타
+const logo = buildTitleLogo();
+outputs.push([join(UI_OUT, 'title-logo.png'), indexedPng(logo.sheet)]);
+outputs.push([join(UI_OUT, 'title-logo.json'), Buffer.from(JSON.stringify(logo.meta, null, 2) + '\n')]);
+
 // ── 고리 손 기준점(형식 기록 7절): 발(hold 자리) + (손 − anchor) = 화면 grips. 시트에 hold.hand가 있을 때만 본다.
 for (const S of SCENES) {
   const screen = JSON.parse(readFileSync(join(ROOT, 'content', 'screens', `${S.id}.json`), 'utf8'));
@@ -375,6 +381,8 @@ if (check) {
   writeFileSync(join(PREVIEW, 'hud-icons-preview-4x.png'), indexedPng(previewIcons(icons.cells, HEX), 4));
   writeFileSync(join(PREVIEW, 'fx-text-preview-4x.png'), indexedPng(previewFxText(fxText.items), 4));
   console.log(`fx-text: ${fxText.items.length}칸 ${fxText.sheet.w}×${fxText.sheet.h}`);
+  writeFileSync(join(PREVIEW, 'title-logo-preview-3x.png'), indexedPng(previewTitleLogo(logo), 3));
+  console.log(`title-logo: ja ${logo.ja.w}×${logo.ja.h}, en ${logo.en.w}×${logo.en.h}`);
   console.log(`hud-icons: ${icons.cells.length}개 ${icons.sheet.w}×${icons.sheet.h} (${Object.keys(icons.meta.icons).join(' ')})`);
   for (const s of built) {
     writeFileSync(join(PREVIEW, `${s.def.name}-preview-4x.png`), indexedPng(previewSheet(s), 4));
