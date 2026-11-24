@@ -19,12 +19,29 @@ export const SHUTTER = { x: 24, y: 140, w: 128, h: 104 };
 /** 셔터 통(배경): 히트 상자 위 */
 export const HOUSING = { x: 20, y: 124, w: 136, h: 16 };
 const RAIL = 6; // 가이드 레일 폭(양쪽)
+/** 잠김 그림의 아래 끝 띄움(px). 판 아래 끝이 바닥 위로 떠서 빛 띠와 바깥 길바닥 한 줄이 보인다(laundromat.md 2-1 R3) */
+export const LIFT = 6;
+/**
+ * 찌그러진 틈(열쇠 자리). 판 아래 끝이 x0에서 peak까지 위로 rise만큼 올라가고 x1에서 다시 내려온다.
+ * 가장 큰 틈 = LIFT + rise = 14px(peak, y 230~243). 열쇠 패 전체와 까치 머리·부리(3-1 `gap.snatch`)가 이 안에 보인다.
+ * `gap` 핫스팟(80, 222, 40×24)이 이 자리를 덮는다.
+ */
+export const DENT = { x0: 92, peak: 112, x1: 120, rise: 8 };
+/** 잠김 그림에서 열 px의 판 아래 끝 올라감(px). 셔터 판 밖(레일)은 0 */
+export const gapLift = (px) => {
+  const { x0, peak, x1, rise } = DENT;
+  const X0 = SHUTTER.x + RAIL, X1 = SHUTTER.x + SHUTTER.w - RAIL;
+  if (px < X0 || px >= X1) return 0;
+  if (px <= x0 || px >= x1) return LIFT;
+  return LIFT + Math.round(px <= peak ? ((px - x0) / (peak - x0)) * rise : ((x1 - px) / (x1 - peak)) * rise);
+};
 
 /**
  * 셔터 통 + 레일 + 판 + 손잡이를 그린다. 좌표는 화면 좌표 그대로(SHUTTER 기준).
  * @param {'locked'|'loose'|'up'} state
- *   locked: 잠김. 판이 바닥까지 꽉.
- *   loose : 풀림. 판이 1px 내려앉아 통 밑에 어두운 틈 한 줄, 바닥 고무가 눌려 그 줄에 문밖 가로등 빛이 샌다(아래 틈 빛줄).
+ *   locked: 잠김(스테이지 3 B). 판 아래 끝이 바닥에서 LIFT만큼 떠 있고, 열쇠 자리(DENT)는 위로 찌그러져 삼각 틈이 된다.
+ *           틈 너머로 바깥 길바닥(가로등 빛)이 보이고, 가게 바닥에 빛 띠가 두 줄 번진다. 열쇠(물건)는 그리지 않는다.
+ *   loose : 풀림(이전 초안 걸쇠 판, B 설계에서는 안 씀). 판이 1px 내려앉아 통 밑에 어두운 틈 한 줄, 바닥 고무가 눌려 그 줄에 문밖 가로등 빛이 샌다(아래 틈 빛줄).
  *           바닥으로 번지는 빛 두 줄(y 244~245)도 같이 그린다(바닥 위에 덮어 그림).
  *   up    : 올라감. 판은 통 안으로 감기고 손잡이 막대만 통 밑(y 140~143)에 남는다. 문밖 새벽 거리가 보인다.
  */
@@ -65,7 +82,7 @@ export function shutter(img, state = 'locked') {
   }
 
   // ── 가이드 레일(양쪽 6px): 왼쪽 레일은 빛 쪽이라 한 단 밝다. 안쪽 홈은 dusk 한 줄
-  const rail = (rx, lit) => fill(img, rx, y, RAIL, h, (px, py) => {
+  const rail = (rx, lit, ry0 = y) => fill(img, rx, ry0, RAIL, y + h - ry0, (px, py) => {
     const d = px - rx;
     if (py >= y + h - 2) return C.dusk; // 바닥 고정 쇠
     if (d === (lit ? RAIL - 1 : 0)) return C.dusk; // 판 쪽 홈
@@ -124,6 +141,11 @@ export function shutter(img, state = 'locked') {
     }
   }
 
+  // ── 잠김: 아래 끝을 띄우고 찌그러진 틈을 낸다. 열마다 판 아래 끝(e)을 올리고 그 아래는 바깥이 보인다.
+  //    막대·고무는 판 안쪽(레일 사이)만 다시 그린다(막대는 레일 홈 속에서 움직인다). 레일은 아래 6줄을 다시 그린다.
+  if (state === 'locked') gapOverlay(img, X0, X1, y + h);
+  if (state === 'locked') { rail(x, true, y + h - LIFT - 6); rail(X1, false, y + h - LIFT - 6); }
+
   // ── 셔터 통: lav 상자, 위 1줄 lint(빛), 아래 1줄 dusk, 오른쪽 끝 그늘. 앞면에 나사 둘
   const { x: hx0, y: hy0, w: hw, h: hh } = HOUSING;
   fill(img, hx0, hy0, hw, hh, (px, py) => {
@@ -136,4 +158,40 @@ export function shutter(img, state = 'locked') {
   });
   fill(img, hx0 + 1, hy0 + hh - 3, hw - 4, 1, C.dusk); // 아래 테두리 접은 선
   for (const sx of [hx0 + 6, hx0 + hw - 9]) { img.set(sx, hy0 + 6, C.dusk); img.set(sx, hy0 + 5, C.cotton); }
+}
+
+/**
+ * 잠김 셔터의 아래 끝 띄움 + 찌그러진 틈(laundromat.md 2-1 R3). bottom = 바닥 기준 아래 끝(244, 제외).
+ * 틈 속: 바로 밑 한 줄은 판 그늘(plum), 그 아래는 바깥 길바닥. 가까운 4줄은 판석(dusk, 줄눈 lav)에 가로등 빛(tan 점),
+ * 그 위(틈이 높은 찌그러진 자리만)는 연석(lint 한 줄) 너머 건너편 길(purD). 열쇠 패(woodL)·열쇠(yel)가 dusk 판석 위에서 뜬다.
+ */
+function gapOverlay(img, X0, X1, bottom) {
+  const BAR = (px, k) => (k === 0 ? (px - SHUTTER.x < SHUTTER.w * 0.6 ? C.cotton : C.lint) : k === 3 ? C.dusk : C.lav);
+  for (let px = X0; px < X1; px++) {
+    const e = bottom - gapLift(px); // 판 아래 끝(제외) = 틈 위 끝
+    // 판(슬랫)을 아래 끝까지: 원래 판 그림은 이미 있다. 막대·고무만 올려 그린다
+    for (let k = 0; k < 4; k++) img.set(px, e - 6 + k, BAR(px, k));
+    img.set(px, e - 2, C.plum); img.set(px, e - 1, C.plum);
+    for (let py = e; py < bottom; py++) {
+      const d = bottom - 1 - py; // 0 = 가장 가까운 줄
+      let c;
+      if (py === e) c = C.plum; // 판 그늘
+      else if (d <= 3) c = (px + d * 3) % 9 === 0 || d === 3 ? C.lav : bay(px, py, Math.max(0, 0.55 - Math.abs(px - 108) / 30), C.dusk, C.tan);
+      else if (d === 4) c = C.lint; // 연석 윗줄
+      else if (d === 5) c = C.dusk;
+      else c = C.purD; // 건너편 길
+      img.set(px, py, c);
+    }
+  }
+  // 찌그러진 자리 판 그늘: 꼭짓점 바로 위 슬랫 두 줄이 눌려 한 단 어둡다(선을 그으면 지붕처럼 읽혀서 그늘로만)
+  for (let px = DENT.x0 + 4; px < DENT.x1 - 1; px++) {
+    const e = bottom - gapLift(px);
+    for (let py = e - 9; py < e - 6; py++) if (img.get(px, py) === C.lint || img.get(px, py) === C.cotton) img.set(px, py, C.lav);
+  }
+  // 가게 바닥으로 번지는 빛 띠 두 줄(틈 폭만큼, 찌그러진 자리가 가장 밝다)
+  for (let px = X0; px < X1; px++) {
+    const t = Math.min(1, Math.abs(px - (DENT.x0 + DENT.x1) / 2) / 50);
+    if (bay(px, bottom, 0.15 + t * 0.6, 1, 0)) img.set(px, bottom, t < 0.3 ? C.yelL : C.tan);
+    if (t < 0.5 && bay(px, bottom + 1, 0.3 + t, 1, 0)) img.set(px, bottom + 1, C.tan);
+  }
 }

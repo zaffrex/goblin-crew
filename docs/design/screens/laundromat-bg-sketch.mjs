@@ -1,16 +1,20 @@
-// 화면 1 `laundromat` 배경 구도 시안 (#764). 방 껍데기(art/scenes/laundromat.room.mjs) + 세탁기 줄(#853) + 셔터(#856) + 3번 건조기(#879)·세제 자판기(#882)
-// 정지 그림은 진짜 그림, 걸쇠는 Kai 다시 보기(#802) 뒤라 **자리 표시**다.
+// 스테이지 3 `laundromat` 배경 구도 시안 (#764). 방 껍데기(art/scenes/laundromat.room.mjs) + 세탁기 줄(#853) + 셔터(#856) + 3번 건조기(#879)·세제 자판기(#882)
+// + B 설계(laundromat.md 2-1, 9-2) 덕트 길·들창(R1+R2), 셔터 찌그러진 틈(R3), 열쇠 + 나무 패(O1), 후드 위 빈 둥지(O2 1칸).
+// 들창 안 까치는 magpie_nest 앉음 그림(`smug`)을 자리만 옮겨 얹었다(9-1 재사용, 0칸). 모두 진짜 그림이고 자리 표시는 없다.
 // 실행: node docs/design/screens/laundromat-bg-sketch.mjs
 // 출력(같은 폴더):
 //   laundromat-bg-sketch-2x.png       시작 3초 화면(잠긴 셔터 + 세 사람 시작 위치 240·280·320). 세 사람은 배포 시트 0칸
 //   laundromat-bg-sketch-gray-2x.png  같은 장면 명도(흑백) (ADR-0007 결정 3-6)
-//   laundromat-bg-sketch-4x.png       왼쪽: 걸쇠 자리·빈 열쇠 걸이·선반 끝 / 오른쪽: 벽시계 4배(작은 것이 1배에서 읽히는지)
+//   laundromat-bg-sketch-1x.png       같은 장면 1배(9-3 그림 블라인드용: 글·표시 없이 이 한 장만 보여 준다)
+//   laundromat-bg-sketch-4x.png       왼쪽: 들창(덕트 끝·판자·후드·둥지·까치) / 오른쪽: 셔터 찌그러진 틈과 열쇠 4배
 // 검사(어기면 종료 코드 1):
 //   - 방 껍데기에 ink(0)·hint(31) 없음, 빨강 계열 없음 (결정 3-1, X4)
 //   - 바닥 주색과 세 사람 주색 명도 차 ≥ 30 (결정 3-4)
 //   - 아래 벽 띠 주색과 세 사람 주색·세탁기 몸 주색 차 ≥ 30 (시작 줄에서 몸이 세탁기·벽에 묻히지 않게)
 //   - 벽 주색과 셔터 판·세탁기 몸 주색 차 ≥ 30
-//   - 셔터 오른쪽 벽(x 152~158, y 140~152): 빨강·갈색 없음 + 걸쇠 red와 차 ≥ 30 (laundromat.md 9-1)
+//   - 덕트 lint와 벽·천장 차 ≥ 30, 덕트 세로 구간이 `duct` 핫스팟(352,120 30×44)과 걸림 자리(367,150)를 덮음 (2-1)
+//   - 들창 바깥 주색과 까치 ink·둥지 주색 차 ≥ 30, 까치·둥지·후드가 들창 틀 안 (2-1 "창 안에 32px")
+//   - 셔터 틈: 가장 큰 틈 14px, 열쇠 패가 틈 안에 다 보임(판에 안 가려짐), 패·열쇠 주색과 길바닥 주색 차 ≥ 30, `gap` 핫스팟(80,222 40×24) 안
 //   - 빈 열쇠 걸이 판 주색과 둘레 벽 차 ≥ 30 (클리어 컷 `clear_hook`이 가리키는 물건)
 //   - 벽시계 판과 벽 차 ≥ 20(흰 판이 벽보다 밝게) — 숫자 대신 테두리·바늘로 읽힌다
 //   - 꺼진 오른쪽 구석(x ≥ 340)의 켜진 불은 3번 건조기 표시등 하나: 건조기 상자 밖 yel 2×2 덩어리 0(세제 상자 6개는 뺀다)
@@ -24,10 +28,12 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { C, PALETTE, EMPTY, Image, indexedPng } from '../../../art/lib/pixel.mjs';
-import { fill } from '../../../art/lib/texture.mjs';
-import { room, W, H, FLOOR_Y, WAINSCOT_Y, CEIL_Y, KEY_HOOK, CLOCK } from '../../../art/scenes/laundromat.room.mjs';
+import { stamp, outlined } from '../../../art/lib/texture.mjs';
+import { room, W, H, FLOOR_Y, WAINSCOT_Y, CEIL_Y, KEY_HOOK, CLOCK, DUCT, TRANSOM, HOOD } from '../../../art/scenes/laundromat.room.mjs';
 import { washer, WASHER_H } from '../../../art/scenes/laundromat.washer.mjs';
-import { shutter } from '../../../art/scenes/laundromat.shutter.mjs';
+import { shutter, SHUTTER, gapLift } from '../../../art/scenes/laundromat.shutter.mjs';
+import { keyTag, KEY_TAG, KEY_ON_STREET, nestEmpty, NEST } from '../../../art/scenes/laundromat.objects.mjs';
+import { MAGPIE, MAGPIE_LEGEND } from '../../../art/scenes/magpie_nest.objects.mjs';
 import { dryer } from '../../../art/scenes/laundromat.dryer.mjs';
 import { vending, VEND_BOX } from '../../../art/scenes/laundromat.vending.mjs';
 
@@ -37,7 +43,9 @@ const SCREEN = JSON.parse(readFileSync(join(ROOT, 'content/screens/laundromat.js
 const Y = PALETTE.map(([r, g, b]) => Math.round(0.299 * r + 0.587 * g + 0.114 * b));
 const ROW = { x0: 176, y: 180, pitch: 40 }; // 설계 1-1 메모: 세탁기 4대 176~336, y 180~236
 const ROW_DOORS = ['open', 'load', 'empty', 'load']; // #853: 문 열린 칸은 사람에게 안 가리는 1번
-const LATCH = [140, 140, 10, 12]; // 걸쇠 그림 자리(설계 1-1). 히트 상자 133,134 24×24보다 작다
+// B 설계 핫스팟 제안(laundromat.md 2-1). 화면 JSON은 아직 이전 초안이라 여기 적는다(Kai·Theo 화면 JSON PR에서 옮긴다)
+const GAP_BOX = [80, 222, 40, 24], DUCT_BOX = [352, 120, 30, 44], STUCK = [367, 150];
+const MAGPIE_AT = [61, 27]; // smug 20×18, 앞발(열 12~15)이 둥지 위 끝(y 43~44)을 밟는다
 if (ROW.y + WASHER_H !== FLOOR_Y) throw new Error(`세탁기 아래 끝 ${ROW.y + WASHER_H} ≠ 바닥 ${FLOOR_Y}`);
 
 const shell = new Image(W, H); // 방 껍데기만(검사용)
@@ -49,8 +57,12 @@ for (let i = 0; i < 4; i++) washer(scene, ROW.x0 + i * ROW.pitch + 1, ROW.y, { n
 shutter(scene, 'locked');
 dryer(scene, SCREEN.hotspots.dryer_3.box[0], SCREEN.hotspots.dryer_3.box[1]); // 정지 그림(검사: laundromat-dryer-preview.mjs)
 vending(scene, SCREEN.hotspots.soap_vending.box[0], SCREEN.hotspots.soap_vending.box[1]); // 정지 그림(검사: laundromat-vending-preview.mjs)
-// 자리 표시: 걸쇠(빨간 상자)
-fill(scene, LATCH[0], LATCH[1], LATCH[2], LATCH[3], (px, py) => (px === LATCH[0] || py === LATCH[1] ? C.redL : C.red));
+// 물건(외곽선): 길바닥 열쇠, 후드 위 빈 둥지, 그 위 까치
+const shutterOnly = new Image(W, H); // 열쇠가 판에 가려지는지 보려고 셔터만 따로
+shutter(shutterOnly, 'locked');
+keyTag(scene, KEY_ON_STREET.x, KEY_ON_STREET.y);
+nestEmpty(scene);
+{ const t = new Image(W, H); stamp(t, MAGPIE_AT[0], MAGPIE_AT[1], MAGPIE.smug, MAGPIE_LEGEND); scene.blit(outlined(t), 0, 0); }
 
 function readIndexedPng(file) {
   const buf = readFileSync(file);
@@ -99,11 +111,43 @@ for (const [n, c] of Object.entries({ ...PEOPLE, '세탁기 몸': WASHER_BODY })
 const wallMain = main(shell, 0, CEIL_Y + 1, W, WAINSCOT_Y - CEIL_Y - 1);
 check(dY(wallMain, PANEL) >= 30, `벽 ${name(wallMain)} vs 셔터 판 ${name(PANEL)} 차 ${dY(wallMain, PANEL)} ≥ 30`);
 check(dY(wallMain, WASHER_BODY) >= 30, `벽 ${name(wallMain)} vs 세탁기 몸 ${name(WASHER_BODY)} 차 ${dY(wallMain, WASHER_BODY)} ≥ 30`);
-const besideLatch = count(scene, 152, 140, 7, 13);
-const warm = [C.redD, C.red, C.redL, C.woodD, C.wood, C.woodL].filter((c) => besideLatch.has(c));
-check(warm.length === 0, `셔터 오른쪽 벽(152~158, 140~152)에 빨강·갈색 없음${warm.length ? ` (${warm.join(',')})` : ''}`);
-const besideMain = main(scene, 152, 140, 7, 13);
-check(dY(besideMain, C.red) >= 30, `셔터 오른쪽 벽 ${name(besideMain)} vs 걸쇠 red 차 ${dY(besideMain, C.red)} ≥ 30`);
+// 덕트 길(R1)
+const ductMain = main(shell, DUCT.endX + 8, DUCT.runY + 2, 200, DUCT.runH - 4);
+check(dY(ductMain, wallMain) >= 30, `덕트 ${name(ductMain)} vs 벽 ${name(wallMain)} 차 ${dY(ductMain, wallMain)} ≥ 30`);
+check(dY(ductMain, C.dusk) >= 30, `덕트 ${name(ductMain)} vs 천장 dusk 차 ${dY(ductMain, C.dusk)} ≥ 30`);
+{
+  const [bx, by, bw, bh] = DUCT_BOX;
+  check(DUCT.x >= bx && DUCT.x + DUCT.w <= bx + bw && DUCT.runY + DUCT.runH <= by && DUCT.bottom >= by + bh, `덕트 세로 구간 x ${DUCT.x}~${DUCT.x + DUCT.w - 1}, y ${DUCT.runY + DUCT.runH}~${DUCT.bottom - 1}이 duct 핫스팟 ${DUCT_BOX.join(',')}를 채움`);
+  check(STUCK[0] >= DUCT.x && STUCK[0] < DUCT.x + DUCT.w && STUCK[1] > DUCT.runY + DUCT.runH && STUCK[1] < DUCT.bottom, `걸림 자리 ${STUCK.join(',')}가 덕트 세로 구간 위`);
+}
+// 들창(R2) + 둥지(O2) + 까치
+const outside = main(shell, TRANSOM.paneL.x, TRANSOM.inY, TRANSOM.paneL.w, 20);
+check(dY(outside, C.ink) >= 30, `들창 바깥 ${name(outside)} vs 까치 ink 차 ${dY(outside, C.ink)} ≥ 30`);
+const nestImg = new Image(W, H); nestEmpty(nestImg);
+const nestMain = main(nestImg, NEST.x + 2, NEST.y + 2, NEST.w - 6, 5);
+check(dY(outside, nestMain) >= 30, `들창 바깥 ${name(outside)} vs 둥지 ${name(nestMain)} 차 ${dY(outside, nestMain)} ≥ 30`);
+{
+  const { x, y, w, h } = TRANSOM;
+  const ins = (px, py) => px >= x && px < x + w && py >= y && py < y + h;
+  const parts = { 까치: [MAGPIE_AT[0], MAGPIE_AT[1], 20, 18], 둥지: [NEST.x, NEST.y, NEST.w, NEST.h], 후드: [HOOD.capX, HOOD.y - 1, 86 - HOOD.capX, HOOD.h + 3] };
+  for (const [n, [px, py, pw, ph]] of Object.entries(parts)) check(ins(px, py) && ins(px + pw - 1, py + ph - 1), `${n} ${px},${py} ${pw}×${ph}가 들창 틀 ${x},${y} ${w}×${h} 안`);
+}
+// 셔터 틈(R3) + 열쇠(O1)
+{
+  const bottom = SHUTTER.y + SHUTTER.h;
+  let maxGap = 0; for (let px = SHUTTER.x; px < SHUTTER.x + SHUTTER.w; px++) maxGap = Math.max(maxGap, gapLift(px));
+  check(maxGap === 14, `가장 큰 틈 ${maxGap}px = 14 (laundromat.md 2-1)`);
+  const { x: kx, y: ky } = KEY_ON_STREET, { w: kw, h: kh } = KEY_TAG;
+  const keyImg = new Image(W, H); keyTag(keyImg, kx, ky);
+  let drawn = 0, under = 0; for (let px = kx; px < kx + kw + 1; px++) for (let py = ky; py < ky + kh; py++) if (keyImg.get(px, py) !== EMPTY) { drawn++; if (py < bottom - gapLift(px)) under++; }
+  check(under === 0, `열쇠 ${drawn}칸 중 셔터 판 아래 끝보다 위(판 앞에 겹침) ${under}칸 = 0`);
+  const street = main(shutterOnly, kx, bottom - 3, kw, 3);
+  const tagMain = main(keyImg, kx + 1, ky + 1, 8, 5), keyMain = C.yel;
+  check(dY(tagMain, street) >= 30, `나무 패 ${name(tagMain)} vs 길바닥 ${name(street)} 차 ${dY(tagMain, street)} ≥ 30`);
+  check(dY(keyMain, street) >= 30, `열쇠 ${name(keyMain)} vs 길바닥 ${name(street)} 차 ${dY(keyMain, street)} ≥ 30`);
+  const [gx, gy, gw, gh] = GAP_BOX;
+  check(kx >= gx && kx + kw <= gx + gw && ky >= gy && ky + kh <= gy + gh, `열쇠 ${kx},${ky} ${kw}×${kh}가 gap 핫스팟 ${GAP_BOX.join(',')} 안`);
+}
 const hookMain = main(shell, KEY_HOOK.x, KEY_HOOK.y, KEY_HOOK.w, KEY_HOOK.h);
 const hookAround = main(shell, KEY_HOOK.x - 4, KEY_HOOK.y - 4, 2, KEY_HOOK.h + 8);
 check(dY(hookMain, hookAround) >= 30, `열쇠 걸이 판 ${name(hookMain)} vs 둘레 벽 ${name(hookAround)} 차 ${dY(hookMain, hookAround)} ≥ 30`);
@@ -137,9 +181,9 @@ console.log(`방 껍데기 쓴 색 ${used.size}개, 장면 ${count(scene, 0, 0, 
 
 // ── 4배: 작은 것 셋(걸쇠 자리·열쇠 걸이·시계) 둘레
 const crop = (img, x0, y0, w, h) => { const c = new Image(w, h); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) c.set(x, y, img.get(x0 + x, y0 + y)); return c; };
-const zoom = new Image(140, 44);
-zoom.blit(crop(scene, 128, 120, 70, 44), 0, 0); // 걸쇠·셔터 오른쪽 끝·열쇠 걸이·1번 세탁기 문
-zoom.blit(crop(scene, CLOCK.cx - 35, CLOCK.cy - 22, 70, 44), 70, 0); // 시계 둘레
+const zoom = new Image(140, 64);
+zoom.blit(crop(scene, TRANSOM.x - 6, TRANSOM.y - 4, 70, 64), 0, 0); // 들창: 덕트 끝·판자·후드·둥지·까치
+zoom.blit(crop(scene, 72, 206, 70, 44), 70, 10); // 셔터 찌그러진 틈·열쇠·바닥 빛 띠
 
 // ── 출력
 const gray = (img, S, file) => {
@@ -156,5 +200,6 @@ const gray = (img, S, file) => {
 };
 writeFileSync(join(HERE, 'laundromat-bg-sketch-2x.png'), indexedPng(scene, 2));
 writeFileSync(join(HERE, 'laundromat-bg-sketch-4x.png'), indexedPng(zoom, 4));
+writeFileSync(join(HERE, 'laundromat-bg-sketch-1x.png'), indexedPng(scene, 1));
 gray(scene, 2, 'laundromat-bg-sketch-gray-2x.png');
 if (problems.length) { console.error(`${problems.length}개 검사 실패`); process.exit(1); }
