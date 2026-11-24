@@ -1,171 +1,323 @@
 {
   "id": "laundromat",
-  "note": "튜토리얼 화면(설계 docs/design/screens/laundromat.md, M2 #230). 좌표는 회색 배치 v1에서 옮겼고(그 파일은 지움) 이 파일이 진실이다. 시작 좌표(엔진 배치, floor ±40, characters 순서): jjuk 240,244 / mukjik 280,244 / ppik 320,244. 그림·화면 순서(order.json) 연결은 별도 PR이라 지금은 ?screen=laundromat으로만 열린다(회색 상자).",
+  "note": "스테이지 3, 후보 B「거꾸로 도는 건조기」(설계 docs/design/screens/laundromat.md, #897 #909). 세 번째 판(order.json). 좌표는 설계 2절 제안값 + Luna #908 그림 값(들창 틀 58,22 56×52, 덕트 세로 x 360~373, 틈 꼭짓점 x 112)이고 이 파일이 진실이다. 시작 좌표(엔진 배치, floor ±40, characters 순서): jjuk 240,244 / mukjik 280,244 / ppik 320,244. 물건 시트는 #764 그림 PR이 만든다(그 전에는 회색 상자, 시트가 생기면 hotspot 전부를 그려야 한다). 머리 위 물건(sock_head·feather_head·nest_hat·hat_perch)은 그림 메타 anchor(형식 개정 12), 둥지 anim(magpie.key_in·key_out)은 메타 object: nest(개정 11)로 그린다(설계 4절 표, 11절 E3·E5).",
   "start": {
     "at": { "jjuk": "floor", "mukjik": "floor", "ppik": "floor" },
     "items": []
   },
-  "exitFlag": "shutter.up",
+  "exitFlag": "key.back",
   "flags": {
-    "latch.open": false,
-    "shutter.up": false
+    "dryer.reverse": false,
+    "key.in_nest": false,
+    "key.stuck": false,
+    "key.back": false
   },
   "solution": [
-    { "char": "jjuk", "verb": "stretch", "target": "latch" },
-    { "char": "mukjik", "verb": "stomp", "target": "shutter" }
+    { "char": "mukjik", "verb": "stomp", "target": "dryer_3" },
+    { "char": "ppik", "verb": "squeak", "target": "gap" },
+    { "char": "jjuk", "verb": "stretch", "target": "duct" }
   ],
   "spots": {
-    "floor": { "x": 280, "y": 244, "free": true, "note": "이 화면의 유일한 자리(설계 1-2). 서는 자리가 하나라 유지 상태·board 점이 없다" }
+    "floor": { "x": 280, "y": 244, "free": true, "note": "이 화면의 유일한 자리(설계 2-2). 서는 자리가 하나라 유지 상태·board 점이 없다" }
   },
   "hotspots": {
     "shutter": {
       "box": [24, 140, 128, 104],
+      "note": "그림과 히트가 같다(잠김 그림은 아래 끝 6px 띄움 + 찌그러진 틈, #908). 세 사람 모두 규칙이라 hintAbility가 없다(설계 2-1). 바닥 대상이라 가까운 쪽 가장자리 옆에 선다"
+    },
+    "gap": {
+      "box": [80, 222, 40, 24],
+      "hintAbility": "squeak",
+      "note": "★② 셔터 아래 찌그러진 틈과 그 너머 길바닥 열쇠(열쇠 97,236 20×8, #908). shutter와 겹치는 칸은 z 0·id 사전순(gap < shutter)으로 틈이 이긴다(설계 E6). 열쇠가 없어도 대상은 남는다(이름 すき間 하나, 12절 Q2)"
+    },
+    "dryer_3": {
+      "box": [344, 164, 48, 72],
       "hintAbility": "stomp",
-      "note": "그림과 히트가 같다. 손잡이 = 맨 아래 가로 막대 전체(24,238,128×4, 설계 1-1 메모). 바닥 대상이라 가까운 쪽 가장자리 옆에 선다. reachPoint를 두지 않는다(두면 장대가 막대 가운데로 걸어 들어가 셔터 앞에 겹쳐 선다). 세 사람 모두 규칙이라 힌트 ②는 실제로 안 뜬다(설계 3절)"
+      "note": "★① 3번 건조기. 규칙이 생겨 장난감 목록에서 빠졌다(ADR-0761 5절). soap_vending과 44px 띄움(layout-check stand-neighbor 0)"
     },
-    "latch": {
-      "box": [133, 134, 24, 24],
+    "duct": {
+      "box": [352, 120, 30, 44],
       "hintAbility": "stretch",
-      "reachPoint": [145, 146],
-      "note": "그림 140,140,10×12. 셔터와 겹치는 칸에서는 걸쇠가 이긴다(결정 6): 지금 핫스팟 z가 모두 0이라 hit.ts가 id 사전순(latch < shutter)으로 고른다. 핫스팟 앞뒤 순서가 생기면 걸쇠를 셔터 앞에 둔다(설계 1-4). 땅(걸쇠 밑 x 145, 손 212)에서 66px ≤ maxReach 80. 높은 대상(히트 아래 끝 158 ≤ 200), SMALL_ART(설계 1-5)"
+      "reachPoint": [367, 150],
+      "note": "★③ 배기 덕트 세로 구간만(가로 구간 y 52~63은 그림만, #908). 걸림 자리 367,150 = 건조기 뒤 입구 바로 위. 높은 대상(아래 끝 164 < 200)이라 ノビー는 x 367 건조기 앞에 서고(설계 E7), 행동 뒤 dryer_3을 덮으면 첫 대사 때 비켜 선다(#862). 클리어(★③)는 안 비켜 선다"
     },
-    "dryer_3": { "box": [344, 164, 48, 72], "note": "장난감. 오늘의 범인. soap_vending과 44px 띄움(몸 폭 39 + 틈 2보다 넓게, layout-check stand-neighbor 0, 설계 1-1). 상태 불변·게이지 변화 없음(B 미끼, M2 플래닝 #230)" },
-    "soap_vending": { "box": [436, 148, 40, 88], "note": "장난감. 오른쪽 벽 구석(오른쪽 끝 476)이라 오른쪽 설 곳이 없고 왼쪽에만 선다. 상태 불변·게이지 변화 없음(B 미끼, M2 플래닝 #230)" }
+    "magpie": {
+      "box": [58, 22, 56, 52],
+      "note": "들창 틀(#908 TRANSOM) 전체. 창 너머 후드 위 둥지와 까치. 그림은 물건 둘(nest 장식 ids: [], magpie)이고 대상은 이것 하나(설계 E3). 손 높이 212에서 아래 끝 73까지 139px라 장대 80px로 안 닿는다(T5)"
+    },
+    "soap_vending": {
+      "box": [436, 148, 40, 88],
+      "note": "장난감(ADR-0761 H4 미끼, 이 화면 유일). 오른쪽 벽 구석이라 왼쪽에만 선다. 상태 불변·게이지 변화 없음"
+    }
   },
   "onEnter": [
     { "fx": ["gatan_text", "shutter"] },
-    { "anim": ["latch", "dangle"] },
+    { "anim": ["gap", "glint"] },
+    { "anim": ["magpie", "tilt"] },
     { "say": ["ppik", "laundromat.enter"] }
   ],
   "rules": [
     {
-      "id": "latch_pull_open",
-      "target": "latch",
-      "verb": "stretch",
-      "when": { "flags": { "latch.open": false } },
-      "do": { "set": { "latch.open": true } },
+      "id": "dryer_reverse",
+      "target": "dryer_3",
+      "verb": "stomp",
+      "when": { "flags": { "dryer.reverse": false, "key.in_nest": false, "key.stuck": false } },
+      "do": { "set": { "dryer.reverse": true } },
       "show": [
-        { "anim": ["jjuk", "pull_latch"] },
-        { "fx": ["stretch_text", "jjuk"] },
-        { "anim": ["latch", "release"] },
-        { "say": ["jjuk", "laundromat.latch_open"] }
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "anim": ["dryer_3", "reverse_start"] },
+        { "anim": ["dryer_3", "burst"] },
+        { "anim": ["dryer_3", "sock_head"] },
+        { "anim": ["magpie", "ruffle"] },
+        { "say": ["ppik", ["laundromat.reverse_first", "laundromat.reverse_again"]] }
       ],
-      "note": "#1 정답. U1 장대로 걸쇠 당기기 → U2 걸쇠 툭 + 셔터 덜컹(1px 내려앉고 아래 틈 빛줄). U2 끝 칸이 셔터 '풀림' 상태 그림이라 latch.open이 보이는 플래그다"
+      "note": "1-1 ★① 열쇠 길바닥. 쿵 바로 뒤 reverse_start(O4)로 dryer_3 그림이 역회전으로 바뀐다(4-2(a)). burst는 첫 판 행렬(양말·양말·병뚜껑), 두 번째부터 그림 burst#2(양말 하나, #765). sock_head는 anchor 머리 위 양말(ズッシー, E5). 대사 두 번째(reverse_again)는 설계상 ズッシー인데 한 say 줄은 화자를 못 바꿔서 プピ 줄로 둔다(PR에서 Kai에게 확인)"
     },
     {
-      "id": "latch_pull_done",
-      "target": "latch",
+      "id": "dryer_reverse_key",
+      "target": "dryer_3",
+      "verb": "stomp",
+      "when": { "flags": { "dryer.reverse": false, "key.in_nest": true } },
+      "do": { "set": { "dryer.reverse": true, "key.in_nest": false, "key.stuck": true } },
+      "show": [
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "anim": ["dryer_3", "reverse_start"] },
+        { "anim": ["magpie", "key_out"] },
+        { "anim": ["duct", "lump_travel"] },
+        { "anim": ["dryer_3", "feather_puff"] },
+        { "anim": ["dryer_3", "feather_head"] },
+        { "say": ["mukjik", "laundromat.reverse_key"] }
+      ],
+      "note": "1-2 ★① 열쇠 둥지. 행렬을 건너뛰고 바로 혹을 보낸다(8-3). key_out은 메타 object: nest(둥지 열쇠 반짝 → 빈 둥지). lump_travel(O6) 시작 때 duct 그림이 혹으로 바뀐다. 깃털은 덜컥 뒤 문에서 퐁 → anchor 머리 위(O8). lump_travel 마지막 칸은 80~120ms(8-3 replay 확인 2)"
+    },
+    {
+      "id": "dryer_forward",
+      "target": "dryer_3",
+      "verb": "stomp",
+      "when": { "flags": { "dryer.reverse": true, "key.stuck": false } },
+      "do": { "set": { "dryer.reverse": false } },
+      "show": [
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "anim": ["dryer_3", "forward_start"] },
+        { "anim": ["magpie", "fluff"] },
+        { "say": ["mukjik", "laundromat.forward"] }
+      ],
+      "note": "2-1 역회전 → 정회전. forward_start는 reverse_start 칸 거꾸로(0칸). 까치가 따뜻한 바람에 부풀어 편히 앉음(ruffle 코드 재사용)"
+    },
+    {
+      "id": "dryer_forward_stuck",
+      "target": "dryer_3",
+      "verb": "stomp",
+      "when": { "flags": { "dryer.reverse": true, "key.stuck": true } },
+      "do": { "set": { "dryer.reverse": false, "key.stuck": false, "key.in_nest": true } },
+      "show": [
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "anim": ["dryer_3", "forward_start"] },
+        { "anim": ["duct", "lump_back"] },
+        { "anim": ["magpie", "key_in"] },
+        { "say": ["ppik", "laundromat.forward_stuck"] }
+      ],
+      "note": "2-2 막다른 상태 대신 되돌림(S3). lump_back은 lump_travel 역순(0칸), key_in은 메타 object: nest"
+    },
+    {
+      "id": "gap_squeak_steal",
+      "target": "gap",
+      "verb": "squeak",
+      "when": { "flags": { "key.in_nest": false, "key.stuck": false, "dryer.reverse": false } },
+      "do": { "set": { "key.in_nest": true } },
+      "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "fx": ["small_squeak_text", "gap"] },
+        { "anim": ["magpie", "fly_out"] },
+        { "anim": ["gap", "snatch"] },
+        { "anim": ["magpie", "fly_in"] },
+        { "anim": ["magpie", "key_in"] },
+        { "anim": ["ppik", "common.shiver"] },
+        { "say": ["ppik", "laundromat.steal"] }
+      ],
+      "note": "3-1 ★② 정회전. fly_out은 메타 hold(마지막 칸 후드 끝 깃털), snatch(O3 틈 속 머리·부리) 시작 때 gap 그림이 빈 길바닥으로 바뀐다. fly_out·fly_in은 back 층(E3)"
+    },
+    {
+      "id": "gap_squeak_suck",
+      "target": "gap",
+      "verb": "squeak",
+      "when": { "flags": { "key.in_nest": false, "key.stuck": false, "dryer.reverse": true } },
+      "do": { "set": { "key.stuck": true } },
+      "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "fx": ["small_squeak_text", "gap"] },
+        { "anim": ["magpie", "fly_out"] },
+        { "anim": ["gap", "snatch"] },
+        { "anim": ["magpie", "fly_in"] },
+        { "anim": ["magpie", "beak_suck"] },
+        { "fx": ["huh_text", "magpie"] },
+        { "anim": ["duct", "lump_travel"] },
+        { "anim": ["dryer_3", "feather_puff"] },
+        { "anim": ["dryer_3", "feather_head"] },
+        { "say": ["ppik", "laundromat.suck"] }
+      ],
+      "note": "3-2 ★② 역회전. 내려앉는 순간 부리에서 열쇠가 쏙(beak_suck, 앉음 칸 재사용) → 빈 부리 ？(huh_text) → 혹이 눈을 창에서 건조기로 데려오고(O6) 덜컥 뒤 깃털(O8). in_nest를 거치지 않는다(설계 3절)"
+    },
+    {
+      "id": "gap_squeak_empty",
+      "target": "gap",
+      "verb": "squeak",
+      "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "fx": ["echo_text", "gap"] },
+        { "say": ["ppik", "laundromat.gap_squeak_empty"] }
+      ],
+      "note": "4 열쇠 길바닥 아님(위 두 규칙이 먼저 잡는다). 길바닥에서 메아리만"
+    },
+    {
+      "id": "gap_poke",
+      "target": "gap",
       "verb": "stretch",
-      "when": { "flags": { "latch.open": true } },
+      "when": { "flags": { "key.in_nest": false, "key.stuck": false } },
+      "show": [
+        { "anim": ["jjuk", "common.stretch"] },
+        { "anim": ["gap", "nudge"] },
+        { "anim": ["jjuk", "common.bump_bottom"] },
+        { "anim": ["magpie", "peek"] },
+        { "say": ["jjuk", ["laundromat.gap_poke", "laundromat.gap_poke_again"]] }
+      ],
+      "note": "5-1 바닥 대상이라 장대 0px, ビヨーン 글자 없음(#587 안 A). nudge는 O1 패를 at만 바꿔 찍음: 엔진이 물건을 안 자르니 6px 이하(PR #908 리뷰, +6px에서 판 겹침 0칸). peek = 창 너머 까치가 내려다봄(O3)"
+    },
+    {
+      "id": "gap_poke_empty",
+      "target": "gap",
+      "verb": "stretch",
+      "show": [
+        { "anim": ["jjuk", "common.stretch"] },
+        { "say": ["jjuk", "laundromat.gap_poke_empty"] }
+      ],
+      "note": "5-2 열쇠 길바닥 아님. 장대가 틈 밖 허공을 휘젓는다"
+    },
+    {
+      "id": "duct_unstick",
+      "target": "duct",
+      "verb": "stretch",
+      "when": { "flags": { "key.stuck": true } },
+      "do": { "set": { "key.back": true } },
       "show": [
         { "anim": ["jjuk", "common.reach_wobble"] },
         { "fx": ["stretch_text", "jjuk"] },
-        { "say": ["jjuk", "laundromat.latch_done"] }
+        { "anim": ["magpie", "perch_drop"] },
+        { "anim": ["duct", "lump_pop"] },
+        { "anim": ["dryer_3", "door_bang"] },
+        { "anim": ["dryer_3", "nest_hat"] },
+        { "say": ["mukjik", "laundromat.clear_nest"] },
+        { "anim": ["magpie", "fly_out"] },
+        { "anim": ["magpie", "hat_perch"] },
+        { "say": ["ppik", "laundromat.clear_magpie"] },
+        { "anim": ["shutter", "roll_up"] }
       ],
-      "note": "#2 이미 풀림. 높은 대상이라 공용 reach_wobble(장대가 실제로 펴짐, #587 C2), 집게가 풀린 걸쇠를 톡"
+      "note": "6 ★③ → 클리어(8-2). 쿡(첫 anim) 끝에 key.back 그림(둥지 draw: null, 까치 = 후드 끝 깃털)으로 바뀌는데, 바로 다음 줄 perch_drop(메타 hold, 0.16초)이 까치를 맨 후드에 붙든다(4절 표 6). lump_pop(O6 재사용) → door_bang(O5 재사용) → nest_hat(anchor ズッシー, 16 → 8 → 0px) → fly_out(hold) → hat_perch(anchor, 까치가 둥지 모자 위) → roll_up 시작 때 셔터가 올라감. 어림 6.7초(ADR-0761 8초 안)"
     },
     {
-      "id": "shutter_stomp_open",
-      "target": "shutter",
-      "verb": "stomp",
-      "when": { "flags": { "latch.open": true } },
-      "do": { "set": { "shutter.up": true } },
+      "id": "duct_poke_warm",
+      "target": "duct",
+      "verb": "stretch",
+      "when": { "flags": { "dryer.reverse": false } },
       "show": [
-        { "anim": ["mukjik", "shutter_grab"] },
-        { "anim": ["mukjik", "shutter_sit"] },
-        { "fx": ["stomp_text", "mukjik"] },
-        { "say": ["mukjik", "laundromat.shutter_open"] },
-        { "anim": ["shutter", "roll_up"] },
-        { "anim": ["mukjik", "shutter_ride"] },
-        { "say": ["mukjik", "laundromat.clear_hang"] },
-        { "anim": ["mukjik", "common.bump_bottom"] },
-        { "say": ["ppik", "laundromat.clear_hook"] },
-        { "anim": ["shutter", "magpie_pass"] },
-        { "say": ["jjuk", "laundromat.clear_magpie"] }
+        { "anim": ["jjuk", "common.reach_wobble"] },
+        { "fx": ["stretch_text", "jjuk"] },
+        { "anim": ["duct", "warm_puff"] },
+        { "say": ["jjuk", "laundromat.duct_warm"] }
       ],
-      "note": "#3 정답 → 클리어. 설계 8절 클리어 컷 ①②를 이 show 하나에 쓴다(park_fountain jacket_take와 같은 방식, step이 clear를 show 뒤에 붙임). U3 = shutter_grab(2칸, 4번과 같이 씀) + shutter_sit(1칸). U4 roll_up 끝 칸 = '올라감' 상태 그림. U7 shutter_ride 뒤 툭 떨어짐은 공용 엉덩방아(#735). 까치는 이 화면 핫스팟이 아니라서 열린 문(셔터 자리)의 anim으로 둔다(magpie.fly_up 칸 재사용, 연결은 그림 PR). 컷 글(<id>.clear)은 두지 않는다: 세 줄 다 사람 말풍선이라 가운데 자막이 따로 필요 없다. ③ 뛰어나가기는 그림 단계에서 정한다(설계 7절 '이 표에 빠진 것')"
+      "note": "7-1 걸림 없음, 정회전. 주름 틈에서 따뜻한 바람 훅(머리칼 날림은 warm_puff 칸)"
     },
     {
-      "id": "shutter_stomp_latched",
+      "id": "duct_poke_suck",
+      "target": "duct",
+      "verb": "stretch",
+      "when": { "flags": { "dryer.reverse": true } },
+      "show": [
+        { "anim": ["jjuk", "common.reach_wobble"] },
+        { "fx": ["stretch_text", "jjuk"] },
+        { "anim": ["duct", "suck_pole"] },
+        { "anim": ["jjuk", "common.bump_bottom"] },
+        { "say": ["jjuk", "laundromat.duct_suck"] }
+      ],
+      "note": "7-2 걸림 없음, 역회전. 주름 틈이 집게 끝을 빨아 당겨 줄다리기 → 엉덩방아"
+    },
+    {
+      "id": "magpie_snub",
+      "target": "magpie",
+      "verb": "squeak",
+      "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "anim": ["magpie", "snub"] },
+        { "say": ["ppik", ["laundromat.snub", "laundromat.snub_again"]] }
+      ],
+      "note": "8 앞 판 정답이 빗나감(0-3). 조건 없음. snub = 좌우 뒤집기(0칸), 두 번째는 그림 snub#2(등 돌린 뒤 틈 쪽 힐끔, O3 내려다보기 재사용)"
+    },
+    {
+      "id": "magpie_reach",
+      "target": "magpie",
+      "verb": "stretch",
+      "show": [
+        { "anim": ["jjuk", "common.reach_wobble"] },
+        { "fx": ["stretch_text", "jjuk"] },
+        { "say": ["jjuk", ["laundromat.reach", "laundromat.reach_again"]] }
+      ],
+      "note": "9 높은 창까지 못 닿아 부들부들(F2). 두 번째 대사가 S3 E 단서(ぬくそう)"
+    },
+    {
+      "id": "shutter_stomp",
       "target": "shutter",
       "verb": "stomp",
-      "when": { "flags": { "latch.open": false } },
       "do": { "gauge": -1 },
       "show": [
         { "anim": ["mukjik", "shutter_grab"] },
         { "fx": ["gatan_text", "shutter"] },
         { "fx": ["rattle", "shutter"] },
         { "anim": ["mukjik", "common.flatten"] },
-        { "say": ["mukjik", ["laundromat.stomp_latched", "laundromat.stomp_latched_again"]] }
+        { "say": ["mukjik", ["laundromat.shutter_stomp", "laundromat.shutter_stomp_again"]] }
       ],
-      "note": "#4 다치는 실패(이 화면 유일). 3번과 같은 시작(U3 앞 2칸)이 걸쇠 상태에 따라 다르게 끝난다(F2). 두 번째 대사가 위의 빨간 걸쇠를 가리킨다"
+      "note": "10 💥 이 화면 유일한 다치는 실패. 이전 초안과 같은 동작(shutter_grab = 손잡이 잡고 엉덩방아 앞 2칸). 두 번째 대사가 열쇠가 필요하다고 말한다"
     },
     {
-      "id": "shutter_hook_latched",
+      "id": "shutter_hook",
       "target": "shutter",
       "verb": "stretch",
-      "when": { "flags": { "latch.open": false } },
       "show": [
         { "anim": ["jjuk", "common.stretch"] },
         { "anim": ["jjuk", "common.bump_bottom"] },
-        { "say": ["jjuk", ["laundromat.hook_latched", "laundromat.hook_latched_again"]] }
+        { "say": ["jjuk", "laundromat.shutter_hook"] }
       ],
-      "note": "#5 잠김. 장대가 활처럼 휘었다 튕겨 엉덩방아(공용). 두 번째 대사가 걸쇠 단서. 바닥 대상이라 ビヨーン 글자는 뺀다(#587 안 A, 장대가 0px). 셔터·장난감 stretch 칸 모두 같다"
+      "note": "11 집게로 손잡이 당김 → 장대가 활처럼 휘었다 튕겨 엉덩방아. 바닥 대상이라 ビヨーン 글자 없음(#587 안 A)"
     },
     {
-      "id": "shutter_hook_light",
-      "target": "shutter",
-      "verb": "stretch",
-      "when": { "flags": { "latch.open": true } },
-      "show": [
-        { "anim": ["jjuk", "common.stretch"] },
-        { "anim": ["jjuk", "shutter_dangle"] },
-        { "say": ["jjuk", ["laundromat.hook_light", "laundromat.hook_light_again"]] }
-      ],
-      "note": "#6 풀렸는데 가볍다. U6 셔터에 딸려 올라가 대롱대롱 → 도로 내려옴(재사용 후보: magpie_nest U4, 손 위치가 맞으면 그림 PR에서 그 칸을 이 이름에 잇는다). 두 번째 대사가 ズッシー 이름을 부른다(사람 바꾸기)"
-    },
-    {
-      "id": "shutter_squeak_latched",
+      "id": "shutter_squeak",
       "target": "shutter",
       "verb": "squeak",
-      "when": { "flags": { "latch.open": false } },
-      "show": [
-        { "anim": ["ppik", "common.squeeze_chicken"] },
-        { "fx": ["squeak_text", "ppik"] },
-        { "fx": ["echo_text", "shutter"] },
-        { "anim": ["latch", "dangle"] },
-        { "say": ["ppik", "laundromat.shutter_squeak"] }
-      ],
-      "note": "#7a 메아리 + 걸쇠 덜렁(U9, 진입 연출과 같은 칸, 설계 9-1 ①). 폴백이 아니라 규칙: 폴백이면 힌트 ②(hint_stomp)가 잠긴 셔터를 가리켜 따르면 💥다(설계 3절)"
-    },
-    {
-      "id": "shutter_squeak_open",
-      "target": "shutter",
-      "verb": "squeak",
-      "when": { "flags": { "latch.open": true } },
       "show": [
         { "anim": ["ppik", "common.squeeze_chicken"] },
         { "fx": ["squeak_text", "ppik"] },
         { "fx": ["echo_text", "shutter"] },
         { "say": ["ppik", "laundromat.shutter_squeak"] }
       ],
-      "note": "#7b 풀린 뒤에는 걸쇠가 떨지 않는다(설계 12절, 7a/7b로 나눔). 대사는 같은 키"
+      "note": "12 철판 메아리. 규칙이라 힌트가 안 뜬다"
     }
   ],
   "fallbacks": {
-    "latch": {
+    "gap": {
       "stomp": { "show": [
         { "anim": ["mukjik", "common.stomp"] },
         { "fx": ["stomp_text", "mukjik"] },
-        { "fx": ["dust", "mukjik"] },
-        { "say": ["mukjik", "laundromat.latch_stomp"] }
-      ] },
-      "squeak": { "show": [
-        { "anim": ["ppik", "common.squeeze_chicken"] },
-        { "fx": ["squeak_text", "ppik"] },
-        { "fx": ["small_squeak_text", "latch"] },
-        { "say": ["ppik", "laundromat.latch_squeak"] }
-      ] }
+        { "fx": ["rattle", "shutter"] },
+        { "fx": ["hop", "gap"] },
+        { "say": ["mukjik", "laundromat.gap_stomp"] }
+      ], "note": "틈 앞 쿵 → 셔터 덜컹, gap 그림이 통째로 톡 튐(열쇠가 있으면 열쇠, 없으면 빈 길바닥이라 거의 안 보임). 폴백은 플래그로 못 갈라서 fx로 둔다. 두 번째 → 힌트 ② hint_squeak ⚠(S4 C)" }
     },
     "dryer_3": {
       "stretch": { "show": [
@@ -173,20 +325,35 @@
         { "anim": ["dryer_3", "gulp_pole"] },
         { "anim": ["jjuk", "common.bump_bottom"] },
         { "say": ["jjuk", "laundromat.dryer_stretch"] }
-      ] },
-      "stomp": { "show": [
-        { "anim": ["mukjik", "common.stomp"] },
-        { "fx": ["stomp_text", "mukjik"] },
-        { "anim": ["dryer_3", "jolt_open"] },
-        { "fx": ["sock_land", "mukjik"] },
-        { "say": ["mukjik", "laundromat.dryer_stomp"] }
-      ] },
+      ], "note": "드럼이 장대 끝을 물고 반 바퀴 → 뱉음(정·역회전 같은 그림). 두 번째 → 힌트 ② hint_stomp" },
       "squeak": { "show": [
         { "anim": ["ppik", "common.squeeze_chicken"] },
         { "fx": ["squeak_text", "ppik"] },
-        { "anim": ["dryer_3", "jolt_open"] },
+        { "fx": ["bee_text", "dryer_3"] },
         { "say": ["ppik", "laundromat.dryer_squeak"] }
-      ] }
+      ], "note": "건조기 부저가 ビー로 맞받음(글자 fx). 두 번째 → 힌트 ② hint_stomp" }
+    },
+    "duct": {
+      "stomp": { "show": [
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "fx": ["rattle", "duct"] },
+        { "say": ["mukjik", "laundromat.duct_stomp"] }
+      ], "note": "덕트가 덜덜(걸렸으면 혹 그림째 덜덜, 안 빠짐). 두 번째 → 힌트 ② hint_stretch" },
+      "squeak": { "show": [
+        { "anim": ["ppik", "common.squeeze_chicken"] },
+        { "fx": ["squeak_text", "ppik"] },
+        { "fx": ["small_squeak_text", "magpie"] },
+        { "anim": ["magpie", "clutch"] },
+        { "say": ["ppik", "laundromat.duct_squeak"] }
+      ], "note": "プピッ이 덕트를 타고 창 밖 배기구에서 …ピッ → 까치가 둥지를 꽉 붙듦(S3 C 보조 단서). 두 번째 → 힌트 ② hint_stretch" }
+    },
+    "magpie": {
+      "stomp": { "show": [
+        { "anim": ["mukjik", "common.stomp"] },
+        { "fx": ["stomp_text", "mukjik"] },
+        { "say": ["mukjik", "laundromat.magpie_stomp"] }
+      ], "note": "가게가 흔들려도 까치는 꿈쩍 안 함. hintAbility 없음" }
     },
     "soap_vending": {
       "stretch": { "show": [
