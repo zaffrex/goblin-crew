@@ -128,6 +128,27 @@
         position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; pointer-events: none;
         font: 16px/1.4 system-ui, sans-serif; color: #fffdf5; opacity: 0.8;
       }
+      /* 타이틀(#792 2/3, 설계 title-and-map.md 2절). `#title`은 main이 캔버스 자리·크기에 맞추고 배율을 --s로 넣는다.
+         버튼 자리는 engine/title.ts가 내부 px 비율(%)로 둔다. 글자는 내부 px × 배율이라 1.0배 휴대폰에서도 버튼 28 CSS px. */
+      #title { position: fixed; margin: 0; --s: 1; user-select: none; }
+      #title[hidden] { display: none; }
+      #title button {
+        position: absolute; box-sizing: border-box; margin: 0; padding: 0; cursor: pointer; touch-action: manipulation;
+        font: 600 calc(14px * var(--s)) / 1 system-ui, sans-serif; color: #fffdf5;
+        background: rgb(27 23 32 / 0.88); border: max(1px, calc(1px * var(--s))) solid #8a7d8f; border-radius: calc(2px * var(--s));
+      }
+      #title button[data-primary] { color: #f2d65c; border-color: #f2d65c; }
+      #title button[data-armed] { color: #1d1d1d; background: #f2d65c; border-color: #1d1d1d; }
+      #title button:focus-visible { outline: 2px solid #fffdf5; outline-offset: 2px; }
+      /* 확인 줄: y 240, 가운데, 3초만. 노랑 글자 + 잉크 테두리(#label과 같은 0.07em 8방향). */
+      #title .confirm {
+        position: absolute; left: 50%; top: calc(240 / 270 * 100%); transform: translateX(-50%); margin: 0; width: max-content;
+        font: 600 calc(14px * var(--s)) / 1 system-ui, sans-serif; color: #f2d65c; pointer-events: none;
+        text-shadow: 0.07em 0 0 #000, -0.07em 0 0 #000, 0 0.07em 0 #000, 0 -0.07em 0 #000,
+          0.07em 0.07em 0 #000, -0.07em -0.07em 0 #000, 0.07em -0.07em 0 #000, -0.07em 0.07em 0 #000;
+      }
+      #title .confirm[hidden] { display: none; }
+      #title .build { position: absolute; right: 0.4em; bottom: 0.2em; margin: 0; font: 9px/1 system-ui, sans-serif; color: #fffdf5; opacity: 0.45; pointer-events: none; }
       /* 세로 화면 안내(#624, 설계 9절). 쿼리는 `core/rotate.ts` ROTATE_QUERY와 같은 문자열이다(rotate.test.ts가 본다).
          창 전체를 0번 ink로 불투명하게 덮어 밑의 카드·목표 줄·이름표가 비치지 않게 하고, 맨 위에 둔다(로딩 위도).
          포인터를 받아 삼킨다(밑의 게임으로 안 샌다). 게임 시계·입력 정지는 main.ts가 같은 쿼리로 한다.
@@ -164,6 +185,11 @@
     <p id="faint" role="status" hidden></p>
     <button id="restart" type="button" hidden></button>
     <p id="loading" role="status">読み込み中…</p>
+    <div id="title" hidden>
+      <div class="buttons"></div>
+      <p class="confirm" role="status" hidden></p>
+      <p class="build"></p>
+    </div>
     <div id="card" role="dialog" aria-modal="true" aria-labelledby="card-goal" hidden>
       <p id="card-goal" class="goal"></p>
       <p class="why"></p>
