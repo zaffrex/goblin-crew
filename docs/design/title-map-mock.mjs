@@ -42,11 +42,12 @@ export const THUMB_ORIGIN = { magpie_nest: [88, 18], park_fountain: [165, 60], l
 // ── 아주 작은 PNG 읽기(8비트 인덱스, 인터레이스 없음만) ──
 function readIndexedPng(path) {
   const d = readFileSync(path);
-  let p = 8, w = 0, h = 0, plte = null; const idat = [];
+  let p = 8, w = 0, h = 0, plte = null, trns = null; const idat = [];
   while (p < d.length) {
     const len = d.readUInt32BE(p), type = d.toString('ascii', p + 4, p + 8), body = d.subarray(p + 8, p + 8 + len);
     if (type === 'IHDR') { w = body.readUInt32BE(0); h = body.readUInt32BE(4); if (body[8] !== 8 || body[9] !== 3 || body[12] !== 0) throw new Error(`${path}: 8비트 인덱스만`); }
     if (type === 'PLTE') plte = body;
+    if (type === 'tRNS') trns = body;
     if (type === 'IDAT') idat.push(body);
     p += 12 + len;
   }
@@ -62,7 +63,11 @@ function readIndexedPng(path) {
     }
     out.set(cur, y * w); prev = cur;
   }
-  return { w, h, px: (x, y) => { const i = out[y * w + x] * 3; return [plte[i], plte[i + 1], plte[i + 2]]; } };
+  return {
+    w, h,
+    px: (x, y) => { const i = out[y * w + x] * 3; return [plte[i], plte[i + 1], plte[i + 2]]; },
+    clear: (x, y) => { const k = out[y * w + x]; return trns !== null && k < trns.length && trns[k] === 0; },
+  };
 }
 
 // ── 그리기 ──
@@ -74,6 +79,13 @@ const put = (x, y, rgb, a = 1) => {
 };
 const rect = (x, y, w, h, c, a = 1) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x + i, y + j, PAL[c], a); };
 const frame = (x, y, w, h, c, t = 1) => { rect(x, y, w, t, c); rect(x, y + h - t, w, t, c); rect(x, y, t, h, c); rect(x + w - t, y, t, h, c); };
+// 깸 도장: HUD 아이콘 시트의 `stamp` 칸(20×20, 보이는 것은 (2,2)부터 16×16). 문서 3-1절
+const ICON_META = JSON.parse(readFileSync(join(ROOT, 'public/ui/hud-icons.json'), 'utf8'));
+const ICON_SHEET = readIndexedPng(join(ROOT, 'public/ui/hud-icons.png'));
+const blitIcon = (id, x0, y0) => {
+  const [cw, ch] = ICON_META.cell, ox = ICON_META.icons[id] * cw;
+  for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) if (!ICON_SHEET.clear(ox + x, y)) put(x0 + x, y0 + y, ICON_SHEET.px(ox + x, y));
+};
 const bgOf = (id) => { const f = join(ROOT, `public/scenes/${id}-bg.png`); return existsSync(f) ? readIndexedPng(f) : null; };
 
 // 1) 타이틀 (y 0~269)
@@ -117,7 +129,7 @@ const bgOf = (id) => { const f = join(ROOT, `public/scenes/${id}-bg.png`); retur
     if (st === 'locked') { rect(cx + thumb.dx, cy + thumb.dy, thumb.w, thumb.h, C.ink, 0.8); rect(cx + 52, cy + 26, 24, 24, C.cotton, 0.9); }
     frame(cx, cy, card.w, card.h, st === 'cleared' ? C.yel : C.lint, st === 'cleared' ? 2 : 1);
     rect(cx + (card.w - 96) / 2, cy + name.dy, 96, name.h - 4, st === 'locked' ? C.lint : C.white); // 이름 8자 × 12px
-    if (st === 'cleared') { const sx = cx + thumb.dx + thumb.w - stamp.size - 2, sy = cy + thumb.dy + 2; rect(sx, sy, stamp.size, stamp.size, C.yel); frame(sx, sy, stamp.size, stamp.size, C.ink); }
+    if (st === 'cleared') { const sx = cx + thumb.dx + thumb.w - stamp.size - 2, sy = cy + thumb.dy + 2; blitIcon('stamp', sx - 2, sy - 2); } // 칸 20×20의 (2,2)가 16×16 자리
   });
   rect((W - locked.w) / 2, oy + locked.y, locked.w, locked.h, C.cotton, 0.5); // 잠금 칸을 눌렀을 때만 뜨는 줄
 }

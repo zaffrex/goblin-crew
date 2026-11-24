@@ -11,6 +11,7 @@
     "squeak": 2,
     "hand": 3,
     "look": 4,
-    "restart": 5
+    "restart": 5,
+    "stamp": 6
   }
 }
