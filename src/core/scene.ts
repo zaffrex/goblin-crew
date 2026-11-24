@@ -547,6 +547,16 @@ export function faces(data: SceneData, s: SceneState): Record<CharacterId, HitBo
   return out;
 }
 
+/**
+ * 머리 위 칸(형식 기록 16절, #901)을 놓을 얼굴 상자와 방향. 그리는 자리 그대로다: 발 + 판 높이(`boardDrop`), 방향 `charFacing`.
+ * 서 있기 기준 얼굴 상자 하나만 쓴다(자세마다 머리가 조금 출렁여도 따라가지 않는다). 매달린 자세는 아직 안 본다(쓰는 화면 없음).
+ */
+export function headAnchor(data: SceneData, s: SceneState, id: CharacterId): { face: HitBox; facing: Facing } {
+  const w = s.walkers[id];
+  const facing = charFacing(data, s, id);
+  return { face: characterFaceBox(characterDef(id), w.x, w.y + boardDrop(data, s, id), facing), facing };
+}
+
 /** 그린 자리 하나(그리기 `drawSprite`와 같은 칸 번호·발 위치·방향). 시트·알파가 없거나 실루엣이면 null. */
 interface Placed {
   meta: SpriteMeta;
