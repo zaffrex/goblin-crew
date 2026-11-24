@@ -116,15 +116,23 @@ export function soloCardKey(screenId: string, hasText: (key: string) => boolean)
   return hasText(key) ? key : "ui.end";
 }
 
-/** 클리어 카드 글 키(11-2절). 마지막 화면은 끝 카드(`ui.end`). 결과 줄 키가 없으면 그 줄을 숨긴다(빈 화면 id 폴백). */
+/** 맵에서 다시 하는 판의 카드 다음 줄(#792 `title-and-map.md` 3-4절). 터치 키, 마우스는 `_click`을 붙인다(`ui.next`와 같은 나누기). */
+export const MAP_RETURN_KEY = "ui.map.return";
+
+/**
+ * 클리어 카드 글 키(11-2절). 마지막 화면은 끝 카드(`ui.end`). 결과 줄 키가 없으면 그 줄을 숨긴다(빈 화면 id 폴백).
+ * `toMap`(맵에서 다시 하는 판, 3-4절): 결과 줄·끝 카드는 그대로, 다음 줄만 `ui.map.return`. 끝 카드에도 붙는다(탭하면 맵).
+ */
 export function cardLines(
   screenId: string,
   last: boolean,
   hasText: (key: string) => boolean,
+  toMap = false,
 ): { body: string | null; next: string | null } {
-  if (last) return { body: "ui.end", next: null };
   const key = `${screenId}.clear_card`;
-  return { body: hasText(key) ? key : null, next: "ui.next" };
+  const body = last ? "ui.end" : hasText(key) ? key : null;
+  if (toMap) return { body, next: MAP_RETURN_KEY };
+  return { body, next: last ? null : "ui.next" };
 }
 
 /**
@@ -133,15 +141,21 @@ export function cardLines(
  */
 export type Flow =
   | { phase: "play" }
-  | { phase: "card"; t: number; last: boolean }
-  | { phase: "fadeOut"; t: number }
+  | { phase: "card"; t: number; last: boolean; toMap?: true }
+  | { phase: "fadeOut"; t: number; toMap?: true }
   | { phase: "wait"; t: number }
-  | { phase: "fadeIn"; t: number };
+  | { phase: "fadeIn"; t: number }
+  /** 게임 루프 밖에서 맵·타이틀이 캔버스를 쓰는 중(#792 3-4절). 호출자가 메뉴를 닫으면 `AFTER_MENU`로 바꾼다. */
+  | { phase: "menu" };
 
 export const PLAYING: Flow = { phase: "play" };
 
-export function showCard(last: boolean): Flow {
-  return { phase: "card", t: 0, last };
+/** 메뉴에서 판을 고른 뒤: 다 검은 채로 그 판 그림을 기다렸다가 바꾸고 밝아진다(11-1절 기다림과 같다). */
+export const AFTER_MENU: Flow = { phase: "wait", t: 0 };
+
+/** `toMap`: 맵에서 다시 하는 판이라 카드 탭이 다음 판이 아니라 맵으로 간다(3-4절). 마지막 판(끝 카드)도 같다. */
+export function showCard(last: boolean, toMap = false): Flow {
+  return toMap ? { phase: "card", t: 0, last, toMap } : { phase: "card", t: 0, last };
 }
 
 /** 1틱 진행. `swap`이 참인 틱에 호출자는 다음 화면을 만든다(덮개가 완전히 검은 동안). */
@@ -159,8 +173,12 @@ export function flowTick(
       };
     case "fadeOut":
       if (f.t + 1 < FLOW_TIMING.fadeOut)
-        return { flow: { phase: "fadeOut", t: f.t + 1 }, swap: false };
+        return { flow: { ...f, t: f.t + 1 }, swap: false };
+      // 맵으로 가는 길은 다음 판을 안 기다린다. 다 검은 틱에 메뉴로 넘긴다.
+      if (f.toMap) return { flow: { phase: "menu" }, swap: false };
       return enterWait(nextReady, 0);
+    case "menu":
+      return { flow: f, swap: false };
     case "wait":
       return enterWait(nextReady, f.t + 1);
     case "fadeIn":
@@ -183,15 +201,17 @@ function enterWait(
   };
 }
 
-export type TapResult = { flow: Flow; action: "none" | "next" | "title" };
+export type TapResult = { flow: Flow; action: "none" | "next" | "title" | "map" };
 
 /**
  * 카드 탭(클릭, Enter·Space 포함). 처음 0.6초는 무시한다(11-1절). 클리어 카드는 어두워짐을 시작하고,
  * 끝 카드는 타이틀이 있을 때만 `title`(11-5절: 타이틀이 없으면 끝 카드에 머문다).
+ * 맵에서 다시 하는 판(`toMap`)은 클리어 카드·끝 카드 둘 다 어두워진 뒤 `menu`(3-4절).
  */
 export function flowTap(f: Flow, hasTitle: boolean): TapResult {
   if (f.phase !== "card" || f.t < FLOW_TIMING.cardIgnore)
     return { flow: f, action: "none" };
+  if (f.toMap) return { flow: { phase: "fadeOut", t: 0, toMap: true }, action: "map" };
   if (f.last)
     return hasTitle
       ? { flow: PLAYING, action: "title" }
@@ -217,7 +237,7 @@ export function flowView(f: Flow, hasTitle: boolean): FlowView {
       return {
         cover: 0,
         card: true,
-        next: f.t >= FLOW_TIMING.cardIgnore && (!f.last || hasTitle),
+        next: f.t >= FLOW_TIMING.cardIgnore && (!f.last || hasTitle || f.toMap === true),
         dots: false,
         input: false,
       };
@@ -245,6 +265,8 @@ export function flowView(f: Flow, hasTitle: boolean): FlowView {
         dots: false,
         input: false,
       };
+    case "menu":
+      return { cover: 1, card: false, next: false, dots: false, input: false };
   }
 }
 

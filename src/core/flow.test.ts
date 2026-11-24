@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   FLOW_TIMING,
   PLAYING,
+  AFTER_MENU,
   cardLines,
   soloCardKey,
   enterCharacter,
@@ -265,6 +266,54 @@ describe("끝 카드 (11-5절)", () => {
     const f = run(showCard(true), FLOW_TIMING.cardIgnore).flow;
     expect(flowView(f, true).next).toBe(true);
     expect(flowTap(f, true).action).toBe("title");
+  });
+});
+
+describe("맵에서 다시 하는 판 (#792 title-and-map 3-4절)", () => {
+  const has = (k: string) => k === "magpie_nest.clear_card";
+  it("카드 결과 줄은 그대로, 다음 줄만 ui.map.return", () => {
+    expect(cardLines("magpie_nest", false, has, true)).toEqual({ body: "magpie_nest.clear_card", next: "ui.map.return" });
+    expect(cardLines("laundromat", false, has, true)).toEqual({ body: null, next: "ui.map.return" });
+  });
+  it("마지막 판은 끝 카드 그대로 + ui.map.return(타이틀이 없어도 머물지 않는다)", () => {
+    expect(cardLines("park_fountain", true, has, true)).toEqual({ body: "ui.end", next: "ui.map.return" });
+    const f = run(showCard(true, true), FLOW_TIMING.cardIgnore).flow;
+    expect(flowView(f, false).next).toBe(true);
+    expect(flowTap(f, false).action).toBe("map");
+  });
+  it("0.6초 무시는 같다", () => {
+    const f = run(showCard(false, true), FLOW_TIMING.cardIgnore - 1).flow;
+    expect(flowView(f, false).next).toBe(false);
+    expect(flowTap(f, false).action).toBe("none");
+  });
+  it("탭 → 0.3초 어두워짐 → 다 검은 틱에 menu, 바꾸기 없음·다음 판 안 기다림", () => {
+    let f = flowTap(run(showCard(false, true), FLOW_TIMING.cardIgnore).flow, false).flow;
+    expect(f).toEqual({ phase: "fadeOut", t: 0, toMap: true });
+    let ticks = 0;
+    while (f.phase === "fadeOut") {
+      const r = flowTick(f, false);
+      expect(r.swap).toBe(false);
+      f = r.flow;
+      ticks++;
+    }
+    expect(ticks).toBe(FLOW_TIMING.fadeOut);
+    expect(f.phase).toBe("menu");
+    expect(flowView(f, false)).toMatchObject({ cover: 1, input: false, card: false });
+    // 메뉴가 떠 있는 동안은 그대로(호출자가 AFTER_MENU로 바꾼다)
+    expect(run(f, 600).flow).toEqual({ phase: "menu" });
+    expect(flowTap(f, true).action).toBe("none");
+  });
+  it("메뉴에서 고른 판: 다 검은 채 그림을 기다렸다가 바꾸고 밝아진다", () => {
+    expect(flowView(AFTER_MENU, false).cover).toBe(1);
+    const late = run(AFTER_MENU, 10, false);
+    expect(late.swaps).toBe(0);
+    const r = flowTick(late.flow, true);
+    expect(r.swap).toBe(true);
+    expect(r.flow.phase).toBe("fadeIn");
+  });
+  it("다시 하는 판이 아니면 예전과 같다(카드 모양에 toMap 없음)", () => {
+    expect(showCard(false)).toEqual({ phase: "card", t: 0, last: false });
+    expect(cardLines("magpie_nest", false, has)).toEqual({ body: "magpie_nest.clear_card", next: "ui.next" });
   });
 });
 

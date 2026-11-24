@@ -27,6 +27,8 @@ export interface TitleStart {
   index: number;
   prev: SaveData | null;
   activeCharacter: string | null;
+  /** 맵에서 깬 카드를 골랐다(다시 하기). 그 판 클리어 카드가 다음 판 대신 맵으로 돌아간다(3-4절). */
+  replay?: true;
 }
 
 export interface TitleDeps {

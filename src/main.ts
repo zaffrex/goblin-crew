@@ -20,7 +20,7 @@ import { cutFontPx, firstSwitchText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_A
 import { labelText, resolveTap, type Label } from './core/interact';
 import type { CharactersData, ScreenData } from './core/puzzle/types';
 import { pickScreen, screenTextKey } from './core/screenPick';
-import { cardLines, enterCharacter, flowTap, flowTick, flowView, nextIndex, parseOrder, PLAYING, playtestOrder, showCard, soloCardKey, startOrder, usesSave, type Flow } from './core/flow';
+import { AFTER_MENU, cardLines, enterCharacter, flowTap, flowTick, flowView, nextIndex, parseOrder, PLAYING, playtestOrder, showCard, soloCardKey, startOrder, usesSave, type Flow } from './core/flow';
 import { CONTENT_VERSION, saveOnCard, startFromSave } from './core/progress';
 import { LocalSaveStore, probeStorage } from './core/save/store';
 import type { SaveData } from './core/save/schema';
@@ -94,32 +94,36 @@ const START = saveStore && ORDER ? startFromSave(LOADED_SAVE, ORDER) : null;
 // 타이틀이 먼저 캔버스를 쓴다(아래 판보다 앞).
 const display = createDisplay(canvas, { width: INTERNAL_WIDTH, height: INTERNAL_HEIGHT });
 
+/** 타이틀·맵 글(키가 없으면 키 그대로, 판에 묶인 `t`와 달리 화면별 덮어쓰기 없음)과 세로 안내. 아래 타이틀보다 먼저 있어야 한다. */
+const menuText = (id: string): string => TEXT[id] ?? id;
+const menuRotating = (): boolean => window.matchMedia?.(ROTATE_QUERY).matches ?? false;
 /**
  * 타이틀(#792 2/3, 설계 `title-and-map.md`). 세이브가 켜진 기본 링크에서만 뜬다. 쿼리(팀 도구)면 건너뛴다(1절).
  * 버튼 글(Kai)이 글 파일에 아직 없으면 키 이름이 찍히지 않게 건너뛴다(`titleTextReady`). `マップ`는 맵 글이 있을 때만(`mapReady`, 3/3).
  * 판을 만들기 전에 기다리므로, 고른 시작 화면·세이브가 아래 판 만들기에 그대로 들어간다. 게임 입력 게이트는 안 바뀐다.
  */
-const TITLE = saveStore && ORDER && !skipsTitle(query) && titleTextReady(TEXT) ? await showTitle(saveStore, ORDER) : null;
+const TITLE = saveStore && ORDER && !skipsTitle(query) && titleTextReady(TEXT) ? await showTitle(saveStore, ORDER, LOADED_SAVE) : null;
 
 /**
  * 타이틀과 맵(#792 3/3). 맵 글(`ui.map.*`, `<id>.map.name`)이 다 있고 카드 자리(3개)에 판이 다 들어갈 때만 `マップ`를 둔다.
  * 맵에서 깬 카드를 누르면 그 판 처음부터 다시 한다(`prev` 그대로, `saveOnCard` 다시 하기 경로라 checkpoint 안 바뀜).
  */
-function showTitle(store: LocalSaveStore, order: readonly string[]): ReturnType<typeof runTitle> {
-  const menu = titleMenu(LOADED_SAVE, order);
-  const text = (id: string): string => TEXT[id] ?? id;
-  const rotating = (): boolean => window.matchMedia?.(ROTATE_QUERY).matches ?? false;
-  const reload = (): ReturnType<LocalSaveStore['load']> => store.load();
+function showTitle(store: LocalSaveStore, order: readonly string[], loaded: SaveData | null): ReturnType<typeof runTitle> {
+  const menu = titleMenu(loaded, order);
   return runTitle({
     display,
     menu: mapReady(TEXT, order) ? menu : withoutMap(menu),
     order,
-    text,
+    text: menuText,
     build: buildTag(import.meta.env.VITE_BUILD_SHA),
-    reload,
-    rotating,
-    openMap: () => runMap({ display, order, prev: menu.prev, text, reload, rotating, fadeOut: fadeOutCanvas, startView: (id, art) => mapStartView(id, art) }),
+    reload: () => store.load(),
+    rotating: menuRotating,
+    openMap: () => runMap(mapDeps(store, order, menu.prev)),
   });
+}
+/** 맵(3절). 타이틀에서 열 때와 다시 한 판 클리어 카드에서 돌아올 때(3-4절, `focus` = 그 판 카드) 같다. */
+function mapDeps(store: LocalSaveStore, order: readonly string[], prev: SaveData | null, focus?: number): Parameters<typeof runMap>[0] {
+  return { display, order, prev, text: menuText, reload: () => store.load(), rotating: menuRotating, fadeOut: fadeOutCanvas, startView: (id, art) => mapStartView(id, art), focus };
 }
 // `はじめ`(두 번 눌러 확인함)은 세이브를 지운다(2-2절 ①). 안 지우면 첫 카드 전에 새로고침했을 때 옛 `つづき`가 다시 뜬다.
 if (TITLE && !TITLE.prev && LOADED_SAVE) await saveStore!.clear().catch((e: unknown) => console.warn('세이브를 지우지 못했습니다', e));
@@ -196,6 +200,15 @@ const resumeCharacter = TITLE ? TITLE.activeCharacter : START?.resume.kind === '
 if (resumeCharacter !== null) session.scene.ui.active = enterCharacter(resumeCharacter, session.data.screen.start.at, CHARACTERS.map((c) => c.id)) as CharacterId;
 /** 화면 사이 흐름(ui-interaction 11-1절). `ORDER`가 없으면 늘 `play`다. */
 let flow: Flow = PLAYING;
+/** 맵에서 고른 판을 다시 하는 중(#792 `title-and-map.md` 3-4절). 클리어 카드가 다음 판 대신 맵으로 돌아간다. */
+let replaying = TITLE?.replay === true;
+/** 맵·타이틀이 캔버스를 쓰는 중(3-4절). 그동안 판 시간도 그리기도 멈춘다. */
+let menuOpen = false;
+/**
+ * 메뉴에서 고른 판에 들어갈 때 지금 캐릭터. `undefined`면 다음 판 규칙(지금 캐릭터 이어 감, 11-3절),
+ * null이면 그 판 기본(타이틀 뒤 첫 판과 같다), 문자열이면 세이브 것(`つづき`).
+ */
+let pendingActive: string | null | undefined;
 /** 클리어 카드가 뜰 때 미리 만든 다음 화면 판. 그림을 카드 보는 동안 받는다(11-1절 "다음 화면 그림 기다림 0초가 목표"). */
 let pending: { index: number; session: Session } | null = null;
 /** 글 ID → 지금 화면의 글(`<화면 ID>.card.goal` 등이 있으면 그것, #380). */
@@ -222,7 +235,7 @@ if (PLAYTEST) {
   w.__gcLayout = () => sceneLayout(session.data, session.scene);
   w.__gcFallbacks = () => [...fallbacks].sort();
   // 여러 화면 연결(11-6절): 재생 도구가 지금 화면·순서 위치·흐름 단계를 읽는다. `order`가 null이면 연결을 안 타는 판이다.
-  w.__gcFlow = () => ({ order: ORDER, index: orderIndex, screen: session.data.screen.id, phase: flow.phase });
+  w.__gcFlow = () => ({ order: ORDER, index: orderIndex, screen: session.data.screen.id, phase: flow.phase, replay: replaying });
 }
 
 /** 터치 첫 탭으로 고른 대상의 라벨. 실행하거나 다른 걸 누르면 지운다. */
@@ -328,8 +341,9 @@ function stepFlow(): void {
   if (flow.phase === 'play') {
     if (!session.scene.cleared || isBusy(session.scene)) return;
     const next = nextIndex(ORDER, orderIndex);
-    flow = showCard(next === null);
-    pending = next === null ? null : { index: next, session: enterScreen(ORDER[next]!) };
+    flow = showCard(next === null, replaying);
+    // 다시 하는 판은 맵으로 돌아가니 다음 판을 미리 안 만든다. 세이브는 `saveOnCard` 다시 하기 경로라 checkpoint가 그대로다.
+    pending = next === null || replaying ? null : { index: next, session: enterScreen(ORDER[next]!) };
     // 카드가 뜨는 순간 저장(11-4절). 다음 화면 캐릭터는 swap 때와 같은 계산이다(카드 동안 전환 입력이 없어 지금 캐릭터가 안 바뀐다).
     const active = session.scene.ui.active;
     writeSave(orderIndex, pending ? enterCharacter(active, pending.session.data.screen.start.at, CHARACTERS.map((c) => c.id)) : active);
@@ -337,18 +351,45 @@ function stepFlow(): void {
   }
   const r = flowTick(flow, pending !== null && artReady(pending.session.art));
   flow = r.flow;
+  if (flow.phase === 'menu') {
+    if (!menuOpen) void openMenu();
+    return;
+  }
   if (!r.swap || !pending) return;
-  const prev = session.scene.ui.active;
+  const prev = pendingActive === undefined ? session.scene.ui.active : pendingActive;
+  pendingActive = undefined;
   session = pending.session;
   orderIndex = pending.index;
   pending = null;
-  session.scene.ui.active = enterCharacter(prev, session.data.screen.start.at, CHARACTERS.map((c) => c.id)) as CharacterId;
+  if (prev !== null) session.scene.ui.active = enterCharacter(prev, session.data.screen.start.at, CHARACTERS.map((c) => c.id)) as CharacterId;
   touchLabel = null;
   hoverLabel = null;
   hoverHud = null;
   noteTap(notes);
   notes.lastGauge = session.scene.shownGauge;
   notes.climbing = null;
+}
+
+/**
+ * 다시 한 판의 카드를 탭해 다 어두워지면 맵(3-4절). 맵 `もどる`는 타이틀이고, 거기서 다시 고른 판으로 들어간다.
+ * 고른 판은 다음 판 넘어가기와 같은 길(다 검은 채 그림 기다림 → 바꾸기 → 밝아짐)이다. 시작 카드는 다시 안 띄운다(11-1-1 짧은 카드는 아직 없음).
+ * `はじめ`(두 번 눌러 확인)면 페이지 첫 타이틀과 같이 세이브를 지운다.
+ */
+async function openMenu(): Promise<void> {
+  if (!saveStore || !ORDER) return;
+  const store = saveStore;
+  const order = ORDER;
+  menuOpen = true;
+  for (const el of [hud, hudTagLayer, bubble, label, clearCut, faintCut, cardEl, restartEl]) el.hidden = true;
+  const r = await runMap(mapDeps(store, order, saved, orderIndex));
+  const start = r.kind === 'start' ? r.start : await showTitle(store, order, saved);
+  if (!start.prev && saved) await store.clear().catch((e: unknown) => console.warn('세이브를 지우지 못했습니다', e));
+  saved = start.prev;
+  replaying = start.replay === true;
+  pending = { index: start.index, session: enterScreen(order[start.index]!) };
+  pendingActive = start.activeCharacter;
+  flow = AFTER_MENU;
+  menuOpen = false;
 }
 
 const inBox = (p: Point, b: HitBox): boolean => p.x >= b.left && p.x < b.left + b.width && p.y >= b.top && p.y < b.top + b.height;
@@ -711,6 +752,7 @@ function placeRestart(scale: number, armed: boolean): void {
 }
 
 function render(): void {
+  if (menuOpen) return; // 맵·타이틀이 캔버스를 그린다(3-4절)
   if (!loaded) {
     renderLoading();
     return;
@@ -945,7 +987,7 @@ function placeClearCut(fv: ReturnType<typeof flowView>, scene: SceneState): void
   if (!ORDER) text = scene.cleared && !isBusy(scene) ? t(soloCardKey(session.data.screen.id, (k) => k in TEXT)) : null;
   else if (fv.dots) text = '…';
   else if (fv.card && flow.phase === 'card') {
-    const lines = cardLines(session.data.screen.id, flow.last, (k) => k in TEXT);
+    const lines = cardLines(session.data.screen.id, flow.last, (k) => k in TEXT, flow.toMap === true);
     const next = fv.next && lines.next ? t(cardPointer(window.matchMedia?.bind(window)) === 'mouse' ? `${lines.next}_click` : lines.next) : null;
     text = [lines.body && t(lines.body), next].filter(Boolean).join('\n') || null;
   } else text = null;
@@ -992,7 +1034,7 @@ startLoop({
   step: () => {
     // 로딩이 끝나야 카드 잠금·장면 시간이 흐른다(#387). 한 번 끝나면 다시 보지 않는다.
     loaded ||= loadingDone(loadStates(session.art), performance.now() - loadStart);
-    if (!loaded) return;
+    if (!loaded || menuOpen) return;
     // 안내가 떠 있으면 판 시간을 멈춘다. 뜨는 순간 카드가 떠 있으면 잠금 1초를 처음부터 다시 센다(9-5절: 안내가 사라진 뒤부터).
     if (setPaused(pause, rotating(), performance.now()) && pause.since !== null && startCard.open) startCard.ticks = 0;
     if (pause.since !== null) return;

@@ -30,6 +30,8 @@ export interface MapDeps {
   rotating: () => boolean;
   /** 맵을 닫고 판을 시작할 때 캔버스를 0.3초 어둡게 한다(타이틀과 같은 덮개). 다 어두워지면 끝난다. */
   fadeOut: (draw: (cover: number) => void) => Promise<void>;
+  /** 처음 초점을 둘 카드(배포 순서 위치). 다시 한 판에서 돌아오면 그 카드(3-4절). 없거나 잠겼으면 첫 깬 카드. */
+  focus?: number;
 }
 
 function need<T extends HTMLElement>(root: ParentNode, selector: string): T {
@@ -131,7 +133,7 @@ export function runMap(deps: MapDeps): Promise<MapResult> {
       const fresh = await deps.reload().catch(() => null);
       root.hidden = true;
       await deps.fadeOut(draw);
-      close({ kind: 'start', start: { index: action.index, prev: fresh ?? action.prev, activeCharacter: null } });
+      close({ kind: 'start', start: { index: action.index, prev: fresh ?? action.prev, activeCharacter: null, replay: true } });
     }
     cards.forEach((c, k) => buttons[k]!.addEventListener('click', () => void press(c)));
     back.onclick = () => {
@@ -238,8 +240,9 @@ export function runMap(deps: MapDeps): Promise<MapResult> {
 
     root.hidden = false;
     lockedEl.hidden = true;
-    // 초점: 첫 깬 카드(맵은 깬 판이 1개 이상일 때만 열린다). 없으면 돌아가기.
-    (buttons[cards.findIndex((c) => c.state === 'cleared')] ?? back).focus({ preventScroll: true });
+    // 초점: 다시 한 판에서 돌아왔으면 그 카드, 아니면 첫 깬 카드(맵은 깬 판이 1개 이상일 때만 열린다). 없으면 돌아가기.
+    const focus = deps.focus !== undefined && cards[deps.focus]?.state === 'cleared' ? deps.focus : cards.findIndex((c) => c.state === 'cleared');
+    (buttons[focus] ?? back).focus({ preventScroll: true });
     tick();
   });
 }
