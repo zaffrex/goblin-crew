@@ -7,6 +7,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { deflateSync, inflateSync } from 'node:zlib';
 import { Buffer } from 'node:buffer';
+import console from 'node:console';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
