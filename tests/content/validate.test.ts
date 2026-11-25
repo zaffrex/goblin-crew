@@ -114,6 +114,22 @@ describe('validateScreen', () => {
     expect(codes(mutate((s) => (s.spots.hook.releasePoint = [WALK_AREA.left, WALK_AREA.bottom + 1])))).toEqual(['release-point-area']);
   });
 
+  it('walkArea shrinks the shared walk area per screen and floor points follow it (#938)', () => {
+    expect(mutate((s) => (s.walkArea = { top: 210 })).errors).toEqual([]);
+    expect(mutate((s) => (s.walkArea = { left: 20, top: 210, right: 460, bottom: 250 })).errors).toEqual([]);
+    // 공통 영역을 넓히거나(위 199, 아래 253) 정수가 아니거나 비면 오류
+    expect(paths(mutate((s) => (s.walkArea = { top: WALK_AREA.top - 1 })))).toEqual(['walkArea.top']);
+    expect(paths(mutate((s) => (s.walkArea = { bottom: WALK_AREA.bottom + 1 })))).toEqual(['walkArea.bottom']);
+    expect(codes(mutate((s) => (s.walkArea = { top: 236.5 })))).toEqual(['walk-area']);
+    expect(codes(mutate((s) => (s.walkArea = { top: 240, bottom: 240 })))).toEqual(['walk-area']);
+    expect(codes(mutate((s) => (s.walkArea = { tpo: 236 })))).toEqual(['unknown-key']);
+    // releasePoint·board는 화면 영역으로 잰다: 고리 releasePoint(y 235)는 top 235까지 안, 236이면 밖. 시소 판(y 240)은 top 241이면 밖
+    expect(BASE.spots.hook.releasePoint).toEqual([160, 235]);
+    expect(mutate((s) => (s.walkArea = { top: 235 })).errors).toEqual([]);
+    expect(paths(mutate((s) => (s.walkArea = { top: 236 })))).toEqual(['spots.hook.releasePoint']);
+    expect(codes(mutate((s) => (s.walkArea = { top: 241 })))).toEqual(['board-area', 'board-area', 'release-point-area']);
+  });
+
   it('board is an on-floor [x, y] on walkable non-free spots only (#397)', () => {
     expect(BASE.spots.seesaw_left.board).toEqual([226, 240]);
     expect(BASE.spots.seesaw_right.board).toEqual([290, 240]);

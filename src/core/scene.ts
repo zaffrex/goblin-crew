@@ -6,7 +6,7 @@
 // 예외: 바닥(`free`) 자리 캐릭터의 좌표는 퍼즐 상태에 없어서 엔진 걷기(walker)가 들고 있다.
 
 import { CHARACTERS, characterFaceBox, characterHitBox, characterDef, type CharacterId } from './characters';
-import { TICK_MS, WALK_AREA, WALK_SPEED } from './config';
+import { HIGH_TARGET_LINE, TICK_MS, WALK_SPEED, walkAreaOf } from './config';
 import { hitTest, type HitBox } from './hit';
 import { inHudZone } from './hud';
 import type { AlphaMask } from './alpha';
@@ -411,9 +411,10 @@ export function standAside(data: SceneData, s: SceneState, char: CharacterId, to
       cands.push(Math.ceil(b.left + b.width + APPROACH_GAP - off));
     }
   }
+  const area = walkAreaOf(data.screen);
   let best: number | null = null;
   for (const x of cands) {
-    if (x < WALK_AREA.left || x > WALK_AREA.right || !clear(x)) continue;
+    if (x < area.left || x > area.right || !clear(x)) continue;
     const d = Math.abs(x - to.x);
     if (best === null || d < Math.abs(best - to.x) || (d === Math.abs(best - to.x) && x < best)) best = x;
   }
@@ -427,7 +428,7 @@ export function createScene(data: SceneData): SceneState {
   CHARACTERS.forEach((c, i) => {
     const spotId = puzzle.at[c.id];
     const p = spotPoint(data, spotId);
-    const at = isFree(data, spotId) ? clampToArea({ x: p.x + (i - 1) * 40, y: p.y }, WALK_AREA) : p;
+    const at = isFree(data, spotId) ? clampToArea({ x: p.x + (i - 1) * 40, y: p.y }, walkAreaOf(data.screen)) : p;
     walkers[c.id] = createWalker(c.id, at);
   });
   const riding: Partial<Record<CharacterId, string>> = {};
@@ -761,7 +762,7 @@ function targetBox(screen: ScreenData, puzzle: PuzzleState, id: string): HitBox 
  * 원거리 동사(`squeak`·`look`)와 대상 `approach`가 `stay`인 동사는 걷지 않는다(x = 지금 x) — 대상 쪽으로 돌아서기만 한다.
  * `face`가 null이면 대상 가운데가 설 곳과 ±2px 안이라 방향을 바꾸지 않는다.
  * - `stretch`: 높은 대상이면 `reachPoint` x, 없으면 상자 가운데 x. 바닥 대상이면 아래 줄과 같다(땅의 까치에 겹쳐 서지 않게, PR #221 Luna).
- * - `stomp`·`hand`·`item`: 높은 대상(상자 아래쪽이 `WALK_AREA.top` 위)은 상자 가운데 x, 바닥 대상은 가까운 쪽 가장자리 옆
+ * - `stomp`·`hand`·`item`: 높은 대상(상자 아래쪽이 `HIGH_TARGET_LINE` 위)은 상자 가운데 x, 바닥 대상은 가까운 쪽 가장자리 옆
  *   (대상을 바라본 몸 상자 `characterHitBox`가 대상 상자와 가로로 2px 떨어지는 가장 가까운 x).
  * - 높은 대상의 발 y는 지금 y다. 그 자리에서 몸이 대상 그림을 반 넘게 가리거나 작은 그림에 머리가 붙으면 앞(아래)으로 내려선다
  *   (#575·#585, `clearOf`). 바닥 대상은 지금 y.
@@ -779,7 +780,7 @@ export function approachPoint(data: SceneData, puzzle: PuzzleState, action: Acti
   const mid = box.left + box.width / 2;
   let x: number;
   const rp = data.screen.hotspots[action.target]?.reachPoint;
-  const high = box.top + box.height <= WALK_AREA.top;
+  const high = box.top + box.height <= HIGH_TARGET_LINE;
   if (stays) x = from.x;
   else if (action.verb === 'stretch' && rp) x = rp[0];
   else if (high) x = mid;
@@ -788,14 +789,14 @@ export function approachPoint(data: SceneData, puzzle: PuzzleState, action: Acti
     // 오른쪽에서 오면 왼쪽을 본다: 몸 왼쪽 = x - (dx + width). 왼쪽에서 오면 오른쪽을 본다: 몸 오른쪽 = x + dx + width.
     x = from.x >= mid ? box.left + box.width + APPROACH_GAP + dx + width : box.left - APPROACH_GAP - dx - width;
   }
-  x = clampToArea({ x, y: from.y }, WALK_AREA).x;
+  x = clampToArea({ x, y: from.y }, walkAreaOf(data.screen)).x;
   const face: Facing | null = Math.abs(mid - x) <= APPROACH_SLOP ? null : mid > x ? 1 : -1;
   const y = stays || !high ? from.y : clearOf(data, puzzle, action, box, x, from.y, face);
   return { x, y, face };
 }
 
 /**
- * 높은 대상 뒤 비켜 설 점(#862, `ui-interaction.md` 5-1-1절). 바닥에서 높은 대상(상자 아래쪽이 `WALK_AREA.top` 위)으로 걸어가
+ * 높은 대상 뒤 비켜 설 점(#862, `ui-interaction.md` 5-1-1절). 바닥에서 높은 대상(상자 아래쪽이 `HIGH_TARGET_LINE` 위)으로 걸어가
  * 행동했고 행동 뒤에도 바닥에 있는데, 설 곳(`ap`)의 서 있기 몸 상자가 **낮은 퍼즐 대상**(`hintAbility` 있는 핫스팟·자리, 행동 뒤 상자)과
  * 겹치면, 그 대상들·동료 몸과 안 겹치는 가장 가까운 x를 준다. 온 쪽(`fromX`)을 먼저 보고 없으면 반대쪽. y는 그대로. 아니면 null.
  * `hintAbility` 없는 핫스팟(장난감·배경 물건, #598)은 덮어도 된다: 분수 테두리처럼 높은 대상 바로 아래에 늘 있는 것이라서다.
@@ -814,7 +815,7 @@ function stepOffPoint(
 ): { to: Point; face: Facing } | null {
   const char = action.char;
   const tb = targetBox(data.screen, before, action.target);
-  if (!tb || tb.top + tb.height > WALK_AREA.top) return null;
+  if (!tb || tb.top + tb.height > HIGH_TARGET_LINE) return null;
   if (!isFree(data, after.at[char] ?? '')) return null;
   if (events.some((e) => (e.type === 'walk' || e.type === 'place' || e.type === 'release') && e.char === char)) return null;
   if (events.some((e) => e.type === 'faint' || e.type === 'clear')) return null;
@@ -825,7 +826,7 @@ function stepOffPoint(
     const def = data.screen.hotspots[id] ?? data.screen.spots[id];
     if (def?.hintAbility === undefined) continue;
     const b = targetBox(data.screen, after, id);
-    if (b && b.top + b.height > WALK_AREA.top) low.push(b);
+    if (b && b.top + b.height > HIGH_TARGET_LINE) low.push(b);
   }
   const def = characterDef(char);
   const face = ap.face ?? s.walkers[char].facing;
@@ -842,9 +843,10 @@ function stepOffPoint(
     const grown = { left: body.left - APPROACH_GAP, top: body.top, width: body.width + 2 * APPROACH_GAP, height: body.height };
     return !low.some((b) => boxesOverlap(grown, b)) && !mates.some((b) => boxesOverlap(body, b));
   };
+  const area = walkAreaOf(data.screen);
   const first: Facing = fromX < ap.x ? -1 : 1;
   for (const dir of [first, -first as Facing]) {
-    for (let x = ap.x + dir; x >= WALK_AREA.left && x <= WALK_AREA.right; x += dir) {
+    for (let x = ap.x + dir; x >= area.left && x <= area.right; x += dir) {
       // 도착하면 처음 대상 쪽으로 돌아선다(#865 Luna): 등지고 서면 "포기하고 간다"로 읽힌다.
       if (clear(x, dir)) return { to: { x, y: ap.y }, face: tb.left + tb.width / 2 < x ? -1 : 1 };
     }
@@ -865,7 +867,7 @@ function clearOf(data: SceneData, puzzle: PuzzleState, action: Action, box: HitB
   const hidden = Math.max(...faces.map((f) => hiddenShare(art, characterHitBox(def, x, y, f))));
   const touches = art.height <= SMALL_ART && faces.some((f) => headTouches(art, characterFaceBox(def, x, y, f)));
   if (hidden <= HIDE_MAX && !touches) return y;
-  return Math.max(y, Math.min(WALK_AREA.bottom, art.top + art.height - def.hit.dy + CLEAR_GAP));
+  return Math.max(y, Math.min(walkAreaOf(data.screen).bottom, art.top + art.height - def.hit.dy + CLEAR_GAP));
 }
 
 /**
@@ -978,7 +980,7 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
     s.queue.push(face === null ? { type: 'walk', char: action.char, from: spot, to: spot } : { type: 'walk', char: action.char, from: spot, to: spot, face });
   }
   deferShown(data, s, before, events);
-  if (to) s.floorTo[action.char] = standAside(data, s, action.char, clampToArea(floorTarget(data, to), WALK_AREA));
+  if (to) s.floorTo[action.char] = standAside(data, s, action.char, clampToArea(floorTarget(data, to), walkAreaOf(data.screen)));
   // 장대 대상 점: `reachPoint`, 없으면 대상 상자 아래 끝 가운데(#284: 고리 뻗기 실패는 집게가 고리 "바로 아래"에서 멈춘다).
   const rp = data.screen.hotspots[action.target]?.reachPoint;
   const tb = rp ? null : targetBox(data.screen, prev, action.target);
@@ -1008,9 +1010,9 @@ function floorPoint(data: SceneData, s: SceneState, char: CharacterId, to: strin
   const picked = s.floorTo[char];
   if (picked) {
     delete s.floorTo[char];
-    return clampToArea(picked, WALK_AREA);
+    return clampToArea(picked, walkAreaOf(data.screen));
   }
-  return clampToArea({ x: s.walkers[char].x, y: spotPoint(data, to).y }, WALK_AREA);
+  return clampToArea({ x: s.walkers[char].x, y: spotPoint(data, to).y }, walkAreaOf(data.screen));
 }
 
 function destination(data: SceneData, s: SceneState, char: CharacterId, to: string): Point {
@@ -1184,7 +1186,7 @@ function begin(data: SceneData, s: SceneState, ev: PlayEvent, seq: number): Play
       return data.clearLine ? { ev, t: 0, duration: TIMING.clearCut, seq, cut: data.clearLine } : { ev, t: 0, duration: 0, seq };
     case 'say':
       if (ev.stepOff) {
-        walkTo(s.walkers[ev.stepOff.char], ev.stepOff.to, WALK_AREA);
+        walkTo(s.walkers[ev.stepOff.char], ev.stepOff.to, walkAreaOf(data.screen));
         s.stepOff[ev.stepOff.char] = ev.stepOff;
       }
       return { ev, t: 0, duration: sayDuration(data, ev.speaker, ev.text), seq };
@@ -1831,13 +1833,14 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
   if (intent.kind === 'walk') {
     const w = s.walkers[s.ui.active];
     // 동료 몸과 겹치면 비켜 선 점(#825). 같은 탭은 같은 점이 되니 아래 다시 누르기 비교도 비켜 선 점끼리 한다.
-    const to = standAside(data, s, s.ui.active, clampToArea(floorTarget(data, intent.to), WALK_AREA));
+    const area = walkAreaOf(data.screen);
+    const to = standAside(data, s, s.ui.active, clampToArea(floorTarget(data, intent.to), area));
     // 5-2-1절: 같은 캐릭터가 걷는 중 지금 목표와 같은 점(12px 안)을 다시 누르면 목표에 바로 선다. 다른 점은 목표를 바꾼다.
     if (w.target && Math.hypot(to.x - w.target.x, to.y - w.target.y) <= WALK_SKIP_SAME) {
       teleport(w, w.target);
       return { kind: 'skipWalk' };
     }
-    walkTo(w, to, WALK_AREA);
+    walkTo(w, to, area);
     if (w.target) s.walkStart = { char: s.ui.active, dist: Math.hypot(w.target.x - w.x, w.target.y - w.y) };
   } else if (intent.kind === 'act') {
     s.lastActKey = intent.key;

@@ -3,8 +3,9 @@
 // 여기는 그 다음 단계: 사람이 걸어가 섰을 때다. 설계 자료용이고 퍼즐 상태를 바꾸지 않는다.
 
 import { CHARACTERS, characterDef, characterHitBox } from '../../src/core/characters';
-import { WALK_AREA } from '../../src/core/config';
+import { HIGH_TARGET_LINE, walkAreaOf } from '../../src/core/config';
 import type { HitBox } from '../../src/core/hit';
+import type { WalkArea } from '../../src/core/walk';
 import { hotspotBox } from '../../src/core/interact';
 import { approachPoint, createScene, type SceneData } from '../../src/core/scene';
 import type { CharacterId, PuzzleState, Verb } from '../../src/core/puzzle/types';
@@ -41,8 +42,8 @@ export interface LayoutReport {
 const overlaps = (a: HitBox, b: HitBox): boolean =>
   a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height;
 
-/** 바닥 대상: 상자 아래 끝이 걷기 영역 위 끝보다 아래(`approachPoint`의 `high` 반대). 높은 대상 앞에 서는 건 정상이라 안 본다. */
-const isFloor = (b: HitBox): boolean => b.top + b.height > WALK_AREA.top;
+/** 바닥 대상: 상자 아래 끝이 `HIGH_TARGET_LINE`보다 아래(`approachPoint`의 `high` 반대). 높은 대상 앞에 서는 건 정상이라 안 본다. */
+const isFloor = (b: HitBox): boolean => b.top + b.height > HIGH_TARGET_LINE;
 
 const fmt = (b: HitBox): string => `${b.left},${b.top} ${b.width}×${b.height}`;
 
@@ -68,14 +69,15 @@ function flagStates(data: SceneData): Record<string, boolean>[] {
 }
 
 /** 걷기 영역 안에서 `side` 쪽 끝 x. 그 x에서 몸이 대상과 안 겹치면 그쪽에 설 자리가 있다. */
-function sideFrom(char: CharacterId, side: 'left' | 'right', y: number, target: HitBox): { x: number; y: number } | null {
-  const x = side === 'left' ? WALK_AREA.left : WALK_AREA.right;
+function sideFrom(area: WalkArea, char: CharacterId, side: 'left' | 'right', y: number, target: HitBox): { x: number; y: number } | null {
+  const x = side === 'left' ? area.left : area.right;
   const face = side === 'left' ? 1 : -1;
   return overlaps(characterHitBox(characterDef(char), x, y, face), target) ? null : { x, y };
 }
 
 export function layoutReport(data: SceneData): LayoutReport {
   const s = createScene(data);
+  const area = walkAreaOf(data.screen);
   const problems: LayoutProblem[] = [];
   const stands: StandRow[] = [];
   const ids = Object.keys(data.screen.hotspots);
@@ -113,11 +115,11 @@ export function layoutReport(data: SceneData): LayoutReport {
           const tb = hotspotBox(data.screen, puzzle, target);
           if (!tb) continue;
           const floorTarget = isFloor(tb);
-          const sides = (['left', 'right'] as const).filter((side) => !floorTarget || sideFrom(c.id, side, y, tb));
+          const sides = (['left', 'right'] as const).filter((side) => !floorTarget || sideFrom(area, c.id, side, y, tb));
           if (floorTarget && sides.length === 0)
             add({ code: 'no-side', level: 'error', message: `${c.id} → ${target}(${fmt(tb)})${tag}: 양옆 어디에도 몸이 들어갈 자리가 없다` });
           for (const side of sides) {
-            const from = floorTarget ? sideFrom(c.id, side, y, tb)! : { x: side === 'left' ? WALK_AREA.left : WALK_AREA.right, y };
+            const from = floorTarget ? sideFrom(area, c.id, side, y, tb)! : { x: side === 'left' ? area.left : area.right, y };
             const ap = approachPoint(data, puzzle, { char: c.id, verb, target }, from);
             if (!ap) continue;
             stands.push({ char: c.id, verb, target, side, flags, x: ap.x, y: ap.y });

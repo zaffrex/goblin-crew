@@ -8,7 +8,7 @@ import texts from '../content/text/ja.json';
 import { sayText } from './core/sayText';
 import { bubbleBounds, bubbleFontPx, bubbleMaxWidth, bubbleTailInset, placeBubble, type BubbleAnchor, type BubbleOptions, type KeepBox } from './core/bubble';
 import { CHARACTERS, type CharacterId } from './core/characters';
-import { INTERNAL_HEIGHT, INTERNAL_WIDTH, WALK_AREA } from './core/config';
+import { INTERNAL_HEIGHT, INTERNAL_WIDTH, walkAreaOf } from './core/config';
 import { frameFallbacks, type FrameArt, type Loaded } from './core/fallbacks';
 import { actorEdgeAt, besideFeetAt, dustPush, FX_COLORS, FX_STYLE, fxTextSpot, SHAKE_FX, shakeOffset } from './core/fx';
 import { drawnByShape, frameNudges, fxNudges, particleFx, shapeParticles, type Nudge } from './core/fxShape';
@@ -434,7 +434,7 @@ function worldTap(p: Point, slop: number): void {
   if (r.kind === 'skipWalk') noteWalkSkipped(notes);
   // 터치로 걷기 영역 밖(벽·소품 그림)을 눌러 바닥 걷기가 됐으면 `あるく`(5-2-6절). 몸이 누른 데가 아닌 아래 바닥으로 가서 반응 없음과 구분이 안 됐다(#601).
   // 걷기 시작(`pollWalkStart`) 전이라 이 탭에서는 긴 걷기 안내가 안 뜨고 횟수도 안 센다.
-  if (slop > 0 && r.kind === 'intent' && r.intent.kind === 'walk') noteWalkTap(notes, p, WALK_AREA, t('ui.verb.walk'), session.scene.tick);
+  if (slop > 0 && r.kind === 'intent' && r.intent.kind === 'walk') noteWalkTap(notes, p, walkAreaOf(session.data.screen), t('ui.verb.walk'), session.scene.tick);
   pollWalkStart();
   if (r.kind !== 'intent') return;
   touchLabel = r.intent.kind === 'select' ? r.intent.label : null;
@@ -812,7 +812,7 @@ function render(): void {
   ctx.save();
   ctx.translate(0, shakeY);
   const bgDrawn = drawSceneBg(ctx, art);
-  if (!bgDrawn) drawRoom(ctx, internal, WALK_AREA);
+  if (!bgDrawn) drawRoom(ctx, internal, walkAreaOf(session.data.screen));
   const boxSpots = uncovered(layout.spots);
   const boxHotspots = uncovered(layout.hotspots);
   // 글자 아닌 fx 중 물건을 옮기는 것(`nod`, #485): 임시 상자는 여기서, 시트 칸은 아래 `nudged`로 옮긴다.
