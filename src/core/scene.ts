@@ -1603,15 +1603,24 @@ function fireCue(data: SceneData, s: SceneState, p: Playing): void {
   if (p.cues?.length === 0) delete p.cues;
 }
 
-/** 겹쳐 뜬 fx·물건 anim의 시간을 한 틱 보내고, 끝난 것을 내린다. 물건 anim은 `current`처럼 `hold`면 붙든다. */
-function tickOverlays(s: SceneState): void {
+/**
+ * 겹쳐 뜬 fx·물건 anim의 시간을 한 틱 보내고, 끝난 것을 내린다. 물건 anim은 `current`처럼 `hold`면 붙든다.
+ * 겹쳐 뜬 물건 anim이 끝난 틱에 대기열 맨 앞이 **같은 물건**의 anim이면 그것도 겹쳐 이어 시작한다(#955).
+ * 한 물건의 움직임이 캐릭터 연출 끝을 기다리며 중간에 멈추지 않게 한다(둥지가 빨려 든 뒤 까치가 공중에 뜸).
+ * 다른 물건 anim·fx·대사는 지금처럼 차례를 기다린다. 이어 붙인 것도 끝나면 같은 규칙을 따른다.
+ */
+function tickOverlays(data: SceneData, s: SceneState): void {
+  const chained: Playing[] = [];
   s.overlays = s.overlays.filter((o) => {
     o.t += 1;
     if (!finished(s, o)) return true;
     holdLast(s, o);
     commitShown(s, o.seq, 'end');
+    const next = s.queue[0];
+    if (s.current !== null && o.ev.type === 'anim' && next?.type === 'anim' && next.target === o.ev.target) chained.push(start(data, s, s.queue.shift()!));
     return false;
   });
+  s.overlays.push(...chained);
 }
 
 /** 지금 화면에 뜬 효과(fx)들: 대기열 차례로 도는 것 + 칸 신호로 겹쳐 뜬 것. 엔진은 이것만 그린다. */
@@ -1636,7 +1645,7 @@ export function sceneTick(data: SceneData, s: SceneState): void {
   for (const c of CHARACTERS) stepWalker(s.walkers[c.id], TIMING.walkSpeed);
   for (const c of CHARACTERS) landStepOff(s, c.id);
   tickHops(data, s);
-  tickOverlays(s);
+  tickOverlays(data, s);
   // 이벤트를 시작한 틱이 그 이벤트의 t=0 프레임이다. 길이 0 이벤트(clear)나 이미 도착한 걷기는 같은 틱에 다음으로 넘어간다.
   for (let guard = 0; guard < 64; guard++) {
     if (s.current === null) {
