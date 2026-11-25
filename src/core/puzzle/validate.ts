@@ -503,7 +503,11 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
   for (const [sid, s, p] of spotEntries) {
     if (!c.obj(s, p, SPOT_KEYS)) continue;
     if (!isNum(s.x) || !isNum(s.y)) c.err(p, 'schema', 'x, y는 숫자');
-    else point(s.x, s.y, p);
+    else if (point(s.x, s.y, p) && s.box === undefined && s.hold !== true && !inArea(s.x, s.y)) {
+      // 상자 없는 걷기 자리(`floor`·`fountain_seat`)는 발 점이다. 엔진은 처음 배치·`walkTo`에서 영역 안으로 조용히 옮기니(scene.ts
+      // `clampToArea`) 영역 밖이면 그림에서 정한 자리와 실제로 서는 자리가 달라진다(#944). 상자 있는 자리(물건 위)와 hold는 영역과 무관하다.
+      c.err(p, 'spot-area', `상자 없는 자리 (${s.x}, ${s.y})가 걷기 영역 밖이다(${areaText()})`);
+    }
     if (s.free !== undefined) c.bool(s.free, `${p}.free`);
     if (s.hold !== undefined) c.bool(s.hold, `${p}.hold`);
     if (s.capacity !== undefined && (!isInt(s.capacity) || s.capacity < 1)) c.err(`${p}.capacity`, 'schema', 'capacity는 1 이상 정수');

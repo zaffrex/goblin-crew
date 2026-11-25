@@ -97,12 +97,13 @@ describe('validateScreen', () => {
   it('checks spot coordinates: off screen fails, inside the HUD warns (#108)', () => {
     expect(codes(mutate((s) => (s.spots.seesaw_left.x = 481)))).toEqual(['point-offscreen']);
     expect(codes(mutate((s) => (s.spots.floor.y = -1)))).toEqual(['point-offscreen']);
-    // box가 없는 자리도 본다(floor).
+    // box가 없는 자리도 본다(floor). 그런 자리는 걷기 영역 밖이라 `spot-area` 오류도 같이 난다(#944).
     const hud = mutate((s) => Object.assign(s.spots.floor, { x: 320, y: 20 }));
-    expect(hud.errors).toEqual([]);
+    expect(codes(hud)).toEqual(['spot-area']);
     expect(hud.warnings).toEqual([expect.objectContaining({ code: 'hud-overlap', path: 'spots.floor' })]);
-    // 화면 끝 점은 화면 안이다.
-    expect(mutate((s) => Object.assign(s.spots.floor, { x: 480, y: 270 })).errors).toEqual([]);
+    // 화면 끝 점은 화면 안이다(`point-offscreen` 아님). 상자 있는 자리면 오류 0.
+    expect(mutate((s) => Object.assign(s.spots.seesaw_left, { x: 480, y: 270 })).errors).toEqual([]);
+    expect(codes(mutate((s) => Object.assign(s.spots.floor, { x: 480, y: 270 })))).toEqual(['spot-area']);
   });
 
   it('releasePoint must be on screen and inside the walk area (#108, #173)', () => {
@@ -128,6 +129,28 @@ describe('validateScreen', () => {
     expect(mutate((s) => (s.walkArea = { top: 235 })).errors).toEqual([]);
     expect(paths(mutate((s) => (s.walkArea = { top: 236 })))).toEqual(['spots.hook.releasePoint']);
     expect(codes(mutate((s) => (s.walkArea = { top: 241 })))).toEqual(['board-area', 'board-area', 'release-point-area']);
+  });
+
+  it('boxless walk spots must stand inside the walk area; boxed and hold spots need not (#944)', () => {
+    // 상자 없는 자리 = 발 점. 엔진이 clampToArea로 조용히 옮기니 영역 밖이면 그림의 자리와 서는 자리가 달라진다.
+    expect(BASE.spots.floor.box).toBeUndefined();
+    expect(mutate((s) => Object.assign(s.spots.floor, { x: WALK_AREA.left, y: WALK_AREA.top })).errors).toEqual([]);
+    expect(mutate((s) => Object.assign(s.spots.floor, { x: WALK_AREA.right, y: WALK_AREA.bottom })).errors).toEqual([]);
+    expect(paths(mutate((s) => (s.spots.floor.y = WALK_AREA.top - 1)))).toEqual(['spots.floor']);
+    expect(codes(mutate((s) => (s.spots.floor.y = WALK_AREA.bottom + 1)))).toEqual(['spot-area']);
+    expect(codes(mutate((s) => (s.spots.floor.x = WALK_AREA.left - 1)))).toEqual(['spot-area']);
+    // 화면 walkArea를 따른다: 빨래방(top 244 = floor y)처럼 경계에 맞닿으면 안, 1px 넘으면 밖.
+    //   이 화면은 시소 board(y 240)·고리 releasePoint(235)가 floor(244)보다 위라 top 대신 bottom으로 잰다.
+    const y = BASE.spots.floor.y;
+    expect(mutate((s) => (s.walkArea = { bottom: y })).errors).toEqual([]);
+    expect(paths(mutate((s) => (s.walkArea = { bottom: y - 1 })))).toEqual(['spots.floor']);
+    // free가 아닌 상자 없는 자리(park_fountain fountain_seat 같은 걷기 자리)도 본다.
+    expect(codes(mutate((s) => (s.spots.seat = { x: 220, y: WALK_AREA.top - 2 })))).toEqual(['spot-area']);
+    // 상자 있는 자리(물건 위, 시소)와 hold 자리(고리)는 발이 바닥이 아니라 안 본다.
+    expect(BASE.spots.seesaw_left.box).toBeDefined();
+    expect(mutate((s) => (s.spots.seesaw_left.y = 150)).errors).toEqual([]);
+    expect(BASE.spots.hook.hold).toBe(true);
+    expect(mutate((s) => delete s.spots.hook.box).errors).toEqual([]);
   });
 
   it('board is an on-floor [x, y] on walkable non-free spots only (#397)', () => {
@@ -232,7 +255,7 @@ describe('validateScreen', () => {
     const spotBox = mutate((s) => (s.spots.hook.box = [60, 10, 24, 24]));
     expect(spotBox.warnings).toEqual([expect.objectContaining({ code: 'goal-overlap', path: 'spots.hook.box' })]);
     const pt = mutate((s) => Object.assign(s.spots.floor, { x: 50, y: 20 }));
-    expect(pt.errors).toEqual([]);
+    expect(codes(pt)).toEqual(['spot-area']);
     expect(pt.warnings).toEqual([expect.objectContaining({ code: 'goal-overlap', path: 'spots.floor' })]);
     expect(mutate((s) => Object.assign(s.spots.floor, { x: 118, y: 20 })).warnings).toEqual([]);
   });
