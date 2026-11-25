@@ -500,6 +500,22 @@ export function bottleCap(img, x, y) {
   stampOutlined(img, x, y, CAP_ROWS, CAP_LEGEND, false);
 }
 
+// ═════════════ 자판기 동전(2칸, 물건 시트 2/2-c2 `soap_vending.spill_coin`) ═════════════
+// 은색 동전(금색은 열쇠 전용 약속이라 안 쓴다). 병뚜껑과 같은 lint · white 반짝 · lav 그늘이지만 톱니가 없고 납작해서 다르게 읽힌다.
+//   서서 굴러가는 모습 3×5(옆에서 본 테두리)와 누운 모습 5×3(바닥에 납작). 외곽선은 stampOutlined가 두른다.
+//   바닥 woodL(Y149)과 lint(Y178)는 29라 누운 동전 윗면은 white(Y249)로 채워 바닥에서 뜨게 한다.
+const COIN_ROWS = {
+  stand: ['.c.', 'cWc', 'cWd', 'cWd', '.d.'],
+  flat: ['.WWW.', 'cWWWd', '.ddd.'],
+};
+const COIN_LEGEND = { c: C.lint, W: C.white, d: C.lav };
+/** 동전 몸(외곽선 안) 크기 */
+export const COIN = { stand: { w: 3, h: 5 }, flat: { w: 5, h: 3 } };
+/** 자판기 동전. pose 'stand'(굴러감) | 'flat'(누움). (x, y) = 몸 왼쪽 위 */
+export function coin(img, x, y, pose = 'flat') {
+  stampOutlined(img, x, y, COIN_ROWS[pose], COIN_LEGEND, false);
+}
+
 // ═════════════ O8 머리 위에 꽂힌 깃털(1칸, 물건 시트 2/2-b) ═════════════
 // 날아오는 깃털은 magpie_nest `feather`(4×4 대각선) 재사용이고, 꽂힌 모습만 새로 그린다.
 // 4×4 그대로 머리에 얹으면 "먼지 한 점"이라 8-1 ②(몸 크기 이상)도 ④(몸에 남음)도 못 채운다. 그래서 세워서 길게 늘였다:

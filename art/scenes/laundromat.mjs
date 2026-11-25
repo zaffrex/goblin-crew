@@ -10,8 +10,8 @@
 //   O7 둥지 모자(`dryer_3.nest_hat`, 원본 object `nest`)·그 위에 앉는 까치(`magpie.hat_perch`). 셋 다 anchor ズッシー.
 // 물건 시트 2/2-c1 (이 PR, 정답 길): 진입 연출 `gap.glint`(길바닥 열쇠 반짝), 클리어 마지막 박자 `shutter.roll_up`(셔터 촤르르).
 //   둘 다 손그림 0칸이다. 반짝 별은 둥지 열쇠 반짝(O2)과 같은 `sparkStar`, 셔터는 잠김·올라감 두 그림을 섞어 판을 끌어올린다.
-// 물건 시트 2/2-c2 (다음 PR, 곁가지 실패): `duct.warm_puff`·`suck_pole`, `dryer_3.gulp_pole`, `soap_vending.spill_boxes`·`spill_coin`.
-//   그 전에는 그 anim이 시트에 없어 엔진이 물건을 멈춘 모습 그대로 둔다(형식 9절 폴백, 기본 0.5초).
+// 물건 시트 2/2-c2 (이 PR, 곁가지 실패): `duct.warm_puff`·`suck_pole`, `dryer_3.gulp_pole`, `soap_vending.spill_boxes`·`spill_coin`.
+//   손그림은 쏟아지는 세제 상자(진열창 상자 재사용, 0)·동전 2모양뿐이다. 덕트 바람·빨림은 선 몇 줄과 관 주름 누르기, 드럼은 있는 회전 칸을 빨리 돌린다.
 //
 // 배경 물건(셔터·건조기·자판기)은 ink 없이 그린 그림이다. 시트에서는 히트 상자 **안** 픽셀만 물건으로 떼어 바깥 ink 외곽선을 두르고
 // (ADR-0007 결정 3-1, park_fountain 동상과 같은 방식), 상자 **밖** 픽셀(셔터 통, 바닥 빛 띠, 바닥 그림자 줄)은 배경에 굽는다(#882 Theo 리뷰).
@@ -24,14 +24,14 @@
 
 import { Image, EMPTY, C } from '../lib/pixel.mjs';
 import { outlined, stamp, line } from '../lib/texture.mjs';
-import { room, W, H, TRANSOM, HOOD } from './laundromat.room.mjs';
+import { room, W, H, TRANSOM, HOOD, DUCT } from './laundromat.room.mjs';
 import { washer } from './laundromat.washer.mjs';
 import { shutter, SHUTTER, gapLift } from './laundromat.shutter.mjs';
 import { dryer, DRYER_DOOR_SWING, DRUM_STEP } from './laundromat.dryer.mjs';
-import { vending } from './laundromat.vending.mjs';
+import { vending, soapBox, VEND_BUTTON_Y, VEND_BOX as SOAP_BOX, VEND_CHUTE, VEND_COIN_RETURN } from './laundromat.vending.mjs';
 import {
   keyTag, KEY_ON_STREET, nestEmpty, nestWithKey, NEST, NEST_KEY, GAP_SNATCH, DUCT_LUMP, LUMP_STUCK, MAGPIE_SIT, MAGPIE_SIT_AT, MAGPIE_SIT_POSES, magpieSit,
-  flySock, bottleCap, headFeather, HEAD_FEATHER, sparkStar,
+  flySock, bottleCap, headFeather, HEAD_FEATHER, sparkStar, coin,
 } from './laundromat.objects.mjs';
 import { ANCHOR_ORIGIN } from '../scene-build.mjs';
 import { MAGPIE_FLY, MAGPIE_LEGEND, feather } from './magpie_nest.objects.mjs';
@@ -318,6 +318,136 @@ const hatFly = (img) => {
 };
 const HAT_PERCH = { ms: [100, 120, 200], frames: [hatFly, hatSit('puff'), hatSit('smug')] };
 
+// ═════════════ 곁가지 실패 (시트 2/2-c2) ═════════════
+// 덕트 × 장대(7-1·7-2): 쿡한 자리(`duct` reachPoint 367,150)의 주름 틈에서 바람이 나오거나(정회전) 빨려 든다(역회전).
+//   장대·집게는 ノビー 그림이라 여기서 안 그린다(물건 anim에 집게를 그리면 장대 끝 집게와 둘이 된다). 덕트 쪽 반응만 그린다.
+//   따뜻한 바람 = pink(Y173, 벽 cotton과 49) 물결이 바깥으로, 빨림 = lav(Y131, 91) 줄이 안쪽으로. 색과 방향이 반대라 두 상태가 갈린다.
+const POKE = { x: DUCT.x + DUCT.w / 2 - 0.5, y: 150 }; // 관 가운데 366.5
+const mirrorX = (x) => Math.round(2 * POKE.x - x);
+/** 2줄 물결(오른쪽으로 len px). 2px마다 한 줄씩 오르내린다 */
+function wave(img, x, y, len, c, dir = 1) {
+  for (let i = 0; i < len; i++) img.set(x + dir * i, y + (Math.floor(i / 2) % 2), c);
+}
+/** 관 양옆에 같은 물결(왼쪽은 왼쪽으로, 오른쪽은 오른쪽으로 퍼진다) */
+function waves(img, gap, list) {
+  for (const [dy, len] of list) {
+    wave(img, DUCT.x - 1 - gap, POKE.y + dy, len, C.pink, -1);
+    wave(img, DUCT.x + DUCT.w + gap, POKE.y + dy, len, C.pink, 1);
+  }
+}
+// 7-1 `duct.warm_puff`: 훅(작은 물결 둘) → 퍼짐(긴 물결 셋, 하나는 아래로 ノビー 쪽) → 멈춘 모습. 새 칸 2(코드 선).
+const WARM_PUFF = {
+  ms: [100, 260, 80],
+  frames: [
+    (img) => { ductRest(img); waves(img, 1, [[-3, 5], [2, 5]]); },
+    (img) => { ductRest(img); waves(img, 3, [[-8, 8], [-2, 10], [4, 8]]); },
+    ductRest,
+  ],
+};
+
+/** 관을 쿡한 자리 위아래 6줄에서 가운데로 depth px 오므린다(주름이 빨려 든다). 밖으로 빠진 자리는 같은 무늬 단계(16px 옆) 벽으로 채운다. */
+function ductPinch(depth) {
+  return (img) => {
+    const t = new Image(W, H);
+    room(t);
+    const x0 = DUCT.x, w = DUCT.w;
+    for (let y = DUCT_BOX[1]; y < DUCT_BOX[1] + DUCT_BOX[3]; y++) {
+      const k = 1 - ((y - POKE.y) / 7) ** 2;
+      const d = k > 0 ? Math.round(depth * k) : 0;
+      for (let u = 0; u < w; u++) {
+        const x = x0 + u;
+        if (u < d) img.set(x, y, t.get(x - 16, y));
+        else if (u >= w - d) img.set(x, y, t.get(x + 16, y));
+        else img.set(x, y, t.get(x0 + Math.round(((u - d) * (w - 1)) / Math.max(1, w - 1 - 2 * d)), y));
+      }
+    }
+  };
+}
+/** 안으로 모이는 lav 줄 셋(위·가운데·아래). gap = 관 끝에서 줄 안쪽 끝까지 */
+function suckLines(img, gap) {
+  for (const [dy, ex] of [[-8, -2], [0, 0], [8, 2]]) {
+    const ix = DUCT.x - 1 - gap, iy = POKE.y + Math.round(dy / 2) + ex;
+    const ox = ix - 4, oy = POKE.y + dy;
+    line(img, ox, oy, ix, iy, C.lav);
+    line(img, mirrorX(ox), oy, mirrorX(ix), iy, C.lav);
+  }
+}
+// 7-2 `duct.suck_pole`: 줄이 모이며 주름이 1px → 2px 오므려 집게 끝을 빨아 당김(줄다리기) → 1px로 풀림 → 멈춘 모습. 뒤에 ノビー 엉덩방아.
+//   새 칸 2(오므림 1·2 + 줄). 마지막 1px 칸은 첫 칸 재사용.
+const suckFrame = (depth, gap) => (img) => { ductPinch(depth)(img); suckLines(img, gap); };
+const SUCK_POLE = {
+  ms: [110, 280, 90, 60],
+  frames: [suckFrame(1, 6), suckFrame(2, 3), suckFrame(1, 6), ductRest],
+};
+
+// 건조기 × 장대(`dryer_stretch` 폴백): 드럼이 장대 끝을 물고 반 바퀴 우적우적 → 퉤 하고 몸이 2px 들썩 → 멈춘 모습. 뒤에 ノビー 엉덩방아.
+//   회전 칸은 대기 반복 칸(0°·40°·80°)을 50ms로 빨리 돈다(평소 150ms의 세 배, 새 칸 0). 역회전 상태면 거꾸로 돈다(variants).
+//   들썩 칸만 새 칸 1이다: 상자를 2px 위로 옮겨 잘라서 몸 아래 2줄에 벽 띠가 비친다. 위 끝 덕트 목이 덕트 아래 끝에 쿵 닿는다.
+const hopPic = boxed((img) => dryer(img, DX, DY - 2, { spin: 0 }), [DX, DY - 2, DRYER_BOX[2], DRYER_BOX[3]]);
+const GULP_MS = [50, 50, 50, 50, 50, 50, 120, 90];
+const gulp = (order) => ({ ms: GULP_MS, frames: [...[0, 1, 2, 3, 4, 5].map((i) => SPIN[order[i % 3]]), hopPic, SPIN[0]] });
+const GULP_POLE = { ...gulp([0, 1, 2]), variants: [{ when: { flags: { 'dryer.reverse': true } }, ...gulp([0, 2, 1]) }] };
+
+// 자판기(장난감, ADR-0761 H4 미끼). 진열창 상자는 견본이라 그대로 두고, 쏟아지는 건 기계 속 재고다(끝나도 진열창이 안 비어 튀지 않는다).
+// 자판기 앞(왼쪽) 설 곳 x 415~419. 쏟아진 상자·동전은 캐릭터 **앞**(layer front)에 그려서 납작해진 ノビー를 상자가 덮는다.
+const [VX, VY] = VEND_BOX;
+/** 버튼 여섯 개가 다 눌려 들어간 모습(2×2가 어두워짐) */
+function buttonsIn(img) {
+  for (const by of VEND_BUTTON_Y)
+    for (const cx0 of SOAP_BOX.cols) {
+      const bx = VX + cx0 + 2, y = VY + by;
+      img.set(bx, y, C.lav); img.set(bx + 1, y, C.dusk); img.set(bx, y + 1, C.dusk); img.set(bx + 1, y + 1, C.plum);
+    }
+}
+/** 상자 여럿을 각자 외곽선 둘러 그린다. list: [x, y, 색 번호] */
+const flyBoxes = (list) => (img) => {
+  for (const [x, y, k] of list) {
+    const t = new Image(W, H);
+    soapBox(t, x, y, k);
+    img.blit(outlined(t), 0, 0);
+  }
+};
+const vendBase = boxed(vendStill, VEND_BOX);
+const vendPressed = (img) => { vendBase(img); buttonsIn(img); };
+const CH = { x: VX + VEND_CHUTE.x, y: VY + VEND_CHUTE.y };
+// `soap_vending.spill_boxes`: 집게가 버튼 줄을 한꺼번에 → 꺼내는 곳에 상자 셋이 꽉 끼어 튀어나옴 → 여섯 개가 ノビー 머리 위로 →
+//   쏟아져 → 바닥에 쌓여 납작한 ノビー를 덮는다(hold: 엉덩방아·대사 끝까지). 상자마다 칸 사이 이동 21px 안(R3).
+//   새 칸 5(손그림 0: 진열창 상자 그림 재사용).
+const BOX_PATHS = [
+  // [색 번호, 칸별 자리(없으면 null = 아직 기계 속)]
+  [0, [[CH.x + 2, CH.y + 3], [430, 199], [416, 196], [406, 214], [402, 234]]],
+  [3, [[CH.x + 10, CH.y + 2], [440, 200], [426, 192], [416, 210], [410, 229]]],
+  [4, [[CH.x + 18, CH.y + 4], [447, 203], [434, 198], [424, 216], [417, 235]]],
+  [1, [null, [445, 212], [432, 206], [428, 222], [424, 239]]],
+  [5, [null, [453, 212], [440, 208], [433, 226], [431, 238]]],
+  [2, [null, null, [446, 212], [430, 214], [413, 226]]],
+];
+const boxesAt = (f) => flyBoxes(BOX_PATHS.filter(([, at]) => at[f]).map(([k, at]) => [...at[f], k]));
+const SPILL_BOXES = {
+  layer: 'front',
+  hold: true,
+  ms: [120, 100, 100, 100, 200],
+  frames: [0, 1, 2, 3, 4].map((f) => withItems(f === 0 ? vendPressed : vendBase, boxesAt(f))),
+};
+// `soap_vending.spill_coin`: 쿵에 반환구에서 은색 동전이 톡 → 떨어져 바닥에 튐 → 세워 굴러 왼쪽으로 → 발 앞에 납작(hold: 대사 `…得した。` 끝까지).
+//   동전 서기·눕기 2모양이 손그림이고 칸은 5. 반짝은 white 점 하나(금색 별은 열쇠 전용이라 안 쓴다).
+const CR = { x: VX + VEND_COIN_RETURN.x, y: VY + VEND_COIN_RETURN.y };
+const coinAt = (x, y, pose, glint = false) => (img) => { coin(img, x, y, pose); if (glint) img.set(x + 3, y - 2, C.white); };
+const SPILL_COIN = {
+  layer: 'front',
+  hold: true,
+  ms: [90, 80, 90, 110, 160],
+  frames: [
+    withItems(vendBase, coinAt(CR.x + 1, CR.y + 1, 'stand')),
+    withItems(vendBase, coinAt(CR.x - 1, 214, 'stand')),
+    withItems(vendBase, coinAt(CR.x - 10, 233, 'stand')),
+    withItems(vendBase, coinAt(CR.x - 24, 238, 'stand')),
+    withItems(vendBase, coinAt(CR.x - 38, 245, 'flat', true)),
+  ],
+};
+/** 검사·미리보기용: 상자 길 */
+export const SPILL_BOX_PATHS = BOX_PATHS;
+
 // ═════════════ 물건 ═════════════
 const notOnStreet = ['key.in_nest', 'key.stuck', 'key.back'].map((f) => ({ when: { flags: { [f]: true } }, draw: null }));
 
@@ -384,6 +514,11 @@ const ANIMS = {
   'dryer_3.feather_head': { object: 'head_feather', anchor: { char: 'mukjik', point: 'head' }, hold: true, ...FEATHER_HEAD },
   'dryer_3.nest_hat': { object: 'nest', anchor: { char: 'mukjik', point: 'head' }, hold: true, ...NEST_HAT },
   'magpie.hat_perch': { anchor: { char: 'mukjik', point: 'head' }, hold: true, ...HAT_PERCH },
+  'duct.warm_puff': WARM_PUFF,
+  'duct.suck_pole': SUCK_POLE,
+  'dryer_3.gulp_pole': GULP_POLE,
+  'soap_vending.spill_boxes': SPILL_BOXES,
+  'soap_vending.spill_coin': SPILL_COIN,
 };
 
 // 검사용: 걸린 혹 칸이 duct 핫스팟 안이라는 전제(결정 2026-11-24-laundromat-duct-lump-shape-path)
