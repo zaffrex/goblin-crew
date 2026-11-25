@@ -22,6 +22,7 @@ import { SHEET as MUKJIK, HEAD_BOX as MUKJIK_HEAD } from './sprites/mukjik.mjs';
 import { SHEET as PPIK, HEAD_BOX as PPIK_HEAD } from './sprites/ppik.mjs';
 import { SCENE as MAGPIE_NEST } from './scenes/magpie_nest.mjs';
 import { SCENE as PARK_FOUNTAIN } from './scenes/park_fountain.mjs';
+import { SCENE as LAUNDROMAT } from './scenes/laundromat.mjs';
 import { buildScene } from './scene-build.mjs';
 import { clippedEdge } from './lib/finish.mjs';
 import { buildIcons, previewIcons } from './ui/hud-icons-build.mjs';
@@ -33,7 +34,7 @@ const OUT = join(ROOT, 'public', 'sprites');
 const PREVIEW = join(ROOT, 'docs', 'design', 'art');
 const SHEETS = [{ ...JJUK, head: JJUK_HEAD }, { ...MUKJIK, head: MUKJIK_HEAD }, { ...PPIK, head: PPIK_HEAD }];
 const SCENE_OUT = join(ROOT, 'public', 'scenes');
-const SCENES = [MAGPIE_NEST, PARK_FOUNTAIN];
+const SCENES = [MAGPIE_NEST, PARK_FOUNTAIN, LAUNDROMAT];
 const UI_OUT = join(ROOT, 'public', 'ui');
 
 function fail(msg) {

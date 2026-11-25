@@ -209,6 +209,7 @@
       "show": [
         { "anim": ["jjuk", "common.reach_wobble"] },
         { "fx": ["stretch_text", "jjuk"] },
+        { "anim": ["magpie", "nest_sucked"] },
         { "anim": ["magpie", "perch_drop"] },
         { "anim": ["duct", "lump_pop"] },
         { "anim": ["dryer_3", "door_bang"] },
@@ -219,7 +220,7 @@
         { "say": ["ppik", "laundromat.clear_magpie"] },
         { "anim": ["shutter", "roll_up"] }
       ],
-      "note": "6 ★③ → 클리어(8-2). 쿡(첫 anim) 끝에 key.back 그림(둥지 draw: null, 까치 = 후드 끝 깃털)으로 바뀌는데, 바로 다음 줄 perch_drop(메타 hold, 0.16초)이 까치를 맨 후드에 붙든다(4절 표 6). lump_pop(O6 재사용) → door_bang(O5 재사용) → nest_hat(anchor ズッシー, 16 → 8 → 0px) → fly_out(hold) → hat_perch(anchor, 까치가 둥지 모자 위) → roll_up 시작 때 셔터가 올라감. 어림 6.7초(ADR-0761 8초 안)"
+      "note": "6 ★③ → 클리어(8-2). 둥지는 자기 anim nest_sucked(0.12초, 후드 속으로 쏙)가 시작할 때, 까치는 perch_drop(메타 hold, 0.16초)이 시작할 때 key.back 그림으로 바뀐다. 그래서 fx 동안 둥지가 남아 까치가 빈 자리 위에 뜨지 않는다(형식 4-2 (a), PR #937). perch_drop이 까치를 맨 후드에 붙든다(4절 표 6). lump_pop(O6 재사용) → door_bang(O5 재사용) → nest_hat(anchor ズッシー, 16 → 8 → 0px) → fly_out(hold) → hat_perch(anchor, 까치가 둥지 모자 위) → roll_up 시작 때 셔터가 올라감. 어림 6.7초(ADR-0761 8초 안)"
     },
     {
       "id": "duct_poke_warm",
