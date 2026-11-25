@@ -19,7 +19,7 @@
 
 import { Image, EMPTY, C } from '../lib/pixel.mjs';
 import { outlined, stamp, line } from '../lib/texture.mjs';
-import { room, W, H, TRANSOM } from './laundromat.room.mjs';
+import { room, W, H, TRANSOM, HOOD } from './laundromat.room.mjs';
 import { washer } from './laundromat.washer.mjs';
 import { shutter, SHUTTER, gapLift } from './laundromat.shutter.mjs';
 import { dryer } from './laundromat.dryer.mjs';
@@ -160,6 +160,18 @@ const MAGPIE_ANIMS = {
   perch_drop: { ms: [80, 80], frames: [sit('smug', { dy: 4 }), sit('smug', { dy: DROP })], hold: true },
 };
 
+// 6 클리어 `magpie.nest_sucked`(원본 object nest): 빈 둥지가 후드 속으로 쏙(4px → 8px). 후드 윗면(y 54) 아래는 잘라 굽는다.
+// 새 그림 0(빈 둥지 자리만 옮김), 시트 2칸. 둥지 자기 anim이 있어야 fx(stretch_text) 동안 둥지가 남고,
+// 이 anim이 시작할 때 사라져 곧바로 perch_drop으로 까치가 털썩 앉는다(형식 4-2 (a), PR #937 Theo 리뷰).
+function nestSunk(dy) {
+  return (img) => {
+    const t = new Image(img.w, img.h);
+    nestEmpty(t);
+    for (let y = 0; y + dy < HOOD.top; y++) for (let x = 0; x < img.w; x++) { const c = t.get(x, y); if (c !== EMPTY) img.set(x, y + dy, c); }
+  };
+}
+const NEST_SUCKED = { ms: [60, 60], frames: [nestSunk(4), nestSunk(8)] };
+
 // ═════════════ 물건 ═════════════
 const notOnStreet = ['key.in_nest', 'key.stuck', 'key.back'].map((f) => ({ when: { flags: { [f]: true } }, draw: null }));
 
@@ -185,7 +197,11 @@ const OBJECTS = {
   gap: { draw: keyStreet(0), states: notOnStreet },
   duct: {
     draw: ductRest,
-    states: [{ when: { flags: { 'key.stuck': true } }, draw: DUCT_LUMP.stuck.frames[0], loop: DUCT_LUMP.stuck }],
+    states: [
+      // 클리어(duct_unstick)는 key.back만 켜고 key.stuck은 안 끈다. key.back을 먼저 둬야 lump_pop 뒤에 혹이 다시 안 나온다(PR #937 Theo 리뷰)
+      { when: { flags: { 'key.back': true } }, draw: ductRest },
+      { when: { flags: { 'key.stuck': true } }, draw: DUCT_LUMP.stuck.frames[0], loop: DUCT_LUMP.stuck },
+    ],
   },
   dryer_3: { draw: boxed(dryerStill, DRYER_BOX) },
   soap_vending: { draw: boxed(vendStill, VEND_BOX) },
@@ -195,6 +211,7 @@ const ANIMS = {
   ...Object.fromEntries(Object.entries(MAGPIE_ANIMS).map(([k, v]) => [`magpie.${k}`, v])),
   'magpie.key_in': { object: 'nest', ...NEST_KEY.key_in },
   'magpie.key_out': { object: 'nest', ...NEST_KEY.key_out },
+  'magpie.nest_sucked': { object: 'nest', ...NEST_SUCKED },
   'gap.snatch': SNATCH,
   'gap.nudge': NUDGE,
   'duct.lump_travel': DUCT_LUMP.lump_travel,

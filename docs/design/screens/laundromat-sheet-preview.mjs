@@ -2,8 +2,8 @@
 // 실행: node docs/design/screens/laundromat-sheet-preview.mjs
 // 출력(같은 폴더):
 //   laundromat-sheet-2x.png      시작 화면(배경 + 물건 멈춘 모습) 2배. 회색 상자 없이 다 그려졌는지
-//   laundromat-sheet-states.png  플래그 상태 넷(시작 / key.in_nest / key.stuck / key.back) 1배 2×2
-//   laundromat-sheet-window-4x.png 들창 칸 anim 줄(4배): fly_out(시작·클리어) · fly_in · perch_drop · ruffle · snub#2
+//   laundromat-sheet-states.png  플래그 상태 넷(시작 / key.in_nest / key.stuck / key.stuck+key.back = 실제 클리어) 1배 2×2
+//   laundromat-sheet-window-4x.png 들창 칸 anim 줄(4배): fly_out(시작·클리어) · fly_in · nest_sucked · perch_drop · ruffle · snub#2
 //   laundromat-sheet-gap-4x.png  틈 anim 줄(4배): nudge · snatch
 // 검사(어기면 종료 코드 1):
 //   - 시작 화면에서 물건 그림이 히트 상자 밖 바닥(y ≥ 244, 셔터 빛 띠 자리)에 ink를 안 찍는다(바닥 쪽 외곽선 뺌)
@@ -70,7 +70,7 @@ save('laundromat-sheet-2x.png', scale(start, 2));
 }
 
 // ── 2. 상태 넷
-const STATES = [{}, { 'key.in_nest': true }, { 'key.stuck': true, 'dryer.reverse': true }, { 'key.back': true }];
+const STATES = [{}, { 'key.in_nest': true }, { 'key.stuck': true, 'dryer.reverse': true }, { 'key.stuck': true, 'key.back': true }];
 save('laundromat-sheet-states.png', strip(STATES.map((f) => scene(f)), 2));
 
 // ── 3. 들창 칸 anim (창 둘레 64×64를 4배)
@@ -82,7 +82,8 @@ const fo = A['magpie.fly_out'];
 winRows.push(...fo.frames.map((d) => frameScene('magpie', d)));
 winRows.push(...fo.variants[0].frames.map((d) => frameScene('magpie', d, { 'key.back': true })));
 winRows.push(...A['magpie.fly_in'].frames.map((d) => frameScene('magpie', d)));
-winRows.push(...A['magpie.perch_drop'].frames.map((d) => frameScene('magpie', d, { 'key.back': true })));
+winRows.push(...A['magpie.nest_sucked'].frames.map((d) => frameScene('nest', d, { 'key.stuck': true, 'key.back': true })));
+winRows.push(...A['magpie.perch_drop'].frames.map((d) => frameScene('magpie', d, { 'key.stuck': true, 'key.back': true })));
 winRows.push(...A['magpie.ruffle'].frames.map((d) => frameScene('magpie', d)));
 winRows.push(...A['magpie.snub#2'].frames.map((d) => frameScene('magpie', d)));
 save('laundromat-sheet-window-4x.png', scale(strip(winRows, 8), 4));
