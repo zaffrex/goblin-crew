@@ -11,7 +11,7 @@ const hasObjectSheet = (id: string): boolean => existsSync(fileURLToPath(new URL
 
 describe('thumbOrigin per deployed screen (title-and-map 3-3절)', () => {
   // 그림(물건 시트)이 들어간 판은 자르는 자리도 같이 정한다. laundromat은 #764 시트 뒤에도 빠져서 맵에 dusk 한 색으로 남았다.
-  it('every deployed screen with an object sheet has an origin (no dusk card once art is in)', () => {
+  it('every deployed screen with an object sheet has an origin; screens before art (no sheet) are skipped and stay dusk', () => {
     const withArt = (orderJson as string[]).filter(hasObjectSheet);
     expect(withArt.length).toBeGreaterThan(0);
     for (const id of withArt) {
