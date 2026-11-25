@@ -5,11 +5,13 @@
 // 지금 있는 것:
 //   O1 열쇠 + 나무 패(1칸): 길바닥·둥지·혹 속에서 같은 물건. 패가 넓어서 덕트 아래 끝에 걸린다(S5). 길바닥에서는 금색 열쇠가 패보다 넓게(블라인드 11/25).
 //   O2 후드 위 빈 둥지(1칸) + 열쇠 든 둥지·반짝(2칸, `NEST_KEY`: 대기 반복, `magpie.key_in`·`key_out`).
-//   O3 틈 속 까치 머리·부리(2칸, `gap.snatch`) + 앉은 까치·내려다보기(1칸, `MAGPIE_SIT`: 대기 반복은 magpie_nest 포즈 재사용, `magpie.peek`).
+//   O3 틈 속 까치 머리·부리(2칸, `gap.snatch`) + 앉은 까치·내려다보기(1칸, `MAGPIE_SIT`: 대기 반복은 magpie_nest 포즈 재사용, `magpie.peek`)
+//      + 부리에 문 열쇠(1칸 합성, `magpie.beak_suck` 첫 칸, 3-2 정답 길).
 //   O6 덕트 혹(3칸, `DUCT_LUMP`: 가로 1 + 세로 걸림·끙끙 2. lump_travel·stuck·lump_back·lump_pop).
 // 미리보기·검사: node docs/design/screens/laundromat-bg-sketch.mjs (들창·틈·열쇠), node docs/design/screens/laundromat-gap-snatch-preview.mjs (틈 속 머리),
 //   node docs/design/screens/laundromat-nest-key-preview.mjs (둥지 속 열쇠), node docs/design/screens/laundromat-duct-lump-preview.mjs (덕트 혹),
-//   node docs/design/screens/laundromat-magpie-peek-preview.mjs (앉은 까치·내려다보기, 포즈 전부 가림)
+//   node docs/design/screens/laundromat-magpie-peek-preview.mjs (앉은 까치·내려다보기, 포즈 전부 가림),
+//   node docs/design/screens/laundromat-beak-suck-preview.mjs (부리에 문 열쇠, 3-2)
 
 import { C, Image, EMPTY } from '../lib/pixel.mjs';
 import { stamp, outlined } from '../lib/texture.mjs';
@@ -397,12 +399,41 @@ export function magpieSit(img, pose, { flip = false } = {}) {
   img.blit(placed, 0, 0);
 }
 
+// 부리에 문 열쇠(새 칸 1, 합성. 3-2 `beak_suck` 첫 칸, PR #932 Theo 리뷰): 커밋된 정답 길은 쿵 → プピッ → 쿡이라 3-2 길이다.
+// 이 길에서는 열쇠가 둥지로 안 가서(`key_in` 없음) 앉음 칸만 재사용하면 "까치가 열쇠를 가졌다"가 한 번도 안 보인다.
+// 그래서 smug 앉음 위에 O2 고리(둥지 속 열쇠와 같은 금색 고리 5×5 + 자루)를 부리 끝에 매단다. 손그림은 이 두 줄 이(톱니)뿐이다.
+//   고리 윗테가 부리 끝(78~79, 27~28) 바로 밑에 붙고, 부리 ink를 고리 위에 찍어 "물고 있다"로 읽힌다(그리는 순서 열쇠 → 까치).
+//   자루는 길바닥 열쇠처럼 이 두 개(x 82, y 35·37)를 달아 둥지 속 고리보다 "열쇠"로 읽히게 했다. 패·끈은 까치 가슴 뒤로 숨는다(1배에서 안 보임).
+//   전부 들창 왼쪽 칸(x 60~85) 하늘 안이고 둥지 윗줄(y 43)보다 위라 빈 둥지와 안 겹친다. 3-2 둥지는 늘 비어 있어 열쇠 자리 비움과도 안 부딪힌다.
+const BEAK_KEY = { x: 78, y: 28 };
+const BEAK_KEY_ROWS = [
+  '.YYy.',
+  'YW.yy',
+  'Y...y',
+  'yy.yy',
+  '.yYy.',
+  '..Yy.',
+  '..Yy.',
+  '..Yyo',
+  '..Yy.',
+  '..Yyo',
+];
+/** 부리에 열쇠를 문 앉은 까치(smug + 고리). 열쇠를 먼저 외곽선째 그리고 까치를 위에 찍는다. */
+export function magpieSitKey(img) {
+  const t = new Image(img.w, img.h);
+  stamp(t, BEAK_KEY.x, BEAK_KEY.y, BEAK_KEY_ROWS, { Y: C.yelL, y: C.yel, o: C.yelD, W: C.white });
+  img.blit(outlined(t), 0, 0);
+  magpieSit(img, 'smug');
+}
+
 /**
  * O3 앉은 까치 anim(그림 물건·대상 `magpie`).
  *   loop: 대기 반복(magpie_nest와 같은 smug 2500 → flick 150 → puff 300, 첫 칸 = 멈춘 모습).
  *   peek: 5-1. smug(출발) → 내려다보기 900ms → smug(도착). 형식 4-2 (a) 첫 칸 출발·마지막 칸 도착. 합 1080ms.
+ *   beak_suck: 3-2. 부리에 문 열쇠(출발) → 빈 부리 smug(도착). "쏙"은 칸 바뀜 한 번이고, 바로 뒤 `huh_text`(？)와 `duct.lump_travel`이 받는다.
  */
 export const MAGPIE_SIT = {
   loop: { ms: [2500, 150, 300], frames: ['smug', 'flick', 'puff'].map((p) => (img) => magpieSit(img, p)) },
   peek: { ms: [80, 900, 100], frames: ['smug', 'peek', 'smug'].map((p) => (img) => magpieSit(img, p)) },
+  beak_suck: { ms: [420, 160], frames: [magpieSitKey, (img) => magpieSit(img, 'smug')] },
 };

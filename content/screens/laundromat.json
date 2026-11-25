@@ -162,7 +162,7 @@
         { "anim": ["dryer_3", "feather_head"] },
         { "say": ["ppik", "laundromat.suck"] }
       ],
-      "note": "3-2 ★② 역회전. 내려앉는 순간 부리에서 열쇠가 쏙(beak_suck, 앉음 칸 재사용) → 빈 부리 ？(huh_text) → 혹이 눈을 창에서 건조기로 데려오고(O6) 덜컥 뒤 깃털(O8). in_nest를 거치지 않는다(설계 3절)"
+      "note": "3-2 ★② 역회전. 내려앉는 순간 부리에서 열쇠가 쏙(beak_suck 첫 칸 = 앉음 + 부리에 문 고리 합성 1칸, PR #932 Theo) → 빈 부리 ？(huh_text) → 혹이 눈을 창에서 건조기로 데려오고(O6) 덜컥 뒤 깃털(O8). in_nest를 거치지 않는다(설계 3절)"
     },
     {
       "id": "gap_squeak_empty",
