@@ -194,7 +194,8 @@ const magpieOnGround = (pose) => pic((im) => magpie(im, ...MAGPIE_GROUND_AT, pos
 // ── 까치 일시 연출 포즈 (③-2). 앉은 포즈와 같은 범례, 같은 오른쪽 보기.
 // 'up' / 'down' = 날갯짓 두 박자(몸은 수평, 꼬리는 왼쪽으로 길게, 날개 끝 흰 반점 = 까치 날개의 흰 칼깃).
 // 'jab' = 몸을 앞으로 숙이고 부리를 오른쪽 아래로 내리찍음(U5). 꼬리가 위로 들린다.
-const MAGPIE_FLY = {
+/** 날기 포즈(laundromat 창 안 날기 `fly_out`·`fly_in`이 재사용, 0칸) */
+export const MAGPIE_FLY = {
   up: [
     '.......kk...............',
     '......kwwk..............',
@@ -296,7 +297,7 @@ function hitSpark(im, x, y) {
   stamp(im, x - 4, y - 4, ['....w....', '.l..w..l.', '..l.W.l..', '...WWW...', 'wwWWWWWww', '...WWW...', '..l.W.l..', '.l..w..l.', '....w....'], { w: C.white, W: C.white, l: C.lint });
 }
 /** 떨어지는 깃털 한 장(효과): 흰 깃 + 청록 깃대. 하늘(크림)에서도 보이게 깃털 자체에 ink 테를 둘렀다. */
-const feather = (im, x, y) => stamp(im, x, y, ['..kk', '.kwk', 'kwk.', 'mk..'], { k: C.ink, w: C.white, m: C.tealM });
+export const feather = (im, x, y) => stamp(im, x, y, ['..kk', '.kwk', 'kwk.', 'mk..'], { k: C.ink, w: C.white, m: C.tealM });
 
 // ═════════════ 고리 (hook, 그림 152,92 10×8, 히트 150,84 24×24) ═════════════
 // 기둥 오른쪽 면에 나사 두 개로 박은 쇠판 + L자로 꺾인 갈고리. 갈고리 끝 아래가 y 100(손 기준점 158,100, 형식 7절).

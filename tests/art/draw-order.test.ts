@@ -2,7 +2,7 @@
 // 엔진은 층(`back` → 사람 → `front`)마다 `objects`에 적은 순서대로 그린다(`sceneDraws`). 같은 물건이라도 멈춘 모습·anim마다
 // 층이 다를 수 있어서, `objects` 순서만 맞고 층이 엇갈리면 뒤에 있어야 할 것이 앞에 그려진다. 미리보기 스크립트는 시트를
 // 통째로 그리지 않아서 이걸 못 잡는다(PR #917·#925 리뷰에서 손으로 짚은 것).
-// 시트가 없는 화면(그림 전, 예: `laundromat`)은 보지 않는다. 시트 PR이 시트를 만드는 순간 그 화면 규칙이 켜진다.
+// 시트가 없는 화면(그림 전)은 보지 않는다. 시트 PR이 시트를 만드는 순간 그 화면 규칙이 켜진다.
 // 형식: docs/decisions/2026-11-16-scene-art-format-v1.md. 그림 쪽 고정 검사는 vitest에 둔다(결정 2026-11-22-art-timing-guard-in-vitest).
 
 import { describe, expect, it } from 'vitest';

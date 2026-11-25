@@ -41,7 +41,7 @@ function sceneData(id: string): SceneData {
   return {
     screen: load('content', 'screens', `${id}.json`) as ScreenData,
     characters,
-    // 물건 그림이 아직 없는 화면(laundromat)은 회색 상자로 돈다. 장대 길이는 캐릭터 시트만 본다.
+    // 물건 시트가 없는 화면은 회색 상자로 돈다. 장대 길이는 캐릭터 시트만 본다.
     art: existsSync(join(ROOT, 'public', 'scenes', `${id}-objects.json`)) ? parseSceneArt(load('public', 'scenes', `${id}-objects.json`)) : undefined,
     sprites,
   };

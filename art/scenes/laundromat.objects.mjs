@@ -1,5 +1,4 @@
-// 스테이지 3 `laundromat` 물건 그림 (#764, 설계 docs/design/screens/laundromat.md 9-2). 아직 빌드(art/build.mjs)에 연결하지 않았다.
-// 시트를 만드는 PR에서 부른다(시트가 생기는 순간 hotspot-coverage 검사가 켜진다, 결정 2026-11-22-scene-sheet-covers-all-targets).
+// 스테이지 3 `laundromat` 물건 그림 (#764, 설계 docs/design/screens/laundromat.md 9-2). 시트(art/scenes/laundromat.mjs)가 부른다.
 // 만질 수 있는 것이라 바깥 1px ink 외곽선(ADR-0007 결정 3-1). 광원은 배경과 같은 왼쪽 위. 금색(yel 계열)은 열쇠 전용(magpie_nest와 같은 약속).
 //
 // 지금 있는 것:
@@ -389,12 +388,15 @@ export const MAGPIE_SIT_POSES = { ...MAGPIE, peek: MAGPIE_PEEK };
  * 둥지를 까치 앞에 그리는 안은 버렸다: 둥지 윗줄(y 43~44)이 발과 내려다보기 부리 끝을 먹어서 "둥지 속을 쪼는" 그림이 된다.
  */
 export const MAGPIE_KEY_ZONE = { x: 79, y: 36 };
-/** 앉은 까치 한 장. flip: 20px 상자 가운데 세로줄로 좌우 뒤집기(8 `snub`, 0칸). 열쇠 자리(MAGPIE_KEY_ZONE)는 안 그린다. */
-export function magpieSit(img, pose, { flip = false } = {}) {
+/**
+ * 앉은 까치 한 장. flip: 20px 상자 가운데 세로줄로 좌우 뒤집기(8 `snub`, 0칸). 열쇠 자리(MAGPIE_KEY_ZONE)는 안 그린다.
+ * dx·dy: 자리만 옮겨 찍기(0칸). `ruffle` 부르르(±2), 클리어 `perch_drop` 털썩(둥지가 빨려 나가 후드 윗면까지 9px). 비움 자리는 화면 좌표 그대로다.
+ */
+export function magpieSit(img, pose, { flip = false, dx = 0, dy = 0 } = {}) {
   const t = new Image(20, 18);
   stamp(t, 0, 0, MAGPIE_SIT_POSES[pose], MAGPIE_LEGEND);
   const placed = new Image(img.w, img.h);
-  placed.blit(t, MAGPIE_SIT_AT.x, MAGPIE_SIT_AT.y, flip ? { flipAx: 10 } : {});
+  placed.blit(t, MAGPIE_SIT_AT.x + dx, MAGPIE_SIT_AT.y + dy, flip ? { flipAx: 10 } : {});
   for (let y = MAGPIE_KEY_ZONE.y; y < img.h; y++) for (let x = MAGPIE_KEY_ZONE.x; x < img.w; x++) placed.set(x, y, EMPTY);
   img.blit(placed, 0, 0);
 }
@@ -418,7 +420,11 @@ const BEAK_KEY_ROWS = [
   '..Yy.',
   '..Yyo',
 ];
-/** 부리에 열쇠를 문 앉은 까치(smug + 고리). 열쇠를 먼저 외곽선째 그리고 까치를 위에 찍는다. */
+/**
+ * 부리에 열쇠를 문 앉은 까치(smug + 고리). 열쇠를 먼저 외곽선째 그리고 까치를 위에 찍는다.
+ * 열쇠 자루 아래 끝(x 79~83, y 36~38)은 MAGPIE_KEY_ZONE 안이다. 비움 마스크는 까치(magpieSit)에만 걸고 이 열쇠에는 안 건다:
+ * 3-2 길에서는 둥지가 늘 비어 있어 둥지 고리와 부딪히지 않는다(PR #934 Theo nit).
+ */
 export function magpieSitKey(img) {
   const t = new Image(img.w, img.h);
   stamp(t, BEAK_KEY.x, BEAK_KEY.y, BEAK_KEY_ROWS, { Y: C.yelL, y: C.yel, o: C.yelD, W: C.white });
