@@ -1742,11 +1742,16 @@ function endCurrent(s: SceneState): void {
   s.current = null;
 }
 
-/** 대기열이 다 비었을 때 정리(`sceneTick`이 대기열 끝에서 하는 것과 같다): 마지막 장 유지를 풀고 시작 연출 표시를 끈다. */
+/**
+ * 대기열이 다 비었을 때 정리(`sceneTick`이 대기열 끝에서 하는 것과 같다): 마지막 장 유지를 풀고 시작 연출 표시를 끈다.
+ * 클리어한 판은 붙든 머리 위 칸(`anchor`, 형식 16절)만 놓지 않는다(#973): 카드 뒤 정지 화면이 클리어 끝 그림(빨래방 둥지 모자 위 까치)이어야 한다.
+ * 카드가 닫히면 이 판은 버려져서(다음 판·맵) "다음 행동까지 남기기"는 생기지 않는다. 다른 붙든 칸·캐릭터 마지막 장은 지금처럼 놓는다
+ * (화면 1·2 카드 뒤 모습 그대로: `park_fountain` 손님·관리인·チュック `take_off`).
+ */
 function settle(s: SceneState): void {
   if (s.overlays.length > 0) return;
   s.held = {};
-  s.heldArt = {};
+  s.heldArt = s.cleared ? Object.fromEntries(Object.entries(s.heldArt).filter(([, h]) => h.anim.anchor)) : {};
   s.intro = false;
 }
 

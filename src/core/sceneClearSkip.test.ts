@@ -2,9 +2,11 @@
 // 완료 조건: 두 화면 정답 경로에서 끝까지 본 판과 건너뛴 판의 마지막 상태가 같다(끝 상태 어긋남, #452와 같은 종류를 막는다).
 import { describe, expect, it } from 'vitest';
 import charactersJson from '../../content/characters.json';
+import laundromatJson from '../../content/screens/laundromat.json';
 import magpieJson from '../../content/screens/magpie_nest.json';
 import parkJson from '../../content/screens/park_fountain.json';
 import jaJson from '../../content/text/ja.json';
+import laundromatArt from '../../public/scenes/laundromat-objects.json';
 import magpieArt from '../../public/scenes/magpie_nest-objects.json';
 import parkArt from '../../public/scenes/park_fountain-objects.json';
 import jjukJson from '../../public/sprites/jjuk-base.json';
@@ -21,6 +23,8 @@ const sprites = { jjuk: parseSpriteMeta(jjukJson), mukjik: parseSpriteMeta(mukji
 const SCREENS: [string, unknown, unknown][] = [
   ['magpie_nest', magpieJson, magpieArt],
   ['park_fountain', parkJson, parkArt],
+  // #973: 카드 뒤에 남기는 머리 위 칸(둥지 모자·까치)도 건너뛴 판과 같아야 한다.
+  ['laundromat', laundromatJson, laundromatArt],
 ];
 /** 월드 한가운데(HUD·게이지 띠 밖). 무엇을 누르든 건너뛰기가 먼저다. */
 const WORLD = { x: 240, y: 120 };
