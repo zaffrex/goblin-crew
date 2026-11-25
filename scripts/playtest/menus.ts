@@ -4,8 +4,8 @@
 // 누르는 것은 실제 클릭·탭이다: `はじめ` 첫 누름(확인 줄), `マップ`, 잠긴 카드(잠금 안내 줄).
 // 통과/실패는 사람이 스크린샷을 보고 정한다. 이 도구가 실패하는 것은 "버튼·카드 상태가 기대와 다름"과 콘솔 에러뿐이다.
 //
-// 사용: node --import ./scripts/playtest/register.mjs scripts/playtest/menus.ts [--url <URL>] [--out <폴더>] [--view D1,M1|all] [--touch] [--no-sandbox]
-//   --view: 체크리스트 1절 화면 크기 이름(D1·D4·M3·M1, 쉼표로 여럿, `all`은 넷 다). 기본 D1, `--touch`만 주면 M3(#922 때와 같음).
+// 사용: node --import ./scripts/playtest/register.mjs scripts/playtest/menus.ts [--url <URL>] [--out <폴더>] [--view D1,M1|all | --touch] [--no-sandbox]
+//   --view: 체크리스트 1절 화면 크기 이름(D1·D4·M3·M1, 쉼표로 여럿, `all`은 넷 다). 기본 D1, `--touch`만 주면 M3(#922 때와 같음). 둘을 같이 주면 에러.
 //   M3·M1은 탭, D1·D4는 클릭으로 누른다.
 // 결과: <out>/<D1|D4|M3|M1>-<none|some|all>-{title,title-confirm,map,map-locked}.png + <out>/report.md
 // 맵에서 다시 깬 카드·돌아온 맵은 `solve.ts --deploy --via-map(-last) --out`이 찍는다(판을 실제로 풀어야 해서).
@@ -51,6 +51,8 @@ const VIEWS: Record<string, View> = {
   // CSS 배율 1.11: 1.2배 미만 압축 모양이 실제로 나오는 화면(#714).
   M1: { name: 'M1', width: 640, height: 300, dpr: 2, mobile: true },
 };
+// 클릭·탭은 크기(`mobile`)가 정한다. 둘 다 주면 `--touch`가 말없이 무시되므로 막는다(#926 Sam nit).
+if (args.view !== undefined && args.touch) throw new Error('--view와 --touch는 같이 못 써요. 탭은 M3·M1이 알아서 해요');
 const viewNames = (args.view ?? (args.touch ? 'M3' : 'D1')).trim();
 const RUN_VIEWS = (viewNames === 'all' ? Object.keys(VIEWS) : viewNames.split(',').map((n) => n.trim().toUpperCase())).map((n) => {
   const v = VIEWS[n];
