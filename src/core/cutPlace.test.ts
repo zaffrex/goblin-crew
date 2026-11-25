@@ -61,4 +61,12 @@ describe('클리어 컷 자리 (#662)', () => {
     const c = cutCenter(size, [{ left: 220, top: 40, width: 40, height: 200 }]);
     expect(c.y - size.height / 2).toBe(CUT_MIN_TOP);
   });
+  it('연결 순서 끝 카드에 머리 위 칸 상자만 넘기면 그 칸 위로 올린다(#975, M1 압축 배율 카드 약 288×71)', () => {
+    const size = { width: 288, height: 71 };
+    // 빨래방 ズッシー 머리 위 둥지 모자 + 까치 칸(M1 스크린샷에서 잰 근삿값, 내부 px).
+    const head = { left: 300, top: 158, width: 32, height: 40 };
+    const box = boxAt(cutCenter(size, [head]), size);
+    expect(overlap(box, head)).toBe(false);
+    expect(box.top + box.height).toBe(158 - CUT_GAP);
+  });
 });
