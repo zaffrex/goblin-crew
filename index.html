@@ -12,6 +12,9 @@
     <link rel="icon" href="data:," />
     <style>
       html, body { margin: 0; height: 100%; background: #1b1720; overflow: hidden; }
+      /* 휴대폰 탭 하이라이트(#792 점검): 브라우저 기본 반투명 파랑이 누른 버튼·잠긴 카드를 덮어 노란 `data-armed`가 연두로 보였다.
+         누름 표시는 게임이 직접 한다(armed 노랑, 잠금 안내 줄, 캔버스 반응). 상속 속성이라 html 한 곳에서 끈다. */
+      html { -webkit-tap-highlight-color: transparent; }
       body { display: grid; place-items: center; }
       #game { display: block; image-rendering: pixelated; touch-action: none; }
       /* 목표 줄(#336, 설계 6-2-2절): 창이 아니라 게임 화면 내부 (4,4)에 붙인다. 모양은 HUD 이름표(.hudtag)와 같다.
