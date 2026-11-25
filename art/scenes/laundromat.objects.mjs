@@ -443,3 +443,48 @@ export const MAGPIE_SIT = {
   peek: { ms: [80, 900, 100], frames: ['smug', 'peek', 'smug'].map((p) => (img) => magpieSit(img, p)) },
   beak_suck: { ms: [420, 160], frames: [magpieSitKey, (img) => magpieSit(img, 'smug')] },
 };
+
+// ═════════════ O5 날아가는 양말(1칸) + 병뚜껑(1칸) (물건 시트 2/2-a) ═════════════
+// 양말: 3번 건조기 문틈 양말과 같은 분홍(pinkL 몸 · pink 그늘 · white 줄무늬 목). L자라 날 때는 "양말", 머리 위에서는
+//   목이 정수리를 가로지르고 발이 옆으로 늘어진 모습이 된다(한 칸으로 둘 다). 12×7, 외곽선 포함 14×9.
+// 병뚜껑: 둥지 병뚜껑과 같은 은색(lint · white 반짝 · lav 그늘). 톱니는 위·아래·옆으로 한 칸씩 튀어나온 이로 보인다(외곽선이 톱니 모양을 만든다).
+//   7×7, 외곽선 포함 9×9(설계 9-3 "6×6 톱니 테두리 + 반짝 1점"보다 1px 크다: 6이면 톱니가 안 생긴다).
+const SOCK_ROWS = [
+  'wPwPpppppp..',
+  'wPwPppppppp.',
+  '........pPpp',
+  '.........pPp',
+  '.........pPp',
+  '........ppP.',
+  '........PP..',
+];
+const CAP_ROWS = [
+  '..c.c..',
+  '.ccccc.',
+  'cWWcccc',
+  '.Wccccd',
+  'cccccdd',
+  '.ccddd.',
+  '..d.d..',
+];
+const SOCK_LEGEND = { w: C.white, p: C.pinkL, P: C.pink };
+const CAP_LEGEND = { c: C.lint, W: C.white, d: C.lav };
+/** 양말 몸(외곽선 안) 크기 */
+export const SOCK = { w: 12, h: 7 };
+/** 병뚜껑 몸(외곽선 안) 크기 */
+export const CAP = { w: 7, h: 7 };
+
+function stampOutlined(img, x, y, rows, legend, flip) {
+  const t = new Image(img.w, img.h);
+  const r = flip ? rows.map((row) => [...row].reverse().join('')) : rows;
+  stamp(t, x, y, r, legend);
+  img.blit(outlined(t), 0, 0);
+}
+/** O5 날아가는 양말. (x, y) = 몸 왼쪽 위(외곽선은 1px 바깥). flip이면 좌우 뒤집어 공중에서 뒤집힌 것처럼 */
+export function flySock(img, x, y, { flip = false } = {}) {
+  stampOutlined(img, x, y, SOCK_ROWS, SOCK_LEGEND, flip);
+}
+/** O5 병뚜껑. (x, y) = 몸 왼쪽 위 */
+export function bottleCap(img, x, y) {
+  stampOutlined(img, x, y, CAP_ROWS, CAP_LEGEND, false);
+}

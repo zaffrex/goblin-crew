@@ -4,9 +4,10 @@
 // 물건 시트 1/2 (이 PR): 대상 6개 + 장식 둥지의 멈춘 모습·상태·대기 반복, 그리고 이미 그린 칸으로 되는 anim 전부.
 //   까치(앉음·내려다보기·부리에 문 열쇠·뒤돌기·갸웃·부르르·창 안 날기·털썩), 둥지 열쇠 들어옴/나감, 틈 속 머리(snatch)·열쇠 밀림(nudge),
 //   덕트 혹(travel·back·pop·걸림 반복).
-// 물건 시트 2/2 (다음 PR, 새 칸): O4 드럼 역회전(`dryer_3.reverse_start`·`forward_start`, 역회전 상태), O5 문 벌컥·병뚜껑·양말(`burst`·`door_bang`),
-//   O7 둥지 모자·O8 머리 위 깃털(anchor), `gap.glint`, `shutter.roll_up`, `duct.warm_puff`·`suck_pole`, `dryer_3.gulp_pole`, 자판기 쏟아짐, `magpie.hat_perch`.
-//   그 전에는 그 anim이 시트에 없어 엔진이 물건을 멈춘 모습 그대로 둔다(형식 9절 폴백).
+// 물건 시트 2/2-a (이 PR, 건조기): O4 드럼 회전(정회전 대기 반복·역회전 상태, `dryer_3.reverse_start`·`forward_start`),
+//   O5 문 벌컥·병뚜껑·날아가는 양말(`burst`·`burst#2`·`door_bang`), 머리 위 양말(`dryer_3.sock_head`, anchor ズッシー, 장식 물건 `sock`).
+// 물건 시트 2/2-b (다음 PR): O7 둥지 모자(`nest_hat`·`magpie.hat_perch`)·O8 머리 위 깃털(`feather_puff`·`feather_head`), `gap.glint`, `shutter.roll_up`,
+//   `duct.warm_puff`·`suck_pole`, `dryer_3.gulp_pole`, 자판기 쏟아짐. 그 전에는 그 anim이 시트에 없어 엔진이 물건을 멈춘 모습 그대로 둔다(형식 9절 폴백).
 //
 // 배경 물건(셔터·건조기·자판기)은 ink 없이 그린 그림이다. 시트에서는 히트 상자 **안** 픽셀만 물건으로 떼어 바깥 ink 외곽선을 두르고
 // (ADR-0007 결정 3-1, park_fountain 동상과 같은 방식), 상자 **밖** 픽셀(셔터 통, 바닥 빛 띠, 바닥 그림자 줄)은 배경에 굽는다(#882 Theo 리뷰).
@@ -22,11 +23,12 @@ import { outlined, stamp, line } from '../lib/texture.mjs';
 import { room, W, H, TRANSOM, HOOD } from './laundromat.room.mjs';
 import { washer } from './laundromat.washer.mjs';
 import { shutter, SHUTTER, gapLift } from './laundromat.shutter.mjs';
-import { dryer } from './laundromat.dryer.mjs';
+import { dryer, DRYER_DOOR_SWING, DRUM_STEP } from './laundromat.dryer.mjs';
 import { vending } from './laundromat.vending.mjs';
 import {
-  keyTag, KEY_ON_STREET, nestEmpty, nestWithKey, NEST_KEY, GAP_SNATCH, DUCT_LUMP, LUMP_STUCK, MAGPIE_SIT, magpieSit,
+  keyTag, KEY_ON_STREET, nestEmpty, nestWithKey, NEST_KEY, GAP_SNATCH, DUCT_LUMP, LUMP_STUCK, MAGPIE_SIT, magpieSit, flySock, bottleCap,
 } from './laundromat.objects.mjs';
+import { ANCHOR_ORIGIN } from '../scene-build.mjs';
 import { MAGPIE_FLY, MAGPIE_LEGEND, feather } from './magpie_nest.objects.mjs';
 
 // ── 히트 상자(content/screens/laundromat.json과 같은 값. 다르면 빌드 picture 검사가 "겹치지 않는다"로 잡는다)
@@ -172,6 +174,60 @@ function nestSunk(dy) {
 }
 const NEST_SUCKED = { ms: [60, 60], frames: [nestSunk(4), nestSunk(8)] };
 
+// ═════════════ 3번 건조기 (`dryer_3`, 시트 2/2-a) ═════════════
+// O4 드럼: 같은 세 장(0°·40°·80°)을 정회전은 0 → 40 → 80, 역회전은 0 → 80 → 40으로 잇는다(laundromat.dryer.mjs 머리말).
+// 대기 반복 첫 칸 = 멈춘 모습(0°)이라 상태가 바뀌거나 anim이 끝난 순간 튀지 않는다(형식 4절 개정 3).
+const [DX, DY] = DRYER_BOX;
+const spinPic = (k) => boxed((img) => dryer(img, DX, DY, { spin: k * DRUM_STEP }), DRYER_BOX);
+const SPIN = [spinPic(0), spinPic(1), spinPic(2)];
+// 한 바퀴 약 1.35초. 빨래방 건조기 실제 속도(1초 남짓)에 가깝고, 빨래방 idle 사례 간격 150ms(scripts/playtest/cases.test.ts)보다 짧으면 칸 사이로 빠진다
+const SPIN_MS = 150;
+const FORWARD_LOOP = { ms: SPIN_MS, frames: [SPIN[0], SPIN[1], SPIN[2]] };
+const REVERSE_LOOP = { ms: SPIN_MS, frames: [SPIN[0], SPIN[2], SPIN[1]] };
+// 쿵 직후 바뀐 방향으로 한 마디(120°): 느리게 시작해 반복 속도로. 첫 칸이 느려야 "방향이 바뀌었다"가 눈에 걸린다.
+// 마지막 칸 다음이 대기 반복 첫 칸(0°)이라 이어진다(역회전 0 → 80 → 40 → 0, 정회전 0 → 40 → 80 → 0).
+const START_MS = [240, 190, SPIN_MS];
+const REVERSE_START = { ms: START_MS, frames: REVERSE_LOOP.frames };
+const FORWARD_START = { ms: START_MS, frames: FORWARD_LOOP.frames };
+
+// O5 문 벌컥: 열린 문이 몸 왼쪽 밖으로 나가서 그만큼 넓힌 상자로 잘라 외곽선을 두른다
+const OPEN_BOX = [DX - DRYER_DOOR_SWING, DY, DRYER_BOX[2] + DRYER_DOOR_SWING, DRYER_BOX[3]];
+const doorOpen = boxed((img) => dryer(img, DX, DY, { door: 'open' }), OPEN_BOX);
+/** 건조기 그림 + 날아다니는 것들(양말·병뚜껑, 각자 외곽선) */
+const withItems = (base, ...items) => (img) => { base(img); for (const f of items) f(img); };
+const sockAt = (x, y, flip = false) => (img) => flySock(img, x, y, { flip });
+const capAt = (x, y) => (img) => bottleCap(img, x, y);
+
+// 1-1 첫 판 행렬(설계 8-3 "물건 셋까지"): 문 벌컥 → 양말이 튀어 올랐다 역회전에 도로 빨려 듦 → 병뚜껑이 튀어 올라 한 박자 떠 있다(S3 A 단서, `ビンのフタ？`)
+//   → 도로 빨려 듦 → 마지막 양말이 높이 날아가고 문이 쾅(닫힌 문 = 역회전 반복 첫 칸, 도로 빨려 든 양말이 문틈에 다시 낀다).
+// 높이 날아간 양말은 바로 다음 줄 `sock_head`가 받아 ズッシー 머리로 데려간다. 그래서 머리로 가는 양말이 행렬의 마지막이다.
+// 입 가운데 368,197. 위로 튄 것은 건조기 위 끝(164) 근처까지만 가고, 덕트(x 360~373)보다 앞에 그린다(그리는 순서 duct < dryer_3).
+const BURST = {
+  ms: [90, 110, 110, 150, 110],
+  frames: [
+    withItems(doorOpen, sockAt(362, 192)),
+    withItems(doorOpen, sockAt(358, 171, true), capAt(365, 193)),
+    withItems(doorOpen, sockAt(362, 185), capAt(364, 172)),
+    withItems(doorOpen, capAt(365, 189), sockAt(362, 190)),
+    withItems(SPIN[0], sockAt(368, 150, true)),
+  ],
+};
+// 두 번째부터(#765 `burst#2`, 8-3 짧은 판): 양말 하나만 바로 높이
+const BURST_2 = { ms: [90, 110], frames: [withItems(doorOpen, sockAt(362, 190)), withItems(SPIN[0], sockAt(368, 150, true))] };
+// 6 클리어: 문 벌컥(빈 문, 둥지 모자는 2/2-b `nest_hat`이 머리 위에) → 쾅. 엔진 기본 0.5초보다 짧게(H6 넘침 줄이기)
+const DOOR_BANG = { ms: [90, 150, 80], frames: [doorOpen, doorOpen, SPIN[0]] };
+
+// 머리 위 양말(anchor ズッシー, 형식 16절): ANCHOR_ORIGIN = 얼굴 상자 위 가운데, 오른쪽을 본 모습 기준.
+// ズッシー는 쿵을 하고 건조기를 보고 서 있어서 건조기는 늘 "앞쪽(+x)"이다(왼쪽을 보면 엔진이 뒤집는다).
+// 그래서 양말이 앞쪽 위(행렬 마지막 칸 자리 근처)에서 날아와 정수리에 떨어지는 길을 머리 기준으로 그린다.
+// 정수리(털모자 꼭대기)는 얼굴 상자 위 끝보다 4px 아래, x −8~+1. 양말 목이 정수리를 가로지르고 발은 앞쪽(얼굴 쪽 이마 위)으로 늘어진다. 눈(+14 아래)은 안 가린다.
+// 칸 사이 이동은 21px 안(R3, 행렬 마지막 칸 → 첫 칸도 머리 기준 약 16px).
+const [AX, AY] = ANCHOR_ORIGIN;
+const SOCK_HEAD = {
+  ms: [60, 60, 70, 140],
+  frames: [sockAt(AX + 30, AY - 30, true), sockAt(AX + 15, AY - 24), sockAt(AX + 2, AY - 9), sockAt(AX - 6, AY + 2)],
+};
+
 // ═════════════ 물건 ═════════════
 const notOnStreet = ['key.in_nest', 'key.stuck', 'key.back'].map((f) => ({ when: { flags: { [f]: true } }, draw: null }));
 
@@ -203,7 +259,14 @@ const OBJECTS = {
       { when: { flags: { 'key.stuck': true } }, draw: DUCT_LUMP.stuck.frames[0], loop: DUCT_LUMP.stuck },
     ],
   },
-  dryer_3: { draw: boxed(dryerStill, DRYER_BOX) },
+  // 시작은 정회전(설계 3절: 거짓이면 정회전), 역회전 상태는 같은 칸 거꾸로
+  dryer_3: {
+    draw: SPIN[0],
+    loop: FORWARD_LOOP,
+    states: [{ when: { flags: { 'dryer.reverse': true } }, draw: SPIN[0], loop: REVERSE_LOOP }],
+  },
+  // 머리 위 양말(장식 물건, 평소 안 보임 · 형식 16절). `dryer_3.sock_head`가 anchor로 그린다
+  sock: { ids: [], draw: null },
   soap_vending: { draw: boxed(vendStill, VEND_BOX) },
 };
 
@@ -217,6 +280,12 @@ const ANIMS = {
   'duct.lump_travel': DUCT_LUMP.lump_travel,
   'duct.lump_back': DUCT_LUMP.lump_back,
   'duct.lump_pop': DUCT_LUMP.lump_pop,
+  'dryer_3.reverse_start': REVERSE_START,
+  'dryer_3.forward_start': FORWARD_START,
+  'dryer_3.burst': BURST,
+  'dryer_3.burst#2': BURST_2,
+  'dryer_3.door_bang': DOOR_BANG,
+  'dryer_3.sock_head': { object: 'sock', anchor: { char: 'mukjik', point: 'head' }, hold: true, ...SOCK_HEAD },
 };
 
 // 검사용: 걸린 혹 칸이 duct 핫스팟 안이라는 전제(결정 2026-11-24-laundromat-duct-lump-shape-path)
