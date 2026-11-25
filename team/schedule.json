@@ -3,7 +3,7 @@
   "paused": false,
   "tick_every_hours": 1,
   "tick_every_hours_by_role": {"puzzle": 6},
-  "tick_roles": ["pm", "designer", "frontend", "backend", "infra"],
+  "tick_roles": ["pm", "designer", "frontend", "backend", "infra", "puzzle"],
   "quiet_hours_kst": [],
   "meetings_enabled": true
 }
