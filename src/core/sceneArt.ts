@@ -476,6 +476,40 @@ export function headPlace(meta: SceneArtMeta, frame: number, face: HitBox, facin
   return { x, y: face.top + f.at[1], w, h, flip: facing === -1 };
 }
 
+/** 머리 위 칸 하나를 그릴 자리(`headPlace` 결과)와 그 칸·캐릭터. */
+export interface HeadPlaced {
+  frame: number;
+  char: CharacterId;
+  at: { x: number; y: number; w: number; h: number; flip: boolean };
+}
+
+/**
+ * 이번 프레임 머리 위 칸(16절) 전부를 그릴 자리에 놓는다. 적은 순서 그대로다. `faceOf`는 그 캐릭터의 그리는 얼굴 상자·방향
+ * (`scene.ts` `headAnchor`)을 준다. 엔진은 이 자리에 그리고, 말풍선이 가리면 안 되는 상자(`headKeepBoxes`, #947)로도 쓴다.
+ */
+export function headPlaces(
+  meta: SceneArtMeta,
+  heads: SceneDraws['heads'],
+  faceOf: (char: CharacterId) => { face: HitBox; facing: 1 | -1 },
+): HeadPlaced[] {
+  const out: HeadPlaced[] = [];
+  for (const h of heads) {
+    const { face, facing } = faceOf(h.char);
+    const at = headPlace(meta, h.frame, face, facing);
+    if (at) out.push({ frame: h.frame, char: h.char, at });
+  }
+  return out;
+}
+
+/**
+ * 말풍선이 가리면 안 되는 머리 위 칸 상자(#947). 화자가 **아닌** 사람 머리 위 칸만이다: 빨래방 3-2에서 プピ가 말하는 동안
+ * ズッシー 머리에 꽂힌 깃털이 웃음이다(설계 8-1 ④). 화자 자기 머리 위 칸은 넣지 않는다. 넣으면 화자 머리 위 자리가 늘 막혀
+ * 말풍선이 옆으로만 간다. 단서와 같은 무게(`toy` 아님)다.
+ */
+export function headKeepBoxes(placed: readonly HeadPlaced[], speaker: string): HitBox[] {
+  return placed.filter((p) => p.char !== speaker).map((p) => ({ left: p.at.x, top: p.at.y, width: p.at.w, height: p.at.h }));
+}
+
 /**
  * 호버 외곽선을 켤 프레임(10-1절). 대상(hotspot·spot ID)을 맡은 물건이 이번 프레임에 그리는 것 전부.
  * 시소처럼 `ids`가 여럿이면 어느 쪽을 가리켜도 물건 전체가 켜진다(5절). 시트에 없는 대상(9절 폴백 상자)은 빈 집합.
