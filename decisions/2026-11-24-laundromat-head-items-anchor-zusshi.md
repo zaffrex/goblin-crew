@@ -2,7 +2,7 @@
 schema: 1
 id: 4de95253-eb32-436b-bdb0-0776c2188fc2
 title: 빨래방 머리 위 물건(양말·깃털·둥지)은 `anchor`로 ズッシー 머리에 그리고, 대기열이 빌 때까지만 남긴다
-status: accepted
+status: superseded
 accepted_via: pr-merge
 decided_at: 2026-11-24
 owner: "@zaffrex"
