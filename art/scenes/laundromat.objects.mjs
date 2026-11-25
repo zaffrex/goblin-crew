@@ -5,14 +5,16 @@
 // 지금 있는 것:
 //   O1 열쇠 + 나무 패(1칸): 길바닥·둥지·혹 속에서 같은 그림. 패가 넓어서 덕트 아래 끝에 걸린다(S5). 패가 열쇠보다 크고 밝게.
 //   O2 후드 위 빈 둥지(1칸) + 열쇠 든 둥지·반짝(2칸, `NEST_KEY`: 대기 반복, `magpie.key_in`·`key_out`).
-//   O3 틈 속 까치 머리·부리(2칸, `gap.snatch`).
+//   O3 틈 속 까치 머리·부리(2칸, `gap.snatch`) + 앉은 까치·내려다보기(1칸, `MAGPIE_SIT`: 대기 반복은 magpie_nest 포즈 재사용, `magpie.peek`).
 //   O6 덕트 혹(3칸, `DUCT_LUMP`: 가로 1 + 세로 걸림·끙끙 2. lump_travel·stuck·lump_back·lump_pop).
 // 미리보기·검사: node docs/design/screens/laundromat-bg-sketch.mjs (들창·틈·열쇠), node docs/design/screens/laundromat-gap-snatch-preview.mjs (틈 속 머리),
-//   node docs/design/screens/laundromat-nest-key-preview.mjs (둥지 속 열쇠), node docs/design/screens/laundromat-duct-lump-preview.mjs (덕트 혹)
+//   node docs/design/screens/laundromat-nest-key-preview.mjs (둥지 속 열쇠), node docs/design/screens/laundromat-duct-lump-preview.mjs (덕트 혹),
+//   node docs/design/screens/laundromat-magpie-peek-preview.mjs (앉은 까치·내려다보기, 포즈 전부 가림)
 
 import { C, Image, EMPTY } from '../lib/pixel.mjs';
 import { stamp, outlined } from '../lib/texture.mjs';
 import { SHUTTER, gapLift } from './laundromat.shutter.mjs';
+import { MAGPIE, MAGPIE_LEGEND } from './magpie_nest.objects.mjs';
 
 /** 열쇠 + 나무 패 크기(외곽선 포함). (x, y) = 왼쪽 위 */
 export const KEY_TAG = { w: 19, h: 8 };
@@ -332,4 +334,64 @@ export const DUCT_LUMP = {
     ms: [160, 100, 100, 100],
     frames: [(img) => lumpV(img, LUMP_STUCK.y, { strain: true }), (img) => lumpV(img, 158), (img) => lumpV(img, 166), (img) => lumpV(img, 173)],
   },
+};
+
+// ═════════════ O3 앉은 까치 + 내려다보기 (1칸, `magpie.peek`, 설계 laundromat.md 4절 5-1·8, 9-2 O3) ═════════════
+// 앉음·대기 반복은 magpie_nest 까치 포즈(`smug`·`flick`·`puff`) 재사용(0칸). 자리는 후드 위 둥지 윗줄에 발이 닿는 60,27(20×18):
+//   발 아래 끝 y 44 = 둥지 윗줄, 배 오른쪽 끝 x 78. 그보다 오른쪽은 열쇠 고리 자리(결정 2026-11-24-laundromat-nest-key-bow-tag-magpie-sit).
+// 내려다보기(새 칸 1): 5-1 `gap_poke` 뒤 "창 너머 까치가 고개를 쑥 내밀어 아래를 봄", 8 두 번째 `snub#2`, R2 대기 힐끔에 다시 쓴다.
+//   smug는 부리를 오른쪽 위로 치켜든 세로 실루엣이다. 내려다보기는 그 반대로 몸을 앞으로 기울여 꼬리가 왼쪽 위로 들리고,
+//   머리는 둥지 앞 끝 위로 내려와 부리가 아래(길바닥 = 틈 쪽)를 겨눈다. 1배 20px에서 "고개 1px"(#530 교훈)로는 안 읽혀서
+//   실루엣 전체를 눕혔다: 부리 끝이 smug보다 15px 아래(y 27 → 42), 꼬리 끝이 15px 위(y 44 → 28).
+//   눈은 반쯤 감은 눈꺼풀(dusk) 없이 흰 눈 2px로 동그랗게 뜬다(뻔뻔한 smug → "어, 뭐지?" 궁금한 눈). 틈 속 머리 `reach` 눈과 같은 약속.
+//   발(dusk)은 smug와 같은 자리(x 72·75)라 앉은 채 몸만 기울인 것으로 읽힌다. 부리(x 77~78)는 앞발과 1px 띄워 안 붙는다.
+// 고리(x 79~85 외곽선 포함)를 안 가리게 오른쪽 끝 x 78 안. 좌우 뒤집어도(snub) 꼬리 끝이 y 28~29라 끈(y 42~45)에 안 닿는다(비움 마스크에 안 걸림).
+export const MAGPIE_SIT_AT = { x: 60, y: 27 };
+export const MAGPIE_PEEK = [
+  '....................',
+  'Tk..................',
+  'tTk.................',
+  '.tTk................',
+  '..ktTkk.............',
+  '...ktTTkkk..........',
+  '....ktmTTkkkk.......',
+  '....ktTmmTkkkkk.....',
+  '.....ktTmTtkkkkkk...',
+  '......kttkkwwwwkkk..',
+  '.......kwwwwwwwkkkk.',
+  '.......kcwwwwwkkkek.',
+  '........kcwwwwkkkek.',
+  '.........kcllwkkkkb.',
+  '..........kkd..d.kb.',
+  '............d..d..k.',
+  '............d..d....',
+  '...........dd.dd....',
+];
+/** 이 화면 앉은 까치 포즈 전부(대기 반복 셋 재사용 + 내려다보기). 가림 검사가 이 목록 전부와 좌우 뒤집은 것을 본다 */
+export const MAGPIE_SIT_POSES = { ...MAGPIE, peek: MAGPIE_PEEK };
+
+/**
+ * 열쇠 자리 비움(x ≥ 79, y ≥ 36): 고리 외곽선(x 79)·끈(79,44~45) 자리. 재사용 포즈 중 `puff` 배 끝(x 79, y 36~39)과
+ * 뒤집은 포즈의 꼬리 끝(x 79, y 42~44)만 여기 걸린다(포즈당 ≤ 4px, 대기 0.3초·snub 때만). 둥지가 비어도 늘 비워서 그림이 안 튄다.
+ * 둥지를 까치 앞에 그리는 안은 버렸다: 둥지 윗줄(y 43~44)이 발과 내려다보기 부리 끝을 먹어서 "둥지 속을 쪼는" 그림이 된다.
+ */
+export const MAGPIE_KEY_ZONE = { x: 79, y: 36 };
+/** 앉은 까치 한 장. flip: 20px 상자 가운데 세로줄로 좌우 뒤집기(8 `snub`, 0칸). 열쇠 자리(MAGPIE_KEY_ZONE)는 안 그린다. */
+export function magpieSit(img, pose, { flip = false } = {}) {
+  const t = new Image(20, 18);
+  stamp(t, 0, 0, MAGPIE_SIT_POSES[pose], MAGPIE_LEGEND);
+  const placed = new Image(img.w, img.h);
+  placed.blit(t, MAGPIE_SIT_AT.x, MAGPIE_SIT_AT.y, flip ? { flipAx: 10 } : {});
+  for (let y = MAGPIE_KEY_ZONE.y; y < img.h; y++) for (let x = MAGPIE_KEY_ZONE.x; x < img.w; x++) placed.set(x, y, EMPTY);
+  img.blit(placed, 0, 0);
+}
+
+/**
+ * O3 앉은 까치 anim(그림 물건·대상 `magpie`).
+ *   loop: 대기 반복(magpie_nest와 같은 smug 2500 → flick 150 → puff 300, 첫 칸 = 멈춘 모습).
+ *   peek: 5-1. smug(출발) → 내려다보기 900ms → smug(도착). 형식 4-2 (a) 첫 칸 출발·마지막 칸 도착. 합 1080ms.
+ */
+export const MAGPIE_SIT = {
+  loop: { ms: [2500, 150, 300], frames: ['smug', 'flick', 'puff'].map((p) => (img) => magpieSit(img, p)) },
+  peek: { ms: [80, 900, 100], frames: ['smug', 'peek', 'smug'].map((p) => (img) => magpieSit(img, p)) },
 };
