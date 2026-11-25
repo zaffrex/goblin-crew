@@ -1,7 +1,7 @@
 {
   "id": "laundromat",
   "note": "스테이지 3, 후보 B「거꾸로 도는 건조기」(설계 docs/design/screens/laundromat.md, #897 #909). 세 번째 판(order.json). 좌표는 설계 2절 제안값 + Luna #908 그림 값(들창 틀 58,22 56×52, 덕트 세로 x 360~373, 틈 꼭짓점 x 112)이고 이 파일이 진실이다. 시작 좌표(엔진 배치, floor ±40, characters 순서): jjuk 240,244 / mukjik 280,244 / ppik 320,244. 물건 시트는 #764 그림 PR이 만든다(그 전에는 회색 상자, 시트가 생기면 hotspot 전부를 그려야 한다). 머리 위 물건(sock_head·feather_head·nest_hat·hat_perch)은 그림 메타 anchor(형식 개정 12), 둥지 anim(magpie.key_in·key_out)은 메타 object: nest(개정 11)로 그린다(설계 4절 표, 11절 E3·E5).",
-  "walkArea": { "top": 236 },
+  "walkArea": { "top": 244 },
   "start": {
     "at": { "jjuk": "floor", "mukjik": "floor", "ppik": "floor" },
     "items": []

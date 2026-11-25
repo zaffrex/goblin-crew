@@ -1,5 +1,6 @@
 // 화면별 걷기 영역(#938, 진마씨 "노비가 공중에 떠 있네" 11/25). 빨래방은 그림 바닥(woodL)이 y 236부터라
 // 공통 `WALK_AREA`(y 200~252) 그대로면 아래 벽 띠(y 172~235)를 눌렀을 때 발이 벽 위에 섰다.
+// 위 끝은 바닥 첫 줄(236)이 아니라 셔터 아래 끝(244)이다: 236이면 셔터 앞(x 24~151)에서 발이 셔터 판 위에 떴다(Luna #940).
 import { describe, expect, it } from 'vitest';
 import charactersJson from '../../content/characters.json';
 import laundromatJson from '../../content/screens/laundromat.json';
@@ -16,8 +17,8 @@ const characters = charactersJson as CharactersData;
 const laundromat = laundromatJson as unknown as ScreenData;
 const data: SceneData = { screen: laundromat, characters, art: parseSceneArt(sheetJson as unknown as SceneArtMeta) };
 
-/** 그림 바닥 위 끝(`art/scenes/laundromat.room.mjs` `FLOOR_Y`). 설계 laundromat.md 2-2 "바닥 위 끝 y 236". */
-const FLOOR_Y = 236;
+/** 셔터 아래 끝(`art/scenes/laundromat.shutter.mjs` `SHUTTER.y + h`). 이 화면에서 가장 앞으로 나온 바닥 물건이라 발을 이 줄에 맞춘다. */
+const FEET_TOP = 244;
 
 /** 이슈 #938 재현 자리: 건조기와 자판기 사이 벽, 3번 세탁기 앞 벽 띠, 셔터 오른쪽 벽 띠 맨 위. */
 const WALL_TAPS = [
@@ -42,8 +43,10 @@ function walkUntilStill(s: SceneState, char: CharacterId): void {
 }
 
 describe('화면별 걷기 영역 (#938)', () => {
-  it('빨래방 walkArea 위 끝은 그림 바닥 위 끝이고, 나머지 세 변은 공통 값이다', () => {
-    expect(walkAreaOf(laundromat)).toEqual({ ...WALK_AREA, top: FLOOR_Y });
+  it('빨래방 walkArea 위 끝은 셔터 아래 끝(244)이고, 나머지 세 변은 공통 값이다', () => {
+    const [, y, , h] = laundromat.hotspots.shutter!.box;
+    expect(y + h, '셔터 히트 상자 아래 끝이 바뀌면 walkArea.top도 같이 본다').toBe(FEET_TOP);
+    expect(walkAreaOf(laundromat)).toEqual({ ...WALK_AREA, top: FEET_TOP });
   });
 
   it('다른 두 화면은 walkArea가 없어서 공통 WALK_AREA 그대로다(바닥 위 끝 196·198 < 200)', () => {
@@ -55,14 +58,14 @@ describe('화면별 걷기 영역 (#938)', () => {
 
   for (const c of CHARACTERS)
     for (const [input, slop] of [['마우스', 0], ['터치', 8]] as const)
-      it(`${c.id} ${input}: 아래 벽 띠를 눌러도 발이 나무 바닥(y ≥ ${FLOOR_Y})에 선다`, () => {
+      it(`${c.id} ${input}: 아래 벽 띠를 눌러도 발이 셔터 아래 끝 줄(y ${FEET_TOP})에 선다`, () => {
         for (const p of WALL_TAPS) {
           const s = ready(c.id);
           const r = sceneTap(data, s, p, slop, slop > 0);
           expect(r, `${p.x},${p.y}`).toMatchObject({ kind: 'intent', intent: { kind: 'walk' } });
           walkUntilStill(s, c.id);
           const w = s.walkers[c.id];
-          expect(w.y, `${p.x},${p.y}`).toBe(FLOOR_Y);
+          expect(w.y, `${p.x},${p.y}`).toBe(FEET_TOP);
           expect(Math.abs(w.x - p.x), `${p.x},${p.y}`).toBeLessThanOrEqual(1);
         }
       });

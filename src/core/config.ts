@@ -21,7 +21,7 @@ export const WALK_AREA = { left: 16, top: 200, right: 463, bottom: 252 } as cons
 
 /**
  * 높은 대상/바닥 대상 기준선(y). 상자 아래 끝이 이 선 위(≤)면 높은 대상이다(`approachPoint` `high`, 비켜 서기 낮은 대상, 배치 검사).
- * 화면별 `walkArea.top`을 따라가지 않는다(#938): 빨래방(top 236)에서 따라가면 아래 끝이 236인 `dryer_3`·`soap_vending`이
+ * 화면별 `walkArea.top`을 따라가지 않는다(#938): 빨래방(top 244)에서 따라가면 아래 끝이 236인 `dryer_3`·`soap_vending`이
  * 높은 대상이 되어 설 곳(옆 → 가운데)과 덕트 뒤 비켜 서기(설계 laundromat.md 2-2 E7)가 바뀐다.
  */
 export const HIGH_TARGET_LINE = WALK_AREA.top;
