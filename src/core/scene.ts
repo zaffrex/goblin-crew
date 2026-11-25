@@ -819,15 +819,7 @@ function stepOffPoint(
   if (!isFree(data, after.at[char] ?? '')) return null;
   if (events.some((e) => (e.type === 'walk' || e.type === 'place' || e.type === 'release') && e.char === char)) return null;
   if (events.some((e) => e.type === 'faint' || e.type === 'clear')) return null;
-  const low: HitBox[] = [];
-  const ids = [...Object.keys(data.screen.hotspots), ...Object.keys(data.screen.spots)];
-  for (const id of ids) {
-    if (id === action.target) continue;
-    const def = data.screen.hotspots[id] ?? data.screen.spots[id];
-    if (def?.hintAbility === undefined) continue;
-    const b = targetBox(data.screen, after, id);
-    if (b && b.top + b.height > HIGH_TARGET_LINE) low.push(b);
-  }
+  const low = lowPuzzleTargets(data, after, action.target);
   const def = characterDef(char);
   const face = ap.face ?? s.walkers[char].facing;
   if (!low.some((b) => boxesOverlap(characterHitBox(def, ap.x, ap.y, face), b))) return null;
@@ -852,6 +844,72 @@ function stepOffPoint(
     }
   }
   return null;
+}
+
+/** 낮은 퍼즐 대상(`hintAbility` 있는 핫스팟·자리 중 아래쪽이 `HIGH_TARGET_LINE` 아래인 것)의 지금 상자. `skip`은 뺀다. */
+function lowPuzzleTargets(data: SceneData, puzzle: PuzzleState, skip?: string): HitBox[] {
+  const low: HitBox[] = [];
+  const ids = [...Object.keys(data.screen.hotspots), ...Object.keys(data.screen.spots)];
+  for (const id of ids) {
+    if (id === skip) continue;
+    const def = data.screen.hotspots[id] ?? data.screen.spots[id];
+    if (def?.hintAbility === undefined) continue;
+    const b = targetBox(data.screen, puzzle, id);
+    if (b && b.top + b.height > HIGH_TARGET_LINE) low.push(b);
+  }
+  return low;
+}
+
+/**
+ * 자리 비켜 주기(#968, `ui-interaction.md` 5-2-7절). 행동하는 캐릭터가 대상 앞까지 걸어갈 때(5-1절) 설 곳(`ap`)의 서 있기 몸 상자가
+ * **가만히 서 있는 동료**(바닥 자리, 걷기·깡충 없음, 이번 행동 이벤트에 안 나옴)의 몸과 겹치면, 그 동료가 엔진 걷기로 비켜 선다.
+ * 설 곳: 지금 x에서 가장 가까운 x 중 걷기 영역 안이고 행동하는 몸(설 곳 기준)·다른 동료와 안 겹치며 낮은 퍼즐 대상과
+ * `APPROACH_GAP` 넘게 떨어진 곳(같으면 왼쪽). 대상을 피하는 x가 없으면 몸만 피하는 x, 그것도 없으면 그대로 둔다. y는 그대로.
+ * 도착하면 행동하는 쪽을 본다(`stepOff` 착지 돌아서기를 같이 쓴다). 걷기는 탭한 틱에 시작해 행동하는 쪽 걷기와 나란히 간다.
+ * 퍼즐 상태·BFS·세이브·`approachPoint`는 그대로다. 화면 3: ズッシー × 3번 건조기 설 곳(몸 x 303~342)이 プピ 시작 자리(x 301~334)를 덮었다.
+ */
+function makeRoom(data: SceneData, s: SceneState, action: Action, events: readonly PuzzleEvent[], ap: { x: number; y: number; face: Facing | null }): void {
+  if (events.some((e) => e.type === 'faint')) return;
+  const char = action.char;
+  const actor = characterHitBox(characterDef(char), ap.x, ap.y, ap.face ?? (ap.x > s.walkers[char].x ? 1 : -1));
+  const now = bodies(data, s);
+  const area = walkAreaOf(data.screen);
+  const low = lowPuzzleTargets(data, s.puzzle);
+  const placed: Partial<Record<CharacterId, HitBox>> = {};
+  for (const c of CHARACTERS) {
+    if (c.id === char) continue;
+    const o = s.walkers[c.id];
+    if (o.target || s.hops[c.id] || !isFree(data, s.puzzle.at[c.id] ?? '')) continue;
+    if (events.some((e) => ('char' in e && e.char === c.id) || (e.type === 'anim' && e.target === c.id))) continue;
+    if (!boxesOverlap(actor, now[c.id])) continue;
+    const def = characterDef(c.id);
+    const mates: HitBox[] = [actor];
+    for (const m of CHARACTERS) {
+      if (m.id === char || m.id === c.id) continue;
+      const mw = s.walkers[m.id];
+      mates.push(placed[m.id] ?? (mw.target ? characterHitBox(characterDef(m.id), mw.target.x, mw.target.y, mw.facing) : now[m.id]));
+    }
+    // 걷는 방향(도착 순간)과 행동하는 쪽으로 돌아선 방향(그 뒤) 둘 다 본다. 몸 상자는 방향마다 좌우가 다르다.
+    const bodiesAt = (x: number): HitBox[] => [characterHitBox(def, x, o.y, x > o.x ? 1 : -1), characterHitBox(def, x, o.y, ap.x < x ? -1 : 1)];
+    const freeOfMates = (x: number): boolean => bodiesAt(x).every((b) => !mates.some((m) => boxesOverlap(b, m)));
+    const freeOfTargets = (x: number): boolean =>
+      bodiesAt(x).every((b) => {
+        const grown = { left: b.left - APPROACH_GAP, top: b.top, width: b.width + 2 * APPROACH_GAP, height: b.height };
+        return !low.some((t) => boxesOverlap(grown, t));
+      });
+    const nearest = (ok: (x: number) => boolean): number | null => {
+      for (let d = 1; d <= area.right - area.left; d++) {
+        for (const x of [o.x - d, o.x + d]) if (x >= area.left && x <= area.right && ok(x)) return x;
+      }
+      return null;
+    };
+    const x = nearest((x) => freeOfMates(x) && freeOfTargets(x)) ?? nearest(freeOfMates);
+    if (x === null) continue;
+    const to = { x, y: o.y };
+    walkTo(o, to, area);
+    s.stepOff[c.id] = { char: c.id, to, face: ap.x < x ? -1 : 1 };
+    placed[c.id] = characterHitBox(def, x, o.y, s.stepOff[c.id]!.face);
+  }
 }
 
 /**
@@ -967,6 +1025,7 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
     const spot = prev.at[action.char]!;
     s.floorTo[action.char] = { x: ap.x, y: ap.y };
     s.queue.push(ap.face === null ? { type: 'walk', char: action.char, from: spot, to: spot } : { type: 'walk', char: action.char, from: spot, to: spot, face: ap.face });
+    makeRoom(data, s, action, events, ap);
   } else if (ap?.face != null) {
     w.facing = ap.face;
   }
