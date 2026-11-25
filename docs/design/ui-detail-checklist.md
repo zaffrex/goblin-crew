@@ -70,7 +70,7 @@ M2 3화면 요청 전 점검부터 찍는다. 기준 모양은 [title-and-map.md
 | 세로 안내 `#rotate` | `ui-interaction.md` 9절 | 타이틀·맵 위에서 휴대폰 세로 | C-3·4(타이틀 버튼을 덮어 눌리지 않는지) |
 
 - **찍는 길** (손으로 찍을 것 없음, 각각 `--touch`로 휴대폰도):
-  - `scripts/playtest/menus.ts --out` (#922): 세이브 상태 셋마다 타이틀·확인 줄·맵·잠금 안내 줄(`<view>-<none|some|all>-{title,title-confirm,map,map-locked}.png`). 판은 안 푼다.
+  - `scripts/playtest/menus.ts --view all --out` (#922, 크기 넷은 #926): 1절 크기 넷 × 세이브 상태 셋마다 타이틀·확인 줄·맵·잠금 안내 줄(`<D1|D4|M3|M1>-<none|some|all>-{title,title-confirm,map,map-locked}.png`, 32장). 판은 안 푼다.
   - `solve.ts --deploy --via-map --out` (#918): 일부 깸 맵 → 2번째 판 다시 깸 카드(①) → 돌아온 맵.
   - `solve.ts --deploy --via-map-last --out` (#921): 다 깸 맵 → 마지막 판 다시 깸 카드(②, 3줄) → 돌아온 맵. 끝 카드는 이 길의 첫 클리어에서 본다.
   - 남는 것: 짧은 시작 카드, `#rotate`는 `solve.ts` 판 입구 스크린샷과 휴대폰 세로로 본다.
