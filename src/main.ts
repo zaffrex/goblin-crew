@@ -981,9 +981,12 @@ function render(): void {
   // 클리어 컷(L32)과 화면 하나 클리어 카드는 캐릭터 머리 위로(#662). 열쇠를 든 사람이 보여야 왜 클리어인지 안다.
   // 게이지 0 컷(`ui.faint`)과 연결 순서(ORDER)의 카드는 캐릭터를 피하지 않고 게임 화면 가운데다(#683, 설계 6-6절).
   // CSS 기본(창 가운데)은 667×375에서 캔버스가 위로 치우쳐 26 CSS px 아래로 떴다.
+  // 단 연결 순서 카드도 머리 위 칸(형식 16절, 빨래방 둥지 모자·까치)은 피한다(#975). 클리어 뒤 남는 펀치라인 그림이라(#974),
+  // 압축 배율(640×300 @2)에서 글자 최소 20px로 커진 상자가 그 칸을 덮었다. 머리 위 칸이 없는 판(화면 1·2)은 그대로 가운데다.
   const cast = Object.values(layout.chars);
+  const headBoxes = heads.map((h) => ({ left: h.at.x, top: h.at.y, width: h.at.w, height: h.at.h }));
   placeCut(faintCut, cut === 'ui.faint' ? [] : cast, scale);
-  placeCut(clearCut, ORDER ? [] : cast, scale);
+  placeCut(clearCut, ORDER ? headBoxes : cast, scale);
 
   // DOM 말풍선(ADR-0004 결정 3). 화자 머리 위. 카드가 떠 있으면 진입 대사는 아직이다.
   // 폭은 글로만 정하고(화자 위치와 무관), 게임 화면 안으로 민다(#329). 목표 줄·이름표를 피하므로(#351) 그것들을 놓은 뒤에 둔다.
