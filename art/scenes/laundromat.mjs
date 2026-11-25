@@ -6,8 +6,10 @@
 //   덕트 혹(travel·back·pop·걸림 반복).
 // 물건 시트 2/2-a (이 PR, 건조기): O4 드럼 회전(정회전 대기 반복·역회전 상태, `dryer_3.reverse_start`·`forward_start`),
 //   O5 문 벌컥·병뚜껑·날아가는 양말(`burst`·`burst#2`·`door_bang`), 머리 위 양말(`dryer_3.sock_head`, anchor ズッシー, 장식 물건 `sock`).
-// 물건 시트 2/2-b (다음 PR): O7 둥지 모자(`nest_hat`·`magpie.hat_perch`)·O8 머리 위 깃털(`feather_puff`·`feather_head`), `gap.glint`, `shutter.roll_up`,
-//   `duct.warm_puff`·`suck_pole`, `dryer_3.gulp_pole`, 자판기 쏟아짐. 그 전에는 그 anim이 시트에 없어 엔진이 물건을 멈춘 모습 그대로 둔다(형식 9절 폴백).
+// 물건 시트 2/2-b (이 PR, 머리 위 물건): O8 깃털(`dryer_3.feather_puff`·`feather_head`, 장식 물건 `head_feather`),
+//   O7 둥지 모자(`dryer_3.nest_hat`, 원본 object `nest`)·그 위에 앉는 까치(`magpie.hat_perch`). 셋 다 anchor ズッシー.
+// 물건 시트 2/2-c (다음 PR): `gap.glint`, `shutter.roll_up`, `duct.warm_puff`·`suck_pole`, `dryer_3.gulp_pole`, 자판기 쏟아짐.
+//   그 전에는 그 anim이 시트에 없어 엔진이 물건을 멈춘 모습 그대로 둔다(형식 9절 폴백).
 //
 // 배경 물건(셔터·건조기·자판기)은 ink 없이 그린 그림이다. 시트에서는 히트 상자 **안** 픽셀만 물건으로 떼어 바깥 ink 외곽선을 두르고
 // (ADR-0007 결정 3-1, park_fountain 동상과 같은 방식), 상자 **밖** 픽셀(셔터 통, 바닥 빛 띠, 바닥 그림자 줄)은 배경에 굽는다(#882 Theo 리뷰).
@@ -26,7 +28,8 @@ import { shutter, SHUTTER, gapLift } from './laundromat.shutter.mjs';
 import { dryer, DRYER_DOOR_SWING, DRUM_STEP } from './laundromat.dryer.mjs';
 import { vending } from './laundromat.vending.mjs';
 import {
-  keyTag, KEY_ON_STREET, nestEmpty, nestWithKey, NEST_KEY, GAP_SNATCH, DUCT_LUMP, LUMP_STUCK, MAGPIE_SIT, magpieSit, flySock, bottleCap,
+  keyTag, KEY_ON_STREET, nestEmpty, nestWithKey, NEST, NEST_KEY, GAP_SNATCH, DUCT_LUMP, LUMP_STUCK, MAGPIE_SIT, MAGPIE_SIT_AT, MAGPIE_SIT_POSES, magpieSit,
+  flySock, bottleCap, headFeather, HEAD_FEATHER,
 } from './laundromat.objects.mjs';
 import { ANCHOR_ORIGIN } from '../scene-build.mjs';
 import { MAGPIE_FLY, MAGPIE_LEGEND, feather } from './magpie_nest.objects.mjs';
@@ -228,6 +231,51 @@ const SOCK_HEAD = {
   frames: [sockAt(AX + 30, AY - 30, true), sockAt(AX + 15, AY - 24), sockAt(AX + 2, AY - 9), sockAt(AX - 6, AY + 2)],
 };
 
+// ═════════════ 머리 위 깃털·둥지 모자 (시트 2/2-b, O7·O8) ═════════════
+// O8 깃털(설계 8-1 B'·1-2): 혹이 덕트를 막으며 밀어낸 깃털이 건조기 문 위 이음매(12시, 368,181)에서 퐁 → ズッシー 털모자에 꽂힌다.
+//   깃털은 처음부터 끝까지 새 칸 하나(O8 `headFeather` 5×10)다. magpie_nest `feather`(4×4)는 1배에서 먼지 한 점이라 문에서 튀어도 눈이 안 간다.
+//   같은 깃털이 문에서 나와 머리에 꽂히니 "그 깃털"로도 이어진다. 기울기는 자리만 바꿔 찍는다(돌린 칸 없음, 0칸).
+//   `feather_puff`(제자리, dryer_3): 역회전 반복 칸 위에 깃털 아래 끝이 이음매에 걸림 → 한 뼘(11px) 위로 퐁.
+//   `feather_head`(anchor ズッシー, 장식 물건 `head_feather`): 앞쪽 위에서 한 번 → 꽂힘. hold라 대사(`suck`·`reverse_key`) 끝까지 남는다.
+//   H5(tests/art/laundromat-timing.test.ts): 빈 부리 멍 660ms에 더해 1500 안 → 깃털 몫 840ms. 여기서는 210 + 290 = 500ms.
+const FEATHER_SEAM = { x: 368, y: 181 };
+const doorFeather = (dy) => (img) => headFeather(img, FEATHER_SEAM.x - HEAD_FEATHER.quill.x, FEATHER_SEAM.y - HEAD_FEATHER.quill.y + dy);
+const FEATHER_PUFF = {
+  ms: [100, 110],
+  frames: [withItems(SPIN[2], doorFeather(0)), withItems(SPIN[1], doorFeather(-11))],
+};
+// 털모자 꼭대기(머리 기준): 얼굴 상자 위 끝 + 4, x −8~+1(sock_head 머리말). 깃대 끝이 꼭대기 1px 안(AY + 6)에, 가운데보다 3px 뒤(AX − 3)에 박힌다.
+const QUILL_AT = { x: AX - 3, y: AY + 6 };
+const headFeatherAt = (dx, dy) => (img) => headFeather(img, QUILL_AT.x - HEAD_FEATHER.quill.x + dx, QUILL_AT.y - HEAD_FEATHER.quill.y + dy);
+const FEATHER_HEAD = { ms: [90, 200], frames: [headFeatherAt(12, -14), headFeatherAt(0, 0)] };
+
+// O7 둥지 모자(설계 8-2 2번): 열쇠 든 둥지(O2 `nestWithKey`, 패·고리·양말 그대로 = 0칸)가 머리 위 16 → 8 → 0px로 두 번 떨어져 얹힌다.
+//   둥지 바닥(좁은 줄, 몸 기준 x 6~13)을 털모자 꼭대기(x −8~+1) 가운데에 맞추고 1px 박는다. 그래서 둥지 그릇이 모자처럼 얹히고,
+//   금색 고리는 앞쪽(+x) 위로 솟고 분홍 양말은 뒤통수 쪽으로 늘어진다. 눈 줄(+14)은 0px 가린다(미리보기 검사).
+//   ノビー가 4번에서 "둥지에서 열쇠를 집는" 고리가 앞쪽이라 어느 방향을 봐도 사람 쪽에 열쇠가 있다(엔진이 같이 뒤집는다).
+//   원본 object는 장식 둥지 `nest`다: `magpie.nest_sucked`로 후드 속에 빨려 든 그 둥지가 문에서 나와 머리에 앉는 것이라 같은 물건이다.
+//   물건 순서 nest < magpie라 머리 위에서도 둥지 위에 까치가 그려진다(엔진 heads는 objects 순서).
+const HAT_NEST = { x: AX - 13, y: AY - 2 };
+const headNest = (dy) => (img) => {
+  const t = new Image(W, H);
+  nestWithKey(t);
+  img.blit(t, HAT_NEST.x - NEST.x, HAT_NEST.y - NEST.y + dy);
+};
+// 문 벌컥(door_bang 첫 칸 90ms)과 같은 박자에 시작. 엔진 기본 0.5초보다 0.14초 짧다(H6 넘침).
+const NEST_HAT = { ms: [80, 80, 200], frames: [headNest(-16), headNest(-8), headNest(0)] };
+
+// 까치 둥지 모자 앉기(`magpie.hat_perch`, 설계 8-2 3번): 앉은 까치가 둥지 윗줄에 발을 딛는 자리 관계(MAGPIE_SIT_AT − NEST)를 그대로 옮긴다.
+//   날아 내려옴(창 안 날기 `down` 재사용) → 부풀려 착지(`puff`) → smug. 셋 다 재사용 그림이라 손그림 0칸.
+//   열쇠 자리 비움(MAGPIE_KEY_ZONE)은 화면 좌표 마스크라 여기선 안 쓴다. 고리는 몸 기준 +17부터라 smug(배 끝 +15)와 안 겹친다.
+const HAT_SIT = { x: HAT_NEST.x + MAGPIE_SIT_AT.x - NEST.x, y: HAT_NEST.y + MAGPIE_SIT_AT.y - NEST.y };
+const hatSit = (pose) => (img) => stamp(img, HAT_SIT.x, HAT_SIT.y, MAGPIE_SIT_POSES[pose], MAGPIE_LEGEND);
+const hatFly = (img) => {
+  const b = new Image(W, H);
+  stamp(b, HAT_SIT.x - 4, HAT_SIT.y - 16, MAGPIE_FLY.down, MAGPIE_LEGEND);
+  img.blit(outlined(b), 0, 0);
+};
+const HAT_PERCH = { ms: [100, 120, 200], frames: [hatFly, hatSit('puff'), hatSit('smug')] };
+
 // ═════════════ 물건 ═════════════
 const notOnStreet = ['key.in_nest', 'key.stuck', 'key.back'].map((f) => ({ when: { flags: { [f]: true } }, draw: null }));
 
@@ -267,6 +315,8 @@ const OBJECTS = {
   },
   // 머리 위 양말(장식 물건, 평소 안 보임 · 형식 16절). `dryer_3.sock_head`가 anchor로 그린다
   sock: { ids: [], draw: null },
+  // 머리 위 깃털(장식 물건, 평소 안 보임). `dryer_3.feather_head`가 anchor로 그린다
+  head_feather: { ids: [], draw: null },
   soap_vending: { draw: boxed(vendStill, VEND_BOX) },
 };
 
@@ -286,6 +336,10 @@ const ANIMS = {
   'dryer_3.burst#2': BURST_2,
   'dryer_3.door_bang': DOOR_BANG,
   'dryer_3.sock_head': { object: 'sock', anchor: { char: 'mukjik', point: 'head' }, hold: true, ...SOCK_HEAD },
+  'dryer_3.feather_puff': FEATHER_PUFF,
+  'dryer_3.feather_head': { object: 'head_feather', anchor: { char: 'mukjik', point: 'head' }, hold: true, ...FEATHER_HEAD },
+  'dryer_3.nest_hat': { object: 'nest', anchor: { char: 'mukjik', point: 'head' }, hold: true, ...NEST_HAT },
+  'magpie.hat_perch': { anchor: { char: 'mukjik', point: 'head' }, hold: true, ...HAT_PERCH },
 };
 
 // 검사용: 걸린 혹 칸이 duct 핫스팟 안이라는 전제(결정 2026-11-24-laundromat-duct-lump-shape-path)

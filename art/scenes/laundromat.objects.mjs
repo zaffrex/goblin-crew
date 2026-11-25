@@ -488,3 +488,28 @@ export function flySock(img, x, y, { flip = false } = {}) {
 export function bottleCap(img, x, y) {
   stampOutlined(img, x, y, CAP_ROWS, CAP_LEGEND, false);
 }
+
+// ═════════════ O8 머리 위에 꽂힌 깃털(1칸, 물건 시트 2/2-b) ═════════════
+// 날아오는 깃털은 magpie_nest `feather`(4×4 대각선) 재사용이고, 꽂힌 모습만 새로 그린다.
+// 4×4 그대로 머리에 얹으면 "먼지 한 점"이라 8-1 ②(몸 크기 이상)도 ④(몸에 남음)도 못 채운다. 그래서 세워서 길게 늘였다:
+//   깃대(tealM)가 털모자에 박히고, 깃(white)이 뒤쪽(−x)으로 젖혀 선다. 모자에 꽂은 장식 깃털 실루엣이라 1배에서 "꽂혔다"로 읽힌다.
+//   깃 끝 두 칸은 ink 대신 tealD로 까치 꼬리 끝(magpie_nest 까치 꼬리 t/T)과 색을 잇는다. "까치 깃털"이 색으로 이어진다.
+// 5×10, 외곽선 포함 7×12. (x, y) = 몸 왼쪽 위. 깃대 끝(아래 오른쪽 열 3, y + 9)이 꽂히는 점이다.
+const HEAD_FEATHER_ROWS = [
+  'tt...',
+  'twt..',
+  'wwwt.',
+  'wwmw.',
+  '.wmww',
+  '.wwmw',
+  '..wmw',
+  '...m.',
+  '...m.',
+  '...m.',
+];
+/** 꽂힌 깃털 몸(외곽선 안) 크기와 깃대 끝(몸 기준) */
+export const HEAD_FEATHER = { w: 5, h: 10, quill: { x: 3, y: 9 } };
+/** O8 털모자에 꽂힌 깃털. (x, y) = 몸 왼쪽 위 */
+export function headFeather(img, x, y) {
+  stampOutlined(img, x, y, HEAD_FEATHER_ROWS, { t: C.tealD, w: C.white, m: C.tealM }, false);
+}

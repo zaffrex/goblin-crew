@@ -687,6 +687,126 @@
         -7,
         1
       ]
+    },
+    {
+      "src": [
+        338,
+        267,
+        50,
+        73
+      ],
+      "at": [
+        343,
+        163
+      ]
+    },
+    {
+      "src": [
+        388,
+        267,
+        50,
+        76
+      ],
+      "at": [
+        343,
+        160
+      ]
+    },
+    {
+      "src": [
+        438,
+        267,
+        7,
+        12
+      ],
+      "at": [
+        5,
+        -18
+      ]
+    },
+    {
+      "src": [
+        445,
+        267,
+        7,
+        12
+      ],
+      "at": [
+        -7,
+        -4
+      ]
+    },
+    {
+      "src": [
+        452,
+        267,
+        24,
+        19
+      ],
+      "at": [
+        -14,
+        -25
+      ]
+    },
+    {
+      "src": [
+        476,
+        267,
+        24,
+        19
+      ],
+      "at": [
+        -14,
+        -17
+      ]
+    },
+    {
+      "src": [
+        0,
+        354,
+        24,
+        19
+      ],
+      "at": [
+        -14,
+        -9
+      ]
+    },
+    {
+      "src": [
+        24,
+        354,
+        25,
+        13
+      ],
+      "at": [
+        -21,
+        -35
+      ]
+    },
+    {
+      "src": [
+        49,
+        354,
+        20,
+        18
+      ],
+      "at": [
+        -16,
+        -18
+      ]
+    },
+    {
+      "src": [
+        69,
+        354,
+        20,
+        18
+      ],
+      "at": [
+        -16,
+        -18
+      ]
     }
   ],
   "objects": [
@@ -912,6 +1032,14 @@
     },
     {
       "key": "sock",
+      "ids": [],
+      "default": {
+        "frame": null,
+        "layer": "back"
+      }
+    },
+    {
+      "key": "head_feather",
       "ids": [],
       "default": {
         "frame": null,
@@ -1327,6 +1455,73 @@
         60,
         70,
         140
+      ],
+      "layer": "front",
+      "hold": true,
+      "anchor": {
+        "char": "mukjik",
+        "point": "head"
+      }
+    },
+    "dryer_3.feather_puff": {
+      "object": "dryer_3",
+      "frames": [
+        57,
+        58
+      ],
+      "ms": [
+        100,
+        110
+      ],
+      "layer": "back"
+    },
+    "dryer_3.feather_head": {
+      "object": "head_feather",
+      "frames": [
+        59,
+        60
+      ],
+      "ms": [
+        90,
+        200
+      ],
+      "layer": "front",
+      "hold": true,
+      "anchor": {
+        "char": "mukjik",
+        "point": "head"
+      }
+    },
+    "dryer_3.nest_hat": {
+      "object": "nest",
+      "frames": [
+        61,
+        62,
+        63
+      ],
+      "ms": [
+        80,
+        80,
+        200
+      ],
+      "layer": "front",
+      "hold": true,
+      "anchor": {
+        "char": "mukjik",
+        "point": "head"
+      }
+    },
+    "magpie.hat_perch": {
+      "object": "magpie",
+      "frames": [
+        64,
+        65,
+        66
+      ],
+      "ms": [
+        100,
+        120,
+        200
       ],
       "layer": "front",
       "hold": true,
