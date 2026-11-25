@@ -59,3 +59,13 @@ describe('laundromat 중간 성공 길이 (H5, 설계 8-3)', () => {
     expect(totalMs('dryer_3.burst#2')).toBeLessThan(totalMs('dryer_3.burst'));
   });
 });
+
+// ADR-0761 H6(클리어 연출 8초 안): 빨래방 클리어는 이미 넘는다(#802 (d), 11/25 replay 10.95초). 셔터 올라감(`shutter.roll_up`, 2/2-c1)은
+// 시트에 없을 때 엔진 폴백 0.5초였다. 그림이 붙으면서 클리어가 더 길어지지 않게 폴백 길이 안으로 묶는다. 줄이는 건 Kai (d) 몫이다.
+const ENGINE_FALLBACK_MS = 500;
+
+describe('laundromat 클리어 길이 (H6, 그림이 늘리지 않음)', () => {
+  it.skipIf(!has('shutter.roll_up'))(`클리어 마지막 박자 셔터 올라감 ≤ 엔진 폴백 ${ENGINE_FALLBACK_MS}ms`, () => {
+    expect(totalMs('shutter.roll_up')).toBeLessThanOrEqual(ENGINE_FALLBACK_MS);
+  });
+});

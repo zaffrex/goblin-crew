@@ -8,8 +8,10 @@
 //   O5 문 벌컥·병뚜껑·날아가는 양말(`burst`·`burst#2`·`door_bang`), 머리 위 양말(`dryer_3.sock_head`, anchor ズッシー, 장식 물건 `sock`).
 // 물건 시트 2/2-b (이 PR, 머리 위 물건): O8 깃털(`dryer_3.feather_puff`·`feather_head`, 장식 물건 `head_feather`),
 //   O7 둥지 모자(`dryer_3.nest_hat`, 원본 object `nest`)·그 위에 앉는 까치(`magpie.hat_perch`). 셋 다 anchor ズッシー.
-// 물건 시트 2/2-c (다음 PR): `gap.glint`, `shutter.roll_up`, `duct.warm_puff`·`suck_pole`, `dryer_3.gulp_pole`, 자판기 쏟아짐.
-//   그 전에는 그 anim이 시트에 없어 엔진이 물건을 멈춘 모습 그대로 둔다(형식 9절 폴백).
+// 물건 시트 2/2-c1 (이 PR, 정답 길): 진입 연출 `gap.glint`(길바닥 열쇠 반짝), 클리어 마지막 박자 `shutter.roll_up`(셔터 촤르르).
+//   둘 다 손그림 0칸이다. 반짝 별은 둥지 열쇠 반짝(O2)과 같은 `sparkStar`, 셔터는 잠김·올라감 두 그림을 섞어 판을 끌어올린다.
+// 물건 시트 2/2-c2 (다음 PR, 곁가지 실패): `duct.warm_puff`·`suck_pole`, `dryer_3.gulp_pole`, `soap_vending.spill_boxes`·`spill_coin`.
+//   그 전에는 그 anim이 시트에 없어 엔진이 물건을 멈춘 모습 그대로 둔다(형식 9절 폴백, 기본 0.5초).
 //
 // 배경 물건(셔터·건조기·자판기)은 ink 없이 그린 그림이다. 시트에서는 히트 상자 **안** 픽셀만 물건으로 떼어 바깥 ink 외곽선을 두르고
 // (ADR-0007 결정 3-1, park_fountain 동상과 같은 방식), 상자 **밖** 픽셀(셔터 통, 바닥 빛 띠, 바닥 그림자 줄)은 배경에 굽는다(#882 Theo 리뷰).
@@ -29,7 +31,7 @@ import { dryer, DRYER_DOOR_SWING, DRUM_STEP } from './laundromat.dryer.mjs';
 import { vending } from './laundromat.vending.mjs';
 import {
   keyTag, KEY_ON_STREET, nestEmpty, nestWithKey, NEST, NEST_KEY, GAP_SNATCH, DUCT_LUMP, LUMP_STUCK, MAGPIE_SIT, MAGPIE_SIT_AT, MAGPIE_SIT_POSES, magpieSit,
-  flySock, bottleCap, headFeather, HEAD_FEATHER,
+  flySock, bottleCap, headFeather, HEAD_FEATHER, sparkStar,
 } from './laundromat.objects.mjs';
 import { ANCHOR_ORIGIN } from '../scene-build.mjs';
 import { MAGPIE_FLY, MAGPIE_LEGEND, feather } from './magpie_nest.objects.mjs';
@@ -100,6 +102,18 @@ const keyStreet = (dx = 0) => (img) => inGap(img, (t) => keyTag(t, KEY_ON_STREET
 // 5-1 `gap.nudge`: 집게가 패를 쿡 → 열쇠가 오른쪽으로 6px 밀려 삼각 틈을 벗어남(패 아래 끝만 띠 밑으로) → 스르르 제자리.
 // 밀린 칸은 틈 밖 픽셀을 잘라 굽는다(손그림 0, 시트 칸 2: +6·+3). 엔진은 물건을 안 자르니 여기서 자른다.
 const NUDGE = { ms: [100, 520, 160, 140], frames: [keyStreet(0), keyStreet(6), keyStreet(3), keyStreet(0)] };
+
+// 진입 연출(설계 12절 끝, H7) `gap.glint`: 셔터 `ガタン` 바로 뒤 찌그러진 틈 너머 열쇠가 반짝(작은 별 → 큰 별 → 작은 별 → 멈춘 모습).
+//   별은 고리 오른쪽 위 어두운 길바닥(가운데 110,234)에 뜬다. 팔 끝까지 틈 삼각형 안이고(x 107~113에서 틈 위 끝 231~232), 열쇠 픽셀과 0px 겹친다.
+//   큰 별 칸에는 열쇠 몸 윗면에 빛 1px(둥지 반짝의 "자루 빛"과 같은 약속). 마지막 칸 = 멈춘 모습이라 끝나도 안 튄다.
+//   새 칸 2(작은 별·큰 별, 손그림 0). 합 500ms.
+const GLINT_AT = { x: 110, y: 234 };
+const keyGlint = (size) => (img) => inGap(img, (t) => {
+  keyTag(t, KEY_ON_STREET.x, KEY_ON_STREET.y);
+  sparkStar(t, GLINT_AT.x, GLINT_AT.y, size);
+  if (size === 'big') t.set(114, 239, C.white);
+});
+const GLINT = { ms: [80, 200, 100, 120], frames: [keyGlint('small'), keyGlint('big'), keyGlint('small'), keyStreet(0)] };
 
 // 3-1·3-2 `gap.snatch`: 마지막 빈 틈 칸은 뺐다(빌드가 빈 칸을 못 받는다). 빠지는 칸을 그만큼 붙들고, 끝나면 멈춘 모습(열쇠 없음 = 안 그림)으로.
 const SNATCH = { ms: [...GAP_SNATCH.ms.slice(0, 3), GAP_SNATCH.ms[3] + GAP_SNATCH.ms[4]], frames: GAP_SNATCH.frames.slice(0, 4) };
@@ -176,6 +190,34 @@ function nestSunk(dy) {
   };
 }
 const NEST_SUCKED = { ms: [60, 60], frames: [nestSunk(4), nestSunk(8)] };
+
+// ═════════════ 셔터 (`shutter`, 시트 2/2-c1) ═════════════
+// 클리어 마지막 박자(설계 4절 6, 12절 4) `shutter.roll_up`: 잠긴 판이 통 속으로 감겨 올라가고 그 밑으로 새벽 거리가 드러난다.
+//   rolled(rise) = 올라감 그림(거리·레일·통 밑 손잡이) 위에 잠김 그림의 판을 rise px 끌어올려 덮는다. 판 아래 끝의 찌그러진 틈 모양은
+//   그대로 따라 올라간다(찌그러진 슬랫이 펴지지는 않는다). 판 맨 위 rise줄은 통 속으로 사라진다. 손그림 0칸.
+//   한 칸에 21px씩(R3), 마지막 칸은 올라감 그림(= key.back 멈춘 모습)이라 끝나도 안 튄다. 새 칸 4.
+//   설계는 1.0초라 적었지만 엔진 폴백(0.5초)보다 길면 클리어가 늘어난다(H6 8초를 이미 넘김, #802 (d)). 그래서 합 480ms로 둔다.
+const SHUTTER_RAIL = 6;
+function rolled(rise) {
+  return (img) => {
+    const lock = new Image(W, H);
+    shutter(lock, 'locked');
+    const up = new Image(W, H);
+    shutter(up, 'up');
+    const { x, y, w, h } = SHUTTER;
+    const bottom = y + h;
+    for (let py = y; py < bottom; py++) for (let px = x; px < x + w; px++) img.set(px, py, up.get(px, py));
+    for (let px = x + SHUTTER_RAIL; px < x + w - SHUTTER_RAIL; px++) {
+      const e = bottom - gapLift(px);
+      for (let py = y; py < e - rise; py++) img.set(px, py, lock.get(px, py + rise));
+    }
+  };
+}
+const ROLL_STEP = 21;
+const ROLL_UP = {
+  ms: [90, 90, 90, 90, 120],
+  frames: [...[1, 2, 3, 4].map((k) => boxed(rolled(k * ROLL_STEP), SHUTTER_BOX)), boxed(shutterUp, SHUTTER_BOX)],
+};
 
 // ═════════════ 3번 건조기 (`dryer_3`, 시트 2/2-a) ═════════════
 // O4 드럼: 같은 세 장(0°·40°·80°)을 정회전은 0 → 40 → 80, 역회전은 0 → 80 → 40으로 잇는다(laundromat.dryer.mjs 머리말).
@@ -325,11 +367,13 @@ const ANIMS = {
   'magpie.key_in': { object: 'nest', ...NEST_KEY.key_in },
   'magpie.key_out': { object: 'nest', ...NEST_KEY.key_out },
   'magpie.nest_sucked': { object: 'nest', ...NEST_SUCKED },
+  'gap.glint': GLINT,
   'gap.snatch': SNATCH,
   'gap.nudge': NUDGE,
   'duct.lump_travel': DUCT_LUMP.lump_travel,
   'duct.lump_back': DUCT_LUMP.lump_back,
   'duct.lump_pop': DUCT_LUMP.lump_pop,
+  'shutter.roll_up': ROLL_UP,
   'dryer_3.reverse_start': REVERSE_START,
   'dryer_3.forward_start': FORWARD_START,
   'dryer_3.burst': BURST,
