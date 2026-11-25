@@ -5,7 +5,7 @@
 // - 대상: 화면 데이터(`rules`·`fallbacks`·`onEnter`·`spots`)가 부르는 `anim` 중 `common.*` 아닌 것.
 // - 칸: 캐릭터면 `public/sprites/<캐릭터>-base.json`의 `anims[이름].frames`. `@자리`·`self`면 진짜 `step`이 그 연출을
 //   실제로 준 캐릭터(없으면 그 이름을 가진 모든 캐릭터). 물건·NPC면 `public/scenes/<화면>-objects.json`의
-//   `anims["<대상>.<이름>"]` `frames` + 모든 `variants[].frames`.
+//   `anims["<대상>.<이름>"]`과 n번째 변형 `anims["<대상>.<이름>#k"]`(#765)의 `frames` + 모든 `variants[].frames`.
 // - 빼는 칸(기본 칸): 캐릭터 `idle`·`walk`·`step_up`·`hold`·`common.*`, 물건 `default`·`states[]`의 `frame`과 `loop.frames`,
 //   `tilt.frames` 값, `overlay.frame`.
 // - 시트별 칸 번호의 합집합. `reuse`(앞 칸 다시 잇기)·효과 anim(칸 없음)은 저절로 0칸이다.
@@ -43,8 +43,10 @@ const LEDGER: Record<string, { cells: number; base: number }> = {
   park_fountain: { cells: 54, base: 13 },
   // 시트 1/2(#764): 삑 hide_in_basket 4(화면 1 U9 재사용) + 물건 29. 물건은 손그림 칸(틈 속 머리 2, 내려다보기 1, 부리에 문 열쇠 1, 혹 3)과
   // 재사용·자리 옮김 칸(창 안 날기 4, 뒤집기 1, 부르르·털썩·웅크림, nudge 잘린 열쇠 2, 혹 자리 복사, 둥지 반짝, 클리어 둥지가 후드 속으로 쏙 2)이다. 기본 15(멈춘 모습·대기 반복).
-  // 시트 2/2(드럼 2·문 벌컥 3·둥지 모자 1·깃털 1 + 그 재사용 칸)가 더 붙는다. 48을 넘으면 그 PR에 이유를 적는다.
-  laundromat: { cells: 33, base: 15 },
+  // 시트 2/2-a(건조기): 반응 +11 = burst 5(열린 문 1장 + 양말·병뚜껑 자리) + burst#2 1 + door_bang 1(열린 문만) + sock_head 4(머리 위 양말 비행 3 + 얹힘 1).
+  //   손그림은 열린 문·양말·병뚜껑 3장이고 나머지는 자리 옮김·뒤집기다. 기본 +2 = 드럼 회전 칸 0°·40°·80° 중 멈춘 그림을 대신한 0° 말고 둘.
+  // 시트 2/2-b(둥지 모자·깃털·셔터 올라감·글린트·덕트 바람·자판기)가 더 붙으면 48을 넘는다(어림 52~56). 넘으면 그 PR에 이유를 적는다.
+  laundromat: { cells: 44, base: 17 },
 };
 
 /** 캐릭터 시트에서 반응 비용이 아닌 anim(가만히·걷기·올라서기·들기·공용). */
@@ -121,10 +123,13 @@ function r1Cells({ screen, objects, sheets, played }: R1Input): R1Result {
       const who = played.get(name) ?? new Set(Object.keys(sheets).filter((c) => sheets[c]!.anims[name]));
       for (const c of who) addChar(c, name);
     } else {
-      const anim = objects?.anims[`${target}.${name}`];
-      if (!anim) continue;
-      for (const f of anim.frames) objCells.add(f);
-      for (const v of anim.variants ?? []) for (const f of v.frames) objCells.add(f);
+      // n번째 변형(`이름#k`, #765)도 같은 줄이 부른다. 두 번째부터 나오는 짧은 판(`burst#2`)의 칸도 반응 칸이다.
+      const key = `${target}.${name}`;
+      for (const [k, anim] of Object.entries(objects?.anims ?? {})) {
+        if (k !== key && !k.startsWith(`${key}#`)) continue;
+        for (const f of anim.frames) objCells.add(f);
+        for (const v of anim.variants ?? []) for (const f of v.frames) objCells.add(f);
+      }
     }
   }
   // 캐릭터 기본 칸은 시트 안에서 뺀다(같은 칸 번호를 기본 anim이 쓰면 반응 비용이 아니다. seesaw_stomp 16 = step_up).
