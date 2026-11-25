@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import mapJson from '../../content/map.json';
 import orderJson from '../../content/screens/order.json';
@@ -64,14 +66,23 @@ describe('thumbOrigin (3-3절, content/map.json)', () => {
   // 숫자는 Luna가 content/map.json 한 곳만 고치면 되게 여기 박지 않는다 (#890 리뷰).
   it('reads every deployed origin as-is and each fits in the scene', () => {
     const entries = Object.entries(mapJson.thumbOrigin);
-    expect(entries.map(([id]) => id).sort()).toEqual(['magpie_nest', 'park_fountain']);
+    expect(entries.length).toBeGreaterThan(0);
     for (const [id, [x, y]] of entries) {
       expect(thumbOrigin(mapJson, id, SCENE)).toEqual({ origin: { x, y }, error: null });
     }
   });
 
+  // 3-3절: 그림(물건 시트)이 들어간 판은 자르는 자리도 같이 정한다. laundromat은 #764 시트 뒤에도 빠져서 맵에 dusk 한 색으로 남았다.
+  it('every deployed screen with an object sheet has an origin (no dusk card once art is in)', () => {
+    const withArt = (orderJson as string[]).filter((id) => existsSync(fileURLToPath(new URL(`../../public/scenes/${id}-objects.json`, import.meta.url))));
+    expect(withArt.length).toBeGreaterThan(0);
+    for (const id of withArt) {
+      expect(thumbOrigin(mapJson, id, SCENE).origin, `content/map.json thumbOrigin.${id}`).not.toBeNull();
+    }
+  });
+
   it('a screen without art yet has no origin and no error (dusk fill)', () => {
-    expect(thumbOrigin(mapJson, 'laundromat', SCENE)).toEqual({ origin: null, error: null });
+    expect(thumbOrigin(mapJson, 'no_art_yet', SCENE)).toEqual({ origin: null, error: null });
     expect(thumbOrigin(null, 'magpie_nest', SCENE)).toEqual({ origin: null, error: null });
   });
 
