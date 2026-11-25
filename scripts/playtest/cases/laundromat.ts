@@ -87,9 +87,9 @@ const CASES: FrameCase[] = [
     id: 'aha-s6-clear',
     pre: [REVERSE, SQUEAK_GAP],
     action: POKE_DUCT,
-    says: 'laundromat.clear_nest',
+    says: 'laundromat.clear_magpie',
     every: 150,
-    why: '★③·박자 C: 쿡 → 혹 쑥 + 둥지 사라짐 → perch_drop(쿡 바로 다음 줄, 사이가 안 뜨는가, 8-3 확인 (3)) → 문 벌컥, 둥지가 ズッシー 머리에 16 → 8 → 0px → fly_out 첫 칸이 둥지 높이에서 몇 px 튀는가 → 까치가 둥지 위에 → 셔터 촤르르. 어림 6.7초',
+    why: '★③·박자 C: 쿡 → 혹 쑥 + 둥지 사라짐 → perch_drop(쿡 바로 다음 줄, 사이가 안 뜨는가, 8-3 확인 (3)) → 문 벌컥, 둥지가 ズッシー 머리에 16 → 8 → 0px → fly_out 첫 칸이 둥지 높이에서 몇 px 튀는가 → 까치가 둥지 위에 → clear_magpie(대사 한 줄, #802 (d)) → 셔터 촤르르. 계산 약 7.76초',
   },
 
   // 되돌림·폴백.
