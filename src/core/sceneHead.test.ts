@@ -6,10 +6,11 @@ import charactersJson from '../../content/characters.json';
 import screenJson from '../../content/screens/magpie_nest.json';
 import sheetJson from '../../public/scenes/magpie_nest-objects.json';
 import { characterDef, characterFaceBox } from './characters';
+import { placeBubble } from './bubble';
 import { CHAR_SLOTS } from './hud';
 import type { CharactersData, ScreenData } from './puzzle/types';
 import { charFacing, createScene, headAnchor, isBusy, sceneArtView, sceneTap, sceneTick, type SceneData, type SceneState } from './scene';
-import { animFrameBox, animOf, coverFrames, headPlace, litFrames, parseSceneArt, sceneDraws, type SceneArtMeta, type SceneView } from './sceneArt';
+import { animFrameBox, animOf, coverFrames, headKeepBoxes, headPlace, headPlaces, litFrames, parseSceneArt, sceneDraws, type SceneArtMeta, type SceneView } from './sceneArt';
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 const screen = screenJson as unknown as ScreenData;
@@ -106,5 +107,37 @@ describe('머리 위 anim (형식 기록 16절, 개정 12)', () => {
     const w = s.walkers.mukjik;
     const facing = charFacing(data, s, 'mukjik');
     expect(headAnchor(data, s, 'mukjik')).toEqual({ face: characterFaceBox(characterDef('mukjik'), w.x, w.y, facing), facing });
+  });
+
+  it('headPlaces: heads 순서대로 캐릭터마다 얼굴 상자 기준 자리, 칸이 없으면 뺀다', () => {
+    const faces = { mukjik: { left: 100, top: 50, width: 24, height: 24 }, ppik: { left: 200, top: 80, width: 20, height: 20 } };
+    const faceOf = (c: keyof typeof faces) => ({ face: faces[c], facing: (c === 'ppik' ? -1 : 1) as 1 | -1 });
+    const got = headPlaces(meta, [{ frame: sockFrame, char: 'mukjik' }, { frame: 999, char: 'mukjik' }, { frame: sockFrame, char: 'ppik' }], faceOf as never);
+    expect(got).toEqual([
+      { frame: sockFrame, char: 'mukjik', at: headPlace(meta, sockFrame, faces.mukjik, 1) },
+      { frame: sockFrame, char: 'ppik', at: headPlace(meta, sockFrame, faces.ppik, -1) },
+    ]);
+  });
+
+  it('headKeepBoxes (#947): 화자가 아닌 사람 머리 위 칸만 말풍선 keep 상자, 단서 무게', () => {
+    const at = { x: 104, y: 36, w: 10, h: 8, flip: false };
+    const placed = [{ frame: sockFrame, char: 'mukjik' as const, at }];
+    expect(headKeepBoxes(placed, 'ppik')).toEqual([{ left: 104, top: 36, width: 10, height: 8 }]);
+    expect(headKeepBoxes(placed, 'mukjik')).toEqual([]);
+    expect(headKeepBoxes(placed, 'magpie')).toHaveLength(1);
+    expect(headKeepBoxes(placed, 'ppik')[0]).not.toHaveProperty('toy');
+  });
+
+  it('#947 빨래방 3-2 모양: 옆에 선 동료 머리 위 칸을 말풍선이 덮지 않는다', () => {
+    // 화자 머리 위 가운데 자리가 바로 옆 동료 머리 위 칸에 걸리는 배치. keep이 없으면 덮고, 있으면 옆으로 비킨다.
+    const bounds = { left: 0, top: 0, width: 960, height: 540 };
+    const opts = { margin: 4, gap: 9, avoidGap: 4, tailInset: 14 };
+    const size = { width: 160, height: 40 };
+    const speaker = { x: 660, top: 330, bottom: 470, left: 630, right: 690 };
+    const head = { left: 600, top: 300, width: 16, height: 26 };
+    const hits = (p: { left: number; top: number }) =>
+      p.left < head.left + head.width && head.left < p.left + size.width && p.top < head.top + head.height && head.top < p.top + size.height;
+    expect(hits(placeBubble(speaker, size, bounds, opts))).toBe(true);
+    expect(hits(placeBubble(speaker, size, bounds, opts, [], [head]))).toBe(false);
   });
 });

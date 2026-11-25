@@ -26,7 +26,7 @@ import { LocalSaveStore, probeStorage } from './core/save/store';
 import type { SaveData } from './core/save/schema';
 import orderJson from '../content/screens/order.json';
 import { activeFx, activeMarkerVisible, boardDrop, charPose, headAnchor, charWalking, createScene, currentBubble, drawOrder, stepOffBubbleBox, gaugeDrop, introHoverScene, isBusy, isHanging, sceneArtView, sceneLayout, mouseHoverThroughSay, sceneTap, sceneTick, selectsDuringSay, takeHeldTap, takeWalkStart, tapContext, type SceneData, type SceneState } from './core/scene';
-import { animFrameBox, coveredIds, headPlace, litFrames, loopStarts, sceneDraws, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
+import { animFrameBox, coveredIds, headKeepBoxes, headPlaces, litFrames, loopStarts, sceneDraws, type HeadPlaced, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
 import { isTapKey } from './core/keys';
 import { createRestartButton, loadingDone, RESTART_BOX, restartArmed, restartPress } from './core/restart';
@@ -635,10 +635,14 @@ function speakerBox(target: string, layout: ReturnType<typeof sceneLayout>, fram
  * 위·아래 자리가 여기에 걸리면 `placeBubble`이 화자 옆으로 옮긴다. 서는 자리(`spots`)는 사람이 가리는 곳이라 넣지 않는다.
  * `hintAbility`가 없는 핫스팟은 장난감(#598 Luna)이라 `toy`로 표시한다. 다 막혔을 때 가장 나중에 지킨다.
  */
-function bubbleKeepBoxes(speaker: string, layout: ReturnType<typeof sceneLayout>): KeepBox[] {
+function bubbleKeepBoxes(speaker: string, layout: ReturnType<typeof sceneLayout>, heads: readonly HeadPlaced[] = []): KeepBox[] {
   const hotspots = session.data.screen.hotspots;
-  return Object.entries(layout.hotspots).filter(([id]) => id !== speaker)
-    .map(([id, box]) => (hotspots[id]?.hintAbility ? box : { ...box, toy: true }));
+  return [
+    ...Object.entries(layout.hotspots).filter(([id]) => id !== speaker)
+      .map(([id, box]) => (hotspots[id]?.hintAbility ? box : { ...box, toy: true })),
+    // 다른 사람 머리 위 칸(형식 16절, #947). 머리 위 물건은 핫스팟이 아니라 위 목록에 없다.
+    ...headKeepBoxes(heads, speaker),
+  ];
 }
 
 /** 옆 배치가 가리면 안 되는 다른 사람 몸(#356). 위·아래 자리는 예전처럼 이걸 보지 않는다. 내부 좌표. */
@@ -875,11 +879,9 @@ function render(): void {
   }
   for (const f of draws?.front ?? []) drawSceneFrame(ctx, art!, f, lit.has(f), nudged.get(f));
   // 머리 위 칸(형식 기록 16절, #901): 그 캐릭터 얼굴 상자 위 가운데 기준, 왼쪽을 보면 뒤집는다. 사람·front 위.
-  for (const h of draws?.heads ?? []) {
-    const { face, facing } = headAnchor(data, scene, h.char);
-    const at = headPlace(art!.meta, h.frame, face, facing);
-    if (at) drawHeadFrame(ctx, art!, h.frame, at);
-  }
+  // 같은 자리를 말풍선 keep 상자로도 쓴다(#947).
+  const heads = draws ? headPlaces(art!.meta, draws.heads, (id) => headAnchor(data, scene, id)) : [];
+  for (const h of heads) drawHeadFrame(ctx, art!, h.frame, h.at);
   const fxArt: NonNullable<FrameArt['fx']>[number][] = [];
   for (const f of fxNow) {
     // 물 입자 fx(`splash`·`ripple`, #485)는 물 4색 입자로. 옮기는 fx(`nod`)는 위에서 그림을 옮겼다. 둘 다 임시 별을 안 그린다.
@@ -995,7 +997,7 @@ function render(): void {
     // 비켜 서는 화자(#862)는 도착점 몸으로 자리를 한 번 정한다(#866). 걷는 동안 프레임마다 다시 고르면 휴대폰에서 튄다.
     const stepBox = stepOffBubbleBox(data, scene);
     const at = stepBox ? { ...layout, chars: { ...layout.chars, [b.speaker]: stepBox } } : layout;
-    placeBubbleDom(sayText(TEXT, b.text, b.speaker), speakerBox(b.speaker, at, frameBox), bubbleKeepBoxes(b.speaker, layout), bubbleBodyBoxes(b.speaker, layout));
+    placeBubbleDom(sayText(TEXT, b.text, b.speaker), speakerBox(b.speaker, at, frameBox), bubbleKeepBoxes(b.speaker, layout, heads), bubbleBodyBoxes(b.speaker, layout));
   }
 }
 
