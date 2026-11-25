@@ -124,9 +124,20 @@ export function nestWithKey(img, { shine = false } = {}) {
   for (const [x, y] of NEST_STRING) t.set(x, y, C.lint);
   img.blit(outlined(t), 0, 0);
   if (!shine) return;
-  const { x, y } = NEST_SPARK;
-  stamp(img, x - 3, y - 3, ['...l...', '...y...', '..yWy..', 'lyWWWyl', '..yWy..', '...y...', '...l...'], { y: C.yel, l: C.yelL, W: C.white });
+  sparkStar(img, NEST_SPARK.x, NEST_SPARK.y);
   img.set(82, 41, C.white); // 자루 빛
+}
+
+/**
+ * 반짝 별(magpie_nest `sparkle` 2번과 같은 모양: yel 팔 + white 가운데). 효과라 외곽선 없음. (cx, cy) = 가운데.
+ * size 'big' 7×7(팔 3), 'small' 3×3(white 가운데 + yelL 팔 1). 둥지 열쇠 반짝(O2)과 길바닥 열쇠 반짝(`gap.glint`)이 같이 쓴다.
+ */
+export function sparkStar(img, cx, cy, size = 'big') {
+  if (size === 'small') {
+    stamp(img, cx - 1, cy - 1, ['.l.', 'lWl', '.l.'], { l: C.yelL, W: C.white });
+    return;
+  }
+  stamp(img, cx - 3, cy - 3, ['...l...', '...y...', '..yWy..', 'lyWWWyl', '..yWy..', '...y...', '...l...'], { y: C.yel, l: C.yelL, W: C.white });
 }
 
 /**
