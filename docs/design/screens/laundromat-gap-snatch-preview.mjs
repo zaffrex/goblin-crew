@@ -11,7 +11,7 @@
 //   - reach·bite에서 머리가 보이는 픽셀 ≥ 30, 흰 눈 1px이 잘리지 않고 보인다
 //   - 보이는 픽셀이 전부 셔터 판 아래 끝(244 − gapLift)과 가게 바닥(244) 사이, `gap` 핫스팟(80,222 40×24) 안
 //   - 머리 ink와 머리 뒤 틈 너머 주색 차 ≥ 30, 광택(tealM)과도 ≥ 30
-//   - reach: 부리 끝이 열쇠 고리(107,239)에서 2px 안 / bite: 고리(lint)와 부리(ink·lav)가 맞닿음(물고 있다)
+//   - reach: 부리 끝이 열쇠 고리 구멍(106,239)에서 2px 안 / bite: 금색 고리 테(yelL·yel·yelD)와 부리(ink·lav)가 맞닿음(물고 있다)
 //   - 빠짐 칸: 보이는 픽셀이 bite의 절반 이하(판 뒤로 들어감)이고 0은 아님(패 끝이 마지막으로 보인다)
 //   - 칸 시간 합 ≤ 1500(형식 기록 8절)
 
@@ -28,14 +28,14 @@ import { washer } from '../../../art/scenes/laundromat.washer.mjs';
 import { shutter, SHUTTER, gapLift } from '../../../art/scenes/laundromat.shutter.mjs';
 import { dryer } from '../../../art/scenes/laundromat.dryer.mjs';
 import { vending } from '../../../art/scenes/laundromat.vending.mjs';
-import { nestEmpty, keyTag, KEY_ON_STREET, GAP_SNATCH, gapHead, GAP_HEAD_WITHDRAW } from '../../../art/scenes/laundromat.objects.mjs';
+import { nestEmpty, keyTag, KEY_ON_STREET, KEY_RING_HOLE, GAP_SNATCH, gapHead, GAP_HEAD_WITHDRAW, KEY_BITE_LIFT } from '../../../art/scenes/laundromat.objects.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '../../..');
 const SCREEN = JSON.parse(readFileSync(join(ROOT, 'content/screens/laundromat.json'), 'utf8'));
 const Y = PALETTE.map(([r, g, b]) => Math.round(0.299 * r + 0.587 * g + 0.114 * b));
 const BOTTOM = SHUTTER.y + SHUTTER.h;
-const RING = [107, 239]; // 열쇠 고리(KEY_ROWS 4번째 줄 l) 길바닥 자리
+const RING = [KEY_ON_STREET.x + KEY_RING_HOLE.x, KEY_ON_STREET.y + KEY_RING_HOLE.y]; // 열쇠 고리 구멍(2×2 왼쪽 위) 길바닥 자리
 
 /** 방 + 세탁기 줄 + 잠긴 셔터 + 건조기 + 자판기 + 빈 둥지(배경 시안과 같은 구도). 까치는 `fly_out` 뒤라 없다 */
 function base() {
@@ -90,9 +90,13 @@ for (const pose of ['reach', 'bite']) {
   const d = Math.max(Math.abs(tip[0] - RING[0]), Math.abs(tip[1] - RING[1]));
   check(d <= 2, `reach: 부리 끝 ${tip[0]},${tip[1]}가 고리 ${RING.join(',')}에서 ${d}px ≤ 2`);
   const bite = headOnly.bite;
-  const ring = pixels(bite).filter(([, , c]) => c === C.lint);
-  const touch = ring.some(([x, y]) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => [C.ink, C.lav].includes(bite.get(x + a, y + b))));
-  check(ring.length > 0 && touch, `bite: 고리(lint ${ring.length}px)가 부리에 맞닿음(물고 있다)`);
+  // 고리 = 구멍(들어 올린 자리) 둘레 8×8 안의 금색. 부리 ink·lav와 위아래좌우로 닿아야 "물고 있다"
+  const hx = RING[0], hy = RING[1] - KEY_BITE_LIFT;
+  const gold = [C.yelL, C.yel, C.yelD];
+  const ring = pixels(bite).filter(([x, y, c]) => gold.includes(c) && x >= hx - 3 && x <= hx + 4 && y >= hy - 3 && y <= hy + 4);
+  const head = layer((t) => gapHead(t, 'bite', { key: false }));
+  const touch = ring.some(([x, y]) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => [C.ink, C.lav].includes(head.get(x + a, y + b))));
+  check(ring.length > 0 && touch, `bite: 금색 고리 테(${ring.length}px 보임)가 부리에 맞닿음(물고 있다)`);
 }
 {
   const nb = pixels(headOnly.bite).length, no = pixels(headOnly.out).length;

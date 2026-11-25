@@ -2,7 +2,7 @@
 schema: 1
 id: ecfe391e-bd1e-4877-8099-09031f6e1409
 title: 빨래방 덕트 가로 구간은 천장 밑이 아니라 위쪽 벽 y 52~63으로 바깥 후드와 높이를 맞추고, 들창 틀은 58,22 56×52로 한다
-status: accepted
+status: superseded
 accepted_via: pr-merge
 decided_at: 2026-11-24
 owner: "@zaffrex"
