@@ -215,13 +215,12 @@
         { "anim": ["duct", "lump_pop"] },
         { "anim": ["dryer_3", "door_bang"] },
         { "anim": ["dryer_3", "nest_hat"] },
-        { "say": ["mukjik", "laundromat.clear_nest"] },
         { "anim": ["magpie", "fly_out"] },
         { "anim": ["magpie", "hat_perch"] },
         { "say": ["ppik", "laundromat.clear_magpie"] },
         { "anim": ["shutter", "roll_up"] }
       ],
-      "note": "6 ★③ → 클리어(8-2). 둥지는 자기 anim nest_sucked(0.12초, 후드 속으로 쏙)가 시작할 때, 까치는 perch_drop(메타 hold, 0.16초)이 시작할 때 key.back 그림으로 바뀐다. nest_sucked는 장대 닿는 칸 신호로 겹쳐 시작하고, perch_drop은 같은 물건 anim이라 그 끝 틱에 이어 시작한다(#955). 그래서 까치가 빈 자리 위에 뜨지 않는다(형식 4-2 (a), PR #937). perch_drop이 까치를 맨 후드에 붙든다(4절 표 6). lump_pop(O6 재사용) → door_bang(O5 재사용) → nest_hat(anchor ズッシー, 16 → 8 → 0px) → fly_out(hold) → hat_perch(anchor, 까치가 둥지 모자 위) → roll_up 시작 때 셔터가 올라감. 어림 6.7초(ADR-0761 8초 안)"
+      "note": "6 ★③ → 클리어(8-2). 둥지는 자기 anim nest_sucked(0.12초, 후드 속으로 쏙)가 시작할 때, 까치는 perch_drop(메타 hold, 0.16초)이 시작할 때 key.back 그림으로 바뀐다. nest_sucked는 장대 닿는 칸 신호로 겹쳐 시작하고, perch_drop은 같은 물건 anim이라 그 끝 틱에 이어 시작한다(#955). 그래서 까치가 빈 자리 위에 뜨지 않는다(형식 4-2 (a), PR #937). perch_drop이 까치를 맨 후드에 붙든다(4절 표 6). lump_pop(O6 재사용) → door_bang(O5 재사용) → nest_hat(anchor ズッシー, 16 → 8 → 0px) → fly_out(hold) → hat_perch(anchor, 까치가 둥지 모자 위) → roll_up 시작 때 셔터가 올라감. 대사는 까치가 앉은 뒤 clear_magpie 한 줄(#802 (d), clear_nest 뺌). 계산 약 7.76초(ADR-0761 8초 안, Theo replay로 확인)"
     },
     {
       "id": "duct_poke_warm",

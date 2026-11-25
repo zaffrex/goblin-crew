@@ -80,11 +80,11 @@ describe('laundromat 클리어 길이 (H6, 그림이 늘리지 않음)', () => {
 // 엔진과 같은 재료를 쓴다: 물건 시트 메타, 캐릭터 시트 메타(`public/sprites/*-base.json`), 글 파일(말풍선 길이 = 글자 수).
 // 시트 알파는 안 넣는다(누를 대상 고르기에만 쓰여 길이와 상관없음).
 //
-// 지금은 8초를 넘는다. 그래서 상한은 지금 잰 길이(`KNOWN_OVER_TICKS`)이고, 글·그림·엔진이 클리어를 더 늘리면 막는다.
-// Kai (d) PR이 8초 안으로 줄이면 아래 두 번째 검사가 실패한다. 그때 `KNOWN_OVER_TICKS`를 null로 바꾸면 H6 480틱으로 잠긴다.
+// 8초를 넘던 동안은 상한이 그때 잰 길이(`KNOWN_OVER_TICKS`)였다. #802 (d)로 8초 안에 들어와 null이고, 이제 H6 480틱으로 잠겨 있다.
+// 다시 숫자로 되돌리지 않는다. 클리어에 박자를 더하려면 다른 박자를 뺀다(설계 laundromat.md 8-2).
 const H6_TICKS = Math.round(8000 / TICK_MS);
-/** 11/26 main(`120b465`, #963 뒤) 10.77초. 8초 안에 들어오면 null로 바꾼다. */
-const KNOWN_OVER_TICKS: number | null = 646;
+/** 11/26 main(`120b465`, #963 뒤) 10.77초(646틱)였다. #802 (d)(PR #966)로 7.77초(466틱)가 되어 null, H6 480틱으로 잠근다. */
+const KNOWN_OVER_TICKS: number | null = null;
 
 const characters = JSON.parse(readFileSync(join(ROOT, 'content', 'characters.json'), 'utf8')) as CharactersData;
 const texts = Object.fromEntries(
