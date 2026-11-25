@@ -2,7 +2,8 @@
 // 시트(`public/scenes/laundromat-objects.json`)가 생기는 그림 PR 뒤 바로 찍으려고 먼저 둔다. 행동·대사는 `cases.test.ts`가 지금 JSON으로 본다.
 // 사례 ID 앞머리: `clue-sN-`(7절 단서 사슬 표 S0~S6 줄), `aha-sN-`(그 단계 정답 결과, 8절 박자·8-3 replay 확인), `fail-`(다치는 실패),
 // `decoy-`(미끼, ADR-0761 H4), `toy-`(폴백·되돌림). 길 이름 3-1·3-2·1-2·2-1·2-2는 설계 4절 규칙 번호다.
-// `idle`(대기 loop) 사례는 시트 PR에서 더한다. `cases.test.ts` idle 검사가 시트의 loop 칸 시간을 읽기 때문이다.
+// `idle`(대기 loop)은 시트 1/2(#937)의 `magpie` loop(2500·150·300ms)로 잰다. loop 시계는 진입 `magpie.tilt`(0.9초)가 끝난 뒤 다시 돌아서,
+// 로컬 캡처(2026-11-25)에서 첫 loop 움직임은 카드 닫고 4350~4800ms였다(`cases.test.ts` 어림 2500~2650 + 여유 1000보다 늦다). 그래서 창을 6000ms로 둔다.
 import type { Action } from '../../../src/core/puzzle/types.ts';
 import type { FrameCase } from './types.ts';
 
@@ -13,6 +14,7 @@ const POKE_DUCT: Action = { char: 'jjuk', verb: 'stretch', target: 'duct' };
 const CASES: FrameCase[] = [
   // S0 목표 + 진입 연출(설계 12절 끝): 셔터 ガタン → 틈 너머 열쇠 패 반짝 → 까치 갸웃 → プピ `enter`.
   { id: 'enter', why: 'S0 ③: 셔터 ガタン → 틈 너머 길바닥 열쇠(O1, #929 다시 그림) 반짝 → 창 너머 까치 갸웃 → プピ enter. 목표(열쇠)와 도둑(까치)이 첫 3초에 같이 보이는가' },
+  { id: 'idle', why: 'S0·H7 대기: 창 너머 까치가 가끔 갸웃(멈춘 모습 loop, 새 칸 0). 진입 갸웃 뒤 loop 갸웃이 한 번 더 찍히는가, 다른 물건은 가만히 있는가', minMs: 6000, every: 150 },
 
   // S1 직접은 안 된다.
   { id: 'clue-s1-poke', action: { char: 'jjuk', verb: 'stretch', target: 'gap' }, says: 'laundromat.gap_poke', why: 'T2·S1 ①: 집게가 틈에 들어가 열쇠를 밀어냄 → 셔터 끝에 걸려 끙 → 엉덩방아, 열쇠는 제자리로. "안에서는 밀 수만 있다"가 읽히는가' },
