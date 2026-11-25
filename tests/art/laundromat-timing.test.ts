@@ -14,7 +14,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { TICK_MS } from '../../src/core/config';
 import { fxTicks } from '../../src/core/fx';
+import { CHARACTERS } from '../../src/core/characters';
+import type { Action, CharactersData, ScreenData } from '../../src/core/puzzle/types';
+import { createScene, isBusy, sceneLayout, sceneTap, sceneTick, type SceneData, type SceneState } from '../../src/core/scene';
 import { parseSceneArt } from '../../src/core/sceneArt';
+import { parseSpriteMeta } from '../../src/core/sprite';
+import { CASES_BY_SCREEN } from '../../scripts/playtest/cases/index';
+import { planAction, type Input } from '../../scripts/playtest/plan';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const sheet = parseSceneArt(JSON.parse(readFileSync(join(ROOT, 'public', 'scenes', 'laundromat-objects.json'), 'utf8')));
@@ -67,5 +73,74 @@ const ENGINE_FALLBACK_MS = 500;
 describe('laundromat 클리어 길이 (H6, 그림이 늘리지 않음)', () => {
   it.skipIf(!has('shutter.roll_up'))(`클리어 마지막 박자 셔터 올라감 ≤ 엔진 폴백 ${ENGINE_FALLBACK_MS}ms`, () => {
     expect(totalMs('shutter.roll_up')).toBeLessThanOrEqual(ENGINE_FALLBACK_MS);
+  });
+});
+
+// ADR-0761 H6 전체 길이: 마지막 탭 → 대기열이 빔(클리어 카드). `aha-s6-clear` 사례를 실제 scene.ts에 넣고 틱으로 잰다(#802 (d)).
+// 엔진과 같은 재료를 쓴다: 물건 시트 메타, 캐릭터 시트 메타(`public/sprites/*-base.json`), 글 파일(말풍선 길이 = 글자 수).
+// 시트 알파는 안 넣는다(누를 대상 고르기에만 쓰여 길이와 상관없음).
+//
+// 지금은 8초를 넘는다. 그래서 상한은 지금 잰 길이(`KNOWN_OVER_TICKS`)이고, 글·그림·엔진이 클리어를 더 늘리면 막는다.
+// Kai (d) PR이 8초 안으로 줄이면 아래 두 번째 검사가 실패한다. 그때 `KNOWN_OVER_TICKS`를 null로 바꾸면 H6 480틱으로 잠긴다.
+const H6_TICKS = Math.round(8000 / TICK_MS);
+/** 11/26 main(`120b465`, #963 뒤) 10.77초. 8초 안에 들어오면 null로 바꾼다. */
+const KNOWN_OVER_TICKS: number | null = 646;
+
+const characters = JSON.parse(readFileSync(join(ROOT, 'content', 'characters.json'), 'utf8')) as CharactersData;
+const texts = Object.fromEntries(
+  Object.entries(JSON.parse(readFileSync(join(ROOT, 'content', 'text', 'ja.json'), 'utf8')) as Record<string, unknown>).filter(
+    (e): e is [string, string] => typeof e[1] === 'string',
+  ),
+);
+const sprites = Object.fromEntries(
+  CHARACTERS.map((c) => [c.id, parseSpriteMeta(JSON.parse(readFileSync(join(ROOT, 'public', 'sprites', `${c.id}-base.json`), 'utf8')))]),
+);
+const sceneData: SceneData = {
+  screen: JSON.parse(readFileSync(join(ROOT, 'content', 'screens', 'laundromat.json'), 'utf8')) as ScreenData,
+  characters,
+  art: sheet,
+  sprites,
+  texts,
+};
+
+/** 행동 하나를 실제 탭으로 누르고, 마지막 탭부터 연출이 끝날 때까지 틱 수. */
+function tapAndWait(s: SceneState, a: Action, input: Input): number {
+  const plan = planAction(sceneData.screen, sceneLayout(sceneData, s), a, input, {});
+  expect(plan.warnings).toEqual([]);
+  let ticks = 0;
+  for (const t of plan.taps) {
+    expect(sceneTap(sceneData, s, t.at, input === 'touch' ? 8 : 0, input === 'touch').kind).toBe('intent');
+    ticks = 0;
+    while (isBusy(s) && ticks < 20_000) {
+      sceneTick(sceneData, s);
+      ticks++;
+    }
+  }
+  return ticks;
+}
+
+function clearTicks(input: Input): number {
+  const c = CASES_BY_SCREEN.laundromat!.find((x) => x.id === 'aha-s6-clear')!;
+  const s = createScene(sceneData);
+  while (isBusy(s)) sceneTick(sceneData, s);
+  for (const a of c.pre ?? []) tapAndWait(s, a, input);
+  const ticks = tapAndWait(s, c.action!, input);
+  expect(s.cleared, '사례가 클리어까지 안 감').toBe(true);
+  return ticks;
+}
+
+const secs = (t: number): string => `${((t * TICK_MS) / 1000).toFixed(2)}초(${t}틱)`;
+
+describe('laundromat 클리어 전체 길이 (H6, 마지막 탭 → 카드)', () => {
+  for (const input of ['mouse', 'touch'] as const) {
+    it(`${input}: 지금 길이보다 길어지지 않는다 (8초 안이면 H6 ${H6_TICKS}틱)`, () => {
+      const t = clearTicks(input);
+      expect(t, `클리어 ${secs(t)}`).toBeLessThanOrEqual(KNOWN_OVER_TICKS ?? H6_TICKS);
+    });
+  }
+
+  it.skipIf(KNOWN_OVER_TICKS === null)('8초 안에 들어왔으면 KNOWN_OVER_TICKS를 null로 바꿔 H6로 잠근다', () => {
+    const t = clearTicks('mouse');
+    expect(t, `클리어 ${secs(t)}로 8초 안이에요. 이 파일 KNOWN_OVER_TICKS를 null로 바꿔 주세요(#802 (d))`).toBeGreaterThan(H6_TICKS);
   });
 });
