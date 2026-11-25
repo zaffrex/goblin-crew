@@ -3,7 +3,7 @@
 // 만질 수 있는 것이라 바깥 1px ink 외곽선(ADR-0007 결정 3-1). 광원은 배경과 같은 왼쪽 위. 금색(yel 계열)은 열쇠 전용(magpie_nest와 같은 약속).
 //
 // 지금 있는 것:
-//   O1 열쇠 + 나무 패(1칸): 길바닥·둥지·혹 속에서 같은 그림. 패가 넓어서 덕트 아래 끝에 걸린다(S5). 패가 열쇠보다 크고 밝게.
+//   O1 열쇠 + 나무 패(1칸): 길바닥·둥지·혹 속에서 같은 물건. 패가 넓어서 덕트 아래 끝에 걸린다(S5). 길바닥에서는 금색 열쇠가 패보다 넓게(블라인드 11/25).
 //   O2 후드 위 빈 둥지(1칸) + 열쇠 든 둥지·반짝(2칸, `NEST_KEY`: 대기 반복, `magpie.key_in`·`key_out`).
 //   O3 틈 속 까치 머리·부리(2칸, `gap.snatch`) + 앉은 까치·내려다보기(1칸, `MAGPIE_SIT`: 대기 반복은 magpie_nest 포즈 재사용, `magpie.peek`).
 //   O6 덕트 혹(3칸, `DUCT_LUMP`: 가로 1 + 세로 걸림·끙끙 2. lump_travel·stuck·lump_back·lump_pop).
@@ -17,27 +17,38 @@ import { SHUTTER, gapLift } from './laundromat.shutter.mjs';
 import { MAGPIE, MAGPIE_LEGEND } from './magpie_nest.objects.mjs';
 
 /** 열쇠 + 나무 패 크기(외곽선 포함). (x, y) = 왼쪽 위 */
-export const KEY_TAG = { w: 19, h: 8 };
-/** 길바닥 열쇠 자리(셔터 찌그러진 틈 밑, laundromat.shutter.mjs DENT). 아래 끝 y 243 = 가장 가까운 판석 줄 */
-export const KEY_ON_STREET = { x: 97, y: 236 };
+export const KEY_TAG = { w: 30, h: 8 };
+/**
+ * 길바닥 열쇠 자리(셔터 찌그러진 틈 밑, laundromat.shutter.mjs DENT). 아래 끝 y 243 = 가장 가까운 판석 줄.
+ * 고리(구멍 2×2)가 틈 꼭짓점 바로 왼쪽 아래에 와서, 까치 부리 끝(reach 106,239)이 고리 구멍을 겨눈다.
+ */
+export const KEY_ON_STREET = { x: 90, y: 236 };
+/** 나무 패 몸(외곽선 안) — KEY_ON_STREET 기준 상대 자리. 색 검사용 */
+export const KEY_PLATE = { x: 2, y: 3, w: 7, h: 4 };
+/** 고리 구멍 왼쪽 위 — KEY_ON_STREET 기준 상대 자리(2×2). 부리 검사용 */
+export const KEY_RING_HOLE = { x: 16, y: 3 };
 
-// 패: 나무(woodL, 위 tan 빛, 오른쪽·아래 wood 그늘) 9×6 + 끈 구멍 + 새긴 홈 한 줄(글자 없음).
-// 고리: 쇠 링(lint). 열쇠: 금색 머리(동그라미, 구멍) + 몸 + 이 두 개. 누워 있어 오른쪽을 본다.
+// 블라인드(#764 9-3, 11/25)에서 "갈색 상자 + 노란 병아리"로 읽혀 다시 그렸다. 전에는 누운 열쇠가 6×4 노란 덩어리로 뭉치고
+// 고리 구멍 ink 1px이 눈처럼 찍혔고, 패(10×8)가 열쇠보다 커서 눈이 패로 먼저 갔다.
+// 지금: 왼쪽부터 나무 패(9×6, 둥지 속 패 O2와 같은 크기) → 끈(redD 3px, 길바닥 빛 띠 lint·lav 위라 lint 끈은 안 보였다) → 둥근 금색 고리(8×8, 가운데 구멍 2×2는 비워 길바닥이 비친다)
+//   → 긴 몸(8px) → 위로 솟은 이 두 개(높이 2·1). 금색이 갈색보다 넓다(금 52 : 나무 28, 검사 있음).
+// 패: tan 윗면·woodL 몸·wood 그늘, 새긴 홈 한 줄(글자 없음). 광원 왼쪽 위(고리 왼쪽 위 white 1px).
+// 틈 삼각형 안에 들어가게 높은 것(고리·이)은 꼭짓점(x 111~112) 가까이, 낮은 것(패 6px)은 틈이 얕은 왼쪽에 둔다.
 const KEY_ROWS = [
-  '.kkkkkkkk..........',
-  'kTTTTTTLwk..kkkk...',
-  'kTLLLLLLwkk.kYYyk..',
-  'kTLkLLLLwklkYk.ykkkk',
-  'kTLLwwwLwkkkYk.yyyyk',
-  'kLLLLLLLwk..kyyykyk.',
-  '.kwwwwwwk....kkk.k..',
-  '..kkkkkk............',
+  '.' + '.........' + '...' + '..kkkk..' + '.kkkk....',
+  '.' + '.........' + '...' + '.kWYYyk.' + '.kYykkkk.',
+  '.' + '.kkkkkkk.' + '...' + 'kYYyyyyk' + 'kkYykYyk.',
+  '.' + 'kTTTTTLwk' + '.rr' + 'kYy..yyy' + 'YYYYyyyyk',
+  '.' + 'kTLLLLLwk' + 'r..' + 'kyy..yyy' + 'yyyyyyyyk',
+  '.' + 'kTLwwwLwk' + '...' + 'kyyyyyok' + 'kkkkkkkk.',
+  '.' + 'kLLLLLwwk' + '...' + '.kyyyok.' + '.........',
+  '.' + '.kkkkkkk.' + '...' + '..kkkk..' + '.........',
 ];
-const KEY_LEGEND = { k: C.ink, T: C.tan, L: C.woodL, w: C.wood, l: C.lint, Y: C.yelL, y: C.yel };
+const KEY_LEGEND = { k: C.ink, T: C.tan, L: C.woodL, w: C.wood, r: C.redD, W: C.white, Y: C.yelL, y: C.yel, o: C.yelD };
 
 /** O1 열쇠 + 나무 패를 (x, y)에 그린다(외곽선은 격자에 들어 있다). */
 export function keyTag(img, x, y) {
-  const t = new Image(KEY_TAG.w + 1, KEY_TAG.h);
+  const t = new Image(KEY_TAG.w, KEY_TAG.h);
   stamp(t, 0, 0, KEY_ROWS, KEY_LEGEND);
   img.blit(t, x, y);
 }
@@ -135,7 +146,7 @@ export const NEST_KEY = {
 // 까치 몸(창 안 날기)은 벽 뒤라 안 그린다(설계 E3, Luna ②안). "누가 가져갔나"는 이 머리 하나가 말한다(S4, 빼면 안 되는 칸).
 // 머리는 magpie_nest 까치와 같은 흑백 + 청록 광택(정수리 tealM/teal), 흰 눈 1px. 부리는 ink + lav 빛줄(같은 약속).
 //   머리 오른쪽 뒤로 어깨 흰 깃(white)이 조금 보인다. 검은 머리 하나로는 "까만 덩어리"라서 흑백이 붙어야 까치로 읽힌다.
-//   reach: 꼭짓점에서 머리가 쑥 내려와 부리를 벌리고 열쇠 고리(107,239)를 겨눈다. 눈은 동그랗게(흰 눈).
+//   reach: 꼭짓점에서 머리가 쑥 내려와 부리를 벌리고 열쇠 고리 구멍(106,239)을 겨눈다. 눈은 동그랗게(흰 눈).
 //   bite : 부리를 다물어 고리를 물고 열쇠를 1px 들어 올린다. 눈꺼풀 반 감김(dusk, magpie_nest `smug`와 같은 뻔뻔한 눈).
 // 빠지는 칸은 bite를 오른쪽 위로 옮겨 찍는다(0칸, 판에 거의 다 가려지고 패 끝만 보인다). 그다음 빈 틈.
 // 바깥 외곽선은 안 붙인다: 머리가 ink라 외곽선이 틈 가장자리에 검은 테로 남는다. 틈 너머 길바닥(purD Y69·dusk Y87)과 ink(Y25) 차 44 이상.
@@ -168,7 +179,7 @@ const GAP_HEAD_ROWS = {
   ],
 };
 const GAP_HEAD_LEGEND = { k: C.ink, T: C.teal, m: C.tealM, e: C.white, g: C.dusk, b: C.lav, w: C.white };
-/** bite 때 열쇠가 들리는 양: 고리(107,239)가 부리 끝(108,238) 바로 왼쪽에 온다 */
+/** bite 때 열쇠가 들리는 양: 고리 구멍(106,238)이 부리 끝(108,238) 바로 왼쪽에 와서 부리가 고리 오른쪽 테를 문다 */
 export const KEY_BITE_LIFT = 1;
 /** 빠지는 칸: bite를 옮겨 찍는 양(0칸) */
 export const GAP_HEAD_WITHDRAW = { dx: 3, dy: -7 };

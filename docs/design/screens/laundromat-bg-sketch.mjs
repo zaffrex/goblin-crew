@@ -32,7 +32,7 @@ import { stamp, outlined } from '../../../art/lib/texture.mjs';
 import { room, W, H, FLOOR_Y, WAINSCOT_Y, CEIL_Y, KEY_HOOK, CLOCK, DUCT, TRANSOM, HOOD } from '../../../art/scenes/laundromat.room.mjs';
 import { washer, WASHER_H } from '../../../art/scenes/laundromat.washer.mjs';
 import { shutter, SHUTTER, gapLift } from '../../../art/scenes/laundromat.shutter.mjs';
-import { keyTag, KEY_TAG, KEY_ON_STREET, nestEmpty, NEST } from '../../../art/scenes/laundromat.objects.mjs';
+import { keyTag, KEY_TAG, KEY_ON_STREET, KEY_PLATE, KEY_RING_HOLE, nestEmpty, NEST } from '../../../art/scenes/laundromat.objects.mjs';
 import { MAGPIE, MAGPIE_LEGEND } from '../../../art/scenes/magpie_nest.objects.mjs';
 import { dryer } from '../../../art/scenes/laundromat.dryer.mjs';
 import { vending, VEND_BOX } from '../../../art/scenes/laundromat.vending.mjs';
@@ -139,10 +139,17 @@ check(dY(outside, nestMain) >= 30, `들창 바깥 ${name(outside)} vs 둥지 ${n
   check(maxGap === 14, `가장 큰 틈 ${maxGap}px = 14 (laundromat.md 2-1)`);
   const { x: kx, y: ky } = KEY_ON_STREET, { w: kw, h: kh } = KEY_TAG;
   const keyImg = new Image(W, H); keyTag(keyImg, kx, ky);
-  let drawn = 0, under = 0; for (let px = kx; px < kx + kw + 1; px++) for (let py = ky; py < ky + kh; py++) if (keyImg.get(px, py) !== EMPTY) { drawn++; if (py < bottom - gapLift(px)) under++; }
+  let drawn = 0, under = 0; for (let px = kx; px < kx + kw; px++) for (let py = ky; py < ky + kh; py++) if (keyImg.get(px, py) !== EMPTY) { drawn++; if (py < bottom - gapLift(px)) under++; }
   check(under === 0, `열쇠 ${drawn}칸 중 셔터 판 아래 끝보다 위(판 앞에 겹침) ${under}칸 = 0`);
   const street = main(shutterOnly, kx, bottom - 3, kw, 3);
-  const tagMain = main(keyImg, kx + 1, ky + 1, 8, 5), keyMain = C.yel;
+  const tagMain = main(keyImg, kx + KEY_PLATE.x, ky + KEY_PLATE.y, KEY_PLATE.w, KEY_PLATE.h), keyMain = C.yel;
+  // 블라인드 11/25 "갈색 상자 + 노란 병아리": 금색이 패보다 넓어야 열쇠가 먼저 보이고, 고리 구멍이 1px이면 눈으로 읽힌다
+  let gold = 0, wood = 0; for (let px = kx; px < kx + kw; px++) for (let py = ky; py < ky + kh; py++) { const c = keyImg.get(px, py); if ([C.yelL, C.yel, C.yelD, C.white].includes(c)) gold++; if ([C.tan, C.woodL, C.wood].includes(c)) wood++; }
+  check(gold >= wood, `길바닥 열쇠 금색 ${gold}px ≥ 나무 패 ${wood}px`);
+  const hx = kx + KEY_RING_HOLE.x, hy = ky + KEY_RING_HOLE.y;
+  const hole = [[0, 0], [1, 0], [0, 1], [1, 1]].every(([a, b]) => keyImg.get(hx + a, hy + b) === EMPTY);
+  const rim = [[-1, 0], [-1, 1], [2, 0], [2, 1], [0, -1], [1, -1], [0, 2], [1, 2]].every(([a, b]) => [C.yelL, C.yel, C.yelD].includes(keyImg.get(hx + a, hy + b)));
+  check(hole && rim, `고리 구멍 ${hx},${hy} 2×2가 비어 있고(길바닥이 비침) 둘레 8px이 금색`);
   check(dY(tagMain, street) >= 30, `나무 패 ${name(tagMain)} vs 길바닥 ${name(street)} 차 ${dY(tagMain, street)} ≥ 30`);
   check(dY(keyMain, street) >= 30, `열쇠 ${name(keyMain)} vs 길바닥 ${name(street)} 차 ${dY(keyMain, street)} ≥ 30`);
   const [gx, gy, gw, gh] = GAP_BOX;
