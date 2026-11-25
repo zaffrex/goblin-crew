@@ -81,6 +81,13 @@ describe('frames.ts 사례 (#466 2부)', () => {
       expect(ids.some((id) => id.startsWith(p)), p).toBe(true);
     }
   });
+
+  it('laundromat: 7절 단서 사슬 S0~S6 줄과 8-3 replay 확인 세 길(3-2 suck·1-2 reverse_key·클리어)이 다 있다', () => {
+    const ids = CASES_BY_SCREEN.laundromat!.map((c) => c.id);
+    for (const p of ['enter', 'clue-s1', 'aha-s2', 'clue-s3', 'clue-s4', 'aha-s4-suck', 'aha-s4-steal', 'aha-s5-reverse-key', 'aha-s6-clear']) {
+      expect(ids.some((id) => id.startsWith(p)), p).toBe(true);
+    }
+  });
 });
 
 describe('idle 사례가 대기 loop의 첫 움직임을 찍는다 (#477)', () => {
