@@ -4,7 +4,7 @@
 // 상태 그래프가 필요한 검사(정답 도달, S3, 필수 능력, 정원 초과 경로)는 bfs.ts(#67) 몫이다.
 
 import { CHARACTERS } from '../characters';
-import { WALK_AREA } from '../config';
+import { WALK_AREA, walkAreaOf } from '../config';
 import {
   FLOOR,
   STAY,
@@ -85,7 +85,9 @@ const SCREEN_KEYS = fieldsOf<ScreenData>({
   rules: true,
   fallbacks: true,
   solution: true,
+  walkArea: true,
 });
+const WALK_AREA_KEYS = fieldsOf<NonNullable<ScreenData['walkArea']>>({ left: true, top: true, right: true, bottom: true });
 const START_KEYS = fieldsOf<ScreenData['start']>({ at: true, items: true });
 const SPOT_KEYS = fieldsOf<SpotDef>({
   x: true,
@@ -429,13 +431,35 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
     if (rectHas(GOAL_BOX, x, y)) c.warn(path, 'goal-overlap', '목표 줄 자리 안이다(ui-interaction.md 6-2-2절)');
     return true;
   };
+  // --- 걷기 영역(#938): 적은 키는 정수, 공통 `WALK_AREA` 안으로 줄이기만, left < right·top < bottom. 틀리면 공통 값으로 본다. ---
+  let area: { left: number; top: number; right: number; bottom: number } = WALK_AREA;
+  if (raw.walkArea !== undefined && c.obj(raw.walkArea, 'walkArea', WALK_AREA_KEYS)) {
+    const wa = raw.walkArea as Obj;
+    let ok = true;
+    for (const k of WALK_AREA_KEYS) {
+      const v = wa[k];
+      if (v === undefined) continue;
+      const min = k === 'left' || k === 'right' ? WALK_AREA.left : WALK_AREA.top;
+      const max = k === 'left' || k === 'right' ? WALK_AREA.right : WALK_AREA.bottom;
+      if (!isInt(v) || v < min || v > max) {
+        c.err(`walkArea.${k}`, 'walk-area', `walkArea.${k}는 공통 걷기 영역 안 정수(${min}~${max})`);
+        ok = false;
+      }
+    }
+    const merged = walkAreaOf({ walkArea: wa as NonNullable<ScreenData['walkArea']> });
+    if (ok && (merged.left >= merged.right || merged.top >= merged.bottom)) {
+      c.err('walkArea', 'walk-area', `walkArea가 비었다(x ${merged.left}~${merged.right}, y ${merged.top}~${merged.bottom})`);
+      ok = false;
+    }
+    if (ok) area = merged;
+  }
+  const inArea = (x: number, y: number): boolean => x >= area.left && x <= area.right && y >= area.top && y <= area.bottom;
+  const areaText = (): string => `x ${area.left}~${area.right}, y ${area.top}~${area.bottom}`;
   /** 바닥에 설 점 [x, y](releasePoint, board): 모양, 화면 안, 걷기 영역 안. 영역 밖이면 `areaCode` 오류. */
   const floorPoint = (v: unknown, path: string, key: string, areaCode: string): void => {
     if (!(Array.isArray(v) && v.length === 2 && v.every(isNum))) return c.err(path, 'schema', `${key}는 [x, y]`);
     const [x, y] = v as [number, number];
-    if (point(x, y, path) && (x < WALK_AREA.left || x > WALK_AREA.right || y < WALK_AREA.top || y > WALK_AREA.bottom)) {
-      c.err(path, areaCode, `${key} (${x}, ${y})가 걷기 영역 밖이다(x ${WALK_AREA.left}~${WALK_AREA.right}, y ${WALK_AREA.top}~${WALK_AREA.bottom})`);
-    }
+    if (point(x, y, path) && !inArea(x, y)) c.err(path, areaCode, `${key} (${x}, ${y})가 걷기 영역 밖이다(${areaText()})`);
   };
   /** 걸어갈 자리: 있는 자리거나 `stay`. `hold` 자리는 걸어서 못 가니(`goTo` invalid) `step`이 예외를 던진다. */
   const approachDest = (v: unknown, path: string): void => {

@@ -160,6 +160,11 @@ export interface ScreenData {
   rules: RuleDef[];
   fallbacks?: Record<string, Partial<Record<Verb, HotspotFallbackDef>>>;
   solution?: Action[];
+  /**
+   * 이 화면 걷기 영역(#938). 적은 키만 공통 `WALK_AREA`(`core/config.ts`)를 덮는다. 공통 영역 안으로 줄이기만 한다.
+   * 그림 바닥이 공통 위 끝(y 200)보다 낮은 화면(빨래방 바닥 y 236~)에서 벽 띠에 서지 않게 한다.
+   */
+  walkArea?: { left?: number; top?: number; right?: number; bottom?: number };
   note?: string;
 }
 

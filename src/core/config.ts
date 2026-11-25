@@ -15,6 +15,26 @@ export const MAX_STEPS_PER_FRAME = 15;
 // 퍼즐 게임은 이동이 길면 지루하므로 #7 이후 실제 걷기 프레임에 맞춰 다시 정한다.
 export const WALK_SPEED = 1.5;
 
-// 임시 바닥 영역 (#35). M1에서는 화면 데이터(퍼즐 데이터 모델)로 옮긴다.
+// 공통 바닥 영역 (#35). 화면 JSON `walkArea`가 없으면 이 값이고, 있으면 이 안으로 줄인다(`walkAreaOf`, #938).
 // 아래끝 252: 맨 아래 게이지 띠(y 256–269, #312 설계 6-3-5절) 위로 발을 올린다. 그림 아래끝과 띠 사이 잔디 3px.
 export const WALK_AREA = { left: 16, top: 200, right: 463, bottom: 252 } as const;
+
+/**
+ * 높은 대상/바닥 대상 기준선(y). 상자 아래 끝이 이 선 위(≤)면 높은 대상이다(`approachPoint` `high`, 비켜 서기 낮은 대상, 배치 검사).
+ * 화면별 `walkArea.top`을 따라가지 않는다(#938): 빨래방(top 236)에서 따라가면 아래 끝이 236인 `dryer_3`·`soap_vending`이
+ * 높은 대상이 되어 설 곳(옆 → 가운데)과 덕트 뒤 비켜 서기(설계 laundromat.md 2-2 E7)가 바뀐다.
+ */
+export const HIGH_TARGET_LINE = WALK_AREA.top;
+
+/** 화면 JSON `walkArea`(일부 키만 적어도 된다). 공통 `WALK_AREA` 안으로만 줄일 수 있다(검사 `walk-area`). */
+export interface WalkAreaOverride {
+  left?: number;
+  top?: number;
+  right?: number;
+  bottom?: number;
+}
+
+/** 이 화면의 걷기 영역(#938). 화면 JSON `walkArea` 키를 공통 `WALK_AREA` 위에 덮는다. 없으면 `WALK_AREA` 그대로. */
+export function walkAreaOf(screen: { walkArea?: WalkAreaOverride }): { left: number; top: number; right: number; bottom: number } {
+  return screen.walkArea ? { ...WALK_AREA, ...screen.walkArea } : WALK_AREA;
+}
