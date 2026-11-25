@@ -4,8 +4,10 @@
 // 누르는 것은 실제 클릭·탭이다: `はじめ` 첫 누름(확인 줄), `マップ`, 잠긴 카드(잠금 안내 줄).
 // 통과/실패는 사람이 스크린샷을 보고 정한다. 이 도구가 실패하는 것은 "버튼·카드 상태가 기대와 다름"과 콘솔 에러뿐이다.
 //
-// 사용: node --import ./scripts/playtest/register.mjs scripts/playtest/menus.ts [--url <URL>] [--out <폴더>] [--touch] [--no-sandbox]
-// 결과: <out>/<desktop|mobile>-<none|some|all>-{title,title-confirm,map,map-locked}.png + <out>/report.md
+// 사용: node --import ./scripts/playtest/register.mjs scripts/playtest/menus.ts [--url <URL>] [--out <폴더>] [--view D1,M1|all] [--touch] [--no-sandbox]
+//   --view: 체크리스트 1절 화면 크기 이름(D1·D4·M3·M1, 쉼표로 여럿, `all`은 넷 다). 기본 D1, `--touch`만 주면 M3(#922 때와 같음).
+//   M3·M1은 탭, D1·D4는 클릭으로 누른다.
+// 결과: <out>/<D1|D4|M3|M1>-<none|some|all>-{title,title-confirm,map,map-locked}.png + <out>/report.md
 // 맵에서 다시 깬 카드·돌아온 맵은 `solve.ts --deploy --via-map(-last) --out`이 찍는다(판을 실제로 풀어야 해서).
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -23,6 +25,7 @@ const { values: args } = parseArgs({
   options: {
     url: { type: 'string', default: 'https://zaffrex.github.io/goblin-crew/' },
     out: { type: 'string', default: 'playtest-out/menus' },
+    view: { type: 'string' },
     touch: { type: 'boolean', default: false },
     'no-sandbox': { type: 'boolean', default: false },
   },
@@ -32,17 +35,36 @@ const ORDER = JSON.parse(readFileSync('content/screens/order.json', 'utf8')) as 
 const TEXT = JSON.parse(readFileSync('content/text/ja.json', 'utf8')) as Record<string, string>;
 const first = JSON.parse(readFileSync(`content/screens/${ORDER[0]}.json`, 'utf8')) as { start: { at: Record<string, unknown> } };
 const ACTIVE = Object.keys(first.start.at)[0]!;
-const VIEW = args.touch
-  ? { name: 'mobile', width: 844, height: 390, dpr: 3, mobile: true }
-  : { name: 'desktop', width: 1280, height: 720, dpr: 1, mobile: false };
+
+interface View {
+  name: string;
+  width: number;
+  height: number;
+  dpr: number;
+  mobile: boolean;
+}
+/** `docs/design/ui-detail-checklist.md` 1절 표와 같은 네 크기. 휴대폰(mobile)은 탭으로 누른다. */
+const VIEWS: Record<string, View> = {
+  D1: { name: 'D1', width: 1280, height: 720, dpr: 1, mobile: false },
+  D4: { name: 'D4', width: 1920, height: 1080, dpr: 1, mobile: false },
+  M3: { name: 'M3', width: 844, height: 390, dpr: 3, mobile: true },
+  // CSS 배율 1.11: 1.2배 미만 압축 모양이 실제로 나오는 화면(#714).
+  M1: { name: 'M1', width: 640, height: 300, dpr: 2, mobile: true },
+};
+const viewNames = (args.view ?? (args.touch ? 'M3' : 'D1')).trim();
+const RUN_VIEWS = (viewNames === 'all' ? Object.keys(VIEWS) : viewNames.split(',').map((n) => n.trim().toUpperCase())).map((n) => {
+  const v = VIEWS[n];
+  if (!v) throw new Error(`--view ${n}: ${Object.keys(VIEWS).join('·')}·all 중 하나`);
+  return v;
+});
 
 const box = `(e) => { const r = e.getBoundingClientRect(); return { left: r.left, top: r.top, width: r.width, height: r.height }; }`;
 const canvasRect = (page: Page) => page.evaluate<Rect>(`(${box})(document.querySelector('#game'))`);
 const shown = (page: Page, sel: string) => page.evaluate<boolean>(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); return !!e && !e.hidden; })()`);
 
-async function tap(page: Page, at: { x: number; y: number }): Promise<void> {
+async function tap(page: Page, view: View, at: { x: number; y: number }): Promise<void> {
   const p = internalToPage(at, await canvasRect(page));
-  if (args.touch) await page.tap(p);
+  if (view.mobile) await page.tap(p);
   else await page.click(p);
 }
 
@@ -62,17 +84,18 @@ async function centerOf(page: Page, sel: string): Promise<{ x: number; y: number
 }
 
 interface Shot {
+  view: string;
   state: MenuState;
   file: string;
   note: string;
 }
 
-async function oneState(browser: Browser, state: MenuState, shots: Shot[], problems: string[]): Promise<void> {
-  const tag = `${VIEW.name}-${state}`;
+async function oneState(browser: Browser, view: View, state: MenuState, shots: Shot[], problems: string[]): Promise<void> {
+  const tag = `${view.name}-${state}`;
   const save = menuSeed(state, ORDER, ACTIVE);
   const want = titleMenu(save, ORDER).buttons;
   const page = await browser.newPage();
-  await page.setViewport(VIEW);
+  await page.setViewport(view);
   await page.addInitScript(seedScript(save));
   await page.goto(args.url!);
   await waitFor('타이틀이 안 뜸(쿼리 있는 URL인가? 세이브가 꺼진 빌드인가?)', () => shown(page, '#title'));
@@ -85,7 +108,7 @@ async function oneState(browser: Browser, state: MenuState, shots: Shot[], probl
   const shot = async (name: string, note: string) => {
     const file = `${tag}-${name}.png`;
     await page.screenshot(join(args.out!, file));
-    shots.push({ state, file, note });
+    shots.push({ view: view.name, state, file, note });
   };
   await shot('title', `버튼 ${got.labels.join(' / ')}`);
   if (got.buttons.join() !== want.join()) problems.push(`${tag}: 타이틀 버튼 ${got.buttons.join(',')} (기대 ${want.join(',')})`);
@@ -95,7 +118,7 @@ async function oneState(browser: Browser, state: MenuState, shots: Shot[], probl
     const at = await centerOf(page, '#title button[data-button="new"]');
     if (!at) problems.push(`${tag}: \`はじめ\` 가운데가 캔버스 밖`);
     else {
-      await tap(page, at);
+      await tap(page, view, at);
       try {
         await waitFor('`はじめ` 첫 누름 뒤 확인 줄이 안 뜸', () => shown(page, '#title .confirm'), 2000);
         await shot('title-confirm', `확인 줄 ${JSON.stringify(TEXT['ui.title.new_confirm'])}`);
@@ -109,7 +132,7 @@ async function oneState(browser: Browser, state: MenuState, shots: Shot[], probl
   }
 
   if (want.includes('map')) {
-    await pressTitleMap(page, (at) => tap(page, at));
+    await pressTitleMap(page, (at) => tap(page, view, at));
     await sleep(300);
     const cards = await page.evaluate<Record<string, string>>(`Object.fromEntries([...document.querySelectorAll('#map .cards button')].map((b) => [b.dataset.screen, b.dataset.state]))`);
     const solved = new Set(save?.progress.solvedScreens ?? []);
@@ -121,7 +144,7 @@ async function oneState(browser: Browser, state: MenuState, shots: Shot[], probl
       const at = await centerOf(page, `#map .cards button[data-screen="${locked}"]`);
       if (!at) problems.push(`${tag}: 잠긴 카드 ${locked} 가운데가 캔버스 밖`);
       else {
-        await tap(page, at);
+        await tap(page, view, at);
         try {
           await waitFor('잠긴 카드를 눌렀는데 잠금 안내 줄이 안 뜸', () => shown(page, '#map .locked'), 1000);
           await shot('map-locked', `${locked} 누른 직후, ${JSON.stringify(TEXT['ui.map.locked'])}`);
@@ -143,18 +166,18 @@ async function main(): Promise<number> {
   const problems: string[] = [];
   try {
     // 상태마다 새 컨텍스트(localStorage 분리)라 서로 안 섞인다.
-    for (const state of MENU_STATES) await oneState(browser, state, shots, problems);
+    for (const view of RUN_VIEWS) for (const state of MENU_STATES) await oneState(browser, view, state, shots, problems);
   } finally {
     await browser.close();
   }
   const report = [
-    `# 타이틀·맵 프레임 (${VIEW.name}, ${args.url})`,
+    `# 타이틀·맵 프레임 (${RUN_VIEWS.map((v) => `${v.name} ${v.width}×${v.height} @${v.dpr}`).join(', ')}, ${args.url})`,
     '',
     `순서 ${ORDER.join(' → ')}. 체크리스트 \`docs/design/ui-detail-checklist.md\` 3-1절 표로 본다.`,
     '',
-    '| 세이브 | 파일 | 메모 |',
-    '|---|---|---|',
-    ...shots.map((s) => `| ${s.state} | \`${s.file}\` | ${s.note} |`),
+    '| 크기 | 세이브 | 파일 | 메모 |',
+    '|---|---|---|---|',
+    ...shots.map((s) => `| ${s.view} | ${s.state} | \`${s.file}\` | ${s.note} |`),
     '',
     problems.length ? `## 문제 ${problems.length}\n\n${problems.map((p) => `- ${p}`).join('\n')}` : '문제 0',
     '',

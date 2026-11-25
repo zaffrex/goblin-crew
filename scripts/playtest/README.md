@@ -74,8 +74,8 @@ node --import ./scripts/playtest/register.mjs scripts/playtest/cover.ts --screen
 
 재생은 말풍선 넘기기를 쓰지 않는다(ui-interaction 5절). 그래서 "걷는 중 누른 탭이 씹힌다" 같은 문제는 판정 1에서 안 보이고 판정 2(사람)에서 본다. A5(첫 화면)·A6①(세로 안내)은 `smoke.ts`가 본다.
 
-**타이틀·맵 프레임(#792 설계 6절, 체크리스트 3-1절)**: `menus.ts`는 쿼리 없는 기본 링크를 세이브 상태 셋(없음 / 일부 깸 / 다 깸)으로 열어 타이틀·`はじめ` 확인 줄·맵·잠금 안내 줄을 찍는다. 세이브는 `seed.ts`가 게임과 같은 `saveOnCard`로 만들어 문서가 만들어지기 전에 localStorage에 심는다. 판은 안 푼다(데스크톱 약 14초). 타이틀 버튼·맵 카드 상태가 `titleMenu`·세이브와 다르거나 콘솔 에러가 있으면 종료 코드 1. 맵에서 다시 깬 카드·돌아온 맵은 판을 풀어야 해서 `solve.ts --via-map(-last) --out`이 찍는다.
+**타이틀·맵 프레임(#792 설계 6절, 체크리스트 3-1절)**: `menus.ts`는 쿼리 없는 기본 링크를 세이브 상태 셋(없음 / 일부 깸 / 다 깸)으로 열어 타이틀·`はじめ` 확인 줄·맵·잠금 안내 줄을 찍는다. 세이브는 `seed.ts`가 게임과 같은 `saveOnCard`로 만들어 문서가 만들어지기 전에 localStorage에 심는다. 판은 안 푼다(데스크톱 약 14초). `--view`로 체크리스트 1절 크기(D1·D4·M3·M1, 쉼표로 여럿, `all`은 넷 다 약 61초)를 고른다. 기본 D1, `--touch`만 주면 M3이고, M3·M1은 탭으로 누른다. 타이틀 버튼·맵 카드 상태가 `titleMenu`·세이브와 다르거나 콘솔 에러가 있으면 종료 코드 1. 맵에서 다시 깬 카드·돌아온 맵은 판을 풀어야 해서 `solve.ts --via-map(-last) --out`이 찍는다.
 
 ```bash
-node --import ./scripts/playtest/register.mjs scripts/playtest/menus.ts [--touch] --url http://localhost:4173/ --out /tmp/menus --no-sandbox
+node --import ./scripts/playtest/register.mjs scripts/playtest/menus.ts [--view D1,M1|all] [--touch] --url http://localhost:4173/ --out /tmp/menus --no-sandbox
 ```
