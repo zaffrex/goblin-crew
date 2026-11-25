@@ -80,19 +80,10 @@ export function vending(img, x, y, { boxes = [true, true, true, true, true, true
   // 칸 선반 두 줄(상자가 올라앉은 판, 버튼 바로 위)
   for (const by of VEND_BUTTON_Y) fill(img, x + wx + 1, y + by - 2, ww - 2, 1, C.lav);
   // 세제 상자: 앞면 + 오른쪽 그늘 1px + 가운데 띠(상표 대신 색 띠) + 위 1px 밝게
-  const { w: bw, h: bh, cols, rows } = VEND_BOX;
+  const { cols, rows } = VEND_BOX;
   rows.forEach((ry, j) => cols.forEach((cx0, i) => {
     const k = j * 3 + i;
-    if (!boxes[k]) return;
-    const [body, shade, band] = BOXES[k];
-    const top = y + ry; // 아래 끝이 선반(VEND_BUTTON_Y − 2) 바로 위
-    fill(img, x + cx0, top, bw, bh, (px, py) => {
-      const dx = px - x - cx0, dy = py - top;
-      if (dx === bw - 1) return shade;
-      if (dy === 3 || dy === 4) return band;
-      if (dy === 0) return C.white;
-      return body;
-    });
+    if (boxes[k]) soapBox(img, x + cx0, y + ry, k); // 아래 끝이 선반(VEND_BUTTON_Y − 2) 바로 위
   }));
   // 유리 반사: 왼쪽 위 귀퉁이에 짧은 대각선 두 줄, 빈 유리 위에만(상자 위에 얹으면 4배에서 노란 상자가 긁힌 것처럼 보였다)
   const isGlass = (c) => c === C.tealD || c === C.teal;
@@ -143,4 +134,20 @@ export function vending(img, x, y, { boxes = [true, true, true, true, true, true
 
   // ── 바닥 그림자(바닥 쪽 한 줄). 세탁기·건조기와 같은 방식
   for (let dx = 1; dx < W + 1; dx++) img.set(x + dx, y + H, hash(x + dx, y + H, 6) < 0.85 ? C.lav : img.get(x + dx, y + H));
+}
+
+/**
+ * 세제 상자 하나(VEND_BOX 6×8, 색은 진열창 k번과 같다). 앞면 + 오른쪽 그늘 1px + 가운데 띠(상표 대신 색 띠) + 위 1px 밝게.
+ * 진열창 상자와 `spill_boxes`로 쏟아지는 상자(시트 2/2-c2, 시트가 외곽선을 두른다)가 같이 쓴다. (x, y) = 왼쪽 위.
+ */
+export function soapBox(img, x, y, k) {
+  const { w: bw, h: bh } = VEND_BOX;
+  const [body, shade, band] = BOXES[k % BOXES.length];
+  fill(img, x, y, bw, bh, (px, py) => {
+    const dx = px - x, dy = py - y;
+    if (dx === bw - 1) return shade;
+    if (dy === 3 || dy === 4) return band;
+    if (dy === 0) return C.white;
+    return body;
+  });
 }
