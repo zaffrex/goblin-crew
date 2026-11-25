@@ -70,7 +70,8 @@ describe('sprite sheets', () => {
   it('원본(art/)으로 다시 만들면 커밋된 시트와 같다', () => {
     // 실패하면: node art/build.mjs 를 돌려 나온 파일을 커밋한다
     expect(() => execFileSync(process.execPath, [join(ROOT, 'art', 'build.mjs'), '--check'], { stdio: 'pipe' })).not.toThrow();
-  });
+    // 시트 전체를 다시 그려서 CI 병렬 실행에서 5초 기본 제한을 넘는다(#960, 5,972ms 관측)
+  }, 30_000);
 
   it('시트가 하나 이상 있다', () => {
     expect(metas.length).toBeGreaterThan(0);
