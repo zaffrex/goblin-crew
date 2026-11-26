@@ -22,7 +22,7 @@
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
-import { soloCardKey } from '../../src/core/flow.ts';
+import { cardLines, soloCardKey } from '../../src/core/flow.ts';
 import type { ScreenData } from '../../src/core/puzzle/types.ts';
 import { CARD_TAP, closeStartCard, pressTitleMap } from './card.ts';
 import { Browser, sleep, type Page } from './cdp.ts';
@@ -136,7 +136,7 @@ async function solveScreen(page: Page, screen: ScreenData, k: number, problems: 
 
 /**
  * 클리어 뒤 화면 사이(11-1·11-6절). 마지막이 아니면 카드 결과 줄·`ui.next`를 보고 가운데를 눌러 다음 화면 `play`까지 기다린다.
- * 마지막이면 끝 카드 `ui.end`가 떠 있고 `ui.next`가 없는지(타이틀 전, 11-5절) 본다.
+ * 마지막이면 끝 카드(`cardLines`: 결과 줄 + `ui.end`)가 떠 있고 `ui.next`가 없는지(타이틀 전, 11-5절) 본다.
  */
 /** 순서 없이 화면 하나(#597): 클리어 컷 뒤 카드 글이 `soloCardKey` 규칙과 같은가. ui.next는 없다(다음 화면이 없다). */
 async function soloCard(page: Page, problems: string[]): Promise<void> {
@@ -149,6 +149,11 @@ async function soloCard(page: Page, problems: string[]): Promise<void> {
   console.log(`1-${id} 클리어 카드 ✅ ${key} ${JSON.stringify(c.text)}`);
 }
 
+/** 마지막 판 끝 카드 본문(다음 줄 빼고). `main.ts` `placeClearCut`과 같이 `cardLines` 키를 줄바꿈으로 잇는다(#935). */
+function endCardText(id: string): string {
+  return cardLines(id, true, (k) => k in texts).body.map((k) => texts[k] ?? '').join('\n');
+}
+
 async function crossCard(page: Page, k: number, problems: string[]): Promise<void> {
   const id = ids[k]!;
   const last = k === ids.length - 1;
@@ -158,7 +163,8 @@ async function crossCard(page: Page, k: number, problems: string[]): Promise<voi
     await sleep(800); // 0.6초 무시가 지나도 ui.next가 안 생겨야 한다
     const after = await clearCard(page);
     await page.screenshot(join(args.out!, `${tag}-end-card.png`));
-    if (c.text !== texts['ui.end']) problems.push(`${tag}: 끝 카드 글이 ui.end가 아님: ${JSON.stringify(c.text)}`);
+    const endText = endCardText(id);
+    if (c.text !== endText) problems.push(`${tag}: 끝 카드 글이 ${JSON.stringify(endText)}가 아님: ${JSON.stringify(c.text)}`);
     if (after.next) problems.push(`${tag}: 타이틀이 없는데 끝 카드에 ui.next가 보임`);
     console.log(`${tag} 끝 카드 ✅ ${JSON.stringify(c.text)}`);
     await checkSave(page, k, tag, problems);
@@ -246,7 +252,7 @@ async function viaMap(page: Page, href: string, k: number, problems: string[]): 
   await page.screenshot(join(args.out!, `${tag}-card.png`));
   const returns = [texts['ui.map.return'], texts['ui.map.return_click']].filter((x): x is string => x !== undefined);
   if (!returns.some((r) => c.text.endsWith(r))) problems.push(`${tag}: 카드 다음 줄이 ui.map.return이 아님: ${JSON.stringify(c.text)}`);
-  if (last && !c.text.startsWith(texts['ui.end']!)) problems.push(`${tag}: 마지막 판을 다시 깼는데 카드 본문이 끝 카드 ui.end가 아님: ${JSON.stringify(c.text)}`);
+  if (last && !c.text.startsWith(endCardText(id))) problems.push(`${tag}: 마지막 판을 다시 깼는데 카드 본문이 끝 카드(결과 줄 + ui.end)가 아님: ${JSON.stringify(c.text)}`);
   const same = (s: SavedState | null) => s !== null && s.screenId === before.screenId && s.solved.join() === before.solved.join();
   const onCard = await savedOf(page);
   if (!same(onCard)) problems.push(`${tag}: 다시 깬 카드에서 세이브가 바뀜 ${JSON.stringify(onCard)} (전 ${JSON.stringify(before)})`);

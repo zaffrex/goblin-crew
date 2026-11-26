@@ -1021,7 +1021,7 @@ function placeCut(el: HTMLElement, cast: readonly HitBox[], scale: number): void
 /**
  * 클리어 카드 `#clear`. ORDER가 없으면 클리어 컷이 끝난 뒤 `soloCardKey`(#597): 화면 1은 지금 배포본 그대로 `ui.clear`,
  * `?screen=<id>`로 연 다른 화면은 `<id>.clear_card` 또는 끝 카드 `ui.end`.
- * ORDER가 있으면 결과 줄 `<id>.clear_card` + 0.6초 뒤 `ui.next`(11-2절), 마지막 화면은 끝 카드 `ui.end`(11-5절).
+ * ORDER가 있으면 결과 줄 `<id>.clear_card` + 0.6초 뒤 `ui.next`(11-2절), 마지막 화면은 결과 줄 + 끝 카드 `ui.end`(11-5절, #935).
  * 다음 화면 그림을 0.5초 넘게 기다리면 같은 자리에 `…`(11-1절). 재생 도구는 `data-next`를 보고 카드를 누른다(11-6절 5번).
  */
 function placeClearCut(fv: ReturnType<typeof flowView>, scene: SceneState): void {
@@ -1031,7 +1031,7 @@ function placeClearCut(fv: ReturnType<typeof flowView>, scene: SceneState): void
   else if (fv.card && flow.phase === 'card') {
     const lines = cardLines(session.data.screen.id, flow.last, (k) => k in TEXT, flow.toMap === true);
     const next = fv.next && lines.next ? t(cardPointer(window.matchMedia?.bind(window)) === 'mouse' ? `${lines.next}_click` : lines.next) : null;
-    text = [lines.body && t(lines.body), next].filter(Boolean).join('\n') || null;
+    text = [...lines.body.map((k) => t(k)), next].filter(Boolean).join('\n') || null;
   } else text = null;
   clearCut.hidden = text === null;
   clearCut.toggleAttribute('data-next', fv.next);

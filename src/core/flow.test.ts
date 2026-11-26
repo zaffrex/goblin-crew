@@ -145,19 +145,25 @@ describe("cardLines (11-2절)", () => {
   const has = (k: string) => k === "magpie_nest.clear_card";
   it("결과 줄 + ui.next", () => {
     expect(cardLines("magpie_nest", false, has)).toEqual({
-      body: "magpie_nest.clear_card",
+      body: ["magpie_nest.clear_card"],
       next: "ui.next",
     });
   });
   it("결과 줄 키가 없으면 숨기고 ui.next만", () => {
     expect(cardLines("laundromat", false, has)).toEqual({
-      body: null,
+      body: [],
       next: "ui.next",
     });
   });
   it("마지막 화면은 끝 카드, clear_card를 요구하지 않는다", () => {
     expect(cardLines("park_fountain", true, has)).toEqual({
-      body: "ui.end",
+      body: ["ui.end"],
+      next: null,
+    });
+  });
+  it("마지막 화면에 결과 줄이 있으면 결과 줄 + 끝 카드 (#935)", () => {
+    expect(cardLines("magpie_nest", true, has)).toEqual({
+      body: ["magpie_nest.clear_card", "ui.end"],
       next: null,
     });
   });
@@ -272,11 +278,12 @@ describe("끝 카드 (11-5절)", () => {
 describe("맵에서 다시 하는 판 (#792 title-and-map 3-4절)", () => {
   const has = (k: string) => k === "magpie_nest.clear_card";
   it("카드 결과 줄은 그대로, 다음 줄만 ui.map.return", () => {
-    expect(cardLines("magpie_nest", false, has, true)).toEqual({ body: "magpie_nest.clear_card", next: "ui.map.return" });
-    expect(cardLines("laundromat", false, has, true)).toEqual({ body: null, next: "ui.map.return" });
+    expect(cardLines("magpie_nest", false, has, true)).toEqual({ body: ["magpie_nest.clear_card"], next: "ui.map.return" });
+    expect(cardLines("laundromat", false, has, true)).toEqual({ body: [], next: "ui.map.return" });
   });
   it("마지막 판은 끝 카드 그대로 + ui.map.return(타이틀이 없어도 머물지 않는다)", () => {
-    expect(cardLines("park_fountain", true, has, true)).toEqual({ body: "ui.end", next: "ui.map.return" });
+    expect(cardLines("park_fountain", true, has, true)).toEqual({ body: ["ui.end"], next: "ui.map.return" });
+    expect(cardLines("magpie_nest", true, has, true)).toEqual({ body: ["magpie_nest.clear_card", "ui.end"], next: "ui.map.return" });
     const f = run(showCard(true, true), FLOW_TIMING.cardIgnore).flow;
     expect(flowView(f, false).next).toBe(true);
     expect(flowTap(f, false).action).toBe("map");
@@ -313,7 +320,7 @@ describe("맵에서 다시 하는 판 (#792 title-and-map 3-4절)", () => {
   });
   it("다시 하는 판이 아니면 예전과 같다(카드 모양에 toMap 없음)", () => {
     expect(showCard(false)).toEqual({ phase: "card", t: 0, last: false });
-    expect(cardLines("magpie_nest", false, has)).toEqual({ body: "magpie_nest.clear_card", next: "ui.next" });
+    expect(cardLines("magpie_nest", false, has)).toEqual({ body: ["magpie_nest.clear_card"], next: "ui.next" });
   });
 });
 
