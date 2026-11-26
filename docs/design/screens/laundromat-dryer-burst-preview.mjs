@@ -9,7 +9,7 @@
 //   - 드럼 회전 3칸은 서로 다르고, 0°·120°가 같다(무리 셋이 같아야 끊김 없이 돈다)
 //   - 열린 문 칸은 넓힌 상자(x 336~391, 외곽선 1px 포함 335~392) 밖에 픽셀이 없다. 날아다니는 것은 화면 안(위 끝 y ≥ 140)이다
 //   - 머리 위 양말 마지막 칸(얹힌 모습)은 ズッシー 눈 줄(얼굴 상자 위 끝 + 14)을 안 가리고, 털모자와 겹친다(떠 있지 않다)
-//   - 병뚜껑이 떠 있는 칸에서 병뚜껑은 뒤(건조기·벽)와 외곽선으로 갈라진다(병뚜껑 픽셀 수 ≥ 25)
+//   - 병뚜껑이 떠 있는 칸에서 병뚜껑은 덕트 오른쪽 벽 앞에 떠서 외곽선으로 갈라진다(병뚜껑 픽셀 수 ≥ 25, 덕트와 겹침 0)
 
 import { writeFileSync } from 'node:fs';
 import console from 'node:console';
@@ -93,11 +93,14 @@ for (const [name, frames] of [['burst', A['dryer_3.burst'].frames], ['burst#2', 
     if (left < 335 || right > 392) problems.push(`${name}[${i}]: 가로 ${left}~${right}가 x 335~392(외곽선 포함) 밖`);
   });
 {
-  // 병뚜껑이 떠 있는 칸: 은색(lint·white) 중 건조기 위 끝(164) 위에 있는 픽셀 = 병뚜껑
+  // 병뚜껑이 떠 있는 칸: 건조기 위 끝(164) 위, 덕트(x 360~373) 오른쪽 벽 앞의 은색(lint·white·lav) 픽셀 = 병뚜껑.
+  // 윗판(y 168~181)에 띄우면 다이얼과 같은 회색 동그라미로 묻혔다(#935 1-3 다시 후보 15). 그래서 벽 cotton 앞으로 옮겼다.
   const t = only(A['dryer_3.burst'].frames[2]);
-  let cap = 0;
-  for (let y = 168; y < 182; y++) for (let x = 362; x < 374; x++) if ([C.lint, C.white, C.lav].includes(t.get(x, y))) cap++;
-  if (cap < 25) problems.push(`burst[2] 병뚜껑 픽셀 ${cap} < 25`);
+  let cap = 0, onDuct = 0;
+  for (let y = 140; y < 164; y++) for (let x = 374; x < 392; x++) if ([C.lint, C.white, C.lav].includes(t.get(x, y))) cap++;
+  for (let y = 140; y < 164; y++) for (let x = 360; x < 374; x++) if (t.get(x, y) !== EMPTY && t.get(x, y) !== C.ink) onDuct++;
+  if (cap < 25) problems.push(`burst[2] 병뚜껑 픽셀(벽 앞) ${cap} < 25`);
+  if (onDuct > 0) problems.push(`burst[2] 병뚜껑이 덕트 위 ${onDuct}px (같은 회색이라 묻힌다)`);
 }
 
 // ── 3. 머리 위 양말: ズッシー 서 있기 칸 + anchor 칸(엔진 headPlace와 같은 규칙: 얼굴 상자 위 가운데 + at, 왼쪽을 보면 그 세로줄로 뒤집기)

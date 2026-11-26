@@ -331,6 +331,53 @@ export function lumpV(img, cy, { strain = false } = {}) {
   placeLump(img, t);
 }
 
+// ── 말랑한 양말 혹(새 칸 2: 가로 1 + 세로 1, #935 S3, PM 결정 (나)) ──
+// 쿵(★① 첫 판) 뒤 둥지 쪽 양말이 덕트를 타고 건조기로 빨려 오는 혹. 열쇠 혹(패가 든 각진 혹)과 **모양으로 대비**한다:
+//   어깨가 둥글고(부풂 2 → 1 → 0으로 천천히 줄어듦) 위아래(세로 칸은 좌우)로 2px만 부푼다. 반짝 1px(패 모서리)이 없다.
+//   "말랑한 건 지나가고 각진 건 걸린다"가 S5(패가 넓다)를 오히려 세게 한다.
+// 늘어난 주름은 두 줄만(가운데가 덜 밀려서). 외곽선·관 속 외곽선 지우기·건조기 위 끝 자르기는 열쇠 혹과 같다(placeLump).
+const softExt = (c) => (Math.abs(c) <= 5 ? 2 : Math.abs(c) <= 9 ? 1 : 0);
+const SOFT_HALF = 11;
+
+/** 말랑한 가로 칸(새 칸 1). cx = 혹 가운데 x. 22×16(외곽선 포함 22×18) */
+export function lumpSoftH(img, cx) {
+  const { runY, runH } = DUCT_GEO;
+  const t = new Image(img.w, img.h);
+  for (let dx = -SOFT_HALF; dx < SOFT_HALF; dx++) {
+    const c = dx + 0.5, e = softExt(c);
+    const y0 = runY - e, y1 = runY + runH - 1 + e;
+    for (let y = y0; y <= y1; y++) {
+      let col = C.lint;
+      if (y === y0) col = C.cotton;
+      else if (y === y1) col = e >= 2 ? C.dusk : C.lav;
+      else if (y >= y1 - 1) col = C.lav;
+      else if ([-5, 4].includes(dx) && y > y0 + 1 && y < y1 - 2) col = C.lav;
+      t.set(cx + dx, y, col);
+    }
+  }
+  placeLump(img, t);
+}
+
+/** 말랑한 세로 칸(새 칸 1). cy = 혹 가운데 y. 18×22(외곽선 포함 20×22) */
+export function lumpSoftV(img, cy) {
+  const { x, w } = DUCT_GEO;
+  const t = new Image(img.w, img.h);
+  for (let dy = -SOFT_HALF; dy < SOFT_HALF; dy++) {
+    const c = dy + 0.5, e = softExt(c);
+    const x0 = x - e, x1 = x + w - 1 + e;
+    for (let px = x0; px <= x1; px++) {
+      let col = C.lint;
+      if (px === x0) col = C.lav;
+      if (px === x0 + 1) col = C.cotton;
+      else if (px === x1) col = e >= 2 ? C.dusk : C.lav;
+      else if (px >= x1 - 1) col = C.lav;
+      else if ([-5, 4].includes(dy) && px > x0 + 1 && px < x1 - 2) col = C.lav;
+      t.set(px, cy + dy, col);
+    }
+  }
+  placeLump(img, t);
+}
+
 /**
  * O6 덕트 혹 anim(그림 물건 `duct`). 형식 4-2 (a): 그 물건 anim 시작 때 `key.stuck` 그림으로 바뀐다.
  *   lump_travel: 1-2·3-2. 창 쪽 판자 앞에서 한 박자 머문 뒤(200ms, PR #900 재리뷰 1) 가로 넷 → 세로 하나 → 걸림 덜컥(100ms, 재리뷰 2: 80~120).
@@ -356,6 +403,19 @@ export const DUCT_LUMP = {
   lump_pop: {
     ms: [160, 100, 100, 100],
     frames: [(img) => lumpV(img, LUMP_STUCK.y, { strain: true }), (img) => lumpV(img, 158), (img) => lumpV(img, 166), (img) => lumpV(img, 173)],
+  },
+  // sock_through: ★① 첫 판(#935 S3). 말랑한 양말 혹이 lump_travel과 같은 길(창 쪽 → 가로 넷 → 세로 96)을 지나
+  //   걸림 자리에서 멈추지 않고 lump_pop 꼬리 자리(158·173)로 건조기 뒤에 쑥 들어간다. 끝나면 혹 없음(`key.stuck` 그대로 거짓).
+  //   마지막 칸이 건조기 위 끝 바로 위라서 걸린 혹 자리(★③)에 혹이 남았다 사라지는 일이 없다. 새 칸 2.
+  //   합 580ms: 같은 show의 burst 570 + sock_head 330과 더해 1480 ≤ H5 1500(tests/art/laundromat-timing.test.ts).
+  //   첫 칸은 열쇠 혹(200ms)보다 짧은 100ms다. 양말은 가볍게 휙 지나가고, 패가 든 열쇠 혹만 창 쪽에서 버틴다.
+  sock_through: {
+    ms: [100, 80, 80, 80, 80, 80, 80],
+    frames: [
+      ...LUMP_PATH.h.map((cx) => (img) => lumpSoftH(img, cx)),
+      ...LUMP_PATH.v.map((cy) => (img) => lumpSoftV(img, cy)),
+      ...[158, 173].map((cy) => (img) => lumpSoftV(img, cy)),
+    ],
   },
 };
 
