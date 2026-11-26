@@ -21,6 +21,7 @@ links:
 - 스테이지 3 `laundromat` ★① 첫 판(`dryer_reverse`)에 쓰는 양말 혹 `duct.sock_through`는 새 손그림 2칸(`lumpSoftH` 22×16, `lumpSoftV` 18×22)이다. 어깨가 둥글고 2px만 부풀며 패 모서리 반짝(white)이 없다. 열쇠 혹(각진 어깨, 3·4px, 반짝 1px)과 모양으로 대비한다.
 - 길은 `lump_travel`과 같다(가로 110·188·268·330 → 세로 96). 걸림 자리 150에서 멈추지 않고 158·173으로 건조기 뒤로 들어간다. 7칸, ms `[100, 80×6]` = 580ms다.
 - `tests/art/laundromat-timing.test.ts` ★① 첫 판 검사는 시트에 `duct.sock_through`가 있으면 `burst + sock_head + sock_through ≤ 1500`(H5)으로 센다. 지금은 570 + 330 + 580 = 1480이다.
+- 두 번째 판(`burst#2`)에도 혹은 그대로 돈다(S3 단서라 짧은 판에서도 안 뺀다). 검사는 `혹 + burst#2 + sock_head`가 첫 판보다 짧고 1500 안인지 본다(지금 580 + 200 + 330 = 1110). `duct.sock_through#2`를 그리면 그걸 센다.
 - `burst` 3번째 칸의 병뚜껑은 378,152(덕트 오른쪽 벽 cotton 앞)에 띄운다. 칸 수는 그대로다.
 
 ## 이유
@@ -30,5 +31,6 @@ links:
 
 ## 검토했지만 택하지 않은 안
 - (가) 각진 혹 `lump_through` 0칸: S5가 흐려져 PM이 버렸다.
+- 두 번째 판용 짧은 혹 `duct.sock_through#2`: 1110ms로 H5 안이고, 다시 켜 본 사람은 S3을 다시 읽는 중이라 혹을 줄일 까닭이 없다. 칸만 늘어난다.
 - 820ms 그대로 두고 H5 판단을 Kai PR에 미루기: 상한을 넘는 걸 알면서 main에 넣게 된다.
 - H5 검사에서 혹을 "단서라서" 빼기: 무엇이 붙인 엉뚱함인지는 Kai·Theo가 replay로 정할 일이라, 지금은 보수적으로 센다.
