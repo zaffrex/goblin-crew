@@ -61,14 +61,16 @@ export function mapStampAt(card: Box): { x: number; y: number } {
 }
 
 /**
- * 길 점 왼쪽 위 x들(y는 `pathY`). 첫 카드 오른쪽부터 화면 오른끝까지 6px마다, 카드(양옆 2px 포함) 위는 뺀다.
- * 마지막 카드 오른쪽 끝까지 이어 "다음 판이 더 있다"를 남긴다(3절 표). 목업과 같은 셈이다.
+ * 길 점 왼쪽 위 x들(y는 `pathY`). 첫 카드 오른쪽부터 마지막 카드까지 6px마다, 카드(양옆 2px 포함) 위는 뺀다.
+ * 마지막 카드 오른쪽으로는 잇지 않는다. 끝 카드가 `おしまい！`인데 길이 화면 밖으로 이어지면 둘이 반대로 말한다(3절 표, #792).
+ * "더 있다"는 잠긴 카드가 맡는다(3-1절). 목업과 같은 셈이다.
  */
 export function mapPathDots(cards: readonly Box[], width: number): number[] {
   const first = cards[0];
   if (!first) return [];
+  const end = Math.min(width, Math.max(...cards.map((c) => c.left + c.width)));
   const out: number[] = [];
-  for (let x = 0; x < width; x += MAP_LAYOUT.dot.step) {
+  for (let x = 0; x < end; x += MAP_LAYOUT.dot.step) {
     if (x <= first.left) continue;
     if (cards.some((c) => x >= c.left - 2 && x < c.left + c.width + 2)) continue;
     out.push(x);

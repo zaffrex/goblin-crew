@@ -40,7 +40,7 @@ describe('map layout (title-and-map 3절)', () => {
     expect(at.y + 2).toBeGreaterThanOrEqual(th.top);
   });
 
-  it('path dots start right of the first card, skip cards (±2px), and run to the right edge', () => {
+  it('path dots start right of the first card, skip cards (±2px), and stop at the last card', () => {
     const boxes = [0, 1, 2].map((k) => mapCardBox(k)!);
     const dots = mapPathDots(boxes, SCENE.width);
     expect(dots.length).toBeGreaterThan(0);
@@ -49,10 +49,17 @@ describe('map layout (title-and-map 3절)', () => {
       expect(x % MAP_LAYOUT.dot.step).toBe(0);
       for (const b of boxes) expect(x >= b.left - 2 && x < b.left + b.width + 2).toBe(false);
     }
-    // 마지막 카드 오른쪽(456~479)에도 점이 있다: 다음 판이 더 있다.
-    expect(dots.some((x) => x > 456)).toBe(true);
+    // 마지막 카드 오른쪽(456~479)에는 점이 없다: 끝 카드 `おしまい！`와 반대로 말하지 않는다(#792).
+    expect(dots.some((x) => x >= 456)).toBe(false);
     // 카드 사이(152~176)에 점이 있다.
     expect(dots.some((x) => x > 154 && x < 174)).toBe(true);
+  });
+
+  it('path stops at the last card even with fewer cards', () => {
+    const boxes = [0, 1].map((k) => mapCardBox(k)!);
+    const dots = mapPathDots(boxes, SCENE.width);
+    expect(dots.some((x) => x > 154 && x < 174)).toBe(true);
+    expect(dots.every((x) => x < boxes[1]!.left)).toBe(true);
   });
 
   it('path is empty without cards', () => {
