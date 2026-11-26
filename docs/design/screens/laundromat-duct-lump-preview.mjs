@@ -9,6 +9,7 @@
 //   laundromat-duct-lump-blind-1x.png  블라인드용 1배 두 장(왼쪽 혹 없음, 오른쪽 걸린 혹 멈춘 모습). 글·표시 없음
 //   laundromat-duct-lump-soft-4x.png   각진 열쇠 혹 ↔ 말랑한 양말 혹(#935 S3), 가로 칸 위·세로 칸 아래, 4배
 //   laundromat-duct-lump-soft-anim-2x.png  sock_through(말랑한 혹이 건조기 뒤로 쑥), APNG 2배
+//   laundromat-duct-lump-tail-2x.png   양말 혹 꼬리 전(위)·후(아래), 왼쪽 가로 cx 330 / 오른쪽 세로 cy 96, 2배 (#935 (가))
 // 검사(어기면 종료 코드 1):
 //   - 혹 그림이 쓰는 덕트 값이 방 껍데기 DUCT와 같다
 //   - 걸린 혹(멈춘 모습·끙끙) 그린 픽셀 전부 `duct` 핫스팟 안 = 혹을 누르면 덕트가 받는다(★③ S6). 혹 가운데 = reachPoint
@@ -21,6 +22,8 @@
 //   - lump_travel·lump_back·lump_pop 칸 시간 합 ≤ 1500(형식 기록 8절)
 //   - sock_through(#935 S3, PM 결정 (나)): 각진 혹보다 덜 부풀고(최대 2px) 반짝(white) 없음, 벽 쪽 테두리 ink·관 안 ink 0,
 //     걸린 자리 칸(stuck)과 같은 칸이 없고 마지막 칸은 건조기 위 끝 바로 위, 칸 시간 합 ≤ 1500
+//   - 양말 혹 꼬리(#935 (가)): 관 속 lav만, 혹 뒤쪽(가로 = 창 쪽, 세로 = 위쪽)에만, 판자 구멍·걸린 자리(지난 뒤)엔 안 그림.
+//     가로 둘째 칸부터 ≥ 16px. 각진 열쇠 혹엔 꼬리 없음
 
 import { writeFileSync, readFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
@@ -158,6 +161,24 @@ for (const [k, fs] of Object.entries(anims)) {
   check(same(fs[0], layer((t) => lumpSoftH(t, LUMP_PATH.h[0]))), 'sock_through 첫 칸 = 창 쪽 가로 자리');
   check(DUCT_LUMP.sock_through.ms.slice(1).every((m) => m === 80), 'sock_through 첫 칸 뒤는 80ms(E2)');
 }
+{
+  // 꼬리(#935 묶음 2 판정 ②, Luna 안 (가)): 말랑한 혹 뒤쪽(창 쪽·위쪽) 관 속에만 lav 줄. 앞쪽엔 없다. 각진 열쇠 혹엔 없다.
+  const tailOf = (withT, without) => { const a = layer(withT), b = layer(without); return pixels(a).filter(([x, y, c]) => b.get(x, y) !== c); };
+  const inside = (x, y) => (y >= DUCT.runY && y < DUCT.runY + DUCT.runH && x >= DUCT.endX && x < DUCT.x + DUCT.w) || (x >= DUCT.x && x < DUCT.x + DUCT.w && y >= DUCT.runY && y < DUCT.bottom);
+  for (const cx of LUMP_PATH.h) {
+    const tp = tailOf((t) => lumpSoftH(t, cx), (t) => lumpSoftH(t, cx, { tail: false }));
+    const ok = tp.every(([x, y, c]) => c === C.lav && inside(x, y) && x < cx - 11 && x >= DUCT.endX + 5);
+    if (cx === LUMP_PATH.h[0]) check(ok, `가로 cx ${cx}(창에서 막 나옴): 꼬리 ${tp.length}px, 판자 구멍 쪽(x < ${DUCT.endX + 5})엔 안 그림`);
+    else check(ok && tp.length >= 16, `가로 cx ${cx}: 꼬리 ${tp.length}px ≥ 16, 전부 관 속 lav, 혹 왼쪽(창 쪽)에만`);
+  }
+  for (const cy of [...LUMP_PATH.v, 158, 173]) {
+    const tp = tailOf((t) => lumpSoftV(t, cy), (t) => lumpSoftV(t, cy, { tail: false }));
+    const ok = tp.every(([x, y, c]) => c === C.lav && inside(x, y) && y < cy - 11 && y >= DUCT.runY + DUCT.runH && (cy <= LUMP_STUCK.y || y >= LUMP_STUCK.y + 8));
+    check(ok && (cy !== LUMP_PATH.v[0] || tp.length >= 16), `세로 cy ${cy}: 꼬리 ${tp.length}px, 관 속 lav, 혹 위쪽에만, 걸린 자리를 지난 칸은 그 자리에 안 남김`);
+  }
+  check(!anims.lump_travel.some((t) => pixels(t).some(([x, y, c]) => c === C.lav && inside(x, y) && x < 300 && x > 200 && y === DUCT.runY + 6 && t.get(x + 1, y) === C.lav && t.get(x + 2, y) === C.lav && t.get(x + 3, y) === C.lav && t.get(x + 4, y) === C.lav)),
+    '각진 열쇠 혹(lump_travel)엔 꼬리 줄이 없다(말랑 = 휙 지나감, 각진 = 버팀)');
+}
 
 // ── 출력
 const cropper = (R) => (img) => { const c = new Image(R.w, R.h); for (let y = 0; y < R.h; y++) for (let x = 0; x < R.w; x++) c.set(x, y, img.get(R.x + x, R.y + y)); return c; };
@@ -208,6 +229,17 @@ writeFileSync(join(HERE, 'laundromat-duct-lump-blind-1x.png'), indexedPng(blind,
   anims.sock_through.forEach((t, i) => seq.push({ img: wide(over(bg, t)), ms: DUCT_LUMP.sock_through.ms[i] }));
   seq.push({ img: wide(bg), ms: 800 });
   writeFileSync(join(HERE, 'laundromat-duct-lump-soft-anim-2x.png'), animatedPng(seq, 2));
+}
+{
+  // 꼬리 전·후(#935 (가)): Mia 2-1 ★① 스크린샷이 찍은 가로 마지막 자리(cx 330)와 세로 cy 96. 위 = 전(꼬리 없음), 아래 = 후. 2배
+  const cut = cropper({ x: 270, y: 40, w: 112, h: 72 });
+  const pair = [
+    over(bg, layer((t) => lumpSoftH(t, 330, { tail: false }))), over(bg, layer((t) => lumpSoftH(t, 330))),
+    over(bg, layer((t) => lumpSoftV(t, 96, { tail: false }))), over(bg, layer((t) => lumpSoftV(t, 96))),
+  ].map(cut);
+  const sheet = new Image(2 * 114, 2 * 74, C.white);
+  pair.forEach((s, i) => sheet.blit(s, (i >> 1) * 114, (i & 1) * 74));
+  writeFileSync(join(HERE, 'laundromat-duct-lump-tail-2x.png'), indexedPng(sheet, 2));
 }
 
 if (problems.length) { console.error(`${problems.length}개 검사 실패`); process.exit(1); }
