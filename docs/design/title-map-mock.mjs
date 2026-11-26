@@ -114,8 +114,9 @@ const bgOf = (id) => { const f = join(ROOT, `public/scenes/${id}-bg.png`); retur
   const { back, card, thumb, name, stamp, locked, pathY } = MAP;
   rect(back.x, oy + back.y, back.w, back.h, C.ink); frame(back.x, oy + back.y, back.w, back.h, C.lav);
   rect(back.x + 8, oy + back.y + 7, 56, 14, C.white); // 4자 × 14px
-  // 길(점선) — 카드 사이와 마지막 카드 오른쪽 끝까지(다음 판이 생길 자리)
-  for (let x = 0; x < W; x += 6) {
+  // 길(점선) — 카드 사이만. 마지막 카드 오른쪽은 비운다(끝 카드 おしまい！와 맞춤, #792)
+  const pathEnd = card.xs[ORDER.length - 1] + card.w;
+  for (let x = 0; x < pathEnd; x += 6) {
     const onCard = card.xs.some((cx) => x >= cx - 2 && x < cx + card.w + 2);
     if (!onCard && x > card.xs[0]) rect(x, oy + pathY, 2, 2, C.lint);
   }
