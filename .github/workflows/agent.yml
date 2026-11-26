@@ -117,6 +117,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Run agent
+        id: agent
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -136,6 +137,21 @@ jobs:
           # 비밀값은 GitHub이 로그에서 가린다. QA 실행에는 QA·infra 토큰 외에 아무것도 없다.
           # 대화 모드(#751)는 Slack 본문이 로그에 남으면 안 되므로 끈다.
           show_full_output: ${{ inputs.role == 'qa' && inputs.mode != 'chat' }}
+
+      # QA 로그는 첫 이미지 Read 뒤로 잘려 종료 사유를 알 수 없다(#988). 실행 기록에서 끝 줄(result)만 뽑아 남긴다.
+      # 대화 원문·이미지는 넣지 않는다. subtype(success / error_max_turns 등), num_turns, 소요 시간만.
+      - name: Summarize QA run end
+        if: always() && inputs.role == 'qa' && inputs.mode != 'chat'
+        env:
+          EXEC_FILE: ${{ steps.agent.outputs.execution_file }}
+        run: |
+          if [ -n "$EXEC_FILE" ] && [ -f "$EXEC_FILE" ]; then
+            jq -c '[.[]|select(.type=="result")|{subtype,is_error,num_turns,duration_ms,stop_reason,denials:(.permission_denials|length?)}]|last' "$EXEC_FILE" > /tmp/qa-end.json 2>/dev/null || echo '{"error":"jq failed"}' > /tmp/qa-end.json
+          else
+            echo '{"error":"no execution_file"}' > /tmp/qa-end.json
+          fi
+          echo "QA run end: $(cat /tmp/qa-end.json)" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=QA run end::$(cat /tmp/qa-end.json)"
 
       # Mia 스크린샷을 팀이 볼 수 있게 한다(#684). PNG만 올린다(report.md 등 제외). 보관 7일, 공개 저장소라 로그인한 사람은 받을 수 있다.
       - name: Upload QA screenshots
