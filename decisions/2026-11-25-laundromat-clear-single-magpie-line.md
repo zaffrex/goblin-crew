@@ -2,7 +2,7 @@
 schema: 1
 id: 6bec426e-6d46-4954-9d81-4bd1d8ecd85a
 title: 빨래방 클리어 연출은 clear_nest를 빼고 clear_magpie 한 줄(12자)만 남겨 8초 안에 맞춘다
-status: accepted
+status: superseded
 accepted_via: pr-merge
 decided_at: 2026-11-25
 owner: "@zaffrex"

@@ -29,13 +29,13 @@ const CASES: FrameCase[] = [
   },
 
   // S2 건조기가 밖과 이어져 있다(★①).
-  { id: 'aha-s2-reverse', action: REVERSE, says: 'laundromat.reverse_first', why: 'T1·★①·박자 A: 쿵 → 역회전 → 문 벌컥, 양말·양말·병뚜껑 퐁퐁, 양말 하나가 ズッシー 머리에(anchor) → 0.5초 뒤 까치 털 곤두섬(S3 B). 8-3 H5 +1.2초. 머리 위 양말이 대사 끝까지 1.0초 넘게 가만히 보이는가(8-1 ④)' },
+  { id: 'aha-s2-reverse', action: REVERSE, says: 'laundromat.reverse_first', why: 'T1·★①·박자 A + S3(#935): 쿵 → 역회전 → 까치 털 곤두섬 → 말랑한 양말 혹(sock_through)이 창 → 천장 덕트 → 건조기 뒤 → 문 벌컥, 양말·양말·병뚜껑 퐁퐁, 양말 하나가 ズッシー 머리에(anchor) → 양말 쓴 ズッシー 「…どこから来た。」. 혹이 눈을 창에서 건조기로 데려오는가, 말랑한 혹이 열쇠 혹(각진 패)과 달라 보이는가. 8-3 H5. ズッシー 말풍선이 머리 위 양말을 가리지 않고 대사 끝까지 1.0초 넘게 보이는가(8-1 ④)' },
   {
     id: 'aha-s2-reverse-again',
     pre: [REVERSE, REVERSE],
     action: REVERSE,
     says: 'laundromat.reverse_again',
-    why: '★① 두 번째(역회전 → 정회전 → 역회전): burst#2 양말 하나(#765 짧은 판). 8-3 H5 +0.4초',
+    why: '★① 두 번째(역회전 → 정회전 → 역회전): 양말 혹 + burst#2 양말 하나(#765 짧은 판) → ズッシー 「…また、靴下だ。」. 8-3 H5',
   },
 
   // S3 들어온 것은 둥지의 것이다.
