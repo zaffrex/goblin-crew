@@ -19,6 +19,7 @@ import { CASES_BY_SCREEN, type FrameCase } from './cases/index.ts';
 import { Browser, sleep, type Page } from './cdp.ts';
 import { INTERNAL, internalToPage, type Rect } from './coords.ts';
 import { planAction, type Input, type Layout } from './plan.ts';
+import { CHECKLIST_VIEWS } from './views.ts';
 
 const { values: args } = parseArgs({
   options: {
@@ -30,13 +31,8 @@ const { values: args } = parseArgs({
   },
 });
 
-/** #330 체크리스트 4개 화면 크기(ui-detail-checklist.md). */
-const VIEWPORTS = [
-  { name: 'D1', width: 1280, height: 720, dpr: 1, input: 'mouse' as Input },
-  { name: 'D4', width: 1920, height: 1080, dpr: 1, input: 'mouse' as Input },
-  { name: 'M3', width: 844, height: 390, dpr: 3, input: 'touch' as Input },
-  { name: 'M1', width: 667, height: 375, dpr: 2, input: 'touch' as Input },
-];
+/** #330 체크리스트 4개 화면 크기(ui-detail-checklist.md 1절, `views.ts`). 휴대폰은 탭. */
+const VIEWPORTS = Object.values(CHECKLIST_VIEWS).map((v) => ({ ...v, input: (v.mobile ? 'touch' : 'mouse') as Input }));
 type Viewport = (typeof VIEWPORTS)[number];
 
 const SCREEN_ID = args.screen!;
