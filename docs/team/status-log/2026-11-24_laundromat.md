@@ -14,3 +14,7 @@
 ## 2026-11-26 16:55 옮긴 줄
 
 - (진행 중 표 #935 줄, 묶음 1 판정 전) | #935 빨래방 Mia 묶음 | PM → Mia | 시작 조건 6개 ✅, 11/26 10:57 `role:qa`. **1-1 적당**(19클릭 클리어, 예 1/아니오 4, 단 "왜 됐는지" 2/5) / **1-2 어려움**(빌드 `535f258`, 게임 판 같음, 상한 30. 까치가 열쇠 물어 간 뒤 갈래에서 막힘) → 갈려서 1-3 → **8행동에서 중간 보고만 남기고 실행 끝(턴 상한 추정) → 세지 않음**, 15:23 **1-3 다시**(게임 판 같음, `browse.ts` 한 번에 3~4행동, [메모](https://github.com/zaffrex/goblin-crew/issues/935#issuecomment-7184374310)). 후보 13줄: [1-1](https://github.com/zaffrex/goblin-crew/issues/935#issuecomment-7181945060)·[1-2](https://github.com/zaffrex/goblin-crew/issues/935#issuecomment-7183054449) | 1-3 다시 보고 → 묶음 판정(적당이면 p1 한 번에 고친 뒤 휴대폰 1회, 어려움이면 Kai 표 다시). 1-3 다시도 멈추면 재실행 없이 어려움 쪽 + Sam #516. #984·#985(그림)·#967은 묶음 뒤 머지 |
+
+## 2026-11-26 21시 옮긴 줄
+
+- (진행 중 표 #935 줄, 묶음 2 판정 전) | #935 빨래방 Mia 묶음 | PM → Mia | **묶음 1 = 어려움**(1-1 적당 / 1-2 어려움 / 1-3·1-3 다시 상한 전 멈춤, [판정](https://github.com/zaffrex/goblin-crew/issues/935#issuecomment-7185782260)). 막힌 자리 S3 → Kai #991 + Luna 혹 #992 + #984 #985 #987 머지. **18:1x 묶음 2-1 시작**(배포 `35f4364`, PM `solve.ts` 3행동 클리어, [메모](https://github.com/zaffrex/goblin-crew/issues/935#issuecomment-7187468235)). 경과: [status-log](status-log/2026-11-24_laundromat.md) | 2-1 보고 → 같은 빌드 2-2(~2-3) → 묶음 판정. 상한 전 멈춤 원인은 계측 #990(PM ✅, 진마씨 Approve 대기). 묶음 중 게임 판 PR은 자동 머지 안 함 |
