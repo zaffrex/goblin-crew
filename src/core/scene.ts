@@ -1813,8 +1813,9 @@ export type SceneTapResult =
   | { kind: 'intent'; intent: Intent };
 
 /**
- * 탭 하나. busy 동안은 새 행동을 받지 않고, 월드 탭으로 하는 전환도 받지 않는다(설계 5절).
+ * 탭 하나. busy 동안은 새 행동을 받지 않는다(설계 5절). 전환은 아래 두 곳에서만 받는다.
  * - 얼굴 칸: busy 중에도 바로 전환한다(예외 셋, #266·6-4-2절). HUD 영역의 빈 곳은 무시.
+ * - 말풍선이 아닌 연출 중 화면 속 동료의 보이는 그림 칸: 바로 전환한다(예외 다섯, #935 후보 7 B, `busyMateAt`).
  * - 시작 연출(`onEnter`)만 남았으면: 그것을 다 끝내고 평소대로 처리한다(예외 넷 1, #700).
  * - 자동 걷기 중: 걷기만 끝 위치로 건너뛴다. 남은 이벤트는 그대로 재생한다.
  * - 바닥 걷기 중(busy 아님): 같은 캐릭터로 지금 목표에서 `WALK_SKIP_SAME` 안을 다시 누르면 목표에 바로 선다(`skipWalk`, #38 5-2-1절).
@@ -1852,6 +1853,15 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
   // 예외 넷 1(#700): 시작 연출 중 월드 탭은 남은 시작 연출을 끝내고 아래에서 평소대로 처리한다. 마우스·터치 같다.
   if (s.intro && isBusy(s)) skipIntro(s);
   const cur = s.current;
+  // 예외 다섯(#935 후보 7 B): 말풍선이 아닌 연출(걷기·anim·fx·게이지 등) 중 화면 속 동료의 보이는 그림 칸을 누르면 바로 전환한다.
+  // 얼굴 칸(예외 셋)과 같게 진행 중 이벤트·시간은 안 건드린다. 걷기도 건너뛰지 않는다. 말풍선 중은 예외 넷 2·3·4 그대로다.
+  if (isBusy(s) && cur?.ev.type !== 'say') {
+    const mate = busyMateAt(data, s, p);
+    if (mate) {
+      s.ui = { active: mate, selected: null };
+      return { kind: 'intent', intent: { kind: 'switch', char: mate, label: { verb: null, target: mate } } };
+    }
+  }
   if (cur) {
     if (cur.ev.type === 'walk') {
       // 남은 걷기·깡충을 다 건너뛰고 끝 점에 선다(1-5-2절: 깡충까지 건너뛴다).
@@ -1920,6 +1930,24 @@ export function sceneTap(data: SceneData, s: SceneState, p: Point, slop: number,
     runAction(data, s, intent.action, intent.to);
   }
   return { kind: 'intent', intent };
+}
+
+/**
+ * busy 중 p에 보이는 동료(`ui-interaction.md` 5절 예외 다섯, #935 후보 7 B). 없으면 null.
+ * 그린 알파 칸(`drawnBodies`: 덮개·나중에 그린 사람 반영, 여유 0)만 본다. 얼굴 상자는 서 있기 기준이라 연출 중 자세(납작·쿵)와 어긋나서 안 쓴다.
+ * 그래서 시트 알파가 아직 없으면(엔진이 못 읽음) 늘 null이다. 빼는 사람: 지금 캐릭터, 매달린 사람(`isHanging`),
+ * 지금 이벤트가 움직이는 사람(`walk`·`place`·`release`의 `char`, 캐릭터 `anim`의 `target`).
+ */
+function busyMateAt(data: SceneData, s: SceneState, p: Point): CharacterId | null {
+  const drawn = drawnBodies(data, s);
+  const ev = s.current?.ev;
+  const moving =
+    ev?.type === 'walk' || ev?.type === 'place' || ev?.type === 'release' ? ev.char : ev?.type === 'anim' && ev.target in s.walkers ? ev.target : null;
+  for (const c of CHARACTERS) {
+    if (c.id === s.ui.active || c.id === moving || isHanging(data, s, c.id)) continue;
+    if (drawn[c.id]?.at(p)) return c.id;
+  }
+  return null;
 }
 
 /**
