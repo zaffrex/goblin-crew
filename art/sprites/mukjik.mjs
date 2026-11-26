@@ -74,6 +74,7 @@ export function pose(kind, k) {
   if (kind === 'common.wet') return WET[k];
   if (kind === 'common.bump_bottom') return BUMP[k];
   if (kind === 'common.zap') return ZAP[k];
+  if (kind === 'shutter_grab') return SHUTTER_GRAB[k];
   if (kind === 'idle') {
     return {
       chest: k, // 숨 들이쉬기(배가 나온다) / 내쉬기
@@ -679,6 +680,34 @@ const ZAP = [
   },
 ];
 
+// ══════════ 화면 3 자세 (#764, 설계 docs/design/screens/laundromat.md 3절 10번 💥) ══════════
+// shutter_grab  셔터 아래 끝을 두 손으로 잡고 들어 올리려다 꿈쩍도 안 함 → 이어서 공용 납작(셔터에 얼굴).
+//   Mia 묶음 1-1(#935)에서 이 자세가 실루엣(주황 몸)으로 나와 "걷다가 넘어졌다"로 읽혔다. 잡는 박자가 보여야
+//   납작이 "셔터가 튕겨 얼굴을 쳤다"로 읽힌다.
+//   0 잡기: 깊게 웅크리고 상체를 앞으로, 두 주먹을 앞 아래로 뻗어 셔터 아래 끝을 쥔다. 미간 찌푸림.
+//   1 끙: 다리를 버티고 상체를 뒤로 젖혀 당긴다. 두 팔은 앞으로 쭉 펴진 채(셔터가 안 올라감), 질끈·이 악묾,
+//      머리띠 꼬리가 튀고 이마 옆에 땀 두 방울. 이 칸이 ガタン·흔들림 동안 남는다.
+//   합 500ms = 지금 실루엣 폴백(`TIMING.anim` 30틱)과 같아서 이 행동 길이는 안 바뀐다. 클리어 길(H6)과도 상관없다.
+const SHUTTER_GRAB = [
+  { // 0 잡기
+    chest: 5, belly: 0.6, jiggle: 1, lean: 0,
+    legs: { back: { x: -2.6, lift: 0, toe: false }, front: { x: 2.4, lift: 0, toe: false } },
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [1.3, 1.05], front: [1.2, 1.0] },
+    tails: 1,
+    face: { brows: 'furrow' },
+  },
+  { // 1 끙
+    chest: 3, belly: 0.6, jiggle: -2, lean: -2,
+    legs: { back: { x: -3.0, lift: 0, toe: false }, front: { x: 3.0, lift: 0, toe: false } },
+    armSwing: { back: 0, front: 0 },
+    aim: { back: [1.0, 0.85], front: [0.95, 0.85] },
+    tails: 2,
+    face: { brows: 'furrow', eyes: 'shut', mouth: 'grit' },
+    fx: (K) => drops(K, [[34, 5, 1], [38, 9, 0]]),
+  },
+];
+
 export const SHEET = {
   name: 'mukjik-base',
   character: 'mukjik',
@@ -711,6 +740,8 @@ export const SHEET = {
     { name: 'common.bump_bottom', frames: 4, ms: [100, 400, 300, 500] },
     // 공용 찌릿(#734). 쭉이와 같은 박자. 맨 뒤에 붙여서 앞 칸 번호는 그대로다.
     { name: 'common.zap', frames: 3, ms: [100, 100, 300] },
+    // 화면 3 💥 셔터 잡기(#764, laundromat.md 3절 10번). 맨 뒤에 붙여서 앞 칸 번호는 그대로다. 합 500ms = 실루엣 폴백 길이.
+    { name: 'shutter_grab', frames: 2, ms: [200, 300] },
   ],
   pose,
   drawFrame,
