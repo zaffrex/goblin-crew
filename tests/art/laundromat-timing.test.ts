@@ -16,7 +16,7 @@ import { TICK_MS } from '../../src/core/config';
 import { fxTicks } from '../../src/core/fx';
 import { CHARACTERS } from '../../src/core/characters';
 import type { Action, CharactersData, ScreenData } from '../../src/core/puzzle/types';
-import { createScene, isBusy, sceneLayout, sceneTap, sceneTick, type SceneData, type SceneState } from '../../src/core/scene';
+import { createScene, isBusy, sceneLayout, sceneTap, sceneTick, TIMING, type SceneData, type SceneState } from '../../src/core/scene';
 import { parseSceneArt } from '../../src/core/sceneArt';
 import { parseSpriteMeta } from '../../src/core/sprite';
 import { CASES_BY_SCREEN } from '../../scripts/playtest/cases/index';
@@ -27,6 +27,8 @@ const sheet = parseSceneArt(JSON.parse(readFileSync(join(ROOT, 'public', 'scenes
 
 /** ADR-0761 H5. */
 const H5_MAX_MS = 1500;
+/** 시트에 칸이 없는 물건 anim의 엔진 길이(`scene.ts` `TIMING.anim`). */
+const ENGINE_ANIM_FALLBACK_MS = TIMING.anim * TICK_MS;
 
 const has = (...names: string[]): boolean => names.every((n) => n in sheet.anims);
 
@@ -55,10 +57,14 @@ describe('laundromat 중간 성공 길이 (H5, 설계 8-3)', () => {
     },
   );
 
-  it.skipIf(!has('dryer_3.burst', 'dryer_3.sock_head'))(`★① 첫 판: 문 벌컥 행렬 + 머리 위 양말 ≤ ${H5_MAX_MS}ms`, () => {
+  // #935 S3: 문 벌컥 앞에 말랑한 양말 혹(`duct.sock_through`, Luna 안 (나))이 창 → 천장 덕트 → 건조기 뒤로 온다. 이것도 ★① 첫 판에
+  // 붙은 시간이라 같이 센다. 시트에 아직 없으면 엔진 기본(`TIMING.anim` 30틱 = 0.5초)이 돈다. 혹 앞 `magpie.ruffle`은 전처럼 안 센다
+  // (S3 단서 B, 설계 8-3 표 "붙인 엉뚱함" 밖).
+  it.skipIf(!has('dryer_3.burst', 'dryer_3.sock_head'))(`★① 첫 판: 양말 혹 + 문 벌컥 행렬 + 머리 위 양말 ≤ ${H5_MAX_MS}ms`, () => {
+    const lump = has('duct.sock_through') ? totalMs('duct.sock_through') : ENGINE_ANIM_FALLBACK_MS;
     const burst = totalMs('dryer_3.burst');
     const sock = totalMs('dryer_3.sock_head');
-    expect(burst + sock, `burst ${burst}ms + sock_head ${sock}ms`).toBeLessThanOrEqual(H5_MAX_MS);
+    expect(lump + burst + sock, `sock_through ${lump}ms + burst ${burst}ms + sock_head ${sock}ms`).toBeLessThanOrEqual(H5_MAX_MS);
   });
 
   it.skipIf(!has('dryer_3.burst', 'dryer_3.burst#2'))('★① 두 번째부터: `burst#2`가 첫 판보다 짧다(H5 짧은 판)', () => {
