@@ -42,7 +42,7 @@ const ROOT = join(HERE, '../../..');
 const SCREEN = JSON.parse(readFileSync(join(ROOT, 'content/screens/laundromat.json'), 'utf8'));
 const Y = PALETTE.map(([r, g, b]) => Math.round(0.299 * r + 0.587 * g + 0.114 * b));
 const ROW = { x0: 176, y: 180, pitch: 40 }; // 설계 1-1 메모: 세탁기 4대 176~336, y 180~236
-const ROW_DOORS = ['open', 'load', 'empty', 'load']; // #853: 문 열린 칸은 사람에게 안 가리는 1번
+const ROW_DOORS = ['open', 'load', 'empty', 'empty']; // #853: 문 열린 칸은 사람에게 안 가리는 1번. #935 후보 11: 빨래 든 통은 2번 하나뿐(art/scenes/laundromat.mjs와 같은 값)
 // B 설계 핫스팟 제안(laundromat.md 2-1). 화면 JSON은 아직 이전 초안이라 여기 적는다(Kai·Theo 화면 JSON PR에서 옮긴다)
 const GAP_BOX = [80, 222, 40, 24], DUCT_BOX = [352, 120, 30, 44], STUCK = [367, 150];
 const MAGPIE_AT = [61, 27]; // smug 20×18, 앞발(열 12~15)이 둥지 위 끝(y 43~44)을 밟는다
