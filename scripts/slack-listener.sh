@@ -211,7 +211,16 @@ watchdog() {
     limit=$(( every * 3600 + TICK_GRACE_MIN * 60 ))
     last=$(jq -r --arg p "$r · tick" '[.[] | select(.displayTitle | startswith($p)) | .createdAt] | max // empty' <<<"$runs")
     last_s=$began; [ -n "$last" ] && last_s=$(date -d "$last" +%s) && [ "$last_s" -lt "$began" ] && last_s=$began
-    [ $(( now - last_s )) -lt "$limit" ] && continue
+    # every > 1: team-schedule.yml only ticks when UTC hour % every == 0, so a cron that arrives after
+    # that hour is dropped. Also wake when the latest slot (UTC hour multiple of every) passed by the
+    # grace and no tick (or listener start) is at/after it (#978). A dispatched run counts as a tick,
+    # so the same slot is not woken twice.
+    due=0
+    if [ "$every" -gt 1 ]; then
+      uh=$(date -u -d "@$now" +%-H); slot_s=$(( (now / 3600 - uh % every) * 3600 ))
+      [ $(( now - slot_s )) -ge $(( TICK_GRACE_MIN * 60 )) ] && [ "$last_s" -lt "$slot_s" ] && due=1
+    fi
+    [ "$due" = 0 ] && [ $(( now - last_s )) -lt "$limit" ] && continue
     if [ "${DRY_RUN:-}" = 1 ]; then echo "DISPATCH $r :: watchdog tick"
     else gh workflow run agent.yml -R "$REPO" -f role="$r" -f mode=tick -f context="정기 작업 (cron이 늦어 감시가 대신 깨움, 매 ${every}시간)" >/dev/null 2>&1 \
       && log "watchdog tick: $r (last tick ${last:-none})" || log "watchdog dispatch failed for $r"; fi
