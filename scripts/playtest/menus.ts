@@ -20,6 +20,7 @@ import { pressTitleMap } from './card.ts';
 import { Browser, sleep, type Page } from './cdp.ts';
 import { internalToPage, type Rect } from './coords.ts';
 import { MENU_STATES, menuSeed, seedScript, type MenuState } from './seed.ts';
+import { CHECKLIST_VIEWS, type ChecklistView } from './views.ts';
 
 const { values: args } = parseArgs({
   options: {
@@ -36,21 +37,9 @@ const TEXT = JSON.parse(readFileSync('content/text/ja.json', 'utf8')) as Record<
 const first = JSON.parse(readFileSync(`content/screens/${ORDER[0]}.json`, 'utf8')) as { start: { at: Record<string, unknown> } };
 const ACTIVE = Object.keys(first.start.at)[0]!;
 
-interface View {
-  name: string;
-  width: number;
-  height: number;
-  dpr: number;
-  mobile: boolean;
-}
-/** `docs/design/ui-detail-checklist.md` 1절 표와 같은 네 크기. 휴대폰(mobile)은 탭으로 누른다. */
-const VIEWS: Record<string, View> = {
-  D1: { name: 'D1', width: 1280, height: 720, dpr: 1, mobile: false },
-  D4: { name: 'D4', width: 1920, height: 1080, dpr: 1, mobile: false },
-  M3: { name: 'M3', width: 844, height: 390, dpr: 3, mobile: true },
-  // CSS 배율 1.11: 1.2배 미만 압축 모양이 실제로 나오는 화면(#714).
-  M1: { name: 'M1', width: 640, height: 300, dpr: 2, mobile: true },
-};
+type View = ChecklistView;
+/** `docs/design/ui-detail-checklist.md` 1절 표와 같은 네 크기(`views.ts`). 휴대폰(mobile)은 탭으로 누른다. */
+const VIEWS: Record<string, View> = CHECKLIST_VIEWS;
 // 클릭·탭은 크기(`mobile`)가 정한다. 둘 다 주면 `--touch`가 말없이 무시되므로 막는다(#926 Sam nit).
 if (args.view !== undefined && args.touch) throw new Error('--view와 --touch는 같이 못 써요. 탭은 M3·M1이 알아서 해요');
 const viewNames = (args.view ?? (args.touch ? 'M3' : 'D1')).trim();
