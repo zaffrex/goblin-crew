@@ -146,7 +146,7 @@ jobs:
           EXEC_FILE: ${{ steps.agent.outputs.execution_file }}
         run: |
           if [ -n "$EXEC_FILE" ] && [ -f "$EXEC_FILE" ]; then
-            jq -c '[.[]|select(.type=="result")|{subtype,is_error,num_turns,duration_ms,stop_reason,denials:(.permission_denials|length?)}]|last' "$EXEC_FILE" > /tmp/qa-end.json 2>/dev/null || echo '{"error":"jq failed"}' > /tmp/qa-end.json
+            jq -c '[.[]|select(.type=="result")|{subtype,is_error,num_turns,duration_ms,stop_reason,denials:(.permission_denials|length?),denied:[.permission_denials[]?|{t:.tool_name,i:((.tool_input.command // .tool_input.file_path // "")|tostring|.[0:80])}]}]|last' "$EXEC_FILE" > /tmp/qa-end.json 2>/dev/null || echo '{"error":"jq failed"}' > /tmp/qa-end.json
           else
             echo '{"error":"no execution_file"}' > /tmp/qa-end.json
           fi
