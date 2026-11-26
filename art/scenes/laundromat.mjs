@@ -43,7 +43,7 @@ const VEND_BOX = [436, 148, 40, 88];
 const DUCT_BOX = [352, 120, 30, 44];
 /** 세탁기 줄(배경). laundromat-bg-sketch.mjs와 같은 값(#853) */
 const ROW = { x0: 176, y: 180, pitch: 40 };
-const ROW_DOORS = ['open', 'load', 'empty', 'load'];
+const ROW_DOORS = ['open', 'load', 'empty', 'empty']; // #935 후보 11: 빨래 든 통은 2번 하나뿐. 2·4번 둘 다 빨간 더미면 사람이 하나를 가릴 때마다 빨래가 옮겨 간 것처럼 읽힘
 
 const inside = ([bx, by, bw, bh], x, y) => x >= bx && x < bx + bw && y >= by && y < by + bh;
 
