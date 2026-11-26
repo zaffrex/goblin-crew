@@ -339,8 +339,8 @@ export function lumpV(img, cy, { strain = false } = {}) {
 const softExt = (c) => (Math.abs(c) <= 5 ? 2 : Math.abs(c) <= 9 ? 1 : 0);
 const SOFT_HALF = 11;
 
-/** 말랑한 가로 칸(새 칸 1). cx = 혹 가운데 x. 22×16(외곽선 포함 22×18) */
-export function lumpSoftH(img, cx) {
+/** 말랑한 가로 칸(새 칸 1). cx = 혹 가운데 x. 22×16(외곽선 포함 22×18) + 창 쪽 꼬리(관 속, `tail: false`는 미리보기 비교용) */
+export function lumpSoftH(img, cx, { tail = true } = {}) {
   const { runY, runH } = DUCT_GEO;
   const t = new Image(img.w, img.h);
   for (let dx = -SOFT_HALF; dx < SOFT_HALF; dx++) {
@@ -356,10 +356,31 @@ export function lumpSoftH(img, cx) {
     }
   }
   placeLump(img, t);
+  if (tail) softTail(img, (k, d) => [cx - SOFT_HALF - 1 - d, DUCT_GEO.runY + SOFT_TAIL[k].at], (x) => x >= DUCT_GEO.endX + 5);
 }
 
-/** 말랑한 세로 칸(새 칸 1). cy = 혹 가운데 y. 18×22(외곽선 포함 20×22) */
-export function lumpSoftV(img, cy) {
+// 혹 꼬리(#935 묶음 2 판정 ② Luna 안 (가)): 말랑한 혹 **뒤쪽(창 쪽)** 관 속에 관 그늘색(lav) 짧은 줄 셋.
+// Mia 2-1 정지 화면 두 장이 다 가로 마지막 자리(cx 330)를 찍어 "건조기가 덕트로 밀어 올렸다"로 읽혔다(방향 거꾸로).
+// 꼬리가 있으면 한 장만 봐도 "창 쪽에서 왔다". 꼬리 없는 각진 열쇠 혹과 대비도 커진다(S5).
+// 관 속에만 그린다(외곽선 없음, 관 윤곽 안 바꿈). 가운데 줄이 가장 길고 혹에 붙는다. 판자 구멍 쪽(x < endX + 5)은 자른다:
+// 첫 칸(cx 110)은 창에서 막 나와서 꼬리 자리가 없다(자리 자체가 방향을 말한다).
+// at = 관 위 끝(가로)/왼쪽 끝(세로)에서 잰 줄 자리, gap = 혹 끝과 띄운 칸, len = 길이
+const SOFT_TAIL = [
+  { at: 3, gap: 3, len: 10 },
+  { at: 6, gap: 0, len: 20 },
+  { at: 8, gap: 6, len: 8 },
+];
+function softTail(img, at, keep) {
+  SOFT_TAIL.forEach(({ gap, len }, k) => {
+    for (let d = gap; d < gap + len; d++) {
+      const [x, y] = at(k, d);
+      if (keep(x, y)) img.set(x, y, C.lav);
+    }
+  });
+}
+
+/** 말랑한 세로 칸(새 칸 1). cy = 혹 가운데 y. 18×22(외곽선 포함 20×22) + 위쪽 꼬리(관 속) */
+export function lumpSoftV(img, cy, { tail = true } = {}) {
   const { x, w } = DUCT_GEO;
   const t = new Image(img.w, img.h);
   for (let dy = -SOFT_HALF; dy < SOFT_HALF; dy++) {
@@ -376,6 +397,14 @@ export function lumpSoftV(img, cy) {
     }
   }
   placeLump(img, t);
+  // 세로 칸 꼬리는 위쪽(꺾인 모서리 쪽). 가로 구간과 잇는 모서리(y < runY + runH)와 건조기 위 끝 아래는 자른다.
+  // 혹이 걸린 자리(★③ 열쇠 혹 자리)를 지난 칸은 그 자리(cy 150 ± 8)에 꼬리를 안 남긴다: 거기 양말 흔적이 보이면 ★③과 섞인다.
+  const pastStuck = cy > LUMP_STUCK.y;
+  if (tail) softTail(
+    img,
+    (k, d) => [DUCT_GEO.x + SOFT_TAIL[k].at + 1, cy - SOFT_HALF - 1 - d],
+    (_, y) => y >= DUCT_GEO.runY + DUCT_GEO.runH && y < DUCT_GEO.bottom && (!pastStuck || y >= LUMP_STUCK.y + 8),
+  );
 }
 
 /**
