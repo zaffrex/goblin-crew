@@ -120,7 +120,8 @@ export function soloCardKey(screenId: string, hasText: (key: string) => boolean)
 export const MAP_RETURN_KEY = "ui.map.return";
 
 /**
- * 클리어 카드 글 키(11-2절). 마지막 화면은 끝 카드(`ui.end`). 결과 줄 키가 없으면 그 줄을 숨긴다(빈 화면 id 폴백).
+ * 클리어 카드 글 키(11-2절), 위에서부터 줄 순서. 결과 줄 키가 없으면 그 줄을 숨긴다(빈 화면 id 폴백).
+ * 마지막 화면은 결과 줄 + 끝 카드(`ui.end`)다(#935 묶음 2 p1 4: 끝 카드만 띄우면 "왜 끝났는지"가 안 남았다).
  * `toMap`(맵에서 다시 하는 판, 3-4절): 결과 줄·끝 카드는 그대로, 다음 줄만 `ui.map.return`. 끝 카드에도 붙는다(탭하면 맵).
  */
 export function cardLines(
@@ -128,9 +129,10 @@ export function cardLines(
   last: boolean,
   hasText: (key: string) => boolean,
   toMap = false,
-): { body: string | null; next: string | null } {
+): { body: string[]; next: string | null } {
   const key = `${screenId}.clear_card`;
-  const body = last ? "ui.end" : hasText(key) ? key : null;
+  const result = hasText(key) ? [key] : [];
+  const body = last ? [...result, "ui.end"] : result;
   if (toMap) return { body, next: MAP_RETURN_KEY };
   return { body, next: last ? null : "ui.next" };
 }
