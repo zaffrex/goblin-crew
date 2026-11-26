@@ -7,6 +7,8 @@
 //   laundromat-duct-lump-path-2x.png   덕트 전체 308×132에 lump_travel 자리 여섯 곳을 한 장에 겹친 것, 2배
 //   laundromat-duct-lump-anim-2x.png   lump_travel → 끙끙 두 바퀴 → lump_back → lump_travel → lump_pop, APNG 2배
 //   laundromat-duct-lump-blind-1x.png  블라인드용 1배 두 장(왼쪽 혹 없음, 오른쪽 걸린 혹 멈춘 모습). 글·표시 없음
+//   laundromat-duct-lump-soft-4x.png   각진 열쇠 혹 ↔ 말랑한 양말 혹(#935 S3), 가로 칸 위·세로 칸 아래, 4배
+//   laundromat-duct-lump-soft-anim-2x.png  sock_through(말랑한 혹이 건조기 뒤로 쑥), APNG 2배
 // 검사(어기면 종료 코드 1):
 //   - 혹 그림이 쓰는 덕트 값이 방 껍데기 DUCT와 같다
 //   - 걸린 혹(멈춘 모습·끙끙) 그린 픽셀 전부 `duct` 핫스팟 안 = 혹을 누르면 덕트가 받는다(★③ S6). 혹 가운데 = reachPoint
@@ -17,6 +19,8 @@
 //   - lump_travel 첫 칸 = 창 쪽 가로 자리, 마지막 칸 = stuck 첫 칸 / lump_back = 거꾸로 / stuck 첫 칸 = 멈춘 모습
 //   - lump_travel 첫 칸 ≥ 160ms(창 쪽 머묾), 마지막 칸 80~120ms(덜컥과 깃털 한 박자), 다른 칸 80ms(E2)
 //   - lump_travel·lump_back·lump_pop 칸 시간 합 ≤ 1500(형식 기록 8절)
+//   - sock_through(#935 S3, PM 결정 (나)): 각진 혹보다 덜 부풀고(최대 2px) 반짝(white) 없음, 벽 쪽 테두리 ink·관 안 ink 0,
+//     걸린 자리 칸(stuck)과 같은 칸이 없고 마지막 칸은 건조기 위 끝 바로 위, 칸 시간 합 ≤ 1500
 
 import { writeFileSync, readFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
@@ -31,7 +35,7 @@ import { washer } from '../../../art/scenes/laundromat.washer.mjs';
 import { shutter } from '../../../art/scenes/laundromat.shutter.mjs';
 import { dryer } from '../../../art/scenes/laundromat.dryer.mjs';
 import { vending } from '../../../art/scenes/laundromat.vending.mjs';
-import { nestEmpty, DUCT_LUMP, LUMP_PATH, LUMP_STUCK, lumpV } from '../../../art/scenes/laundromat.objects.mjs';
+import { nestEmpty, DUCT_LUMP, LUMP_PATH, LUMP_STUCK, lumpV, lumpH, lumpSoftH, lumpSoftV } from '../../../art/scenes/laundromat.objects.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '../../..');
@@ -121,7 +125,38 @@ for (const [k, fs] of Object.entries(anims)) {
   check(ms.at(-1) >= 80 && ms.at(-1) <= 120, `lump_travel 마지막 칸 ${ms.at(-1)}ms 80~120 (덜컥 → 깃털 한 박자, 재리뷰 2)`);
   check(ms.slice(1, -1).every((m) => m === 80), 'lump_travel 가운데 칸 80ms(E2)');
   for (const [k, a] of Object.entries(DUCT_LUMP)) check(a.ms.length === a.frames.length, `${k}: 칸 ${a.frames.length}개 = 시간 ${a.ms.length}개`);
-  for (const k of ['lump_travel', 'lump_back', 'lump_pop']) { const s = DUCT_LUMP[k].ms.reduce((a, b) => a + b, 0); check(s <= 1500, `${k}: 칸 시간 합 ${s}ms ≤ 1500`); }
+  for (const k of ['lump_travel', 'lump_back', 'lump_pop', 'sock_through']) { const s = DUCT_LUMP[k].ms.reduce((a, b) => a + b, 0); check(s <= 1500, `${k}: 칸 시간 합 ${s}ms ≤ 1500`); }
+}
+{
+  // 말랑한 양말 혹(sock_through)
+  const fs = anims.sock_through;
+  const inside = (x, y) => (y >= DUCT.runY && y < DUCT.runY + DUCT.runH && x >= DUCT.endX && x < DUCT.x + DUCT.w) || (x >= DUCT.x && x < DUCT.x + DUCT.w && y >= DUCT.runY && y < DUCT.bottom);
+  let edgeBad = 0, inkInside = 0, white = 0;
+  for (const t of fs) for (const [x, y, c] of pixels(t)) {
+    if (inside(x, y) && c === C.ink) inkInside++;
+    if (c === C.white) white++;
+    const n4 = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => [x + dx, y + dy]);
+    if (c !== C.ink && n4.some(([nx, ny]) => t.get(nx, ny) === EMPTY && !inside(nx, ny) && ny < DUCT.bottom)) edgeBad++;
+  }
+  check(edgeBad === 0, `sock_through: 벽에 닿는 테두리 ink 아닌 픽셀 ${edgeBad} = 0`);
+  check(inkInside === 0, `sock_through: 관 안쪽 ink 픽셀 ${inkInside} = 0`);
+  check(white === 0, `sock_through: 반짝(white) ${white} = 0 (패 모서리 반짝은 열쇠 혹만)`);
+  // 부풂 = 관 밖으로 나온 몸(ink 아닌) 두께. 가로 칸은 위로, 세로 칸은 왼쪽으로 잰다
+  const bulgeH = (t) => DUCT.runY - Math.min(...pixels(t).filter(([, , c]) => c !== C.ink).map(([, y]) => y));
+  const bulgeV = (t) => DUCT.x - Math.min(...pixels(t).filter(([, , c]) => c !== C.ink).map(([x]) => x));
+  const sH = layer((t) => lumpSoftH(t, 188)), aH = layer((t) => lumpH(t, 188));
+  const sV = layer((t) => lumpSoftV(t, 96)), aV = layer((t) => lumpV(t, 96));
+  check(bulgeH(sH) === 2 && bulgeH(aH) === 3, `가로 칸 부풂: 말랑 ${bulgeH(sH)}px < 각진 ${bulgeH(aH)}px`);
+  check(bulgeV(sV) === 2 && bulgeV(aV) === 4, `세로 칸 부풂: 말랑 ${bulgeV(sV)}px < 각진 ${bulgeV(aV)}px`);
+  // 어깨: 각진 혹은 가장 부푼 줄이 넓고(어깨가 평평), 말랑한 혹은 좁다(둥긂)
+  const topRun = (t) => { const ps = pixels(t).filter(([, , c]) => c !== C.ink); const y0 = Math.min(...ps.map(([, y]) => y)); return ps.filter(([, y]) => y === y0).length; };
+  check(topRun(sH) < topRun(aH), `가로 칸 가장 부푼 줄 폭: 말랑 ${topRun(sH)} < 각진 ${topRun(aH)} (둥근 어깨)`);
+  const stuckLayer = layer((t) => lumpSoftV(t, LUMP_STUCK.y));
+  check(!fs.some((t) => same(t, stuckLayer)) && !fs.some((t) => same(t, stuck)), 'sock_through: 걸린 자리(cy 150)에서 멈추는 칸 없음');
+  const lastMaxY = Math.max(...pixels(fs.at(-1)).map(([, y]) => y)), lastMinY = Math.min(...pixels(fs.at(-1)).map(([, y]) => y));
+  check(lastMaxY === DRYER_TOP - 1 && lastMinY >= LUMP_STUCK.y + 8, `sock_through 마지막 칸 y ${lastMinY}~${lastMaxY}: 건조기 위 끝 바로 위, 걸린 자리 아래`);
+  check(same(fs[0], layer((t) => lumpSoftH(t, LUMP_PATH.h[0]))), 'sock_through 첫 칸 = 창 쪽 가로 자리');
+  check(DUCT_LUMP.sock_through.ms.slice(1).every((m) => m === 80), 'sock_through 첫 칸 뒤는 80ms(E2)');
 }
 
 // ── 출력
@@ -158,5 +193,21 @@ const blind = new Image(W * 2 + 4, H, C.white);
 blind.blit(bg, 0, 0);
 blind.blit(over(bg, stuck), W + 4, 0);
 writeFileSync(join(HERE, 'laundromat-duct-lump-blind-1x.png'), indexedPng(blind, 1));
+
+{
+  const near2 = cropper({ x: 166, y: 42, w: 46, h: 24 }), nearV = cropper({ x: 346, y: 80, w: 42, h: 34 });
+  const rows = [
+    [over(bg, layer((t) => lumpH(t, 188))), over(bg, layer((t) => lumpSoftH(t, 188)))].map(near2),
+    [over(bg, layer((t) => lumpV(t, 96))), over(bg, layer((t) => lumpSoftV(t, 96)))].map(nearV),
+  ];
+  const sheet = new Image(2 * 48, 24 + 2 + 34, C.white);
+  rows[0].forEach((s, i) => sheet.blit(s, i * 48, 0));
+  rows[1].forEach((s, i) => sheet.blit(s, i * 48 + 2, 26));
+  writeFileSync(join(HERE, 'laundromat-duct-lump-soft-4x.png'), indexedPng(sheet, 4));
+  const seq = [{ img: wide(bg), ms: 600 }];
+  anims.sock_through.forEach((t, i) => seq.push({ img: wide(over(bg, t)), ms: DUCT_LUMP.sock_through.ms[i] }));
+  seq.push({ img: wide(bg), ms: 800 });
+  writeFileSync(join(HERE, 'laundromat-duct-lump-soft-anim-2x.png'), animatedPng(seq, 2));
+}
 
 if (problems.length) { console.error(`${problems.length}개 검사 실패`); process.exit(1); }

@@ -247,12 +247,13 @@ const capAt = (x, y) => (img) => bottleCap(img, x, y);
 //   → 도로 빨려 듦 → 마지막 양말이 높이 날아가고 문이 쾅(닫힌 문 = 역회전 반복 첫 칸, 도로 빨려 든 양말이 문틈에 다시 낀다).
 // 높이 날아간 양말은 바로 다음 줄 `sock_head`가 받아 ズッシー 머리로 데려간다. 그래서 머리로 가는 양말이 행렬의 마지막이다.
 // 입 가운데 368,197. 위로 튄 것은 건조기 위 끝(164) 근처까지만 가고, 덕트(x 360~373)보다 앞에 그린다(그리는 순서 duct < dryer_3).
+// 병뚜껑만 한 칸 더 높이(378,152) 튄다: 벽 cotton(Y222) 앞이라 ink 외곽선과 은색 몸이 같이 읽힌다. 덕트(lint)와 겹치지 않게 오른쪽으로 비킨다.
 const BURST = {
   ms: [90, 110, 110, 150, 110],
   frames: [
     withItems(doorOpen, sockAt(362, 192)),
     withItems(doorOpen, sockAt(358, 171, true), capAt(365, 193)),
-    withItems(doorOpen, sockAt(362, 185), capAt(364, 172)),
+    withItems(doorOpen, sockAt(362, 185), capAt(378, 152)), // 병뚜껑 꼭대기: 덕트 오른쪽 벽(cotton) 앞. 윗판(364,172)에선 다이얼과 같은 회색 동그라미로 묻혔다(#935 후보 15)
     withItems(doorOpen, capAt(365, 189), sockAt(362, 190)),
     withItems(SPIN[0], sockAt(368, 150, true)),
   ],
@@ -503,6 +504,7 @@ const ANIMS = {
   'duct.lump_travel': DUCT_LUMP.lump_travel,
   'duct.lump_back': DUCT_LUMP.lump_back,
   'duct.lump_pop': DUCT_LUMP.lump_pop,
+  'duct.sock_through': DUCT_LUMP.sock_through,
   'shutter.roll_up': ROLL_UP,
   'dryer_3.reverse_start': REVERSE_START,
   'dryer_3.forward_start': FORWARD_START,

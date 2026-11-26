@@ -5,7 +5,8 @@
 // 11/25 시트 1/2(#937) 기준 엔진 타임라인(틱 단위로 돌림, 2/2 칸 없는 anim은 엔진 기본 0.5초):
 // - 3-2 `gap_squeak_suck`(커밋된 정답 길): 빈 부리(`magpie.beak_suck` 마지막 칸 160ms) + `huh_text` fx 500ms가 이미 0.66초다.
 //   깃털(`feather_puff` + `feather_head`, 시트 2/2)에 남는 몫은 0.84초다. 설계 어림 +0.8초는 `？` fx 0.5초를 안 셌다.
-// - ★① `dryer_reverse`: 문 벌컥 행렬(`burst`) + 머리 위 양말(`sock_head`)이 붙인 엉뚱함이다(설계 어림 +1.2초).
+// - ★① `dryer_reverse`: 양말 혹(`duct.sock_through`, #935) + 문 벌컥 행렬(`burst`) + 머리 위 양말(`sock_head`)이 붙인 엉뚱함이다
+//   (11/26 시트 합 580 + 570 + 330 = 1480ms). 혹 앞 털 곤두섬(`magpie.ruffle`)은 S3 단서 B라 안 센다.
 // 2/2 anim이 시트에 아직 없으면 그 줄은 건너뛴다. 시트 2/2 PR이 칸을 넣는 순간부터 막는다.
 // 상한을 고치고 싶으면 이 파일을 고치는 PR에서 replay로 H5를 다시 재서 본문에 적는다.
 
@@ -70,6 +71,19 @@ describe('laundromat 중간 성공 길이 (H5, 설계 8-3)', () => {
   it.skipIf(!has('dryer_3.burst', 'dryer_3.burst#2'))('★① 두 번째부터: `burst#2`가 첫 판보다 짧다(H5 짧은 판)', () => {
     expect(totalMs('dryer_3.burst#2')).toBeLessThan(totalMs('dryer_3.burst'));
   });
+
+  // 두 번째 판도 같은 show라 혹이 매번 돈다(#991 Theo 리뷰). 혹은 S3 단서라 짧은 판에서도 그대로 둔다(Luna, #992).
+  // 나중에 `duct.sock_through#2`를 그리면 그걸 세고, 첫 판보다 길면 안 된다.
+  it.skipIf(!has('dryer_3.burst#2', 'dryer_3.sock_head', 'duct.sock_through'))(
+    `★① 두 번째부터: 양말 혹 + \`burst#2\` + 머리 위 양말 ≤ 첫 판, ≤ ${H5_MAX_MS}ms`,
+    () => {
+      const lump = has('duct.sock_through#2') ? totalMs('duct.sock_through#2') : totalMs('duct.sock_through');
+      const second = lump + totalMs('dryer_3.burst#2') + totalMs('dryer_3.sock_head');
+      const first = totalMs('duct.sock_through') + totalMs('dryer_3.burst') + totalMs('dryer_3.sock_head');
+      expect(second, `두 번째 ${second}ms, 첫 판 ${first}ms`).toBeLessThan(first);
+      expect(second).toBeLessThanOrEqual(H5_MAX_MS);
+    },
+  );
 });
 
 // ADR-0761 H6(클리어 연출 8초 안): 빨래방 클리어는 이미 넘는다(#802 (d), 11/25 replay 10.95초). 셔터 올라감(`shutter.roll_up`, 2/2-c1)은
