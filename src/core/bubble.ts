@@ -15,6 +15,11 @@ export interface BubbleAnchor {
   bottom: number;
   left?: number;
   right?: number;
+  /**
+   * 화자 얼굴 상자(#967·#970, 화면 CSS px). 있으면 말풍선이 화자 얼굴을 덮는 자리를 가장 비싸게 친다(`coverCost` 맨 앞).
+   * 대사가 떠 있는 동안 말하는 사람 표정이 개그의 반이다. 물건 화자(anim 칸)는 없다.
+   */
+  face?: Rect;
 }
 
 export interface BubbleOptions {
@@ -143,13 +148,14 @@ function coveredRatio(box: Rect, k: Rect): number {
 }
 
 /**
- * 자리의 값(#598). [단서 물건, 다른 사람 몸, 장난감] 순으로 가려진 비율의 합. 앞 칸부터 비교한다.
- * 단서를 조금이라도 덜 덮는 자리가 이기고, 단서가 같으면 동료 얼굴, 그다음 장난감이다.
+ * 자리의 값(#598, #967). [화자 얼굴, 단서 물건, 다른 사람 몸, 장난감] 순으로 가려진 비율의 합. 앞 칸부터 비교한다.
+ * 화자 얼굴을 조금이라도 덜 덮는 자리가 이기고(#967·#970 Luna: 화자 얼굴 > 단서 > 동료 몸 > 장난감), 같으면 단서,
+ * 그다음 동료 얼굴, 그다음 장난감이다. 얼굴 상자가 없는 화자(물건)는 첫 칸이 늘 0이라 예전 순서 그대로다.
  */
-function coverCost(p: BubblePlacement, size: Size, keep: readonly KeepBox[], bodies: readonly Rect[]): [number, number, number] {
+function coverCost(p: BubblePlacement, size: Size, keep: readonly KeepBox[], bodies: readonly Rect[], face: Rect | undefined): [number, number, number, number] {
   const box = { left: p.left, top: p.top, width: size.width, height: size.height };
   const sum = (list: readonly Rect[]): number => list.reduce((acc, k) => acc + coveredRatio(box, k), 0);
-  return [sum(keep.filter((k) => !k.toy)), sum(bodies), sum(keep.filter((k) => k.toy))];
+  return [face ? coveredRatio(box, face) : 0, sum(keep.filter((k) => !k.toy)), sum(bodies), sum(keep.filter((k) => k.toy))];
 }
 
 /**
@@ -176,17 +182,20 @@ function cheaper(a: readonly number[], b: readonly number[]): boolean {
  * 옆에도 빈자리가 없고 처음 자리가 단서 물건(`toy`가 아닌 것)을 덮으면(#598) 처음 자리·오른쪽 옆·왼쪽 옆·위아래 뒤집은
  * 자리 가운데 **가장 덜 덮는 자리**를 고른다(`coverCost`: 단서 → 동료 몸 → 장난감 순, 같으면 앞 후보).
  * 예전에는 처음 자리로 돌아가서 휴대폰에서 아하 결과를 덮었다. 장난감만 덮으면 예전처럼 처음 자리다.
+ * 처음 자리가 **화자 자기 얼굴**(`anchor.face`)을 덮어도(#967·#970) 같은 후보 비교로 간다. 바닥 화자는 발 아래 자리가
+ * 라벨 줄 위로 끌려 올라와(`bubbleBounds`) 사실상 자기 몸·얼굴 위에 놓이기 때문이다.
  */
 export function placeBubble(anchor: BubbleAnchor, size: Size, bounds: Rect, opts: BubbleOptions, avoid: readonly Rect[] = [], keep: readonly KeepBox[] = [], bodies: readonly Rect[] = []): BubblePlacement {
   const base = placeAboveOrBelow(anchor, size, bounds, opts, avoid);
   const box = { left: base.left, top: base.top, width: size.width, height: size.height };
-  if (!keep.some((k) => overlaps(box, k))) return base;
+  const coversFace = anchor.face !== undefined && overlaps(box, anchor.face);
+  if (!coversFace && !keep.some((k) => overlaps(box, k))) return base;
   const blockers = [...keep, ...bodies];
   const side = sideBubble('right', anchor, size, bounds, opts, avoid, blockers) ?? sideBubble('left', anchor, size, bounds, opts, avoid, blockers);
   if (side) return side;
   // 장난감만 덮으면 예전처럼 처음 자리(#598). 장난감은 반응이 대사보다 먼저 끝나고, 화면 1 배포 판(진마씨 재플레이)의
   // 바닥 장면 자리를 바꾸지 않는다.
-  if (!keep.some((k) => !k.toy && overlaps(box, k))) return base;
+  if (!coversFace && !keep.some((k) => !k.toy && overlaps(box, k))) return base;
 
   const candidates = [
     sideBubble('right', anchor, size, bounds, opts, avoid, []),
@@ -194,10 +203,10 @@ export function placeBubble(anchor: BubbleAnchor, size: Size, bounds: Rect, opts
     placeAboveOrBelow(anchor, size, bounds, opts, avoid, !base.below),
   ];
   let best = base;
-  let bestCost = coverCost(base, size, keep, bodies);
+  let bestCost = coverCost(base, size, keep, bodies, anchor.face);
   for (const c of candidates) {
     if (!c) continue;
-    const cost = coverCost(c, size, keep, bodies);
+    const cost = coverCost(c, size, keep, bodies, anchor.face);
     if (cheaper(cost, bestCost)) {
       best = c;
       bestCost = cost;

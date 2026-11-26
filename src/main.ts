@@ -25,7 +25,7 @@ import { CONTENT_VERSION, saveOnCard, startFromSave } from './core/progress';
 import { LocalSaveStore, probeStorage } from './core/save/store';
 import type { SaveData } from './core/save/schema';
 import orderJson from '../content/screens/order.json';
-import { activeFx, activeMarkerVisible, boardDrop, charPose, headAnchor, charWalking, createScene, currentBubble, drawOrder, stepOffBubbleBox, gaugeDrop, introHoverScene, isBusy, isHanging, sceneArtView, sceneLayout, mouseHoverThroughSay, sceneTap, sceneTick, selectsDuringSay, takeHeldTap, takeWalkStart, tapContext, type SceneData, type SceneState } from './core/scene';
+import { activeFx, activeMarkerVisible, boardDrop, charPose, headAnchor, charWalking, createScene, currentBubble, drawOrder, speakerFaceBox, stepOffBubbleBox, gaugeDrop, introHoverScene, isBusy, isHanging, sceneArtView, sceneLayout, mouseHoverThroughSay, sceneTap, sceneTick, selectsDuringSay, takeHeldTap, takeWalkStart, tapContext, type SceneData, type SceneState } from './core/scene';
 import { animFrameBox, coveredIds, headKeepBoxes, headPlaces, litFrames, loopStarts, sceneDraws, type HeadPlaced, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
 import { isTapKey } from './core/keys';
@@ -655,7 +655,7 @@ const BUBBLE_OPTS: Omit<BubbleOptions, 'tailInset'> = { margin: 4, gap: 9, avoid
 /** 글·최대 폭·글자 크기가 같으면 크기도 같다. 매 프레임 재면 레이아웃을 강제로 다시 하므로 바뀔 때만 잰다. */
 let bubbleMeasured = { key: '', width: 0, height: 0 };
 
-function placeBubbleDom(text: string, speaker: BubbleAnchor | null, keep: readonly KeepBox[] = [], bodies: readonly HitBox[] = []): void {
+function placeBubbleDom(text: string, speaker: BubbleAnchor | null, keep: readonly KeepBox[] = [], bodies: readonly HitBox[] = [], face: HitBox | null = null): void {
   const r = display.rect();
   const fontPx = bubbleFontPx(r.width / INTERNAL_WIDTH);
   const fontSize = `${fontPx}px`;
@@ -679,6 +679,7 @@ function placeBubbleDom(text: string, speaker: BubbleAnchor | null, keep: readon
     const br = toScreen(k.left + k.width, k.top + k.height);
     return { left: tl.x, top: tl.y, width: br.x - tl.x, height: br.y - tl.y };
   };
+  if (face) anchor.face = boxToScreen(face);
   // 아래 라벨 줄·게이지 띠는 말풍선 자리가 아니다(#601 묶음 1-1). 최대 폭은 예전처럼 게임 화면 폭.
   const area = bubbleBounds(r, toScreen(0, LABEL_BOTTOM).y, labelFontPx(r.width / INTERNAL_WIDTH));
   const p = placeBubble(anchor, bubbleMeasured, area, { ...BUBBLE_OPTS, tailInset: bubbleTailInset(fontPx) }, bubbleAvoidBoxes(), keep.map((k) => ({ ...boxToScreen(k), toy: k.toy })), bodies.map(boxToScreen));
@@ -1000,7 +1001,9 @@ function render(): void {
     // 비켜 서는 화자(#862)는 도착점 몸으로 자리를 한 번 정한다(#866). 걷는 동안 프레임마다 다시 고르면 휴대폰에서 튄다.
     const stepBox = stepOffBubbleBox(data, scene);
     const at = stepBox ? { ...layout, chars: { ...layout.chars, [b.speaker]: stepBox } } : layout;
-    placeBubbleDom(sayText(TEXT, b.text, b.speaker), speakerBox(b.speaker, at, frameBox), bubbleKeepBoxes(b.speaker, layout, heads), bubbleBodyBoxes(b.speaker, layout));
+    // 화자 얼굴(#967·#970)은 말풍선이 가장 나중에 덮는다. 물건 화자는 얼굴이 없다.
+    const face = !frameBox && b.speaker in layout.chars ? speakerFaceBox(data, scene, b.speaker as CharacterId) : null;
+    placeBubbleDom(sayText(TEXT, b.text, b.speaker), speakerBox(b.speaker, at, frameBox), bubbleKeepBoxes(b.speaker, layout, heads), bubbleBodyBoxes(b.speaker, layout), face);
   }
 }
 

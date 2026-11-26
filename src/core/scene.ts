@@ -2004,6 +2004,20 @@ export function stepOffBubbleBox(data: SceneData, s: SceneState): HitBox | null 
   return (meta ? spriteHit(meta, pose, to.x, y, face) : null) ?? characterHitBox(characterDef(char), to.x, y, face);
 }
 
+/**
+ * 말풍선이 덮지 않을 화자 얼굴 상자(#967·#970, `bubble.ts` `BubbleAnchor.face`). 내부 좌표.
+ * 머리 위 칸과 같은 서 있기 얼굴 상자(`headAnchor`)다. 비켜 서는 화자(#866)는 말풍선 자리와 같이 도착점·도착 방향으로 잰다.
+ * 자세마다 머리가 움직여도 따라가지 않는다(납작 자세에서는 서 있던 얼굴 자리를 지킨다. 그 자리는 비어 있지만 바로 아래가 얼굴이다).
+ */
+export function speakerFaceBox(data: SceneData, s: SceneState, id: CharacterId): HitBox {
+  const ev = s.current?.ev;
+  if (stepOffBubbleBox(data, s) && ev?.type === 'say' && ev.stepOff) {
+    const { to, face } = ev.stepOff;
+    return characterFaceBox(characterDef(id), to.x, to.y + boardDrop(data, s, id), face);
+  }
+  return headAnchor(data, s, id).face;
+}
+
 /** 지금 떠 있는 화면 가운데 컷 글 ID. 없으면 null. busy가 끝난 뒤에도 잠깐 남을 수 있다. */
 export function currentCut(s: SceneState): string | null {
   if (s.current?.cut) return s.current.cut;

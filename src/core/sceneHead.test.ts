@@ -9,7 +9,7 @@ import { characterDef, characterFaceBox } from './characters';
 import { placeBubble } from './bubble';
 import { CHAR_SLOTS } from './hud';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { charFacing, createScene, headAnchor, isBusy, sceneArtView, sceneTap, sceneTick, type SceneData, type SceneState } from './scene';
+import { charFacing, createScene, headAnchor, isBusy, speakerFaceBox, sceneArtView, sceneTap, sceneTick, type SceneData, type SceneState } from './scene';
 import { animFrameBox, animOf, coverFrames, headKeepBoxes, headPlace, headPlaces, litFrames, parseSceneArt, sceneDraws, type SceneArtMeta, type SceneView } from './sceneArt';
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -107,6 +107,11 @@ describe('머리 위 anim (형식 기록 16절, 개정 12)', () => {
     const w = s.walkers.mukjik;
     const facing = charFacing(data, s, 'mukjik');
     expect(headAnchor(data, s, 'mukjik')).toEqual({ face: characterFaceBox(characterDef('mukjik'), w.x, w.y, facing), facing });
+  });
+
+  it('speakerFaceBox(#967): 비켜 서기가 아니면 headAnchor 얼굴 상자 그대로', () => {
+    const s = squeakDown();
+    for (const id of ['jjuk', 'mukjik', 'ppik'] as const) expect(speakerFaceBox(data, s, id)).toEqual(headAnchor(data, s, id).face);
   });
 
   it('headPlaces: heads 순서대로 캐릭터마다 얼굴 상자 기준 자리, 칸이 없으면 뺀다', () => {
