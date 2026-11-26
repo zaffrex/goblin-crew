@@ -289,8 +289,11 @@ export function lumpH(img, cx) {
   placeLump(img, t);
 }
 
-/** 세로 칸(새 칸 2: strain 거짓/참). cy = 혹 가운데 y. 세로 구간 x 360~373에서 좌우로 4px(strain 5px) 부푼다. */
-export function lumpV(img, cy, { strain = false } = {}) {
+/**
+ * 세로 칸(새 칸 2: strain 거짓/참). cy = 혹 가운데 y. 세로 구간 x 360~373에서 좌우로 4px(strain 5px) 부푼다.
+ * glint 참 = 왼쪽 위 어깨(반짝 1px 옆 몸 위)에 둥지와 같은 반짝 별(`sparkStar`)을 얹는다(0칸 합성, #935 묶음 2 Luna 안 (다)).
+ */
+export function lumpV(img, cy, { strain = false, glint = false } = {}) {
   const { x, w } = DUCT_GEO;
   const t = new Image(img.w, img.h);
   const half = 11;
@@ -329,6 +332,8 @@ export function lumpV(img, cy, { strain = false } = {}) {
     }
   }
   placeLump(img, t);
+  // 별 가운데는 어깨 반짝 1px(x - 2)보다 4px 안쪽 몸 위: 벽(cotton) 위에 얹으면 노랑이 묻힌다(명도 차가 작다). 효과라 외곽선 없음(둥지 O2와 같은 약속)
+  if (glint) sparkStar(img, x + 2, cy - 6);
 }
 
 // ── 말랑한 양말 혹(새 칸 2: 가로 1 + 세로 1, #935 S3, PM 결정 (나)) ──
@@ -424,9 +429,18 @@ const travelFrames = [
 const travelMs = [200, 80, 80, 80, 80, 100];
 export const DUCT_LUMP = {
   lump_travel: { ms: travelMs, frames: travelFrames },
+  // stuck 끝 칸(#935 묶음 2 Luna 안 (다)): 두 번 끙끙한 뒤 어깨가 한 번 반짝(160ms, 둥지 대기 반짝 NEST_KEY.loop과 같은 길이·같은 별).
+  //   Mia 2-2가 걸린 혹을 "소리에 놀란 파이프"(관 부품)로 읽었다. "둥지에서 반짝이 빠짐 → 덕트에서 반짝"을 같은 낱말로 잇는다.
+  //   양말 혹(sock_through)에는 반짝이 없어서 열쇠 혹과 대비가 커진다(S5). 대기 반복만 바뀌고 show 길이·H5·H6 변화 0.
   stuck: {
-    ms: [1400, 120, 120, 120],
-    frames: [(img) => lumpV(img, LUMP_STUCK.y), (img) => lumpV(img, LUMP_STUCK.y, { strain: true }), (img) => lumpV(img, LUMP_STUCK.y), (img) => lumpV(img, LUMP_STUCK.y, { strain: true })],
+    ms: [1400, 120, 120, 120, 160],
+    frames: [
+      (img) => lumpV(img, LUMP_STUCK.y),
+      (img) => lumpV(img, LUMP_STUCK.y, { strain: true }),
+      (img) => lumpV(img, LUMP_STUCK.y),
+      (img) => lumpV(img, LUMP_STUCK.y, { strain: true }),
+      (img) => lumpV(img, LUMP_STUCK.y, { glint: true }),
+    ],
   },
   lump_back: { ms: [100, 80, 80, 80, 80, 160], frames: [...travelFrames].reverse() },
   lump_pop: {

@@ -162,6 +162,18 @@
     },
     {
       "src": [
+        488,
+        0,
+        24,
+        22
+      ],
+      "at": [
+        355,
+        139
+      ]
+    },
+    {
+      "src": [
         0,
         105,
         50,
@@ -1309,13 +1321,15 @@
               11,
               12,
               11,
-              12
+              12,
+              13
             ],
             "ms": [
               1400,
               120,
               120,
-              120
+              120,
+              160
             ]
           }
         }
@@ -1327,13 +1341,13 @@
         "dryer_3"
       ],
       "default": {
-        "frame": 13,
+        "frame": 14,
         "layer": "back",
         "loop": {
           "frames": [
-            13,
             14,
-            15
+            15,
+            16
           ],
           "ms": [
             150,
@@ -1349,13 +1363,13 @@
               "dryer.reverse": true
             }
           },
-          "frame": 13,
+          "frame": 14,
           "layer": "back",
           "loop": {
             "frames": [
-              13,
-              15,
-              14
+              14,
+              16,
+              15
             ],
             "ms": [
               150,
@@ -1388,7 +1402,7 @@
         "soap_vending"
       ],
       "default": {
-        "frame": 16,
+        "frame": 17,
         "layer": "back"
       }
     }
@@ -1416,7 +1430,7 @@
       "object": "magpie",
       "frames": [
         3,
-        17,
+        18,
         3
       ],
       "ms": [
@@ -1429,7 +1443,7 @@
     "magpie.beak_suck": {
       "object": "magpie",
       "frames": [
-        18,
+        19,
         3
       ],
       "ms": [
@@ -1442,7 +1456,7 @@
       "object": "magpie",
       "frames": [
         3,
-        19,
+        20,
         3
       ],
       "ms": [
@@ -1456,8 +1470,8 @@
       "object": "magpie",
       "frames": [
         3,
-        19,
-        17,
+        20,
+        18,
         3
       ],
       "ms": [
@@ -1471,9 +1485,9 @@
     "magpie.ruffle": {
       "object": "magpie",
       "frames": [
-        20,
         21,
         22,
+        23,
         3
       ],
       "ms": [
@@ -1500,7 +1514,7 @@
       "object": "magpie",
       "frames": [
         4,
-        23,
+        24,
         3
       ],
       "ms": [
@@ -1514,8 +1528,8 @@
       "object": "magpie",
       "frames": [
         5,
-        24,
         25,
+        26,
         6
       ],
       "ms": [
@@ -1534,9 +1548,9 @@
             }
           },
           "frames": [
-            26,
             27,
             28,
+            29,
             6
           ],
           "ms": [
@@ -1552,8 +1566,8 @@
     "magpie.fly_in": {
       "object": "magpie",
       "frames": [
+        26,
         25,
-        24,
         5,
         3
       ],
@@ -1568,8 +1582,8 @@
     "magpie.perch_drop": {
       "object": "magpie",
       "frames": [
-        29,
-        30
+        30,
+        31
       ],
       "ms": [
         80,
@@ -1609,8 +1623,8 @@
     "magpie.nest_sucked": {
       "object": "nest",
       "frames": [
-        31,
-        32
+        32,
+        33
       ],
       "ms": [
         60,
@@ -1621,9 +1635,9 @@
     "gap.glint": {
       "object": "gap",
       "frames": [
-        33,
         34,
-        33,
+        35,
+        34,
         9
       ],
       "ms": [
@@ -1638,9 +1652,9 @@
       "object": "gap",
       "frames": [
         9,
-        35,
         36,
-        37
+        37,
+        38
       ],
       "ms": [
         120,
@@ -1654,8 +1668,8 @@
       "object": "gap",
       "frames": [
         9,
-        38,
         39,
+        40,
         9
       ],
       "ms": [
@@ -1669,11 +1683,11 @@
     "duct.lump_travel": {
       "object": "duct",
       "frames": [
-        40,
         41,
         42,
         43,
         44,
+        45,
         11
       ],
       "ms": [
@@ -1690,11 +1704,11 @@
       "object": "duct",
       "frames": [
         11,
+        45,
         44,
         43,
         42,
-        41,
-        40
+        41
       ],
       "ms": [
         100,
@@ -1710,9 +1724,9 @@
       "object": "duct",
       "frames": [
         12,
-        45,
         46,
-        47
+        47,
+        48
       ],
       "ms": [
         160,
@@ -1725,13 +1739,13 @@
     "duct.sock_through": {
       "object": "duct",
       "frames": [
-        48,
         49,
         50,
         51,
         52,
         53,
-        54
+        54,
+        55
       ],
       "ms": [
         100,
@@ -1747,10 +1761,10 @@
     "shutter.roll_up": {
       "object": "shutter",
       "frames": [
-        55,
         56,
         57,
         58,
+        59,
         8
       ],
       "ms": [
@@ -1765,9 +1779,9 @@
     "dryer_3.reverse_start": {
       "object": "dryer_3",
       "frames": [
-        13,
-        15,
-        14
+        14,
+        16,
+        15
       ],
       "ms": [
         240,
@@ -1779,9 +1793,9 @@
     "dryer_3.forward_start": {
       "object": "dryer_3",
       "frames": [
-        13,
         14,
-        15
+        15,
+        16
       ],
       "ms": [
         240,
@@ -1793,11 +1807,11 @@
     "dryer_3.burst": {
       "object": "dryer_3",
       "frames": [
-        59,
         60,
         61,
         62,
-        63
+        63,
+        64
       ],
       "ms": [
         90,
@@ -1811,8 +1825,8 @@
     "dryer_3.burst#2": {
       "object": "dryer_3",
       "frames": [
-        64,
-        63
+        65,
+        64
       ],
       "ms": [
         90,
@@ -1823,9 +1837,9 @@
     "dryer_3.door_bang": {
       "object": "dryer_3",
       "frames": [
-        65,
-        65,
-        13
+        66,
+        66,
+        14
       ],
       "ms": [
         90,
@@ -1837,10 +1851,10 @@
     "dryer_3.sock_head": {
       "object": "sock",
       "frames": [
-        66,
         67,
         68,
-        69
+        69,
+        70
       ],
       "ms": [
         60,
@@ -1858,8 +1872,8 @@
     "dryer_3.feather_puff": {
       "object": "dryer_3",
       "frames": [
-        70,
-        71
+        71,
+        72
       ],
       "ms": [
         100,
@@ -1870,8 +1884,8 @@
     "dryer_3.feather_head": {
       "object": "head_feather",
       "frames": [
-        72,
-        73
+        73,
+        74
       ],
       "ms": [
         90,
@@ -1887,9 +1901,9 @@
     "dryer_3.nest_hat": {
       "object": "nest",
       "frames": [
-        74,
         75,
-        76
+        76,
+        77
       ],
       "ms": [
         80,
@@ -1906,9 +1920,9 @@
     "magpie.hat_perch": {
       "object": "magpie",
       "frames": [
-        77,
         78,
-        79
+        79,
+        80
       ],
       "ms": [
         100,
@@ -1925,8 +1939,8 @@
     "duct.warm_puff": {
       "object": "duct",
       "frames": [
-        80,
         81,
+        82,
         10
       ],
       "ms": [
@@ -1939,9 +1953,9 @@
     "duct.suck_pole": {
       "object": "duct",
       "frames": [
-        82,
         83,
-        82,
+        84,
+        83,
         10
       ],
       "ms": [
@@ -1955,14 +1969,14 @@
     "dryer_3.gulp_pole": {
       "object": "dryer_3",
       "frames": [
-        13,
         14,
         15,
-        13,
+        16,
         14,
         15,
-        84,
-        13
+        16,
+        85,
+        14
       ],
       "ms": [
         50,
@@ -1983,14 +1997,14 @@
             }
           },
           "frames": [
-            13,
+            14,
+            16,
             15,
             14,
-            13,
+            16,
             15,
-            14,
-            84,
-            13
+            85,
+            14
           ],
           "ms": [
             50,
@@ -2009,11 +2023,11 @@
     "soap_vending.spill_boxes": {
       "object": "soap_vending",
       "frames": [
-        85,
         86,
         87,
         88,
-        89
+        89,
+        90
       ],
       "ms": [
         120,
@@ -2028,11 +2042,11 @@
     "soap_vending.spill_coin": {
       "object": "soap_vending",
       "frames": [
-        90,
         91,
         92,
         93,
-        94
+        94,
+        95
       ],
       "ms": [
         90,

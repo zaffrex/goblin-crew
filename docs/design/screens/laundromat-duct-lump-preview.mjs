@@ -2,7 +2,7 @@
 // 아직 빌드에 안 붙였다. 설계 9-3: 단서 칸은 빌드에 붙이기 전에 1배 그림 블라인드("무엇이 달라졌나")를 먼저 본다.
 // 실행: node docs/design/screens/laundromat-duct-lump-preview.mjs
 // 출력(같은 폴더):
-//   laundromat-duct-lump-4x.png        걸린 자리 둘레 56×64, 혹 없음 → 걸림 → 끙끙, 4배
+//   laundromat-duct-lump-4x.png        걸린 자리 둘레 56×64, 혹 없음 → 걸림 → 끙끙 → 어깨 반짝(#935 (다)), 4배
 //   laundromat-duct-lump-gray-4x.png   같은 줄 명도(흑백, ADR-0007 결정 3-6)
 //   laundromat-duct-lump-path-2x.png   덕트 전체 308×132에 lump_travel 자리 여섯 곳을 한 장에 겹친 것, 2배
 //   laundromat-duct-lump-anim-2x.png   lump_travel → 끙끙 두 바퀴 → lump_back → lump_travel → lump_pop, APNG 2배
@@ -18,6 +18,7 @@
 //   - 혹이 벽에 닿는 테두리는 전부 ink, 관 안쪽엔 ink 세로줄 없음
 //   - 혹 없음 ↔ 걸린 혹 다른 픽셀 ≥ 120, 멈춘 모습 ↔ 끙끙 다른 픽셀 ≥ 40(1배에서 보일 크기)
 //   - lump_travel 첫 칸 = 창 쪽 가로 자리, 마지막 칸 = stuck 첫 칸 / lump_back = 거꾸로 / stuck 첫 칸 = 멈춘 모습
+//   - stuck 끝 칸 = 어깨 반짝(별 하나, 둥지 대기 반짝과 같은 ms), 끙끙은 그대로 두 번 (#935 (다))
 //   - lump_travel 첫 칸 ≥ 160ms(창 쪽 머묾), 마지막 칸 80~120ms(덜컥과 깃털 한 박자), 다른 칸 80ms(E2)
 //   - lump_travel·lump_back·lump_pop 칸 시간 합 ≤ 1500(형식 기록 8절)
 //   - sock_through(#935 S3, PM 결정 (나)): 각진 혹보다 덜 부풀고(최대 2px) 반짝(white) 없음, 벽 쪽 테두리 ink·관 안 ink 0,
@@ -38,7 +39,7 @@ import { washer } from '../../../art/scenes/laundromat.washer.mjs';
 import { shutter } from '../../../art/scenes/laundromat.shutter.mjs';
 import { dryer } from '../../../art/scenes/laundromat.dryer.mjs';
 import { vending } from '../../../art/scenes/laundromat.vending.mjs';
-import { nestEmpty, DUCT_LUMP, LUMP_PATH, LUMP_STUCK, lumpV, lumpH, lumpSoftH, lumpSoftV } from '../../../art/scenes/laundromat.objects.mjs';
+import { nestEmpty, NEST_KEY, DUCT_LUMP, LUMP_PATH, LUMP_STUCK, lumpV, lumpH, lumpSoftH, lumpSoftV } from '../../../art/scenes/laundromat.objects.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '../../..');
@@ -65,6 +66,7 @@ const diff = (a, b) => { let n = 0; for (let i = 0; i < a.c.length; i++) if (a.c
 const bg = base();
 const stuck = layer((t) => lumpV(t, LUMP_STUCK.y));
 const strain = layer((t) => lumpV(t, LUMP_STUCK.y, { strain: true }));
+const glint = layer((t) => lumpV(t, LUMP_STUCK.y, { glint: true }));
 const anims = Object.fromEntries(Object.entries(DUCT_LUMP).map(([k, a]) => [k, a.frames.map(layer)]));
 
 // ── 검사
@@ -75,7 +77,7 @@ check(DUCT.x === 360 && DUCT.w === 14 && DUCT.runY === 52 && DUCT.runH === 12 &&
 {
   const [bx, by, bw, bh] = SCREEN.hotspots.duct.box;
   const [rx, ry] = SCREEN.hotspots.duct.reachPoint;
-  for (const [name, t] of Object.entries({ stuck, strain })) {
+  for (const [name, t] of Object.entries({ stuck, strain, glint })) {
     const out = pixels(t).filter(([x, y]) => x < bx || x >= bx + bw || y < by || y >= by + bh);
     check(out.length === 0, `${name}: 그린 픽셀 전부 duct 핫스팟 ${bx},${by} ${bw}×${bh} 안 (밖 ${out.length})`);
   }
@@ -122,6 +124,13 @@ for (const [k, fs] of Object.entries(anims)) {
   check(same(tr.at(-1), stuck) && same(st[0], stuck), 'lump_travel: 마지막 칸 = 걸린 멈춘 모습 = stuck 첫 칸');
   check(bk.length === tr.length && bk.every((t, i) => same(t, tr[tr.length - 1 - i])), 'lump_back: lump_travel 칸 거꾸로(0칸)');
   check(same(st[1], strain), 'stuck: 둘째 칸 = 끙끙');
+  {
+    const dg = diff(over(bg, stuck), over(bg, glint));
+    const gms = DUCT_LUMP.stuck.ms.at(-1), nms = NEST_KEY.loop.ms.at(-1);
+    check(same(st.at(-1), glint) && dg >= 8 && dg <= 25, `stuck: 끝 칸 = 어깨 반짝(멈춘 모습과 다른 픽셀 ${dg}, 8~25: 별 하나 크기, #935 (다))`);
+    check(gms === nms, `stuck 반짝 ${gms}ms = 둥지 대기 반짝 ${nms}ms(같은 낱말)`);
+    check(st.filter((t) => same(t, strain)).length === 2, 'stuck: 반짝을 더해도 끙끙은 두 번(결정 3d7bd2be "쉬었다 두 번 끙끙")');
+  }
   check(same(pop[0], strain), 'lump_pop: 첫 칸 = 끙끙(쿡에 한 번 더 끙), 같은 자리라 안 튄다');
   const ms = DUCT_LUMP.lump_travel.ms;
   check(ms[0] >= 160, `lump_travel 첫 칸 ${ms[0]}ms ≥ 160 (창 쪽 머묾, PR #900 재리뷰 1)`);
@@ -183,7 +192,7 @@ for (const [k, fs] of Object.entries(anims)) {
 // ── 출력
 const cropper = (R) => (img) => { const c = new Image(R.w, R.h); for (let y = 0; y < R.h; y++) for (let x = 0; x < R.w; x++) c.set(x, y, img.get(R.x + x, R.y + y)); return c; };
 const near = cropper({ x: 339, y: 104, w: 56, h: 64 });
-const shots = [bg, over(bg, stuck), over(bg, strain)].map(near);
+const shots = [bg, over(bg, stuck), over(bg, strain), over(bg, glint)].map(near);
 const strip = new Image(shots.length * 58 - 2, 64, C.white);
 shots.forEach((s, i) => strip.blit(s, i * 58, 0));
 writeFileSync(join(HERE, 'laundromat-duct-lump-4x.png'), indexedPng(strip, 4));
