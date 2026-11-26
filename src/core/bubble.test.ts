@@ -308,3 +308,58 @@ describe('bubbleBounds (#601 묶음 1-1: 아래 라벨 줄·게이지 띠 비우
     expect(bubbleBounds(DESK, 40, 14).height).toBe(0);
   });
 });
+
+describe('placeBubble speaker face (#967·#970: 화자 얼굴 > 단서 > 동료 몸 > 장난감)', () => {
+  // 667×375 @2(CSS 1.0배). 말풍선 영역은 라벨 줄 위까지(`bubbleBounds`, 라벨 14px): 내부 아래끝 약 231.6.
+  const area = bubbleBounds(PHONE, PHONE.top + 254, 14);
+  const O: BubbleOptions = { margin: 4, gap: 9, tailInset: 14, avoidGap: 4 };
+  const g = (left: number, top: number, width: number, height: number) => ({ left: PHONE.left + left, top: PHONE.top + top, width, height });
+  const boxOf = (p: { left: number; top: number }, s: { width: number; height: number }) => ({ left: p.left, top: p.top, width: s.width, height: s.height });
+  const hit = (a: { left: number; top: number; width: number; height: number }, b: typeof a) =>
+    a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height;
+  // 바닥 プピ(#970 모양): 몸 x 265–298, 머리 위끝 194, 발끝 252. 얼굴 상자 x 270–294, y 196–216.
+  const FACE = g(270, 196, 24, 20);
+  const ppik = { x: PHONE.left + 282, top: PHONE.top + 194, bottom: PHONE.top + 252, face: FACE };
+  const size = { width: 120, height: 34 };
+  const withoutFace = <T extends { face?: unknown }>(a: T): Omit<T, 'face'> => {
+    const out = { ...a };
+    delete out.face;
+    return out;
+  };
+
+  it('does not take a flipped place that the label line pulls up onto the speaker face', () => {
+    // 머리 위 자리는 단서(덕트처럼 위에 긴 것)를 덮는다. 옆은 몸 끝이 없어 못 둔다. 남는 건 발 아래로 뒤집은 자리인데,
+    // 라벨 줄 위로 끌려 올라와 얼굴 위에 놓인다. 예전 값은 얼굴을 안 세서 이 자리가 덮는 값 0으로 이겼다.
+    const clue = g(240, 150, 90, 12);
+    const old = placeBubble(withoutFace(ppik), size, area, O, [], [clue]);
+    expect(old.below).toBe(true);
+    expect(hit(boxOf(old, size), FACE)).toBe(true);
+    const p = placeBubble(ppik, size, area, O, [], [clue]);
+    expect(p.below).toBe(false);
+    expect(hit(boxOf(p, size), FACE)).toBe(false);
+    expect(hit(boxOf(p, size), clue)).toBe(true);
+  });
+
+  it('moves a first place that covers the speaker face beside the speaker when the side is free', () => {
+    // 위가 피할 상자(목표 줄·이름표)로 막혀 발 아래로 뒤집혔고(#967 휴대폰), 그 자리가 얼굴을 덮는다. 단서는 안 덮는다.
+    const withEdges = { ...ppik, left: PHONE.left + 265, right: PHONE.left + 298 };
+    const ceiling = g(0, 0, 480, 180);
+    const old = placeBubble(withoutFace(withEdges), size, area, O, [ceiling]);
+    expect(old.below).toBe(true);
+    expect(hit(boxOf(old, size), FACE)).toBe(true);
+    const p = placeBubble(withEdges, size, area, O, [ceiling]);
+    expect(p.side).toBeDefined();
+    expect(hit(boxOf(p, size), FACE)).toBe(false);
+  });
+
+  it('keeps the first place when it already misses the face (same as before)', () => {
+    const above = { x: PHONE.left + 282, top: PHONE.top + 194, bottom: PHONE.top + 252, left: PHONE.left + 265, right: PHONE.left + 298 };
+    const clue = g(400, 20, 30, 30);
+    expect(placeBubble({ ...above, face: FACE }, size, area, O, [], [clue])).toEqual(placeBubble(above, size, area, O, [], [clue]));
+  });
+
+  it('keeps the first place when every other place also covers the face', () => {
+    const ceiling = g(0, 0, 480, 190);
+    expect(placeBubble(ppik, size, area, O, [ceiling])).toEqual(placeBubble(withoutFace(ppik), size, area, O, [ceiling]));
+  });
+});
