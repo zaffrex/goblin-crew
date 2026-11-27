@@ -24,6 +24,8 @@ node --import ./scripts/playtest/register.mjs scripts/playtest/replay.ts --url h
 node --import ./scripts/playtest/register.mjs scripts/playtest/solve.ts --screen park_fountain --url http://localhost:4173/ --out /tmp/solve --no-sandbox
 ```
 
+임시 그림(#764): `solve.ts`도 replay.ts A7과 같은 훅 `window.__gcFallbacks()`로 정답 길에서 그린 실루엣·임시 방·임시 상자를 모아 한 줄로 적는다(기본은 경고). `--require-art`면 하나라도 있거나 훅이 없는 빌드일 때 종료 코드 1이다. replay.ts는 화면 1만 돌아서, 다른 화면 그림 완료 조건("`--require-art` 0")은 `solve.ts --screen <id> --require-art`로 본다. 정답 길 밖(실패 반응) 그림은 안 본다.
+
 `register.mjs`는 `src/`의 확장자 없는 import(`./hit`)를 `.ts`로 풀어 주는 resolve 훅이다(의존성 없음, Node 22.15+). 스크린샷의 한글이 네모로 나오면 CJK 글꼴을 깐다(`sudo apt-get install fonts-noto-cjk`). 보고서에는 말풍선 DOM 글자를 따로 적으므로 글꼴이 없어도 판정은 된다. **단 `cover.ts` 가림 비율은 예외다.** 네모 글자는 폭이 달라 말풍선 크기·자리가 바뀌므로 글꼴 없이 잰 숫자는 판정에 쓰지 않는다(리포트 머리 `CJK 글꼴` 줄, #1006).
 
 `--no-sandbox`는 신뢰하는 URL(우리 배포본, 로컬 빌드)에만 쓴다. `--url`로 아무 주소나 열 수 있으니 외부 사이트에는 쓰지 않는다.

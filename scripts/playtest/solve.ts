@@ -17,6 +17,8 @@
 // 다시 깨는 동안 세이브 checkpoint·깬 화면이 그대로인지도 본다(`saveOnCard` 다시 하기 경로, 설계 3-4절).
 // `--via-map-last`(설계 7절 5번, `--deploy`와 같이): 타이틀 `はじめ` → 모든 판 클리어 → 끝 카드까지 간 뒤 같은 프로필로 다시 열어
 // `マップ` → 마지막 판 카드 → 다시 클리어 → 끝 카드(`ui.end` + `ui.map.return`) → 탭 → 맵(타이틀 아님)인지 본다. 세 판을 다 깨서 약 2분 더 걸린다.
+// 임시 그림(#764, replay.ts A7과 같은 훅 `window.__gcFallbacks()`): 정답을 다 누른 뒤(맵 길이면 다시 열기 전과 끝에 한 번 더) 실루엣·임시 방·임시 상자 이름을 모아 적는다.
+// 기본은 경고만이고, `--require-art`면 하나라도 있거나 훅이 없는 빌드일 때 1. replay.ts는 화면 1만 돌아서, 다른 화면 그림 완료 조건은 이걸로 본다.
 // 종료 코드: 클리어 못 했거나, 콘솔 에러가 있거나, 누를 곳을 못 찾거나, 화면 전환·끝 카드가 기대와 다르면 1.
 
 import { mkdirSync, readFileSync } from 'node:fs';
@@ -42,6 +44,7 @@ const { values: args } = parseArgs({
     out: { type: 'string', default: 'playtest-out/solve' },
     touch: { type: 'boolean', default: false },
     'no-sandbox': { type: 'boolean', default: false },
+    'require-art': { type: 'boolean', default: false },
   },
 });
 
@@ -85,6 +88,15 @@ async function waitIdle(page: Page, timeoutMs = 60_000): Promise<Layout> {
 }
 
 interface FlowState { order: string[] | null; index: number; screen: string; phase: string; replay?: boolean; card?: 'full' | 'short' | null }
+/** 이 페이지가 열린 뒤 그린 임시 그림 이름(#142). 훅이 없는 옛 빌드면 null. */
+const fallbacksOf = (page: Page) => page.evaluate<string[] | null>(`typeof window.__gcFallbacks === 'function' ? window.__gcFallbacks() : null`);
+/** 임시 그림 모음. 맵 길은 페이지를 다시 열어 훅이 비므로 다시 열기 전에도 모은다. */
+async function collectArt(page: Page, art: { names: Set<string>; hook: boolean }): Promise<void> {
+  const names = await fallbacksOf(page);
+  if (names === null) return;
+  art.hook = true;
+  for (const n of names) art.names.add(n);
+}
 const flowOf = (page: Page) => page.evaluate<FlowState | null>(`typeof window.__gcFlow === 'function' ? window.__gcFlow() : null`);
 const clearCard = (page: Page) =>
   page.evaluate<{ shown: boolean; next: boolean; text: string }>(`(() => { const c = document.querySelector('#clear'); return { shown: !c.hidden, next: c.hasAttribute('data-next'), text: c.textContent }; })()`);
@@ -278,6 +290,7 @@ async function main(): Promise<number> {
   else if (!args.deploy) u.searchParams.set('screen', ids[0]!);
   const browser = await Browser.launch({ noSandbox: args['no-sandbox'] });
   const problems: string[] = [];
+  const art = { names: new Set<string>(), hook: false };
   try {
     const page = await browser.newPage();
     await page.setViewport(viewport);
@@ -304,8 +317,10 @@ async function main(): Promise<number> {
       if (linked) await crossCard(page, k, problems);
       else await soloCard(page, problems);
     }
+    await collectArt(page, art);
     if (viaMapMode && !problems.length) await viaMap(page, u.href, viaMapFirst ? 0 : ids.length - 1, problems);
     if (!args.deploy && (await savedOf(page)) !== null) problems.push('세이브를 끄는 판(--order·--screen)인데 세이브가 생김');
+    if (viaMapMode) await collectArt(page, art);
     for (const e of page.errors) problems.push(`콘솔(${e.source}): ${e.text}`);
   } finally {
     await browser.close();
@@ -318,6 +333,13 @@ async function main(): Promise<number> {
     : viaMapLast
       ? `${ids.join(' → ')} 끝 카드 → 타이틀 マップ → ${ids.at(-1)} 다시 → 끝 카드 → 맵`
       : ids.join(' → ');
+  const artLine = !art.hook
+    ? '임시 그림: 훅 `__gcFallbacks` 없음(옛 빌드?)'
+    : art.names.size
+      ? `임시 그림 ${art.names.size}개: ${[...art.names].sort().join(', ')}`
+      : '임시 그림 0';
+  console.log(`${art.hook && art.names.size === 0 ? '✅' : '⚠️'} ${artLine}`);
+  if (args['require-art'] && !(art.hook && art.names.size === 0)) problems.push(`--require-art: ${artLine}`);
   console.log(problems.length ? problems.map((p) => `❌ ${p}`).join('\n') : `✅ ${route} 클리어 (${acts}행동, ${input})`);
   return problems.length ? 1 : 0;
 }
