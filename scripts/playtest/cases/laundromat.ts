@@ -35,7 +35,7 @@ const CASES: FrameCase[] = [
     pre: [REVERSE, REVERSE],
     action: REVERSE,
     says: 'laundromat.reverse_again',
-    why: '★① 두 번째(역회전 → 정회전 → 역회전): 양말 혹 + burst#2 양말 하나(#765 짧은 판) → ズッシー 「…また、靴下だ。」. 8-3 H5',
+    why: '★① 두 번째(역회전 → 정회전 → 역회전): 양말 혹 + burst#2 양말 하나(#765 짧은 판) → ズッシー 「…また、頭に靴下。」. 8-3 H5',
   },
 
   // S3 들어온 것은 둥지의 것이다.
