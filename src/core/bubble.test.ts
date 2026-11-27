@@ -228,6 +228,28 @@ describe('placeBubble side placement (#356, 6-5절)', () => {
     expect(placeBubble(edge, size, PHONE, O, [], toys, [mate])).toEqual(placeBubble(edge, size, PHONE, O, []));
   });
 
+  it('slides an above bubble sideways, tail still on the head, before taking a side that covers a clue (#1010 laundromat M1)', () => {
+    // 빨래방 プピ(세탁기 3 앞). 머리 위 가운데는 건조기 3·덕트(단서)를, 왼쪽 옆은 셔터 아래 틈(단서)을 덮는다.
+    const pupi = { x: PHONE.left + 285, top: PHONE.top + 193, bottom: PHONE.top + 244, left: PHONE.left + 273, right: PHONE.left + 297 };
+    const size = { width: 190, height: 50 };
+    const keep = [g(344, 164, 48, 72), g(352, 64, 30, 100), g(80, 222, 40, 24), { ...g(24, 140, 128, 104), toy: true }];
+    const mates = [g(303, 180, 40, 64)];
+    const p = placeBubble(pupi, size, PHONE, O, [GOAL, ...TAGS], keep, mates);
+    expect(p.side).toBeUndefined();
+    expect(p.below).toBe(false);
+    expect(p.top + size.height).toBe(pupi.top - O.gap);
+    expect(p.left + p.tailX).toBe(pupi.x);
+    expect(p.tailX).toBeLessThanOrEqual(size.width - O.tailInset);
+    for (const k of keep.filter((k) => !('toy' in k))) expect(hit(boxOf(p, size), k)).toBe(false);
+  });
+
+  it('does not slide when the centred place already misses every clue (#1010: same as before)', () => {
+    const pupi = { x: PHONE.left + 285, top: PHONE.top + 193, bottom: PHONE.top + 244, left: PHONE.left + 273, right: PHONE.left + 297 };
+    const size = { width: 190, height: 50 };
+    const toyOnly = [{ ...g(24, 140, 128, 104), toy: true }];
+    expect(placeBubble(pupi, size, PHONE, O, [GOAL, ...TAGS], toyOnly)).toEqual(placeBubble(pupi, size, PHONE, O, [GOAL, ...TAGS]));
+  });
+
   it('does not move when nothing is covered (same as before #356)', () => {
     const floor = { x: PHONE.left + 400, top: PHONE.top + 200, bottom: PHONE.top + 244, left: PHONE.left + 388, right: PHONE.left + 412 };
     expect(placeBubble(floor, SIZE, PHONE, O, [GOAL, ...TAGS], [NEST, MAGPIE])).toEqual(placeBubble(floor, SIZE, PHONE, O, [GOAL, ...TAGS]));
@@ -270,10 +292,14 @@ describe('placeBubble side placement (#356, 6-5절)', () => {
     expect(p.top + p.tailY!).toBe(low.top + O.tailInset);
     // 머리가 화면 맨 아래라 꼬리가 말풍선 아래 모서리를 넘으면 포기한다.
     const lower = { ...HOOK, top: PHONE.top + 262, bottom: PHONE.top + 269 };
-    // 뒤집은 자리(화면 맨 아래로 끌어온 발 아래)도 물건을 거의 같게(53% vs 59%) 덮으므로 처음 자리 그대로다(#598 COST_EPS).
+    // 뒤집은 자리(화면 맨 아래로 끌어온 발 아래)는 물건을 거의 같게(53% vs 59%) 덮는다(#598 COST_EPS). #1010부터는 머리 위
+    // 자리를 오른쪽 끝까지 민 후보가 물건을 덜 덮어서(가로 100% → 61%) 그 자리다. 꼬리는 그대로 머리 위다.
     const q = placeBubble(lower, size, PHONE, O, [], keep);
+    const first = placeBubble(lower, size, PHONE, O, []);
     expect(q.side).toBeUndefined();
-    expect(q).toEqual(placeBubble(lower, size, PHONE, O, []));
+    expect(q.top).toBe(first.top);
+    expect(q.left).toBeGreaterThan(first.left);
+    expect(q.left + q.tailX).toBe(lower.x);
   });
 });
 

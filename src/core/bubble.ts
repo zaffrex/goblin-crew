@@ -201,6 +201,10 @@ export function placeBubble(anchor: BubbleAnchor, size: Size, bounds: Rect, opts
     sideBubble('right', anchor, size, bounds, opts, avoid, []),
     sideBubble('left', anchor, size, bounds, opts, avoid, []),
     placeAboveOrBelow(anchor, size, bounds, opts, avoid, !base.below),
+    // #1010: 머리 위에 둔 채 말풍선만 왼쪽·오른쪽 끝까지 민 자리. 꼬리는 그대로 머리 위라 화자가 바뀌어 보이지 않는다.
+    // 앞 후보와 값이 같으면 앞 후보가 이기므로(`cheaper`) 지금 자리가 덜 덮을 때만 바뀐다.
+    slidAbove('left', anchor, size, bounds, opts, avoid),
+    slidAbove('right', anchor, size, bounds, opts, avoid),
   ];
   let best = base;
   let bestCost = coverCost(base, size, keep, bodies, anchor.face);
@@ -213,6 +217,26 @@ export function placeBubble(anchor: BubbleAnchor, size: Size, bounds: Rect, opts
     }
   }
   return best;
+}
+
+/**
+ * 머리 위 자리를 한쪽 끝까지 민 후보(#1010). 꼬리 끝(`tailX`)이 `tailInset` 안에 남는 데까지만 민다: 꼬리는 늘 화자 머리
+ * 바로 위를 가리킨다. 위가 화면 밖이거나 피할 상자(목표 줄·이름표)와 가까우면 null. 가운데 자리와 같으면 null(중복 후보).
+ */
+function slidAbove(dir: 'left' | 'right', anchor: BubbleAnchor, size: Size, bounds: Rect, opts: BubbleOptions, avoid: readonly Rect[]): BubblePlacement | null {
+  const minLeft = bounds.left + opts.margin;
+  const maxLeft = bounds.left + bounds.width - opts.margin - size.width;
+  const top = anchor.top - opts.gap - size.height;
+  if (top < bounds.top + opts.margin || maxLeft < minLeft) return null;
+  const want = dir === 'left' ? anchor.x - (size.width - opts.tailInset) : anchor.x - opts.tailInset;
+  // 꼬리가 `tailInset` 밖으로 0.5px 나가지 않게 화자 쪽으로 올림·내림한다.
+  const left = dir === 'left' ? Math.ceil(clamp(want, minLeft, maxLeft)) : Math.floor(clamp(want, minLeft, maxLeft));
+  if (left === Math.round(clamp(anchor.x - size.width / 2, minLeft, maxLeft))) return null;
+  const box = { left, top, width: size.width, height: size.height };
+  if (avoid.some((a) => tooClose(box, a, opts.avoidGap ?? 0))) return null;
+  const tailX = anchor.x - left;
+  if (tailX < opts.tailInset || tailX > size.width - opts.tailInset) return null;
+  return { left, top, below: false, tailX };
 }
 
 /**
