@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { CharacterId } from '../../src/core/characters';
+import { CHARACTERS, type CharacterId } from '../../src/core/characters';
 import { actionKey, targetIntent, type PuzzleTarget } from '../../src/core/interact';
 import { type CharactersData, type PuzzleState, type ScreenData } from '../../src/core/puzzle/types';
 import { eachStep } from './each-step';
@@ -127,7 +127,8 @@ function missingObjectAnims(screen: ScreenData): string[] | null {
   const p = join(ROOT, 'public', 'scenes', `${screen.id}-objects.json`);
   if (!existsSync(p)) return null;
   const anims = new Set(Object.keys((JSON.parse(readFileSync(p, 'utf8')) as { anims?: Record<string, unknown> }).anims ?? {}));
-  const chars = new Set(Object.keys(screen.start.at));
+  // 화면에 안 나오는 캐릭터 이름이 물건 anim으로 잘못 잡히지 않게, 그 화면 `start.at`이 아니라 전체 캐릭터 id로 거른다(#1013 Theo 리뷰).
+  const chars = new Set<string>(CHARACTERS.map((c) => c.id));
   const used = new Set<string>();
   const add = (target: string, name: string): void => {
     if (!chars.has(target) && !name.startsWith('common.')) used.add(`${target}.${name}`);
