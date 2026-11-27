@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { CharacterId } from '../../src/core/characters';
+import { CHARACTERS, type CharacterId } from '../../src/core/characters';
 import { actionKey, targetIntent, type PuzzleTarget } from '../../src/core/interact';
 import { type CharactersData, type PuzzleState, type ScreenData } from '../../src/core/puzzle/types';
 import { eachStep } from './each-step';
@@ -18,6 +18,8 @@ import { eachStep } from './each-step';
 const ROOT = join(import.meta.dirname, '..', '..');
 const load = (...p: string[]): unknown => JSON.parse(readFileSync(join(ROOT, ...p), 'utf8'));
 const characters = load('content', 'characters.json') as CharactersData;
+/** 캐릭터 판별은 화면 시작 자리(`start.at`)가 아니라 엔진 캐릭터 정의로 한다. 두 명만 나오는 화면에서 빠진 캐릭터에 건 anim이 물건 장부로 새지 않게(#1013 리뷰). */
+const CHAR_IDS: ReadonlySet<string> = new Set(CHARACTERS.map((c) => c.id));
 
 /** 화면별 아직 그림이 없는 `캐릭터:자세`. 정렬해 둔다. 줄을 지우는 건 그림을 넣은 PR의 몫이다. */
 const MISSING: Record<string, string[]> = {
@@ -43,10 +45,10 @@ function screenPoses(screen: ScreenData): string[] {
   const out = new Set<string>();
   for (const c of chars) out.add(`${c}:idle`).add(`${c}:walk`);
   for (const item of screen.onEnter ?? []) {
-    if ('anim' in item && chars.has(item.anim[0])) out.add(`${item.anim[0]}:${item.anim[1]}`);
+    if ('anim' in item && CHAR_IDS.has(item.anim[0])) out.add(`${item.anim[0]}:${item.anim[1]}`);
   }
   const states = eachStep(screen, characters, (_s, _a, r) => {
-    for (const e of r.events) if (e.type === 'anim' && chars.has(e.target)) out.add(`${e.target}:${e.name}`);
+    for (const e of r.events) if (e.type === 'anim' && CHAR_IDS.has(e.target)) out.add(`${e.target}:${e.name}`);
   });
   for (const s of states) for (const [c, at] of Object.entries(s.at)) if (holdSpots.has(at)) out.add(`${c}:hold`);
   return [...out].sort();
@@ -127,10 +129,9 @@ function missingObjectAnims(screen: ScreenData): string[] | null {
   const p = join(ROOT, 'public', 'scenes', `${screen.id}-objects.json`);
   if (!existsSync(p)) return null;
   const anims = new Set(Object.keys((JSON.parse(readFileSync(p, 'utf8')) as { anims?: Record<string, unknown> }).anims ?? {}));
-  const chars = new Set(Object.keys(screen.start.at));
   const used = new Set<string>();
   const add = (target: string, name: string): void => {
-    if (!chars.has(target) && !name.startsWith('common.')) used.add(`${target}.${name}`);
+    if (!CHAR_IDS.has(target) && !name.startsWith('common.')) used.add(`${target}.${name}`);
   };
   for (const item of screen.onEnter ?? []) if ('anim' in item) add(item.anim[0], item.anim[1]);
   eachStep(screen, characters, (_s, _a, r) => {
