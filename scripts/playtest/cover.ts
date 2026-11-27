@@ -8,6 +8,8 @@
 //
 // 사용: node --import ./scripts/playtest/register.mjs scripts/playtest/cover.ts --screen park_fountain --url http://localhost:4173/ --no-sandbox [--only aha] [--out <폴더>]
 // 결과: <out>/report.md, <out>/<사례>-<화면 크기>.png. <out> 기본값은 `playtest-out/cover/<화면 ID>`.
+// CJK 글꼴이 없으면 글자가 네모로 그려져 말풍선 폭·줄바꿈이 달라지고 가림 비율도 크게 바뀐다(#1006 리뷰: `aha-s4-suck` M1 gap
+// 30% → 0%). 그래서 리포트 머리에 글꼴 유무를 적고, 없으면 "판정에 쓰지 않는다"를 붙인다(종료 코드는 그대로).
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -56,6 +58,18 @@ const bubbleState = (page: Page) =>
       gaugeTag: gr && gr.width > 0 ? { left: gr.left, top: gr.top, width: gr.width, height: gr.height } : null };
   })()`);
 
+/**
+ * 말풍선 글꼴로 「あ」를 그린 픽셀이 어떤 글꼴에도 없을 글자(U+10FFFD, 네모)와 같으면 CJK 글꼴이 없는 것.
+ * 화면 크기와 상관없는 브라우저 성질이라 한 번만 잰다.
+ */
+const hasCjkFont = (page: Page) =>
+  page.evaluate<boolean>(`(() => {
+    const font = getComputedStyle(document.querySelector('#bubble') || document.body).fontFamily;
+    const draw = (t) => { const c = document.createElement('canvas'); c.width = c.height = 40; const x = c.getContext('2d');
+      x.font = '32px ' + font; x.textBaseline = 'top'; x.fillText(t, 2, 2); return x.getImageData(0, 0, 40, 40).data.join(','); };
+    return draw('\u3042') !== draw('\u{10FFFD}');
+  })()`);
+
 async function waitBusy(page: Page, busy: boolean, timeoutMs = 60_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while ((await layoutOf(page)).busy !== busy) {
@@ -75,10 +89,12 @@ interface Result {
   /** 핫스팟별 최대 가림 비율과 그때 스크린샷 파일. */
   worst: Record<string, { ratio: number; file: string }>;
   error: string | null;
+  /** 이 페이지에 CJK 글꼴이 있는지(`hasCjkFont`). 카드 전에 실패하면 null. */
+  cjk: boolean | null;
 }
 
 async function runCase(browser: Browser, c: FrameCase, vp: Viewport, outDir: string): Promise<Result> {
-  const r: Result = { texts: [], worst: {}, error: null };
+  const r: Result = { texts: [], worst: {}, error: null, cjk: null };
   const page = await browser.newPage();
   try {
     await page.setViewport({ width: vp.width, height: vp.height, dpr: vp.dpr, mobile: vp.input === 'touch' });
@@ -96,6 +112,7 @@ async function runCase(browser: Browser, c: FrameCase, vp: Viewport, outDir: str
       else await page.click(p);
     };
     await closeStartCard(page, send);
+    r.cjk = await hasCjkFont(page);
     await waitBusy(page, false);
     const opts = c.floor ? { floorPoint: { x: c.floor[0], y: c.floor[1] } } : {};
     for (const a of c.pre ?? []) {
@@ -156,11 +173,13 @@ async function main(): Promise<number> {
   const browser = await Browser.launch({ noSandbox: args['no-sandbox'] });
   const L = [`# 말풍선 가림 \`${SCREEN_ID}\` (${new Date().toISOString()})`, '', `- URL: ${args.url}`, '- 핫스팟별 최대 가림 비율(히트 박스 기준, 화자 제외). 단서 물건 > 0 → ❌, 장난감·`gauge`(게이지 칸·이름표) > 0 → ⚠️', '', `| 사례 | ${VIEWPORTS.map((v) => v.name).join(' | ')} |`, `|---|${VIEWPORTS.map(() => '---').join('|')}|`];
   let failed = false;
+  let cjk: boolean | null = null;
   try {
     for (const c of CASES) {
       const cells: string[] = [];
       for (const vp of VIEWPORTS) {
         const r = await runCase(browser, c, vp, outDir);
+        cjk ??= r.cjk;
         if (r.error) {
           failed = true;
           cells.push(`❗ ${r.error}`);
@@ -177,6 +196,12 @@ async function main(): Promise<number> {
   } finally {
     await browser.close();
   }
+  const fontLine =
+    cjk === null ? '- CJK 글꼴: 확인 못 함(모든 사례가 카드 전에 실패)'
+    : cjk ? '- CJK 글꼴: 있음'
+    : '- CJK 글꼴: **없음**. 글자가 네모로 그려져 말풍선 크기가 달라요. 이 표의 비율은 판정에 쓰지 않아요(`fonts-noto-cjk`를 깔고 다시 재요)';
+  L.splice(3, 0, fontLine);
+  if (cjk === false) console.warn(fontLine);
   writeFileSync(join(outDir, 'report.md'), L.join('\n') + '\n');
   return failed ? 1 : 0;
 }
