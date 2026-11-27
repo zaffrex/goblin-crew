@@ -20,6 +20,7 @@ export const RULE_START = '2026-11-29T15:00:00Z';
 
 export interface Pr {
   number: number;
+  mergedAt?: string;
   comments?: { body?: string }[];
   reviews?: { body?: string }[];
 }
@@ -79,16 +80,39 @@ export function dedupe(prs: readonly Pr[]): Pr[] {
   return [...seen.values()];
 }
 
+/**
+ * 검색 `merged:a..b`는 양끝을 포함해서, 가의 끝과 나의 시작(RULE_START)에 딱 머지된 PR이 양쪽에 다 세진다(#1025 Sam 리뷰).
+ * `mergedAt`으로 [from, to) 반열린 구간만 남긴다. `mergedAt`이 없으면 구간을 못 정하니 멈춘다.
+ */
+export function inWindow(prs: readonly Pr[], from: string, to: string): Pr[] {
+  const a = Date.parse(from);
+  const b = Date.parse(to);
+  return prs.filter((p) => {
+    const t = Date.parse(p.mergedAt ?? '');
+    if (Number.isNaN(t)) throw new Error(`PR #${p.number} mergedAt 없음`);
+    return t >= a && t < b;
+  });
+}
+
+export const FETCH_LIMIT = 1000;
+
+/** 한 조각이 상한만큼 오면 잘렸는지 알 수 없다. 조용히 틀린 숫자를 내느니 멈춘다(#1025 Sam 리뷰). */
+export function assertNotTruncated(n: number, a: string, b: string): void {
+  if (n >= FETCH_LIMIT) throw new Error(`${a}..${b} 조각이 ${n}건(상한 ${FETCH_LIMIT}): 잘렸을 수 있어 멈춤. 조각을 더 잘게 나눈다`);
+}
+
 function fetchWindow(from: string, to: string): Pr[] {
   const all: Pr[] = [];
   for (const [a, b] of dayChunks(from, to)) {
     const out = execFileSync('gh', [
       'pr', 'list', '--state', 'merged', '--search', `merged:${a}..${b}`,
-      '--limit', '1000', '--json', 'number,comments,reviews',
+      '--limit', String(FETCH_LIMIT), '--json', 'number,mergedAt,comments,reviews',
     ], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
-    all.push(...(JSON.parse(out) as Pr[]));
+    const got = JSON.parse(out) as Pr[];
+    assertNotTruncated(got.length, a, b);
+    all.push(...got);
   }
-  return dedupe(all);
+  return inWindow(dedupe(all), from, to);
 }
 
 export function row(label: string, from: string, to: string, c: Counts): string {
