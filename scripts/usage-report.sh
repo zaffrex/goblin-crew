@@ -31,17 +31,19 @@ else
   RUNS=$(jq -s 'add // []' <<<"$PARTS")
 fi
 jq -r --argjson tickb "$TICK_BURST" --argjson eventb "$EVENT_BURST" --arg since "$SINCE" --arg hours "$HOURS" '
+  def kst: (. + 32400) | strftime("%m/%d %H:%M KST");
   def mins: ((.updatedAt|fromdateiso8601) - (.createdAt|fromdateiso8601)) / 60;
   [ .[] | select(.createdAt >= $since and .status == "completed")
         | . + {role: (.name | split(" · ")[0]), mode: (.name | split(" · ")[1] // "?")} ] as $runs
   | ( $runs | group_by(.role) | map(
         (sort_by(.createdAt)) as $s
         | def burst($m): ($s | map(select(.mode == $m) | .createdAt|fromdateiso8601)) as $t
-            | [ range(0; $t|length) as $i | [ $t[$i:][] | select(. < $t[$i] + 3600) ] | length ] | max // 0;
-          (burst("tick")) as $tb | (burst("event")) as $eb
+            | [ range(0; $t|length) as $i | {n: ([ $t[$i:][] | select(. < $t[$i] + 3600) ] | length), at: $t[$i]} ]
+            | (max_by(.n) // {n: 0, at: 0});
+          (burst("tick")) as $tbo | (burst("event")) as $ebo | $tbo.n as $tb | $ebo.n as $eb
         | ([ $s[] | if .conclusion == "failure" then 1 else 0 end ]
             | reduce .[] as $f ({cur:0,max:0,}; (if $f == 1 then .cur += 1 else .cur = 0 end) | .max = ([.max,.cur]|max)) | .max) as $streak
-        | { role: $s[0].role, tb: $tb, eb: $eb, streak: $streak }
+        | { role: $s[0].role, tb: $tb, eb: $eb, tat: $tbo.at, eat: $ebo.at, streak: $streak }
       )) as $loop
   | "| role | runs | tick | event | total min | avg min | failed |",
     "|---|---|---|---|---|---|---|",
@@ -49,7 +51,7 @@ jq -r --argjson tickb "$TICK_BURST" --argjson eventb "$EVENT_BURST" --arg since 
       "| \(.[0].role) | \(length) | \(map(select(.mode=="tick"))|length) | \(map(select(.mode=="event"))|length) | \(map(mins)|add|floor) | \((map(mins)|add/length*10|floor)/10) | \(map(select(.conclusion=="failure"))|length) |" ),
     "| *total* | \($runs|length) | | | \($runs|map(mins)|add // 0|floor) | | \($runs|map(select(.conclusion=="failure"))|length) |",
     "",
-    ( $loop[] | select(.tb >= $tickb) | "LOOP? \(.role): 1시간 안에 tick \(.tb)회 실행" ),
-    ( $loop[] | select(.eb >= $eventb) | "LOOP? \(.role): 1시간 안에 event \(.eb)회 실행 (멘션 핑퐁 의심)" ),
+    ( $loop[] | select(.tb >= $tickb) | "LOOP? \(.role): 1시간 안에 tick \(.tb)회 실행 (창 시작 \(.tat|kst))" ),
+    ( $loop[] | select(.eb >= $eventb) | "LOOP? \(.role): 1시간 안에 event \(.eb)회 실행 (창 시작 \(.eat|kst), 멘션 핑퐁 의심)" ),
     ( $loop[] | select(.streak >= 3) | "LOOP? \(.role): 연속 실패 \(.streak)회" ),
     "note: role \"agent\" = runs before #55 naming; minutes = updatedAt-createdAt incl. queue time; window: last \($hours)h since \($since); completed runs only; cancelled counted as runs"'  <<<"$RUNS"
