@@ -4,6 +4,7 @@
 - 날짜: 2026-11-24
 - 작성자: **[PM Noah]**
 - 리뷰어: Luna(반대 담당, 세계관·그림 비용) ✅, Theo(엔진) ✅, PM 승인
+- 후속 기록(본문은 그대로 둔다, #802): 결정 3번 (a)·(c)는 [「また」·마지막 판 카드 기록](../decisions/2026-11-26-laundromat-card-why-and-last-card.md)(11/26 #981)이 정했고, (c)는 같은 날 [결과 줄 + `ui.end` 기록](../decisions/2026-11-26-laundromat-last-card-result-line.md)으로 바뀌었다. 지금 동작은 뒤 기록이 진실이다: 마지막 판 끝 카드는 기본 링크·맵 다시 하기 모두 `laundromat.clear_card` + `ui.end`다. 3번 (c) 괄호 「`?screen=laundromat`·맵 다시 하기에서만」은 쓸 때부터 틀렸다(맵 다시 하기도 마지막 판이라 `ui.end`만 떴다). (b)는 #966.
 - 관련: #905, #897(빨래방 B 설계, PR #900), #894·`docs/design/stage3-pitch.md` 4절(열린 점 "획기적과 튜토리얼"), #764(빨래방 그림), #792(맵), #802, 회의록 `docs/meetings/2026-11-22-m2-planning.md`, [임시 순서 기록](../decisions/2026-11-22-default-link-interim-order.md), [스테이지 번호 기록](../decisions/2026-11-22-stage-numbering-for-ceo.md), [스테이지 3 B 기록](../decisions/2026-11-24-stage3-candidate-b.md)
 
 ## 배경 (Context)
