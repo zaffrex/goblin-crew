@@ -31,6 +31,12 @@ describe('usage-report.sh loop detection', () => {
   it('flags 6 tick runs within an hour', () => {
     expect(runReport(runs('pm', 'tick', 6, 5))).toMatch(/LOOP\? pm: 1시간 안에 tick 6회/);
   });
+  it('prints the KST start of the burst window', () => {
+    const out = runReport(runs('pm', 'tick', 6, 5));
+    const start = new Date(base + 9 * 3600_000).toISOString();
+    const want = `${start.slice(5, 10).replace('-', '/')} ${start.slice(11, 16)} KST`;
+    expect(out).toContain(`(창 시작 ${want})`);
+  });
   it('does not flag 8 event runs within an hour (normal mention burst)', () => {
     expect(runReport(runs('designer', 'event', 8, 5))).not.toContain('LOOP?');
   });
