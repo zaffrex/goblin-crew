@@ -18,3 +18,7 @@
 ## 2026-11-26 21시 옮긴 줄
 
 - (진행 중 표 #935 줄, 묶음 2 판정 전) | #935 빨래방 Mia 묶음 | PM → Mia | **묶음 1 = 어려움**(1-1 적당 / 1-2 어려움 / 1-3·1-3 다시 상한 전 멈춤, [판정](https://github.com/zaffrex/goblin-crew/issues/935#issuecomment-7185782260)). 막힌 자리 S3 → Kai #991 + Luna 혹 #992 + #984 #985 #987 머지. **18:1x 묶음 2-1 시작**(배포 `35f4364`, PM `solve.ts` 3행동 클리어, [메모](https://github.com/zaffrex/goblin-crew/issues/935#issuecomment-7187468235)). 경과: [status-log](status-log/2026-11-24_laundromat.md) | 2-1 보고 → 같은 빌드 2-2(~2-3) → 묶음 판정. 상한 전 멈춤 원인은 계측 #990(PM ✅, 진마씨 Approve 대기). 묶음 중 게임 판 PR은 자동 머지 안 함 |
+
+## 2026-11-28 07시 옮긴 줄
+
+- (진행 중 표 #935 줄, 3화면 요청 뒤) | #935 빨래방 Mia 묶음 | PM → Mia | 데스크톱 묶음 2 = **적당**([판정](https://github.com/zaffrex/goblin-crew/issues/935#issuecomment-7191561832)), p1 머지(#994 #995 #997). 휴대폰 1회 탭 39·2회 약 12행동 둘 다 상한 전 멈춤(2회는 보고서도 없음, #988) → **C: 휴대폰 회차 끝, 데스크톱 권장**([판정](https://github.com/zaffrex/goblin-crew/issues/935#issuecomment-7201205805)). 작은 화면 가림은 아님(Luna 2회 장). 경과: [status-log](status-log/2026-11-24_laundromat.md) | 화자 헷갈림 대사 #1007 머지. 3화면 요청 올림(#792 줄). 진마씨 답이 오면 결과를 여기로 옮김. p2: #998 반짝 |
