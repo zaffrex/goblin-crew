@@ -8,7 +8,7 @@
 //   **`MISSING`이 비면 판정 2 시작 조건(m1-acceptance.md 2번 자세 장부)을 채운 것이다.**
 
 import { describe, expect, it } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { CharacterId } from '../../src/core/characters';
 import { actionKey, targetIntent, type PuzzleTarget } from '../../src/core/interact';
@@ -114,6 +114,55 @@ describe('화면 자세 장부 (#142, 판정 2 시작 조건)', () => {
   it('MISSING에 없는 화면 이름이 없다', () => {
     const ids = new Set(screens.map((s) => s.id));
     for (const id of Object.keys(MISSING)) expect(ids.has(id), id).toBe(true);
+  });
+});
+
+/**
+ * 화면 데이터가 물건(캐릭터 아닌 대상)에 거는 anim 중 물건 시트(`public/scenes/<id>-objects.json` `anims`)에 없는 것.
+ * 시트에 없으면 엔진은 임시 길이만 기다리고 그림은 안 바뀐다(실루엣처럼 눈에 띄지도 않는다). #764 #1011 우려
+ * "`--require-art`는 정답 길만 본다"의 물건 쪽 짝이다. 자세 장부처럼 도달 가능한 상태 × 모든 행동을 진짜 `step`으로 돌린다.
+ * 반환: `대상.이름` 정렬. 시트가 없는 화면(그림 전)은 null.
+ */
+function missingObjectAnims(screen: ScreenData): string[] | null {
+  const p = join(ROOT, 'public', 'scenes', `${screen.id}-objects.json`);
+  if (!existsSync(p)) return null;
+  const anims = new Set(Object.keys((JSON.parse(readFileSync(p, 'utf8')) as { anims?: Record<string, unknown> }).anims ?? {}));
+  const chars = new Set(Object.keys(screen.start.at));
+  const used = new Set<string>();
+  const add = (target: string, name: string): void => {
+    if (!chars.has(target) && !name.startsWith('common.')) used.add(`${target}.${name}`);
+  };
+  for (const item of screen.onEnter ?? []) if ('anim' in item) add(item.anim[0], item.anim[1]);
+  eachStep(screen, characters, (_s, _a, r) => {
+    for (const e of r.events) if (e.type === 'anim') add(e.target, e.name);
+  });
+  return [...used].filter((k) => !anims.has(k)).sort();
+}
+
+/** 화면별 아직 물건 시트에 없는 `대상.이름`. 그림 PR이 넣으면 줄을 지운다. 시트가 없는 화면은 안 본다. */
+const MISSING_OBJECT_ANIMS: Record<string, string[]> = {
+  magpie_nest: [],
+  park_fountain: [],
+  laundromat: [],
+};
+
+describe('물건 anim 장부 (#764, 실패 반응 그림)', () => {
+  it.each(screens.map((s) => [s.id, s] as const))('%s: 물건 시트에 없는 anim = MISSING_OBJECT_ANIMS', (id, screen) => {
+    const missing = missingObjectAnims(screen);
+    if (missing === null) return;
+    console.info(`[${id}] 물건 anim 그림 없음 ${missing.length}개: ${missing.join(', ') || '없음'}`);
+    expect(missing, `MISSING_OBJECT_ANIMS['${id}']를 이 목록으로 맞춰 주세요`).toEqual(MISSING_OBJECT_ANIMS[id] ?? []);
+  });
+
+  it('MISSING_OBJECT_ANIMS에 없는 화면 이름이 없다', () => {
+    const ids = new Set(screens.map((s) => s.id));
+    for (const id of Object.keys(MISSING_OBJECT_ANIMS)) expect(ids.has(id), id).toBe(true);
+  });
+
+  it('화면 데이터의 물건 anim 이름을 시트에 없는 이름으로 바꾸면 잡는다', () => {
+    const nest = screens.find((s) => s.id === 'magpie_nest')!;
+    const screen = JSON.parse(JSON.stringify(nest).replaceAll('"long_johns","flutter"', '"long_johns","flutter_gone"')) as ScreenData;
+    expect(missingObjectAnims(screen)).toEqual(['long_johns.flutter_gone']);
   });
 });
 
