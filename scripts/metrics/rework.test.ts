@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countRework, dayChunks, dedupe, per100, row, RULE_START } from './rework.ts';
+import { assertNotTruncated, countRework, dayChunks, dedupe, FETCH_LIMIT, inWindow, M2_START, per100, row, RULE_START } from './rework.ts';
 
 describe('countRework (팀 기준선 #746 2~4번)', () => {
   it('🔁 횟수를 글이 아니라 나온 횟수로 센다 (M1 88회 셈법)', () => {
@@ -49,5 +49,24 @@ describe('구간', () => {
     const r = row('M1', '2026-11-14T15:00:00Z', '2026-11-22T05:19:00Z', { prs: 525, rework: 88, reworkPrs: 65, decision: 37, other: 51 });
     expect(r).toContain('| 525 | 16.8 (88회, PR 65개) | 7.0 (37회) | 9.7 (51회) |');
     expect(per100(1, 0)).toBe('-');
+  });
+
+  it('가의 끝 = 나의 시작에 머지된 PR은 나에만 (반열린 구간)', () => {
+    const prs = [
+      { number: 1, mergedAt: '2026-11-29T14:59:59Z' },
+      { number: 2, mergedAt: RULE_START },
+      { number: 3, mergedAt: '2026-11-29T15:00:01Z' },
+    ];
+    expect(inWindow(prs, M2_START, RULE_START).map((p) => p.number)).toEqual([1]);
+    expect(inWindow(prs, RULE_START, '2026-12-06T00:00:00Z').map((p) => p.number)).toEqual([2, 3]);
+  });
+
+  it('mergedAt이 없으면 멈춘다', () => {
+    expect(() => inWindow([{ number: 9 }], M2_START, RULE_START)).toThrow('#9');
+  });
+
+  it('조각이 상한만큼 오면 잘렸을 수 있어 멈춘다', () => {
+    expect(() => assertNotTruncated(FETCH_LIMIT - 1, 'a', 'b')).not.toThrow();
+    expect(() => assertNotTruncated(FETCH_LIMIT, 'a', 'b')).toThrow('잘렸을 수 있어');
   });
 });
