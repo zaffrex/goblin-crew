@@ -47,4 +47,21 @@ describe('QA round ledger (#1012 A2)', () => {
     expect(run(ledger, 'claim', NaN, 'x').code).toBe(2);
     expect(run(ledger, 'nope', 5, 'x').code).toBe(2);
   });
+
+  it('gh failure is exit 3, not the duplicate code', () => {
+    const bad: Ledger = { texts: () => { throw new Error('gh: HTTP 502'); }, post: () => {} };
+    expect(run(bad, 'check', 1, 'a').code).toBe(3);
+    expect(run(bad, 'claim', 1, 'a').code).toBe(3);
+  });
+
+  it('claim backs off (exit 1) when another claim of the same round landed first', () => {
+    const rival = '**[PM Noah]**\n\nQA-ROUND: a\nclaim-id: other';
+    const posted: string[] = [];
+    // 내가 적는 순간 경쟁자 댓글이 내 것보다 앞에 보이는 경우
+    const racy: Ledger = {
+      texts: () => (posted.length ? [rival, ...posted] : []),
+      post: (_i, b) => void posted.push(b),
+    };
+    expect(run(racy, 'claim', 1, 'a').code).toBe(1);
+  });
 });

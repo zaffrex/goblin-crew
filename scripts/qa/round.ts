@@ -4,6 +4,7 @@
 //   check = 읽기만. claim = 없으면 댓글로 적고 0, 이미 있으면 적지 않고 1(= Mia를 부르지 않는다).
 // 같은 회차를 다시 돌려야 하면(상한 전 멈춤 등) 이름에 "다시 2"처럼 다른 꼬리를 붙인다. 그게 눈에 남는 기록이다.
 import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 
 export const MARK = 'QA-ROUND:';
 
@@ -35,7 +36,7 @@ export interface Ledger {
 }
 
 export interface Result {
-  code: 0 | 1 | 2;
+  code: 0 | 1 | 2 | 3; // 0 새 회차, 1 중복(Mia 부르지 않음), 2 잘못된 입력, 3 장부를 못 읽거나 못 씀(중복 아님)
   message: string;
 }
 
@@ -43,12 +44,30 @@ export function run(ledger: Ledger, cmd: string, issue: number, name: string, si
   if (cmd !== 'check' && cmd !== 'claim') return { code: 2, message: `모르는 명령 "${cmd}". check 또는 claim.` };
   if (!Number.isInteger(issue) || issue <= 0) return { code: 2, message: '이슈 번호가 필요해요.' };
   if (!normalizeRound(name)) return { code: 2, message: '회차 이름이 비었어요.' };
-  const existing = readRounds(ledger.texts(issue));
+  let existing: string[];
+  try {
+    existing = readRounds(ledger.texts(issue));
+  } catch (e) {
+    return { code: 3, message: `장부를 못 읽었어요(중복 아님): ${(e as Error).message.split('\n')[0]}` };
+  }
   const dup = findDuplicate(existing, name);
   if (dup) {
     return { code: 1, message: `이미 있는 회차예요: "${dup}" (#${issue}). Mia를 부르지 않아요. 다시 돌릴 거면 이름에 "다시 2"처럼 꼬리를 붙여요.` };
   }
-  if (cmd === 'claim') ledger.post(issue, `${sig}\n\n${MARK} ${name.trim()}`);
+  if (cmd === 'claim') {
+    // 다시 읽기: 적은 뒤 같은 이름의 첫 댓글이 내 것(claim-id)이 아니면 동시에 끼어든 쪽이 먼저다 → 중복으로 물러난다.
+    const id = randomUUID();
+    try {
+      ledger.post(issue, `${sig}\n\n${MARK} ${name.trim()}\nclaim-id: ${id}`);
+      const key = normalizeRound(name);
+      const first = ledger.texts(issue).find((t) => readRounds([t]).some((r) => normalizeRound(r) === key));
+      if (first && !first.includes(`claim-id: ${id}`)) {
+        return { code: 1, message: `동시에 다른 쪽이 먼저 적었어요: "${name.trim()}" (#${issue}). Mia를 부르지 않아요.` };
+      }
+    } catch (e) {
+      return { code: 3, message: `장부에 못 썼거나 다시 못 읽었어요(중복 아님): ${(e as Error).message.split('\n')[0]}` };
+    }
+  }
   return { code: 0, message: `${cmd === 'claim' ? '적었어요' : '새 회차예요'}: "${name.trim()}" (#${issue}, 지금까지 ${existing.length}개).` };
 }
 
