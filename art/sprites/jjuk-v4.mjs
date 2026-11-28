@@ -1035,7 +1035,8 @@ Object.assign(POSES, {
 // common.pick  쭉이 바닥 집기(ADR-1031 5절, #1053 "바닥 띠": 물건 아래 끝이 발 기준 0~16px). 내려놓기는 2 → 1 → 0 거꾸로 재생한다.
 //   0 낮춤(무릎을 굽히고 장대를 앞으로 눕혀 갈고리를 발 앞 바닥에, 집게 벌림, 이 악묾) → 1 딸깍(같은 자세, 집게 다묾, 입 다문 웃음)
 //   → 2 휙(장대를 반쯤 세움, 몸을 살짝 젖혀 올려다봄, 아래로 속도선). 그다음은 서 있기(`carry` 맨 위).
-//   세 칸 다 `carry`(갈고리 위 외곽선 행)를 둔다. 든 물건이 바닥(0번 y 55) → 반쯤(2번 y 19) → 서 있기(y 0)로 두 번에 나눠 오른다.
+//   `carry`(갈고리 위 외곽선 행)는 1·2번만 둔다. 0번은 집게가 벌어진 채라 물건이 아직 바닥이다(메타 `null` = 제자리, #1056).
+//   든 물건이 바닥(0번) → 딸깍(1번 y 55) → 반쯤(2번 y 19) → 서 있기(y 0)로 오른다.
 //   2칸(0·1번만)이면 1번 → 서 있기 사이에서 물건이 한 장에 55px 튀어 순간이동으로 보인다(#1053 표).
 //   갈고리는 코 오른쪽(칸 41·43열 가운데선)에 둬서 2번 칸 든 물건이 얼굴을 덜 가린다.
 const PICK_LOW = { back: { x: -2.8, lift: 0, toe: false }, front: { x: 3.2, lift: 0, toe: false } };
@@ -1049,7 +1050,7 @@ Object.assign(POSES, {
         head: k === 0 ? { eyes: 'open', mouth: 'grit', hair: 1 } : { eyes: 'open', mouth: 'shut', hair: 2 },
         back: { sh: [13.6, 20 + dy], el: [10.8, 24.8 + dy], wr: [8.4, 28.4 + dy], hand: { rows: 'back', at: handAt([8.4, 28.4 + dy], -2, -1) } }, // 균형 잡는 뒷팔
         el: [20.0, 25.4 + dy], wr, grip: wr,
-        pole: { top, bot: poleThrough(top, wr, 3), shut: k === 1, carry: true },
+        pole: { top, bot: poleThrough(top, wr, 3), shut: k === 1, carry: k === 1 },
         legs: PICK_LOW,
       });
     }
@@ -1132,10 +1133,13 @@ export const SHEET = {
     // P6 재킷 집기(#529, park_fountain 1-3·7절). short 0(집게가 재킷 손 그림 안에 다 든다), cue [0, 1] = ビヨーン / jacket.cover.
     { name: 'take_up', frames: 3, ms: [300, 350, 500], short: 0, cue: [0, 1] },
     { name: 'take_off', frames: 1, ms: [450] },
-    // 집기(ADR-1031 손 1칸, #1053). 맨 뒤에 붙여서 앞 칸 번호는 그대로다. 내려놓기는 엔진이 2 → 1 → 0 거꾸로 재생한다.
+    // 집기(ADR-1031 손 1칸, #1053). 맨 뒤에 붙여서 앞 칸 번호는 그대로다.
     { name: 'common.pick', frames: 3, ms: [200, 150, 150] },
     // 높은 데서 집기: 0번 칸 300ms = CLAW.growMs(reach_wobble과 같음). short 없음 = 집게가 대상 점까지 닿는다.
     { name: 'common.pick_high', frames: 2, ms: [300, 250] },
+    // 내려놓기(#1056 형식): 집기 2 → 1 → 0 거꾸로, 새 칸 0. `carry`는 칸을 따라가 [반쯤, 딸깍, null]이 된다. 마지막 null 칸부터
+    //   물건이 놓인 자리(`placed`)에 그려진다. ms는 집기를 뒤집은 값이고 마지막 칸(집게 벌림)을 길게 둬 "놓았다"를 읽힌다.
+    { name: 'common.put', reuse: [['common.pick', 2], ['common.pick', 1], ['common.pick', 0]], ms: [150, 150, 200] },
   ],
   pose,
   drawFrame,

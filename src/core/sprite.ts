@@ -105,13 +105,14 @@ const intTuple = (v: unknown, n: number): boolean => Array.isArray(v) && v.lengt
 /** 장대 마디 주기(ADR-0007 장대 3조각: 마디 이음매 한 주기 = 8px). */
 export const POLE_JOINT = 8;
 
-/** 메타 JSON을 검사한다. 형식이 틀리면 그 캐릭터는 실루엣으로 남기도록 이유를 던진다. */
-
 /**
  * `carry`가 모든 칸에 있어야 하는 자세(서 있기·걷기, ADR-1031). 이 자세를 그리는 동안 든 물건은 늘 손에 있다.
  * 다른 자세(집기·내려놓기 연출, #1053)는 `null` 칸으로 "아직/이미 놓인 자리" 칸을 적는다.
+ * `art/build.mjs` `CARRY_FULL`과 같은 목록이다(빌드는 TS를 못 읽어 따로 둔다).
  */
 export const CARRY_FULL: ReadonlySet<string> = new Set(['idle', 'walk']);
+
+/** 메타 JSON을 검사한다. 형식이 틀리면 그 캐릭터는 실루엣으로 남기도록 이유를 던진다. */
 export function parseSpriteMeta(raw: unknown): SpriteMeta {
   const m = raw as Partial<SpriteMeta>;
   const fail = (why: string): never => {
