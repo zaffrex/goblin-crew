@@ -483,6 +483,25 @@ export function headPlace(meta: SceneArtMeta, frame: number, face: HitBox, facin
 }
 
 /** 머리 위 칸 하나를 그릴 자리(`headPlace` 결과)와 그 칸·캐릭터. */
+/**
+ * 쭉이가 든 물건(ADR-1031 5절)을 그릴 칸과 자리. 칸은 그 물건(대상 ID를 맡은 그림 물건)의 지금 멈춘 모습(`pictureOf`)이라
+ * 성질 플래그로 모습이 바뀌면(젖은 수건 등) 손에서도 같이 바뀐다. `at`은 `spriteCarry` 점: 그림의 아래 가운데를 맞춘다.
+ * 가로는 `at.x − 폭/2`를 반올림한다(홀수 폭이면 반 px 오른쪽). 뒤집지 않는다(물건은 쭉이 방향과 상관없이 같은 모습).
+ * 시트에 그 물건이 없거나 안 그리는 모습(`frame: null`)이면 null. 반환 x·y는 그린 그림의 왼쪽 위(화면 좌표).
+ */
+export function carriedPlace(
+  meta: SceneArtMeta,
+  item: string,
+  flagsOf: (objectKey: string) => Flags,
+  at: { x: number; y: number },
+): { frame: number; x: number; y: number } | null {
+  const o = objectOf(meta, item);
+  const frame = o ? pictureOf(o, flagsOf(o.key)).frame : null;
+  const f = frame === null ? undefined : meta.frames[frame];
+  if (!f || frame === null) return null;
+  return { frame, x: Math.round(at.x - f.src[2] / 2), y: at.y - f.src[3] };
+}
+
 export interface HeadPlaced {
   frame: number;
   char: CharacterId;

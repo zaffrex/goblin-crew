@@ -396,6 +396,50 @@ export function spriteBox(meta: SpriteMeta, x: number, y: number, facing: Facing
   return { left, top: fy - ay, width: w, height: h };
 }
 
+/** 지금 자세와 그 자세 안 칸 순서. `spriteFrame`과 같은 우선순위·같은 칸이다. 시트에 그 자세가 없으면 null. */
+function posePlace(meta: SpriteMeta, pose: Pose): { anim: SpriteAnim; i: number } | null {
+  if (pose.event) {
+    const a = meta.anims[pose.event.name];
+    return a ? { anim: a, i: timedIndex(a, pose.event.ms, false) } : null;
+  }
+  if (pose.hop != null) {
+    const up = meta.anims.step_up;
+    if (up) return { anim: up, i: Math.min(pose.hop, up.frames.length - 1) };
+    return meta.anims.idle ? { anim: meta.anims.idle, i: 0 } : null;
+  }
+  if (pose.holding) return meta.anims.hold ? { anim: meta.anims.hold, i: timedIndex(meta.anims.hold, pose.clockMs, true) } : null;
+  if (pose.walkedPx !== null) {
+    const a = meta.anims.walk;
+    if (!a) return null;
+    const n = a.frames.length;
+    return { anim: a, i: Math.floor(pose.walkedPx / (meta.walkCycle / n)) % n };
+  }
+  return meta.anims.idle ? { anim: meta.anims.idle, i: timedIndex(meta.anims.idle, pose.clockMs, true) } : null;
+}
+
+/**
+ * 든 물건을 얹을 화면 점(ADR-1031 4·5절, `carry`). 물건 그림의 아래 가운데를 여기에 맞춘다. x는 픽셀 경계(연속 좌표)다.
+ * - 지금 자세에 `carry`가 있으면 그 칸 점. 그 칸이 `null`이면(집기·내려놓기 연출 중 물건이 아직/이미 바닥, #1056) `'rest'`.
+ * - 자세에 `carry`가 없으면(든 채 받는 반응 연출 등) 서 있기 첫 칸 점이다. 몸이 거의 서 있기라 갈고리 자리가 가깝고,
+ *   물건이 잠깐 사라지거나 제자리로 튀는 것보다 덜 어색하다(추측, 그림 확인은 Luna).
+ * - 그것도 없으면(시트 없음·실루엣) null: 엔진은 든 물건을 안 그린다.
+ * 뒤집기는 `tip`과 같다: 왼쪽을 보면 칸 안 x → `cell[0] − x`.
+ */
+export function spriteCarry(meta: SpriteMeta, pose: Pose, x: number, y: number, facing: Facing): { x: number; y: number } | 'rest' | null {
+  const p = posePlace(meta, pose);
+  let point: readonly [number, number] | null | undefined;
+  if (p?.anim.carry) {
+    point = p.anim.carry[p.i];
+    if (point === null) return 'rest';
+  } else {
+    point = meta.anims.idle?.carry?.[0];
+  }
+  if (!point) return null;
+  const box = spriteBox(meta, x, y, facing);
+  const [cx, cy] = point;
+  return { x: facing === 1 ? box.left + cx : box.left + (meta.cell[0] - cx), y: box.top + cy };
+}
+
 /**
  * 그린 칸에서 화면 정수 픽셀 (px, py)가 불투명인가(설계 2-1절 그림 칸, #736). 자리·뒤집기는 `drawSprite`와 같다.
  * (x, y)는 그리는 발 위치(판 높이 포함, 반올림 전). 왼쪽을 보면 칸 열 c가 화면 x = 발 x + anchor x − c − 1에 간다.

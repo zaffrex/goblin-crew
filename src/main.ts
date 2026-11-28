@@ -18,15 +18,15 @@ import { cardFacePx, cardInput, cardPointer, cardRowGapPx, cardReady, cardText, 
 import { createFirstNotes, currentNote, labelKey, noteAction, noteGauge, noteHover, noteStood, noteSwitch, noteSwitched, noteTap, noteWalkDone, noteWalkSkipped, noteWalkStart, noteWalkTap, selectLabelText, standLabel, standSelect } from './core/firstNotes';
 import { cutFontPx, firstSwitchText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, switchText, type HudId } from './core/hud';
 import { labelText, resolveTap, type Label } from './core/interact';
-import type { CharactersData, ScreenData } from './core/puzzle/types';
+import { PICKER, type CharactersData, type ScreenData } from './core/puzzle/types';
 import { pickScreen, screenTextKey } from './core/screenPick';
 import { AFTER_MENU, cardLines, enterCharacter, flowTap, flowTick, flowView, nextIndex, parseOrder, PLAYING, playtestOrder, showCard, soloCardKey, startOrder, usesSave, type Flow } from './core/flow';
 import { CONTENT_VERSION, saveOnCard, startFromSave } from './core/progress';
 import { LocalSaveStore, probeStorage } from './core/save/store';
 import type { SaveData } from './core/save/schema';
 import orderJson from '../content/screens/order.json';
-import { activeFx, activeMarkerVisible, boardDrop, charPose, headAnchor, charWalking, createScene, currentBubble, drawOrder, speakerFaceBox, stepOffBubbleBox, gaugeDrop, introHoverScene, isBusy, isHanging, sceneArtView, sceneLayout, mouseHoverThroughSay, sceneTap, sceneTick, selectsDuringSay, takeHeldTap, takeWalkStart, tapContext, type SceneData, type SceneState } from './core/scene';
-import { animFrameBox, coveredIds, headKeepBoxes, headPlaces, litFrames, loopStarts, sceneDraws, type HeadPlaced, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
+import { activeFx, activeMarkerVisible, boardDrop, carried, charPose, headAnchor, charWalking, createScene, currentBubble, drawOrder, speakerFaceBox, stepOffBubbleBox, gaugeDrop, introHoverScene, isBusy, isHanging, sceneArtView, shownFlags, sceneLayout, mouseHoverThroughSay, sceneTap, sceneTick, selectsDuringSay, takeHeldTap, takeWalkStart, tapContext, type SceneData, type SceneState } from './core/scene';
+import { animFrameBox, carriedPlace, coveredIds, headKeepBoxes, headPlaces, litFrames, loopStarts, sceneDraws, type HeadPlaced, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
 import { isTapKey } from './core/keys';
 import { createRestartButton, loadingDone, RESTART_BOX, restartArmed, restartPress } from './core/restart';
@@ -857,6 +857,9 @@ function render(): void {
   for (const o of draws?.overlays ?? []) items.push({ y: o.sortY + 0.5, k: -1, frame: o.frame });
   items.sort((a, b) => (a.y === b.y ? a.k - b.k : a.y - b.y));
   const charArt: FrameArt['chars'][number][] = [];
+  // 쭉이 손의 물건(ADR-1031 5절): 쭉이를 그린 바로 뒤에 `carry` 점에 얹는다. 앞에 선 동료·front 층은 그 위에 그린다.
+  const hand = art ? carried(data, scene) : null;
+  const handAt = hand?.at ? carriedPlace(art!.meta, hand.item, (k) => shownFlags(scene, k), hand.at) : null;
   for (const it of items) {
     if (it.char === undefined) {
       drawSceneFrame(ctx, art!, it.frame!, lit.has(it.frame!), nudged.get(it.frame!));
@@ -877,6 +880,7 @@ function render(): void {
     } else {
       spriteTops[id] = top;
     }
+    if (handAt && id === PICKER) drawHeadFrame(ctx, art!, handAt.frame, { x: handAt.x, y: handAt.y, flip: false });
   }
   for (const f of draws?.front ?? []) drawSceneFrame(ctx, art!, f, lit.has(f), nudged.get(f));
   // 머리 위 칸(형식 기록 16절, #901): 그 캐릭터 얼굴 상자 위 가운데 기준, 왼쪽을 보면 뒤집는다. 사람·front 위.
