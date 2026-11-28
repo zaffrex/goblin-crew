@@ -345,6 +345,11 @@ export interface SceneView {
   loopStarts?: LoopStarts;
   /** 물건 키 → 지금 보이는 기울기 d(12절). 없거나 0이면 멈춘 모습 그대로. */
   tiltOf?(objectKey: string): number;
+  /**
+   * 물건 키 → 그 물건이 가리키는 핫스팟이 전부 화면에 없나(`HotspotDef.present`, ADR-1031). 참이면 멈춘 모습을 안 그린다
+   * (`frame: null`과 같음). 그 물건 anim이 재생 중이거나 붙들려 있으면 anim이 먼저다(빨려 들어가는 칸 등). 없으면 늘 거짓.
+   */
+  absent?(objectKey: string): boolean;
 }
 
 /** 기울기 d일 때 열 x가 내려간 px(12절). 그림 원본의 널빤지 함수와 같은 식이다. */
@@ -419,8 +424,9 @@ export function sceneDraws(meta: SceneArtMeta, view: SceneView): SceneDraws {
       out[p.anim.layer].push(frame);
     } else {
       const pic = pictureOf(o, view.flagsOf(o.key));
-      if (pic.frame === null) {
+      if (pic.frame === null || view.absent?.(o.key)) {
         // 안 그리는 멈춘 모습(개정 9): 앞판도 없고 외곽선도 안 켜진다. 히트 박스·`coveredIds`는 그대로다(임시 상자도 안 그린다).
+        // 화면에 없는 물건(`absent`)도 같다. 그쪽은 히트 박스도 `hotspotBox`에서 빠진다.
         out.byObject[o.key] = [];
         continue;
       }

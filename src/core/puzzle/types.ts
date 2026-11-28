@@ -33,6 +33,17 @@ export function isDoHere(item: RuleShowItem): item is DoHere {
   return 'do' in item;
 }
 
+/**
+ * 핫스팟이 이 플래그에서 화면에 있나(`HotspotDef.present`). 핫스팟이 아닌 대상(서는 자리·캐릭터)은 늘 있다.
+ * 코어(`step`)는 퍼즐 플래그, 그림은 보이는 플래그(`shownFlags`)를 넘긴다. 선언 안 된 플래그는 검사(`validate`)가 막는다.
+ */
+export function hotspotPresent(screen: Pick<ScreenData, 'hotspots'>, flags: Readonly<Record<string, boolean>>, id: string): boolean {
+  const want = Object.hasOwn(screen.hotspots, id) ? screen.hotspots[id]!.present?.flags : undefined;
+  if (!want) return true;
+  for (const [k, v] of Object.entries(want)) if (flags[k] !== v) return false;
+  return true;
+}
+
 /** 동사별 맵(`default` 키 가능). 값은 서는 자리 ID 또는 `stay`. */
 export type ApproachByVerb = Partial<Record<Verb | 'default', string>>;
 
@@ -91,6 +102,12 @@ export interface HotspotDef {
   /** 기본 `floor`. */
   approach?: Approach;
   variants?: HotspotVariant[];
+  /**
+   * 있음 조건(ADR-1031 3절, #1043 Kai 제안). 없으면 늘 있다. 플래그가 안 맞으면 그 핫스팟은 화면에 없다:
+   * 대상 행동은 `invalid`(BFS에서도 빠짐), 클릭 판정·라벨·그림도 빠진다. `variants`와 따로 본다(첫 일치에 묻히지 않게).
+   * 재료로 써서 사라지는 들 물건(`take`가 이 플래그를 끈다)과 결합으로 새로 생기는 물건(규칙이 켠다)에 쓴다.
+   */
+  present?: { flags: Record<string, boolean> };
   hintAbility?: AbilityVerb;
   reachPoint?: [number, number];
   note?: string;

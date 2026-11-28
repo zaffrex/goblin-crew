@@ -5,7 +5,7 @@ import sheetJson from '../../public/scenes/magpie_nest-objects.json';
 import ppikJson from '../../public/sprites/ppik-base.json';
 import { CHAR_SLOTS } from './hud';
 import type { CharactersData, ScreenData } from './puzzle/types';
-import { createScene, heldArtView, isBusy, sceneTap, sceneTick, shownFlags, TIMING, type SceneData, type SceneState } from './scene';
+import { createScene, heldArtView, isBusy, sceneArtView, sceneLayout, sceneTap, sceneTick, shownFlags, TIMING, type SceneData, type SceneState } from './scene';
 import { animFrameBox, animOf, animTicks, coveredIds, litFrames, loopStarts, objectOf, parseSceneArt, pictureOf, sceneDraws, timedFrame, type LoopStarts, type SceneArtMeta, type ScenePictureObject, type SceneView } from './sceneArt';
 import { parseSpriteMeta, type SpriteMeta } from './sprite';
 
@@ -117,6 +117,39 @@ describe('sceneDraws (6절 앞뒤)', () => {
     const d = sceneDraws(m, view({ playing: { object: a.object, anim: a.anim, ms: 150 } }));
     expect(d.front).toEqual([9]);
     expect(d.back).toHaveLength(5); // 둥지 위 까치는 안 그린다
+  });
+});
+
+describe('sceneDraws: 화면에 없는 물건(`absent`, ADR-1031 present)', () => {
+  it('absent 물건은 멈춘 모습을 안 그리고(byObject 빈 배열), 다른 물건은 그대로', () => {
+    const m = meta();
+    const d = sceneDraws(m, view({ absent: (k) => k === 'nest' }));
+    expect(d.back).toHaveLength(5);
+    expect(d.byObject.nest).toEqual([]);
+    expect(d.byObject.magpie).toHaveLength(1);
+  });
+
+  it('absent여도 그 물건 anim이 재생 중이면 anim 칸을 그린다(빨려 들어가는 칸)', () => {
+    const m = meta();
+    const a = animOf(m, 'magpie', 'fly_down', {})!;
+    const d = sceneDraws(m, view({ absent: (k) => k === a.object, playing: { object: a.object, anim: a.anim, ms: 150 } }));
+    expect(d.front).toEqual([9]);
+  });
+
+  it('장면: 핫스팟 present가 꺼지면 그림·히트 박스가 같이 빠진다(sceneArtView)', () => {
+    const scr = clone(screen);
+    scr.flags['nest.gone'] = true;
+    scr.hotspots.nest!.present = { flags: { 'nest.gone': false } };
+    const d: SceneData = { screen: scr, characters, art: meta() };
+    const s = ready(d);
+    const v = sceneArtView(d, s);
+    expect(v.absent!('nest')).toBe(true);
+    expect(v.absent!('magpie')).toBe(false);
+    expect(sceneDraws(d.art!, v).byObject.nest).toEqual([]);
+    expect(sceneLayout(d, s).hotspots.nest).toBeUndefined();
+    s.puzzle.flags['nest.gone'] = false;
+    expect(sceneArtView(d, s).absent!('nest')).toBe(false);
+    expect(sceneLayout(d, s).hotspots.nest).toBeDefined();
   });
 });
 

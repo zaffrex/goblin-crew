@@ -391,12 +391,46 @@ describe('validateScreen: hands (ADR-1031 pick/put/holds/chain)', () => {
   const put = { id: 'put_nest', target: 'nest', verb: 'item', when: { item: 'nest' }, do: { put: true } };
   const withRules = (...rules: unknown[]): ValidationResult => mutate((s) => s.rules.push(...rules));
 
+  // 재료로 써서 사라지는 둥지: present 플래그를 take 규칙이 끈다(ADR-1031, #1043 Kai·Luna).
+  const gone = (s: Record<string, any>): void => {
+    s.flags['nest.used'] = false;
+    s.hotspots.nest.present = { flags: { 'nest.used': false } };
+  };
+  const useNest = {
+    id: 'use_nest', target: 'magpie', verb: 'item', chain: 'use',
+    when: { item: 'nest', holds: 'nest' }, do: { set: { 'nest.used': true }, take: ['nest'] },
+  };
+
   it('accepts a pick + put pair and when.item / holds / take on the picked id', () => {
-    const r = withRules(pick, put, {
-      id: 'use_nest', target: 'magpie', verb: 'item', chain: 'use',
-      when: { item: 'nest', holds: 'nest' }, do: { take: ['nest'] },
+    const r = mutate((s) => {
+      gone(s);
+      s.rules.push(pick, put, useNest);
     });
     expect(r.errors).toEqual([]);
+  });
+
+  it('present: flags only, declared, at least one', () => {
+    const withPresent = (present: unknown): string[] => codes(mutate((s) => (s.hotspots.nest.present = present)));
+    expect(withPresent({ flags: { 'magpie.on_ground': true } })).toEqual([]);
+    expect(withPresent({ flags: { 'nest.gone': false } })).toEqual(['ref-flag']);
+    expect(withPresent({ flags: {} })).toEqual(['schema']);
+    expect(withPresent({ flags: { 'magpie.on_ground': true }, at: ['floor'] })).toEqual(['unknown-key']);
+    expect(withPresent(true)).toEqual(['schema']);
+  });
+
+  it('take of a held item must require holding it and switch its present off', () => {
+    const take = (rule: Record<string, unknown>, setup = gone): string[] =>
+      codes(mutate((s) => {
+        setup(s);
+        s.rules.push(pick, put, { ...useNest, ...rule });
+      }));
+    // Kai #1043: 든 것을 요구하지 않으면 바닥의 물건에 아무 일도 안 일어난다.
+    expect(take({ verb: 'stomp', chain: undefined, when: undefined })).toEqual(['take-not-held']);
+    expect(take({ when: { item: 'nest' } })).toEqual([]);
+    // 같은 규칙 set이 present를 안 끄면 제자리에 다시 생긴다.
+    expect(take({ do: { take: ['nest'] } })).toEqual(['take-leaves-item']);
+    expect(take({ do: { set: { 'nest.used': false }, take: ['nest'] } })).toEqual(['take-leaves-item']);
+    expect(take({ do: { take: ['nest'] } }, () => {})).toEqual(['take-leaves-item']);
   });
 
   it('pick must be the picker ability on a hotspot, without a chain tag', () => {
