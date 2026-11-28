@@ -8,7 +8,8 @@ import type { CharactersData, PuzzleState, ScreenData } from '../../src/core/puz
 
 // ADR-0018 F2 "입력 1번 = 반응 1개": 화면 1에서 고를 수 있는 행동은 전부 보이는 반응을 낸다.
 // #123/#124: look·hand가 폴백 ②로 갔는데 characters.json에 반응이 없어서 탭해도 아무 일이 없었다.
-// 검사 범위: BFS로 닿는 모든 상태(클리어 상태 제외) × 캐릭터 × (보기·손·자기 능력) × 대상 전부(바닥 포함).
+// 검사 범위: BFS로 닿는 모든 상태(클리어 상태 제외) × 캐릭터 × 자기 능력 × 대상 전부(바닥 포함).
+// 보기·손은 동사 버튼이 없어져(#311) 누르기로 안 나오므로 BFS `actions`에서 빠졌다(ADR-1031 3절, `clickActions`).
 // `move`는 걷기 자체가 반응이라 뺀다. `walk`·`gauge`만 나오는 결과는 무반응으로 센다.
 const load = (rel: string): unknown => JSON.parse(readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8'));
 const screen = load('../../content/screens/magpie_nest.json') as ScreenData;
