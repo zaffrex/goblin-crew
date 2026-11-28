@@ -217,6 +217,10 @@ function buildSheet(def) {
     def.claw.rows.forEach((rows, k) => rows.forEach((row, y) => [...row].forEach((ch, x) => {
       if (def.claw.legend[ch] !== undefined) clawImg.set(k * kw + x, y, def.claw.legend[ch]);
     })));
+    // 장대를 뻗는 연출에서 든 물건은 집게 칸 위 끝(0행)에 얹는다(sprite.ts spriteCarry, PR #1064 Luna 리뷰). 0행이 집게 첫 잉크 행이어야 물건이 안 뜬다.
+    def.claw.rows.forEach((rows, k) => {
+      if (![...rows[0]].some((c) => def.claw.legend[c] !== undefined)) fail(`${def.name} claw ${k}: 0행에 잉크가 없다(든 물건이 집게 위에 떠 보인다)`);
+    });
     meta.claw = { image: `${def.name}-claw.png`, cell: def.claw.cell, anchor: def.claw.anchor };
     // 장대가 칸 위로 늘어나는 최대 길이(px)와 0에서 다 늘어날 때까지 ms(#284). 없으면 한 번에 대상까지 잇는다(예전 동작).
     if (def.claw.max !== undefined) meta.claw.max = def.claw.max;

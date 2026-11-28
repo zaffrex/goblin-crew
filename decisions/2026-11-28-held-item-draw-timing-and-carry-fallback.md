@@ -2,7 +2,7 @@
 schema: 1
 id: 15df458b-61ed-48bd-a139-c32bd2b15e6d
 title: 든 물건 그림은 그 행동의 쭉이 첫 연출이 끝날 때까지 옛 손을 따르고, `carry` 없는 연출은 서 있기 첫 칸 점에 얹는다
-status: accepted
+status: superseded
 accepted_via: pr-merge
 decided_at: 2026-11-28
 owner: "@zaffrex"
