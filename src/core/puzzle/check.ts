@@ -3,8 +3,30 @@
 
 import { explore, requiredAbilitiesBoth, type BfsHost, type ExploreResult, type PathStep } from './bfs';
 import { initialState, step } from './step';
-import type { Action, CharacterId, CharactersData, ChainKind, PuzzleState, RuleDef, ScreenData, Verb } from './types';
-import { PICKER, VERBS } from './types';
+import type { Action, CharacterId, CharactersData, ChainKind, PuzzleState, RuleDef, ScreenData } from './types';
+import { characterDef } from '../characters';
+import { PICKER } from './types';
+
+/**
+ * BFS가 시도할 행동(ADR-1031 3절 "CI 시간"): 한 번 누르기로 낼 수 있는 동사만이다.
+ * 동사 버튼이 없어서(#311) 누르기는 `move`(서는 자리·바닥) 아니면 그 캐릭터 자기 능력이고, 든 물건·파티 아이템은 `item`이다.
+ * `look`·`hand`와 남의 능력은 누르기로 안 나온다. UI(`interact.ts` `targetIntent`)가 내는 행동은 전부 이 안에 있다
+ * (`tests/content/click-actions.test.ts`). 거꾸로는 아니다: 서는 자리마다 `move`와 능력을 둘 다 넣어 UI보다 조금 넓다.
+ */
+export function clickActions(screen: ScreenData, s: PuzzleState, chars: readonly CharacterId[], targets: readonly string[]): Action[] {
+  const out: Action[] = [];
+  for (const char of chars) {
+    const ability = characterDef(char).ability;
+    for (const target of targets) {
+      if (target in screen.spots) out.push({ char, verb: 'move', target });
+      out.push({ char, verb: ability, target });
+      for (const item of s.items) out.push({ char, verb: 'item', target, item });
+      // 든 물건은 쭉이만 쓴다(ADR-1031). 파티 아이템과 ID가 겹치지 않는다(검사 `hands-item-overlap`).
+      if (char === PICKER && s.hands !== undefined) out.push({ char, verb: 'item', target, item: s.hands });
+    }
+  }
+  return out;
+}
 
 export function screenHost(screen: ScreenData, characters?: CharactersData): BfsHost<PuzzleState, Action> {
   const targets = [...new Set([...Object.keys(screen.spots), ...Object.keys(screen.hotspots)])];
@@ -14,22 +36,7 @@ export function screenHost(screen: ScreenData, characters?: CharactersData): Bfs
     initial: initialState(screen),
     step: (s, a) => step(screen, s, a, characters),
     isClear: (s) => s.flags[screen.exitFlag] === true,
-    actions: (s) => {
-      const out: Action[] = [];
-      for (const char of chars) {
-        for (const target of targets) {
-          for (const verb of VERBS as readonly Verb[]) {
-            if (verb === 'item') {
-              for (const item of s.items) out.push({ char, verb, target, item });
-              // 든 물건은 쭉이만 쓴다(ADR-1031). 파티 아이템과 ID가 겹치지 않는다(검사 `hands-item-overlap`).
-              if (char === PICKER && s.hands !== undefined) out.push({ char, verb, target, item: s.hands });
-            }
-            else out.push({ char, verb, target });
-          }
-        }
-      }
-      return out;
-    },
+    actions: (s) => clickActions(screen, s, chars, targets),
   };
 }
 
