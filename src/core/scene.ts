@@ -10,7 +10,7 @@ import { HIGH_TARGET_LINE, TICK_MS, WALK_SPEED, walkAreaOf } from './config';
 import { hitTest, type HitBox } from './hit';
 import { inHudZone } from './hud';
 import type { AlphaMask } from './alpha';
-import { hotspotBox, hudTargets, tap, type DrawnBody, type Intent, type Placements, type TapContext, type UiState } from './interact';
+import { hotspotBox, hudTargets, placedBox, tap, type DrawnBody, type Intent, type Placements, type TapContext, type UiState } from './interact';
 import { animObject, animOf, animTicks, coverFrames, frameOpaqueAt, restingBox, tiltDrop, timedIndex, type SceneAnim, type SceneArtMeta, type SceneObject, type SceneView } from './sceneArt';
 import { FX_TICKS, fxTicks } from './fx';
 import { sayText, seenSayKey } from './sayText';
@@ -1065,8 +1065,8 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
   const w = s.walkers[action.char];
   w.target = null;
   w.walkTicks = 0;
-  // 내려놓기(ADR-1031 4절): 쭉이가 선 발 점이 놓인 자리다. 내려놓기는 걷지 않으니(행동 상자 없음) 지금 자리 그대로다.
-  if (putItem(prev, s.puzzle, action)) s.placed[action.target] = { x: Math.round(w.x), y: w.y };
+  // 내려놓기(ADR-1031 4절): 쭉이 몸 앞(안 되면 등 뒤)에 놓는다. 내려놓기는 걷지 않으니(행동 상자 없음) 지금 자리 기준이다.
+  if (putItem(prev, s.puzzle, action)) s.placed[action.target] = putPoint(data, s.puzzle, action.target, w);
   const first = events[0];
   const leaving = stepDownWalk(data, events, action.char);
   const sb = stompBoard(data, action);
@@ -1830,6 +1830,31 @@ function endCurrent(s: SceneState): void {
  * (화면 1·2 카드 뒤 모습 그대로: `park_fountain` 손님·관리인·チュック `take_off`).
  */
 /** 이 행동이 든 물건을 내려놓았나: 쭉이가 든 물건을 그 물건에 쓰는 행동(`{ jjuk, item, X, X }`)이 맞아 손이 비었다. */
+/** 서 있기 자세(시트 `idle`). 내려놓는 자리를 몸 상자로 잴 때 쓴다. */
+const STAND_POSE: Pose = { walkedPx: null, holding: false, event: null, clockMs: 0 };
+
+/**
+ * 내려놓은 물건의 놓인 점(상자 아래 가운데, #1066 Luna 리뷰). 발 x에 두면 물건이 쭉이 다리에 가려 안 보인다(v2 동전 0%).
+ * 서 있기 몸 상자(시트 `hit`·`anchor`) 앞 끝에서 `APPROACH_GAP` + 물건 폭/2 앞. 그 상자가 걷기 영역(`walkAreaOf`, 양 끝 포함)을
+ * 넘으면 등 뒤에 같은 거리로, 둘 다 넘으면 발 x. y는 발 y. 물건 크기는 놓은 뒤 상자(`variants` 반영)다.
+ */
+function putPoint(data: SceneData, puzzle: PuzzleState, id: string, w: Walker): Point {
+  const foot = { x: Math.round(w.x), y: w.y };
+  const box = hotspotBox(data.screen, puzzle, id);
+  if (!box) return foot;
+  const meta = data.sprites?.[PICKER];
+  const body = (meta ? spriteHit(meta, STAND_POSE, foot.x, w.y, w.facing) : null) ?? characterHitBox(characterDef(PICKER), foot.x, w.y, w.facing);
+  const half = box.width / 2;
+  const right = body.left + body.width + APPROACH_GAP + half;
+  const left = body.left - APPROACH_GAP - half;
+  const area = walkAreaOf(data.screen);
+  for (const x of w.facing === 1 ? [right, left] : [left, right]) {
+    const b = placedBox(box, { x, y: w.y });
+    if (b.left >= area.left && b.left + b.width - 1 <= area.right) return { x, y: w.y };
+  }
+  return foot;
+}
+
 function putItem(before: PuzzleState, after: PuzzleState, action: Action): boolean {
   return (
     action.char === PICKER && action.verb === 'item' && action.item === action.target && before.hands === action.target && after.hands === undefined

@@ -840,6 +840,7 @@ function render(): void {
     const sh = shifts[id];
     if (sh) shifts[id] = { dx: sh.dx + n.dx, dy: sh.dy + n.dy };
   }
+  // `shifts`에는 위에서 `nudges`를 이미 더했다. 아래 펼치기는 덮어쓰기라 두 번 더해지지 않는다(놓인 물건은 `shifts`가 이긴다).
   const nudged = draws ? frameNudges(art!.meta, draws, { ...nudges, ...shifts }) : new Map<number, Nudge>();
   // 효과 자리(형식 기록 11절)는 적힌 순서 그 자리에서 입자를 그린다. 배경이 없으면(9절 폴백) 효과도 그리지 않는다.
   for (const f of draws?.back ?? []) {

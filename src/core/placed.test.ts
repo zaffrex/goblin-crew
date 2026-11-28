@@ -17,6 +17,11 @@ const art = parseSceneArt(sheetJson) as SceneArtMeta;
 const BASKET_FRAME = 15;
 /** 바구니 기본 상자 [144, 212, 32, 24]. */
 const BASKET = { left: 144, top: 212, width: 32, height: 24 };
+/**
+ * x 300에서 오른쪽을 보고 놓으면: 몸 상자(시트 `hit` [12, 0, 28, 64], `anchor` [25, 64]) 앞 끝 300 + 15,
+ * 틈 2, 바구니 폭/2 16 → 333. 상자 317~349가 쭉이 몸(287~315)과 안 겹친다(#1066 Luna 리뷰).
+ */
+const FRONT_X = 300 + 15 + 2 + 16;
 
 /** 실제 쭉이 시트, `common.pick` 0번 칸 `carry` = null(#1056 형식). */
 function jjuk(): SpriteMeta {
@@ -53,11 +58,12 @@ function setup(): { d: SceneData; s: SceneState } {
   return { d, s };
 }
 
-/** 바구니를 집고 쭉이를 x 300으로 옮겨 내려놓는다. */
-function putAt300(d: SceneData, s: SceneState): void {
+/** 바구니를 집고 쭉이를 x(기본 300)로 옮겨 `facing`(기본 오른쪽)을 보게 하고 내려놓는다. */
+function putAt300(d: SceneData, s: SceneState, x = 300, facing: 1 | -1 = 1): void {
   runAction(d, s, { char: 'jjuk', verb: 'stretch', target: 'basket' }, null);
   settle(d, s);
-  s.walkers.jjuk.x = 300;
+  s.walkers.jjuk.x = x;
+  s.walkers.jjuk.facing = facing;
   runAction(d, s, { char: 'jjuk', verb: 'item', target: 'basket', item: 'basket' }, null);
   expect(s.puzzle.hands).toBeUndefined();
 }
@@ -70,12 +76,12 @@ describe('placedBox', () => {
 });
 
 describe('놓인 자리 (ADR-1031 4절)', () => {
-  it('내려놓기: 쭉이 발 점이 놓인 자리, 상자·레이아웃·클릭이 다 그리로 간다', () => {
+  it('내려놓기: 쭉이 몸 앞이 놓인 자리, 상자·레이아웃·클릭이 다 그리로 간다', () => {
     const { d, s } = setup();
     expect(s.placed).toEqual({});
     putAt300(d, s);
-    expect(s.placed).toEqual({ basket: { x: 300, y: s.walkers.jjuk.y } });
-    const moved = placedBox(BASKET, { x: 300, y: s.walkers.jjuk.y });
+    expect(s.placed).toEqual({ basket: { x: FRONT_X, y: s.walkers.jjuk.y } });
+    const moved = placedBox(BASKET, { x: FRONT_X, y: s.walkers.jjuk.y });
     expect(hotspotBox(d.screen, s.puzzle, 'basket', s.placed)).toEqual(moved);
     expect(hotspotBox(d.screen, s.puzzle, 'basket')).toEqual(BASKET);
     settle(d, s);
@@ -111,10 +117,10 @@ describe('놓인 자리 (ADR-1031 4절)', () => {
     s.walkers.jjuk.x = 420;
     runAction(d, s, { char: 'jjuk', verb: 'stretch', target: 'basket' }, null);
     expect(s.puzzle.hands).toBe('basket');
-    // 바닥 대상: 놓인 상자(284~316) 오른쪽 옆으로 간다. 옛 자리(144~176)로 가면 안 된다.
+    // 바닥 대상: 놓인 상자(317~349) 오른쪽 옆으로 간다. 옛 자리(144~176)로 가면 안 된다.
     const to = s.walkers.jjuk.target?.x ?? s.floorTo.jjuk?.x;
-    expect(to).toBeGreaterThan(316);
-    expect(to).toBeLessThan(360);
+    expect(to).toBeGreaterThan(349);
+    expect(to).toBeLessThan(400);
     let ticks = 0;
     while (isBusy(s) && carried(d, s) === null) {
       expect(s.placed.basket).toBeDefined();
@@ -148,6 +154,31 @@ describe('놓인 자리 (ADR-1031 4절)', () => {
     s.puzzle.flags['basket.used'] = true;
     sceneTick(d, s);
     expect(s.placed).toEqual({});
+  });
+
+  it('왼쪽을 보면 몸 앞이 왼쪽이다(뒤집기)', () => {
+    const { d, s } = setup();
+    putAt300(d, s, 300, -1);
+    // 왼쪽을 보면 몸 상자가 285~313이라 앞 끝은 285. 285 − 2 − 16 = 267.
+    expect(s.placed.basket).toEqual({ x: 300 - 15 - 2 - 16, y: s.walkers.jjuk.y });
+  });
+
+  it('앞이 걷기 영역 밖이면 등 뒤, 등 뒤도 밖이면 발 x', () => {
+    const { d, s } = setup();
+    // 오른쪽 벽(걷기 영역 오른쪽 463) 가까이: 앞 440 + 33 = 473 → 상자 457~488이 넘는다. 등 뒤 440 − 13 − 2 − 16 = 409.
+    putAt300(d, s, 440, 1);
+    expect(s.placed.basket).toEqual({ x: 409, y: s.walkers.jjuk.y });
+    const box = hotspotBox(d.screen, s.puzzle, 'basket', s.placed)!;
+    expect(box.left + box.width - 1).toBeLessThanOrEqual(463);
+    // 왼쪽을 보고 왼쪽 벽(16) 가까이: 앞 30 − 15 − 2 − 16 = −3 → 넘는다. 등 뒤 30 + 13 + 2 + 16 = 61.
+    const t = setup();
+    putAt300(t.d, t.s, 30, -1);
+    expect(t.s.placed.basket).toEqual({ x: 61, y: t.s.walkers.jjuk.y });
+    // 걷기 영역을 좁혀 앞뒤 둘 다 넘으면 발 x.
+    const n = setup();
+    n.d.screen.walkArea = { left: 280, right: 330 };
+    putAt300(n.d, n.s, 300, 1);
+    expect(n.s.placed.basket).toEqual({ x: 300, y: n.s.walkers.jjuk.y });
   });
 
   it('제자리에서 집기만 하면 놓인 자리가 안 생긴다. 새 판은 비어 있다', () => {
