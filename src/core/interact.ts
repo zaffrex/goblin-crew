@@ -9,7 +9,7 @@
 import { characterDef, CHARACTERS, type CharacterId } from './characters';
 import { hitTest, type HitBox, type HitTarget } from './hit';
 import { CHAR_SLOTS, inHudZone, type HudId } from './hud';
-import { FLOOR, hotspotPresent, type Action, type Box, type PuzzleState, type ScreenData, type Verb } from './puzzle/types';
+import { FLOOR, hotspotPresent, PICKER, type Action, type Box, type PuzzleState, type ScreenData, type Verb } from './puzzle/types';
 import type { Point } from './viewport';
 
 /** UI 상태. 퍼즐 상태(PuzzleState)와 따로 둔다(ADR-0065 4절). JSON 직렬화 가능. */
@@ -50,16 +50,21 @@ export interface DrawnBody {
   at: (p: Point) => boolean;
 }
 
-/** 라벨에 쓰는 동사 이름. `climb` = 서는 자리로 `move`, `walk` = 바닥, `release` = 매달린 채 바닥. null = 이름만(캐릭터). */
-export type LabelVerb = 'climb' | 'walk' | 'release' | Exclude<Verb, 'move'> | null;
+/**
+ * 라벨에 쓰는 동사 이름. `climb` = 서는 자리로 `move`, `walk` = 바닥, `release` = 매달린 채 바닥,
+ * `put` = 든 물건 내려놓기(ADR-1031 4절, 행동은 `item`). null = 이름만(캐릭터).
+ */
+export type LabelVerb = 'climb' | 'walk' | 'release' | 'put' | Exclude<Verb, 'move'> | null;
 
 /** 라벨(설계 7절). 문구로 바꾸는 건 labelText(). */
 export interface Label {
   verb: LabelVerb;
   /** 대상 ID(핫스팟·서는 자리·캐릭터). `walk`·`release`는 대상이 없다. */
   target: string | null;
-  /** `verb === 'item'`일 때. */
+  /** `verb === 'item'`·`'put'`일 때. */
   item?: string;
+  /** `item`이 쭉이가 든 화면 물건(핫스팟 ID)이다(ADR-1031). 이름을 파티 아이템 키가 아니라 화면 이름 키에서 찾는다. */
+  held?: true;
 }
 
 /** 월드 대상 종류. 히트 대상 id 앞에 붙여 이름 충돌을 막는다(`char:jjuk`, `spot:hook`, `hotspot:nest`). */
@@ -102,6 +107,8 @@ function flagsMatch(puzzle: PuzzleState, flags: Record<string, boolean>): boolea
 export function hotspotBox(screen: TapContext['screen'], puzzle: PuzzleState, id: string): HitBox | null {
   const hs = screen.hotspots[id];
   if (!hs || !hotspotPresent(screen, puzzle.flags, id)) return null;
+  // 든 물건은 쭉이 장대 끝에 있어 화면 대상이 아니다(ADR-1031 1절, step `isValidAction`과 같은 판정).
+  if (puzzle.hands === id) return null;
   const v = hs.variants?.find((variant) => flagsMatch(puzzle, variant.when.flags));
   return toHitBox(v?.box ?? hs.box);
 }
@@ -222,6 +229,12 @@ export function specialtySpot(screen: Pick<ScreenData, 'spots'>, me: CharacterId
  */
 export function targetIntent(ctx: PuzzleView, me: CharacterId, target: PuzzleTarget, p: Point): Resolved {
   if (!target) return floorIntent(ctx, me, p);
+  // 든 채로 쭉이: 아무 대상이든 든 물건 쓰기. 장대 능력·올라서기는 안 나간다(ADR-1031 4절 표). 바닥은 위처럼 든 채로 걷기.
+  const held = heldBy(ctx, me);
+  if (held !== undefined) {
+    if (target.ref === held) return { kind: 'none', label: null };
+    return act({ char: me, verb: 'item', target: target.ref, item: held }, { verb: 'item', target: target.ref, item: held, held: true });
+  }
   if (target.kind === 'hotspot') return ability(me, target.ref);
   // hold 자리는 move로 못 간다(ADR-0065). 핫스팟처럼 내 능력(설계 2절, PR #115).
   // 내가 선 자리를 다시 누르면 내 능력(6-4-1절).
@@ -230,6 +243,23 @@ export function targetIntent(ctx: PuzzleView, me: CharacterId, target: PuzzleTar
     return act({ char: me, verb: 'move', target: target.ref }, { verb: 'climb', target: target.ref });
   }
   return ability(me, target.ref);
+}
+
+/** `me`가 들고 있는 화면 물건. 드는 사람은 쭉이뿐이다(ADR-1031, `PICKER`). */
+function heldBy(ctx: PuzzleView, me: CharacterId): string | undefined {
+  return me === PICKER ? ctx.puzzle.hands : undefined;
+}
+
+/**
+ * 지금 캐릭터 얼굴 칸(HUD)을 눌렀을 때. 든 채로 쭉이가 `free` 자리에 서 있으면 내려놓기, 아니면 아무 일 없음(ADR-1031 4절 표).
+ * 내려놓기 행동 모양은 코어와 같다: `{ jjuk, item, item: X, target: X }`(step `isPutAction`). 걷지 않는다.
+ */
+function ownFaceIntent(ctx: PuzzleView, me: CharacterId): Resolved {
+  const held = heldBy(ctx, me);
+  if (held !== undefined && ctx.screen.spots[ctx.puzzle.at[me]]?.free === true) {
+    return act({ char: me, verb: 'item', target: held, item: held }, { verb: 'put', target: null, item: held, held: true });
+  }
+  return { kind: 'none', label: { verb: null, target: me } };
 }
 
 /**
@@ -243,7 +273,7 @@ export function resolveTap(ctx: TapContext, ui: UiState, p: Point, slop: number)
   const hud = hitTest(hudTargets(), p, slop);
   if (hud) {
     const char = hud.id.slice('char.'.length) as CharacterId;
-    return char === me ? { kind: 'none', label: { verb: null, target: char } } : { kind: 'switch', char, label: { verb: null, target: char } };
+    return char === me ? ownFaceIntent(ctx, me) : { kind: 'switch', char, label: { verb: null, target: char } };
   }
   if (inHudZone(p)) return { kind: 'none', label: null };
 
@@ -296,7 +326,7 @@ export function labelText(label: Label, screenId: string, t: (id: string) => str
   const name = (id: string): string =>
     id in characterNames ? t(`char.${id}.name`) : t(`${screenId}.name.${id}`);
   if (label.verb === null) return label.target === null ? '' : name(label.target);
-  const item = label.verb === 'item' ? t(`${label.item ?? ''}.name`) : '';
+  const item = label.verb !== 'item' && label.verb !== 'put' ? '' : label.held ? name(label.item ?? '') : t(`${label.item ?? ''}.name`);
   if (label.target === null) return t(`ui.verb.${label.verb}`).replace('{item}', item);
   const vars: Record<string, string> = { target: name(label.target), item };
   return t(`ui.label.${label.verb}`).replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m);
