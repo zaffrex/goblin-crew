@@ -94,6 +94,7 @@
   "ui.verb.hand": "さわる",
   "ui.verb.look": "みる",
   "ui.verb.item": "{item}を使う",
+  "ui.verb.put": "{item}をおろす",
   "ui.label.climb": "{target}にのる",
   "ui.label.stretch": "{target}までのばす",
   "ui.label.stomp": "{target}をドスン",

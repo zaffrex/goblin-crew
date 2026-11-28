@@ -6,7 +6,7 @@ import type { HitBox } from './hit';
 import { CHAR_SLOTS, HUD_AREA } from './hud';
 import { hitTest } from './hit';
 import { hudTargets, labelText, resolveTap, tap, targetIntent, worldTargets, type TapContext, type UiState } from './interact';
-import { initialState } from './puzzle/step';
+import { initialState, step } from './puzzle/step';
 import type { PuzzleState, ScreenData } from './puzzle/types';
 import { HUD_BOX } from './puzzle/validate';
 import type { Point } from './viewport';
@@ -541,6 +541,121 @@ describe('라벨 문구 (설계 7절)', () => {
   it('화면 1의 모든 대상에 이름이 있다', () => {
     for (const id of [...Object.keys(screen.hotspots), ...Object.entries(screen.spots).filter(([, s]) => s.box).map(([id]) => id)]) {
       expect(texts, id).toHaveProperty([`magpie_nest.name.${id}`]);
+    }
+  });
+});
+
+describe('쭉이 손 1칸 입력 (ADR-1031 4절 표)', () => {
+  // 작은 화면: 바닥(free) + 상자 있는 서는 자리 + 들 물건 양말 + 장치 건조기. 규칙은 step 확인용이다(판정은 규칙을 안 읽는다).
+  const hs: ScreenData = {
+    id: 'hands_input',
+    spots: {
+      floor: { x: 0, y: 240, free: true },
+      stool: { x: 300, y: 220, box: [290, 200, 24, 24] },
+    },
+    hotspots: {
+      sock: { box: [100, 220, 24, 16] },
+      dryer: { box: [180, 150, 40, 48] },
+    },
+    flags: { 'dryer.loaded': false },
+    start: { at: { jjuk: 'floor', mukjik: 'floor', ppik: 'floor' }, items: [] },
+    exitFlag: 'dryer.loaded',
+    rules: [
+      { id: 'pick_sock', target: 'sock', verb: 'stretch', do: { pick: true } },
+      { id: 'put_sock', target: 'sock', verb: 'item', when: { item: 'sock' }, do: { put: true } },
+      { id: 'load_dryer', target: 'dryer', verb: 'item', when: { item: 'sock' }, do: { set: { 'dryer.loaded': true }, take: ['sock'] } },
+    ],
+    solution: [
+      { char: 'jjuk', verb: 'stretch', target: 'sock' },
+      { char: 'jjuk', verb: 'item', target: 'dryer', item: 'sock' },
+    ],
+  };
+  const empty = initialState(hs);
+  const holding = (at: Partial<PuzzleState['at']> = {}): PuzzleState => ({ ...empty, at: { ...empty.at, ...at }, hands: 'sock' });
+  const tx = (id: string): string =>
+    ({ 'hands_input.name.sock': '靴下', 'hands_input.name.dryer': '乾燥機', 'hands_input.name.stool': '台' } as Record<string, string>)[id] ??
+    (texts as Record<string, string>)[id] ??
+    id;
+  const mid = (b: [number, number, number, number]): Point => ({ x: b[0] + b[2] / 2, y: b[1] + b[3] / 2 });
+
+  it('빈손 쭉이 × 들 물건 = 장대(집기 규칙이 받는다)', () => {
+    const r = resolveTap(ctxFor(empty, hs), ui('jjuk'), mid(hs.hotspots.sock!.box), 0);
+    expect(r).toMatchObject({ kind: 'act', action: { char: 'jjuk', verb: 'stretch', target: 'sock' } });
+    if (r.kind !== 'act') throw new Error('act');
+    expect(step(hs, empty, r.action).state.hands).toBe('sock');
+  });
+
+  it('든 채로 쭉이 × 장치 = 든 물건 쓰기. 장대는 안 나간다', () => {
+    const p = holding();
+    const r = resolveTap(ctxFor(p, hs), ui('jjuk'), mid(hs.hotspots.dryer!.box), 0);
+    expect(r).toMatchObject({ kind: 'act', action: { char: 'jjuk', verb: 'item', target: 'dryer', item: 'sock' } });
+    if (r.kind !== 'act') throw new Error('act');
+    expect(step(hs, p, r.action)).toMatchObject({ source: 'rule', ruleId: 'load_dryer' });
+    expect(labelText(r.label, hs.id, tx)).toBe('乾燥機に靴下を使う');
+  });
+
+  it('든 채로 쭉이 × 서는 자리 = 든 물건 쓰기(올라서기 아님). 바닥은 든 채로 걷기', () => {
+    const p = holding();
+    expect(resolveTap(ctxFor(p, hs), ui('jjuk'), mid(hs.spots.stool!.box!), 0)).toMatchObject({
+      kind: 'act',
+      action: { char: 'jjuk', verb: 'item', target: 'stool', item: 'sock' },
+    });
+    expect(resolveTap(ctxFor(p, hs), ui('jjuk'), { x: 60, y: 246 }, 0).kind).toBe('walk');
+  });
+
+  it('든 물건은 화면 대상이 아니다: 제자리를 누르면 바닥 걷기, 라벨도 없다', () => {
+    const p = holding();
+    expect(worldTargets(ctxFor(p, hs), ui('jjuk')).map((t) => t.id)).not.toContain('hotspot:sock');
+    expect(worldTargets(ctxFor(p, hs), ui('mukjik')).map((t) => t.id)).not.toContain('hotspot:sock');
+    expect(resolveTap(ctxFor(p, hs), ui('jjuk'), mid(hs.hotspots.sock!.box), 0).kind).toBe('walk');
+    expect(targetIntent(ctxFor(p, hs), 'jjuk', { kind: 'hotspot', ref: 'sock' }, { x: 0, y: 0 }).kind).toBe('none');
+  });
+
+  it('쭉이가 골라져 있고 free 자리면 쭉이 얼굴 칸 = 내려놓기(코어 내려놓기 모양, 걷지 않음)', () => {
+    const p = holding();
+    const r = resolveTap(ctxFor(p, hs), ui('jjuk'), center(CHAR_SLOTS.jjuk), 0);
+    expect(r).toMatchObject({ kind: 'act', action: { char: 'jjuk', verb: 'item', target: 'sock', item: 'sock' }, to: null });
+    if (r.kind !== 'act') throw new Error('act');
+    const after = step(hs, p, r.action);
+    expect(after.source).toBe('rule');
+    expect(after.state.hands).toBeUndefined();
+    expect(after.events.some((e) => e.type === 'walk')).toBe(false);
+    expect(labelText(r.label, hs.id, tx)).toBe('靴下をおろす');
+  });
+
+  it('터치는 내려놓기도 2번(첫 탭 = 선택)', () => {
+    const ctx = ctxFor(holding(), hs);
+    const first = tap(ctx, ui('jjuk'), center(CHAR_SLOTS.jjuk), 0, true);
+    expect(first.intent.kind).toBe('select');
+    expect(tap(ctx, first.ui, center(CHAR_SLOTS.jjuk), 0, true).intent).toMatchObject({ kind: 'act', action: { target: 'sock' } });
+  });
+
+  it('free가 아닌 자리에 서 있으면 얼굴 칸은 그대로 아무 일 없음. 빈손이어도 그대로', () => {
+    expect(resolveTap(ctxFor(holding({ jjuk: 'stool' }), hs), ui('jjuk'), center(CHAR_SLOTS.jjuk), 0).kind).toBe('none');
+    expect(resolveTap(ctxFor(empty, hs), ui('jjuk'), center(CHAR_SLOTS.jjuk), 0).kind).toBe('none');
+  });
+
+  it('쭉이가 들고 있어도 다른 사람은 제 능력, 쭉이 얼굴 칸은 전환(손은 그대로)', () => {
+    const p = holding();
+    expect(resolveTap(ctxFor(p, hs), ui('mukjik'), mid(hs.hotspots.dryer!.box), 0)).toMatchObject({
+      kind: 'act',
+      action: { char: 'mukjik', verb: 'stomp', target: 'dryer' },
+    });
+    expect(resolveTap(ctxFor(p, hs), ui('mukjik'), center(CHAR_SLOTS.jjuk), 0)).toMatchObject({ kind: 'switch', char: 'jjuk' });
+  });
+
+  it('누를 수 있는 행동은 전부 step이 invalid로 버리지 않는 모양이다(화면 전체 점, 세 캐릭터, 빈손·든 손)', () => {
+    for (const p of [empty, holding(), holding({ jjuk: 'stool' })]) {
+      for (const c of CHARACTERS) {
+        for (let x = 0; x < 480; x += 6) {
+          for (let y = 0; y < 270; y += 6) {
+            const r = resolveTap(ctxFor(p, hs), ui(c.id), { x, y }, 0);
+            if (r.kind !== 'act') continue;
+            // 바닥 move·장치 위 move처럼 규칙 없는 행동은 기본 이동·폴백이다. invalid만 아니면 된다.
+            expect(step(hs, p, r.action).source, JSON.stringify(r.action)).not.toBe('invalid');
+          }
+        }
+      }
     }
   });
 });
