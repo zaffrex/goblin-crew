@@ -32,6 +32,12 @@ export type SpriteAnim = ({ frames: number[]; ms: number[] } | { frames: number[
    * null인 칸은 장대가 칸 안에 들어와 잇지 않는다(#284 `reach_wobble` 3번 칸). 첫 칸은 null이 아니다.
    */
   tip?: ([x: number, y: number] | null)[];
+  /**
+   * 든 물건을 얹는 점(ADR-1031 4·5절, 쭉이 손 1칸). 프레임마다 [x, y](오른쪽을 본 시트 기준, 뒤집기는 `tip`과 같은 규칙).
+   * x는 장대 가운데선(픽셀 경계), y는 장대 끝 갈고리 위 외곽선 행. 든 물건 그림의 아래 가운데를 이 점에 맞춘다.
+   * 갈고리가 칸 안에 그려진 자세(서 있기·걷기)에만 있고, 장대를 이어 그리지 않는다(`tip`과 다른 점). 모든 칸에 있다.
+   */
+  carry?: [x: number, y: number][];
   /** 프레임마다 집게 칸 번호(시트 최상위 `claw` 줄). tip이 null인 칸은 null. */
   claw?: (number | null)[];
   /**
@@ -123,6 +129,7 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
     by?: unknown;
     facing?: unknown;
     tip?: unknown;
+    carry?: unknown;
     claw?: unknown;
     joint?: unknown;
     hit?: unknown;
@@ -159,6 +166,11 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
       const tips = a.tip as unknown[];
       const some = (v: unknown, i: number): boolean => (tips[i] === null ? v === null : isInt(v) && v >= 0);
       if (!Array.isArray(a.claw) || a.claw.length !== n || !a.claw.every(some)) fail(`${name}.claw는 tip 있는 칸마다 집게 칸 번호, 없는 칸은 null`);
+    }
+    if ('carry' in a) {
+      const [cw, ch] = m.cell as [number, number];
+      const inCell = (c: unknown): boolean => intTuple(c, 2) && (c as number[])[0]! >= 0 && (c as number[])[0]! <= cw && (c as number[])[1]! >= 0 && (c as number[])[1]! < ch;
+      if (!Array.isArray(a.carry) || a.carry.length !== a.frames!.length || !a.carry.every(inCell)) fail(`${name}.carry는 프레임마다 칸 안의 [x, y]`);
     }
     if ('joint' in a) {
       if (!('tip' in a)) fail(`${name}.joint는 tip 있는 자세에만`);

@@ -123,6 +123,22 @@ function buildSheet(def) {
       // 클릭 상자로 적는다(#203). 엔진은 이 자세를 그리는 동안 서 있기 hit 대신 이 값을 쓴다.
       anims[a.name].hit = unionBox(idx.map((i) => frames[i].K.bbox()));
     }
+    // 든 물건을 얹는 점(ADR-1031 4·5절, 쭉이 손 1칸): 프레임마다 [x, y]. x는 장대 가운데선(픽셀 경계, tip과 같은 규칙), y는 갈고리 위 외곽선 행.
+    // tip과 다른 키인 이유: 엔진은 tip이 있는 연출이면 장대를 칸 위로 이어 그리고 집게 칸을 덧그린다(sprite.ts spritePole).
+    // 서 있기·걷기는 갈고리가 칸 안에 이미 그려져 있어서 이어 그릴 장대도 집게도 없다.
+    const carries = idx.map((i) => frames[i].carry ?? null);
+    if (carries.some(Boolean)) {
+      idx.forEach((i, j) => {
+        const c = carries[j];
+        if (!c) fail(`${def.name} ${a.name}${j}: carry는 그 자세 모든 칸에 있어야 한다`);
+        const [x, y] = c;
+        if (!Number.isInteger(x) || !Number.isInteger(y) || x < 1 || x >= cw || y < 0 || y >= ch) fail(`${def.name} ${a.name}${j}: carry ${JSON.stringify(c)}가 칸 밖이다`);
+        // 얹는 행은 갈고리 위 외곽선(잉크)이어야 한다: 장대 가운데선 양옆 2px(x − 1, x)이 잉크
+        const K = frames[i].K;
+        if (K.get(x - 1, y) !== C.ink || K.get(x, y) !== C.ink) fail(`${def.name} ${a.name}${j}: carry ${JSON.stringify(c)} 행이 갈고리 위 외곽선이 아니다`);
+      });
+      anims[a.name].carry = carries;
+    }
     // 칸 위로 나가는 장대(reach_hang_up 등): 프레임별 출구 점과 집게 칸(#187 Theo 초안, 시트 파이프라인 기록 5-1절).
     // 엔진은 tip에서 대상 점까지 장대를 잇고 끝에 claw 칸을 그린다. tip 없는 칸은 tip·claw·joint가 null이다(#284: reach_wobble
     // 3번 칸처럼 장대가 넘어와 칸 안에 들어온 칸). 대신 첫 칸에는 tip이 있어야 한다(엔진이 연출 시작부터 늘리기 시작한다).
