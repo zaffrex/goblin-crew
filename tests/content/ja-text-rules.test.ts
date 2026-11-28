@@ -153,8 +153,28 @@ const GAME_W_PX = 480;
 const labelPx = (s: string): number =>
   LABEL_FONT_PX * len(s) + LABEL_PAD_PX;
 
-/** 대상 라벨 자리에 뜰 수 있는 모든 글(넉넉한 합집합: 모든 동사 × 같은 화면의 모든 대상). */
-function labelLines(tx: Record<string, string>): string[] {
+/** 화면마다 쭉이가 들 수 있는 물건(`pick` 규칙 대상, ADR-1031). 화면 JSON이 없으면 빈 목록. */
+function screenPicks(): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  const order = JSON.parse(
+    readFileSync(new URL("../../content/screens/order.json", import.meta.url), "utf8"),
+  ) as string[];
+  for (const id of order) {
+    const screen = JSON.parse(
+      readFileSync(new URL(`../../content/screens/${id}.json`, import.meta.url), "utf8"),
+    ) as { rules: { target: string; do?: { pick?: boolean } }[] };
+    out.set(id, [...new Set(screen.rules.filter((r) => r.do?.pick === true).map((r) => r.target))]);
+  }
+  return out;
+}
+const PICKS = screenPicks();
+
+/**
+ * 대상 라벨 자리에 뜰 수 있는 모든 글(넉넉한 합집합: 모든 동사 × 같은 화면의 모든 대상).
+ * 든 물건(#1060): 물건 이름이 아이템 키(5자)가 아니라 화면 이름 키라서 `{target}に{item}を使う`가 더 길어진다.
+ * 그래서 `pick` 대상 × 같은 화면의 모든 대상, 그리고 `{item}をおろす`를 같이 채운다.
+ */
+function labelLines(tx: Record<string, string>, picks: Map<string, string[]> = PICKS): string[] {
   const t = (id: string): string => tx[id] ?? id;
   const keys = Object.keys(tx);
   const tail = t("ui.touch.tap_again");
@@ -185,6 +205,11 @@ function labelLines(tx: Record<string, string>): string[] {
       for (const verb of verbs) both(lt({ verb, target }));
       for (const item of items) both(lt({ verb: "item", target, item }));
     }
+    for (const held of picks.get(screen) ?? []) {
+      both(lt({ verb: "put", target: null, item: held, held: true }));
+      for (const target of ids)
+        if (target !== held) both(lt({ verb: "item", target, item: held, held: true }));
+    }
     for (const verb of ["walk", "release"] as const)
       both(lt({ verb, target: null }));
   }
@@ -199,8 +224,8 @@ function labelLines(tx: Record<string, string>): string[] {
   return out;
 }
 
-function overWidth(tx: Record<string, string>): string[] {
-  return labelLines(tx)
+function overWidth(tx: Record<string, string>, picks?: Map<string, string[]>): string[] {
+  return labelLines(tx, picks)
     .filter((s) => labelPx(s) > GAME_W_PX)
     .map((s) => `${labelPx(s).toFixed(1)}px ${s}`);
 }
@@ -228,6 +253,10 @@ describe("대상 라벨 폭 (셈 기준, #703 #707)", () => {
     expect(overWidth(digitId).length).toBeGreaterThan(0);
     const longItem = { ...texts, "item.key_2.name": "錆びついた古い真鍮のカギ" };
     expect(overWidth(longItem).length).toBeGreaterThan(0);
+    // 든 물건: 10자 대상 + 10자 든 물건 = 506.8px. 따로는 둘 다 다른 라벨 안에 들어가서 든 물건 줄만 잡는다.
+    const heldPair = { ...texts, "screen_3.name.towel": "長い濡れたバスタオル", "screen_3.name.door": "とても大きな店の入口" };
+    expect(overWidth(heldPair)).toEqual([]);
+    expect(overWidth(heldPair, new Map([["screen_3", ["towel"]]])).length).toBeGreaterThan(0);
     for (const id of ["ui.restart_hover", "ui.restart_confirm", "ui.hud.gauge_first_drop"]) {
       const longNote = { ...texts, [id]: "ゲージが1マス減った！ゼロになると全員まとめてスタート地点に戻される" };
       expect(overWidth(longNote), id).toHaveLength(1);
