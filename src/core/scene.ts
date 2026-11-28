@@ -10,7 +10,7 @@ import { HIGH_TARGET_LINE, TICK_MS, WALK_SPEED, walkAreaOf } from './config';
 import { hitTest, type HitBox } from './hit';
 import { inHudZone } from './hud';
 import type { AlphaMask } from './alpha';
-import { hotspotBox, hudTargets, tap, type DrawnBody, type Intent, type TapContext, type UiState } from './interact';
+import { hotspotBox, hudTargets, placedBox, tap, type DrawnBody, type Intent, type Placements, type TapContext, type UiState } from './interact';
 import { animObject, animOf, animTicks, coverFrames, frameOpaqueAt, restingBox, tiltDrop, timedIndex, type SceneAnim, type SceneArtMeta, type SceneObject, type SceneView } from './sceneArt';
 import { FX_TICKS, fxTicks } from './fx';
 import { sayText, seenSayKey } from './sayText';
@@ -212,6 +212,13 @@ export interface SceneState {
    * 플래그의 `shown`(4-2절)과 같은 생각이다: `step`은 연출 전에 손을 바꾸지만 걸어가는 동안 물건이 손으로 튀면 안 된다.
    */
   handsShown?: { hands?: string; seq: number };
+  /**
+   * 내려놓은 물건의 놓인 자리(ADR-1031 4절, `Placements`): 물건 ID → 쭉이가 놓을 때 선 발 점. 상자·그림이 `variants`보다 먼저 그리로 간다.
+   * `put`이 맞은 행동에서 적고, 연출이 다 끝난 뒤(`prunePlaced`) 다시 들었거나 `present`가 꺼진 물건을 지운다.
+   * 바로 지우지 않는 건 다시 집으러 걸어가는 동안 물건이 원래 자리로 튀지 않게 하려는 것이다(손 그림은 `handsShown`을 따른다).
+   * 판을 새로 만들면 빈다(저장 안 함).
+   */
+  placed: Record<string, Point>;
   /** `move floor` 행동에서 걸어갈 바닥 점. 캐릭터별. */
   floorTo: Partial<Record<CharacterId, Point>>;
   /**
@@ -457,6 +464,7 @@ export function createScene(data: SceneData): SceneState {
     landed: {},
     held: {},
     heldArt: {},
+    placed: {},
     reach: {},
     seenSay: {},
     hops: {},
@@ -651,7 +659,7 @@ export function drawnBodies(data: SceneData, s: SceneState): Partial<Record<Char
 }
 
 export function tapContext(data: SceneData, s: SceneState): TapContext {
-  return { screen: data.screen, puzzle: s.puzzle, bodies: bodies(data, s), faces: faces(data, s), drawn: drawnBodies(data, s), order: drawOrder(data, s) };
+  return { screen: data.screen, puzzle: s.puzzle, bodies: bodies(data, s), faces: faces(data, s), drawn: drawnBodies(data, s), order: drawOrder(data, s), placed: s.placed };
 }
 
 function pickText(text: string | string[], count: number): string {
@@ -811,8 +819,8 @@ function hiddenShare(art: HitBox, body: HitBox): number {
 }
 
 /** 행동 대상의 상자: 핫스팟(지금 `variants` 반영) 또는 상자 있는 서는 자리. 캐릭터·상자 없는 대상은 null. */
-function targetBox(screen: ScreenData, puzzle: PuzzleState, id: string): HitBox | null {
-  const hs = hotspotBox(screen, puzzle, id);
+function targetBox(screen: ScreenData, puzzle: PuzzleState, id: string, placed?: Placements): HitBox | null {
+  const hs = hotspotBox(screen, puzzle, id, placed);
   if (hs) return hs;
   const b = screen.spots[id]?.box;
   return b ? { left: b[0], top: b[1], width: b[2], height: b[3] } : null;
@@ -831,14 +839,20 @@ function targetBox(screen: ScreenData, puzzle: PuzzleState, id: string): HitBox 
  *   (#575·#585, `clearOf`). 바닥 대상은 지금 y.
  * 설 곳은 걷기 영역 안으로 자른다. `step`·BFS와 무관한 연출 계산이다(퍼즐 상태를 바꾸지 않는다).
  */
-export function approachPoint(data: SceneData, puzzle: PuzzleState, action: Action, from: Point): { x: number; y: number; face: Facing | null } | null {
+export function approachPoint(
+  data: SceneData,
+  puzzle: PuzzleState,
+  action: Action,
+  from: Point,
+  placed?: Placements,
+): { x: number; y: number; face: Facing | null } | null {
   const walks = APPROACH_VERBS.has(action.verb);
   if (!walks && !TURN_VERBS.has(action.verb)) return null;
   const at = puzzle.at[action.char] ?? '';
   const stays = !walks || approachFor(data.screen, puzzle, action.char, action.target, action.verb) === 'stay';
   // 판 끝(`board` 자리)에서 걷지 않는 행동은 그 자리에서 돌아서기만 한다(#419, 1-5-2절 "판 위에서 `squeak`·`look`").
   if (!isFree(data, at) && !(stays && data.screen.spots[at]?.board)) return null;
-  const box = targetBox(data.screen, puzzle, action.target);
+  const box = targetBox(data.screen, puzzle, action.target, placed);
   if (!box) return null;
   const mid = box.left + box.width / 2;
   let x: number;
@@ -877,12 +891,12 @@ function stepOffPoint(
   fromX: number,
 ): { to: Point; face: Facing } | null {
   const char = action.char;
-  const tb = targetBox(data.screen, before, action.target);
+  const tb = targetBox(data.screen, before, action.target, s.placed);
   if (!tb || tb.top + tb.height > HIGH_TARGET_LINE) return null;
   if (!isFree(data, after.at[char] ?? '')) return null;
   if (events.some((e) => (e.type === 'walk' || e.type === 'place' || e.type === 'release') && e.char === char)) return null;
   if (events.some((e) => e.type === 'faint' || e.type === 'clear')) return null;
-  const low = lowPuzzleTargets(data, after, action.target);
+  const low = lowPuzzleTargets(data, after, s.placed, action.target);
   const def = characterDef(char);
   const face = ap.face ?? s.walkers[char].facing;
   if (!low.some((b) => boxesOverlap(characterHitBox(def, ap.x, ap.y, face), b))) return null;
@@ -910,14 +924,14 @@ function stepOffPoint(
 }
 
 /** 낮은 퍼즐 대상(`hintAbility` 있는 핫스팟·자리 중 아래쪽이 `HIGH_TARGET_LINE` 아래인 것)의 지금 상자. `skip`은 뺀다. */
-function lowPuzzleTargets(data: SceneData, puzzle: PuzzleState, skip?: string): HitBox[] {
+function lowPuzzleTargets(data: SceneData, puzzle: PuzzleState, placed: Placements, skip?: string): HitBox[] {
   const low: HitBox[] = [];
   const ids = [...Object.keys(data.screen.hotspots), ...Object.keys(data.screen.spots)];
   for (const id of ids) {
     if (id === skip) continue;
     const def = data.screen.hotspots[id] ?? data.screen.spots[id];
     if (def?.hintAbility === undefined) continue;
-    const b = targetBox(data.screen, puzzle, id);
+    const b = targetBox(data.screen, puzzle, id, placed);
     if (b && b.top + b.height > HIGH_TARGET_LINE) low.push(b);
   }
   return low;
@@ -937,7 +951,7 @@ function makeRoom(data: SceneData, s: SceneState, action: Action, events: readon
   const actor = characterHitBox(characterDef(char), ap.x, ap.y, ap.face ?? (ap.x > s.walkers[char].x ? 1 : -1));
   const now = bodies(data, s);
   const area = walkAreaOf(data.screen);
-  const low = lowPuzzleTargets(data, s.puzzle);
+  const low = lowPuzzleTargets(data, s.puzzle, s.placed);
   const placed: Partial<Record<CharacterId, HitBox>> = {};
   for (const c of CHARACTERS) {
     if (c.id === char) continue;
@@ -1051,6 +1065,8 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
   const w = s.walkers[action.char];
   w.target = null;
   w.walkTicks = 0;
+  // 내려놓기(ADR-1031 4절): 쭉이 몸 앞(안 되면 등 뒤)에 놓는다. 내려놓기는 걷지 않으니(행동 상자 없음) 지금 자리 기준이다.
+  if (putItem(prev, s.puzzle, action)) s.placed[action.target] = putPoint(data, s.puzzle, action.target, w);
   const first = events[0];
   const leaving = stepDownWalk(data, events, action.char);
   const sb = stompBoard(data, action);
@@ -1067,7 +1083,7 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
     // "내려서기 → 대상 앞까지 걷기"). 설 곳·방향은 바닥 점에 선 사람 기준이다. 퍼즐 상태와 이벤트 순서는 그대로다.
     // 판이 없는 자리(`fountain_seat`)는 지금 x·바닥 자리 y에서 걷기 시작한 것으로 본다(#517: 안 그러면 바로 아래로 내려와 그 자리에서 행동한다).
     const [bx, by] = leaving.board ?? [w.x, spotPoint(data, leaving.walk.to).y];
-    const down = approachPoint(data, { ...prev, at: { ...prev.at, [action.char]: leaving.walk.to } }, action, { x: bx, y: by });
+    const down = approachPoint(data, { ...prev, at: { ...prev.at, [action.char]: leaving.walk.to } }, action, { x: bx, y: by }, s.placed);
     if (down) {
       s.floorTo[action.char] = { x: down.x, y: down.y };
       downFace = down.face;
@@ -1080,7 +1096,7 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
     s.floorTo[action.char] = sb.p;
     s.queue.push(sb.face === null ? { type: 'walk', char: action.char, from: spot, to: spot } : { type: 'walk', char: action.char, from: spot, to: spot, face: sb.face });
   }
-  const ap = !fromFloor || sb ? null : approachPoint(data, prev, action, w);
+  const ap = !fromFloor || sb ? null : approachPoint(data, prev, action, w, s.placed);
   if (sb && fromFloor && sb.face !== null && w.x === sb.p.x && w.y === sb.p.y) w.facing = sb.face;
   if (ap && (Math.abs(ap.x - w.x) > APPROACH_SLOP || ap.y !== w.y)) {
     // `floor`→`floor` 걷기. `walk` 이벤트와 똑같이 busy이고 탭으로 건너뛴다(5절 예외 둘). 설 점은 `floorPoint`가 쓴다.
@@ -1106,7 +1122,7 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
   if (to) s.floorTo[action.char] = standAside(data, s, action.char, clampToArea(floorTarget(data, to), walkAreaOf(data.screen)));
   // 장대 대상 점: `reachPoint`, 없으면 대상 상자 아래 끝 가운데(#284: 고리 뻗기 실패는 집게가 고리 "바로 아래"에서 멈춘다).
   const rp = data.screen.hotspots[action.target]?.reachPoint;
-  const tb = rp ? null : targetBox(data.screen, prev, action.target);
+  const tb = rp ? null : targetBox(data.screen, prev, action.target, s.placed);
   if (rp) s.reach[action.char] = { x: rp[0], y: rp[1] };
   else if (tb) s.reach[action.char] = { x: tb.left + tb.width / 2, y: tb.top + tb.height };
   else delete s.reach[action.char];
@@ -1774,6 +1790,7 @@ export function sceneTick(data: SceneData, s: SceneState): void {
     if (s.current === null) {
       const next = s.queue.shift();
       if (!next) {
+        prunePlaced(data, s);
         settle(s);
         return;
       }
@@ -1812,6 +1829,48 @@ function endCurrent(s: SceneState): void {
  * 카드가 닫히면 이 판은 버려져서(다음 판·맵) "다음 행동까지 남기기"는 생기지 않는다. 다른 붙든 칸·캐릭터 마지막 장은 지금처럼 놓는다
  * (화면 1·2 카드 뒤 모습 그대로: `park_fountain` 손님·관리인·チュック `take_off`).
  */
+/** 이 행동이 든 물건을 내려놓았나: 쭉이가 든 물건을 그 물건에 쓰는 행동(`{ jjuk, item, X, X }`)이 맞아 손이 비었다. */
+/** 서 있기 자세(시트 `idle`). 내려놓는 자리를 몸 상자로 잴 때 쓴다. */
+const STAND_POSE: Pose = { walkedPx: null, holding: false, event: null, clockMs: 0 };
+
+/**
+ * 내려놓은 물건의 놓인 점(상자 아래 가운데, #1066 Luna 리뷰). 발 x에 두면 물건이 쭉이 다리에 가려 안 보인다(v2 동전 0%).
+ * 서 있기 몸 상자(시트 `hit`·`anchor`) 앞 끝에서 `APPROACH_GAP` + 물건 폭/2 앞. 그 상자가 걷기 영역(`walkAreaOf`, 양 끝 포함)을
+ * 넘으면 등 뒤에 같은 거리로, 둘 다 넘으면 발 x. y는 발 y. 물건 크기는 놓은 뒤 상자(`variants` 반영)다.
+ */
+function putPoint(data: SceneData, puzzle: PuzzleState, id: string, w: Walker): Point {
+  const foot = { x: Math.round(w.x), y: w.y };
+  const box = hotspotBox(data.screen, puzzle, id);
+  if (!box) return foot;
+  const meta = data.sprites?.[PICKER];
+  const body = (meta ? spriteHit(meta, STAND_POSE, foot.x, w.y, w.facing) : null) ?? characterHitBox(characterDef(PICKER), foot.x, w.y, w.facing);
+  const half = box.width / 2;
+  const right = body.left + body.width + APPROACH_GAP + half;
+  const left = body.left - APPROACH_GAP - half;
+  const area = walkAreaOf(data.screen);
+  for (const x of w.facing === 1 ? [right, left] : [left, right]) {
+    const b = placedBox(box, { x, y: w.y });
+    if (b.left >= area.left && b.left + b.width - 1 <= area.right) return { x, y: w.y };
+  }
+  return foot;
+}
+
+function putItem(before: PuzzleState, after: PuzzleState, action: Action): boolean {
+  return (
+    action.char === PICKER && action.verb === 'item' && action.item === action.target && before.hands === action.target && after.hands === undefined
+  );
+}
+
+/**
+ * 연출이 다 끝난 뒤 놓인 자리를 정리한다: 다시 든 물건, 화면에 없는(`present` 꺼짐, 재료로 쓰임) 물건은 지운다.
+ * 그 물건이 다시 나오면(빨래방 젖은 수건) `variants` 자리로 나온다(#1061 5절).
+ */
+function prunePlaced(data: SceneData, s: SceneState): void {
+  for (const id of Object.keys(s.placed)) {
+    if (s.puzzle.hands === id || !hotspotPresent(data.screen, s.puzzle.flags, id)) delete s.placed[id];
+  }
+}
+
 function settle(s: SceneState): void {
   if (s.overlays.length > 0) return;
   s.held = {};
@@ -2145,7 +2204,7 @@ export function sceneLayout(data: SceneData, s: SceneState): SceneLayout {
   }
   const hotspots: Record<string, HitBox> = {};
   for (const id of Object.keys(data.screen.hotspots)) {
-    const box = hotspotBox(data.screen, s.puzzle, id);
+    const box = hotspotBox(data.screen, s.puzzle, id, s.placed);
     if (box) hotspots[id] = box;
   }
   const hud: Record<string, HitBox> = {};

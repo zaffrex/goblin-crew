@@ -26,7 +26,7 @@ import { LocalSaveStore, probeStorage } from './core/save/store';
 import type { SaveData } from './core/save/schema';
 import orderJson from '../content/screens/order.json';
 import { activeFx, activeMarkerVisible, boardDrop, carried, charPose, headAnchor, charWalking, createScene, currentBubble, drawOrder, speakerFaceBox, stepOffBubbleBox, gaugeDrop, introHoverScene, isBusy, isHanging, sceneArtView, shownFlags, sceneLayout, mouseHoverThroughSay, sceneTap, sceneTick, selectsDuringSay, takeHeldTap, takeWalkStart, tapContext, type SceneData, type SceneState } from './core/scene';
-import { animFrameBox, carriedPlace, coveredIds, headKeepBoxes, headPlaces, litFrames, loopStarts, sceneDraws, type HeadPlaced, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
+import { animFrameBox, carriedPlace, coveredIds, placedShifts, headKeepBoxes, headPlaces, litFrames, loopStarts, sceneDraws, type HeadPlaced, type LoopStarts, type SceneDraws, type SceneView } from './core/sceneArt';
 import { internalToScreen, screenToInternal, type Point, type Rect } from './core/viewport';
 import { isTapKey } from './core/keys';
 import { createRestartButton, loadingDone, RESTART_BOX, restartArmed, restartPress } from './core/restart';
@@ -834,7 +834,14 @@ function render(): void {
     draws = sceneDraws(art.meta, { ...view, loopStarts: s.loopClock });
   }
   const lit = draws ? litFrames(art!.meta, draws, litTarget) : new Set<number>();
-  const nudged = draws ? frameNudges(art!.meta, draws, nudges) : new Map<number, Nudge>();
+  // 내려놓은 물건(ADR-1031 4절): 시트 칸을 놓인 자리로 옮긴다. 임시 상자는 `sceneLayout`이 이미 옮긴 상자라 위 `nudges`만 쓴다.
+  const shifts = art ? placedShifts(art.meta, scene.placed, (k) => shownFlags(scene, k)) : {};
+  for (const [id, n] of Object.entries(nudges)) {
+    const sh = shifts[id];
+    if (sh) shifts[id] = { dx: sh.dx + n.dx, dy: sh.dy + n.dy };
+  }
+  // `shifts`에는 위에서 `nudges`를 이미 더했다. 아래 펼치기는 덮어쓰기라 두 번 더해지지 않는다(놓인 물건은 `shifts`가 이긴다).
+  const nudged = draws ? frameNudges(art!.meta, draws, { ...nudges, ...shifts }) : new Map<number, Nudge>();
   // 효과 자리(형식 기록 11절)는 적힌 순서 그 자리에서 입자를 그린다. 배경이 없으면(9절 폴백) 효과도 그리지 않는다.
   for (const f of draws?.back ?? []) {
     if (typeof f === 'number') drawSceneFrame(ctx, art!, f, lit.has(f), nudged.get(f));

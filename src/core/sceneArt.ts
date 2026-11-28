@@ -502,6 +502,25 @@ export function carriedPlace(
   return { frame, x: Math.round(at.x - f.src[2] / 2), y: at.y - f.src[3] };
 }
 
+/**
+ * 내려놓은 물건(ADR-1031 4절, `SceneState.placed`)의 그림을 옮길 양. 대상 ID → 멈춘 모습 칸을 아래 가운데가 놓인 점에 오게 하는 dx·dy
+ * (`carriedPlace`와 같은 셈). `frameNudges`에 넘기면 그 물건이 지금 그리는 칸(anim·앞판 포함)이 다 같이 옮겨진다.
+ * 시트에 없거나 안 그리는 모습이면 뺀다(엔진은 옮긴 핫스팟 상자의 임시 상자를 그린다).
+ */
+export function placedShifts(
+  meta: SceneArtMeta,
+  placed: Readonly<Record<string, { x: number; y: number }>>,
+  flagsOf: (objectKey: string) => Flags,
+): Record<string, { dx: number; dy: number }> {
+  const out: Record<string, { dx: number; dy: number }> = {};
+  for (const [id, at] of Object.entries(placed)) {
+    const p = carriedPlace(meta, id, flagsOf, at);
+    const f = p ? meta.frames[p.frame] : undefined;
+    if (p && f) out[id] = { dx: p.x - f.at[0], dy: p.y - f.at[1] };
+  }
+  return out;
+}
+
 export interface HeadPlaced {
   frame: number;
   char: CharacterId;
