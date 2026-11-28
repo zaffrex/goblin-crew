@@ -22,6 +22,14 @@ describe('parseSpriteMeta', () => {
     }
   });
 
+  it('집기·내려놓기 연출은 carry에 null 칸을 둘 수 있다(물건이 아직/이미 놓인 자리, #1053)', () => {
+    const pick = { frames: [0, 1, 2], ms: [100, 100, 100], carry: [null, [20, 60], [30, 30]] };
+    const put = { frames: [2, 1, 0], ms: [100, 100, 100], carry: [[30, 30], [20, 60], null] };
+    const meta = parseSpriteMeta({ ...JJUK, anims: { ...JJUK.anims, 'common.pick': pick, 'common.put': put } });
+    expect(meta.anims['common.pick']!.carry).toEqual([null, [20, 60], [30, 30]]);
+    expect(meta.anims['common.put']!.carry).toEqual([[30, 30], [20, 60], null]);
+  });
+
   it.each([
     ['cell 없음', { cell: undefined }],
     ['anchor 소수', { anchor: [25.5, 64] }],
@@ -55,7 +63,10 @@ describe('parseSpriteMeta', () => {
     ['claw.max가 0(#284)', { claw: { image: 'x.png', cell: [8, 8], anchor: [4, 8], max: 0 } }],
     ['claw.growMs가 소수(#284)', { claw: { image: 'x.png', cell: [8, 8], anchor: [4, 8], growMs: 1.5 } }],
     ['carry 길이가 frames와 다름(ADR-1031)', { anims: { idle: { frames: [0, 1], ms: [700, 500], carry: [[36, 0]] } } }],
-    ['carry에 null 칸(ADR-1031)', { anims: { idle: { frames: [0, 1], ms: [700, 500], carry: [[36, 0], null] } } }],
+    ['서 있기 carry에 null 칸(ADR-1031)', { anims: { idle: { frames: [0, 1], ms: [700, 500], carry: [[36, 0], null] } } }],
+    ['걷기 carry에 null 칸(ADR-1031)', { anims: { walk: { frames: [2, 3], by: 'distance', carry: [null, [36, 1]] } } }],
+    ['연출 carry가 전부 null(#1053)', { anims: { 'common.pick': { frames: [0, 1], ms: [100, 100], carry: [null, null] } } }],
+    ['연출 carry null 칸 말고 칸 밖(#1053)', { anims: { 'common.pick': { frames: [0, 1], ms: [100, 100], carry: [null, [36, 64]] } } }],
     ['carry가 칸 밖(ADR-1031)', { anims: { idle: { frames: [0], ms: [700], carry: [[36, -1]] } } }],
     ['head 형식(#255)', { head: [13, 0, 24] }],
     ['head가 칸 밖(#255)', { head: [30, 0, 24, 24] }],

@@ -126,11 +126,13 @@ function buildSheet(def) {
     // 든 물건을 얹는 점(ADR-1031 4·5절, 쭉이 손 1칸): 프레임마다 [x, y]. x는 장대 가운데선(픽셀 경계, tip과 같은 규칙), y는 갈고리 위 외곽선 행.
     // tip과 다른 키인 이유: 엔진은 tip이 있는 연출이면 장대를 칸 위로 이어 그리고 집게 칸을 덧그린다(sprite.ts spritePole).
     // 서 있기·걷기는 갈고리가 칸 안에 이미 그려져 있어서 이어 그릴 장대도 집게도 없다.
+    // 서 있기·걷기는 모든 칸에 있어야 하고, 집기·내려놓기 연출(#1053)은 물건이 아직/이미 놓인 자리에 있는 칸을 비워 둔다(null).
     const carries = idx.map((i) => frames[i].carry ?? null);
     if (carries.some(Boolean)) {
       idx.forEach((i, j) => {
         const c = carries[j];
-        if (!c) fail(`${def.name} ${a.name}${j}: carry는 그 자세 모든 칸에 있어야 한다`);
+        if (!c && (a.name === 'idle' || a.name === 'walk')) fail(`${def.name} ${a.name}${j}: carry는 서 있기·걷기 모든 칸에 있어야 한다`);
+        if (!c) return;
         const [x, y] = c;
         if (!Number.isInteger(x) || !Number.isInteger(y) || x < 1 || x >= cw || y < 0 || y >= ch) fail(`${def.name} ${a.name}${j}: carry ${JSON.stringify(c)}가 칸 밖이다`);
         // 얹는 행은 갈고리 위 외곽선(잉크)이어야 한다: 장대 가운데선 양옆 2px(x − 1, x)이 잉크
