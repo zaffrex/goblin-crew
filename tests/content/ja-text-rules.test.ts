@@ -153,7 +153,20 @@ const GAME_W_PX = 480;
 const labelPx = (s: string): number =>
   LABEL_FONT_PX * len(s) + LABEL_PAD_PX;
 
-/** 화면마다 쭉이가 들 수 있는 물건(`pick` 규칙 대상, ADR-1031). 화면 JSON이 없으면 빈 목록. */
+type PickScreen = { rules: { target: string; do?: { pick?: boolean } }[]; hotspots: Record<string, { variants?: { name?: string }[] }> };
+
+/** 한 화면의 `pick` 대상 ID + 그 대상의 상태별 이름 ID(`variants[].name`). */
+function pickNames(screen: PickScreen): string[] {
+  return [...new Set(screen.rules.filter((r) => r.do?.pick === true).map((r) => r.target))].flatMap((target) => [
+    target,
+    ...(screen.hotspots[target]?.variants ?? []).flatMap((v) => (v.name === undefined ? [] : [v.name])),
+  ]);
+}
+
+/**
+ * 화면마다 쭉이가 들 수 있는 물건의 이름 ID(`pick` 규칙 대상, ADR-1031). 화면 JSON이 없으면 빈 목록.
+ * 상태별 이름(`variants[].name`, #1031 `ぬれたタオル`)도 든 채로 라벨에 뜨니 같이 넣는다.
+ */
 function screenPicks(): Map<string, string[]> {
   const out = new Map<string, string[]>();
   const order = JSON.parse(
@@ -162,8 +175,8 @@ function screenPicks(): Map<string, string[]> {
   for (const id of order) {
     const screen = JSON.parse(
       readFileSync(new URL(`../../content/screens/${id}.json`, import.meta.url), "utf8"),
-    ) as { rules: { target: string; do?: { pick?: boolean } }[] };
-    out.set(id, [...new Set(screen.rules.filter((r) => r.do?.pick === true).map((r) => r.target))]);
+    ) as PickScreen;
+    out.set(id, pickNames(screen));
   }
   return out;
 }
@@ -257,6 +270,15 @@ describe("대상 라벨 폭 (셈 기준, #703 #707)", () => {
     const heldPair = { ...texts, "screen_3.name.towel": "長い濡れたバスタオル", "screen_3.name.door": "とても大きな店の入口" };
     expect(overWidth(heldPair)).toEqual([]);
     expect(overWidth(heldPair, new Map([["screen_3", ["towel"]]])).length).toBeGreaterThan(0);
+    // 상태별 이름(#1031): 들 물건의 `variants[].name`도 든 물건 이름으로 잰다.
+    const shop: PickScreen = {
+      rules: [{ target: "towel", do: { pick: true } }, { target: "door", do: {} }],
+      hotspots: { towel: { variants: [{ name: "towel_wet" }, {}] }, door: { variants: [{ name: "door_open" }] } },
+    };
+    expect(pickNames(shop)).toEqual(["towel", "towel_wet"]);
+    const wetPair = { ...texts, "screen_3.name.towel": "タオル", "screen_3.name.towel_wet": "長い濡れたバスタオル", "screen_3.name.door": "とても大きな店の入口" };
+    expect(overWidth(wetPair, new Map([["screen_3", ["towel"]]]))).toEqual([]);
+    expect(overWidth(wetPair, new Map([["screen_3", pickNames(shop)]])).length).toBeGreaterThan(0);
     for (const id of ["ui.restart_hover", "ui.restart_confirm", "ui.hud.gauge_first_drop"]) {
       const longNote = { ...texts, [id]: "ゲージが1マス減った！ゼロになると全員まとめてスタート地点に戻される" };
       expect(overWidth(longNote), id).toHaveLength(1);

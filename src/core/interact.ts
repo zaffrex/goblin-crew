@@ -124,6 +124,15 @@ export function hotspotBox(screen: TapContext['screen'], puzzle: PuzzleState, id
   return at ? placedBox(box, at) : box;
 }
 
+/**
+ * 핫스팟 라벨 이름 ID(#1031). 상자와 같은 첫 일치 `variants`의 `name`, 없으면 핫스팟 ID 그대로.
+ * 핫스팟이 아닌 ID(서는 자리·캐릭터)도 그대로 돌려준다. `labelText`의 `nameOf`로 넘긴다.
+ */
+export function hotspotNameId(screen: Pick<ScreenData, 'hotspots'>, puzzle: PuzzleState, id: string): string {
+  const v = screen.hotspots[id]?.variants?.find((variant) => flagsMatch(puzzle, variant.when.flags));
+  return v?.name ?? id;
+}
+
 /** 상자를 크기 그대로, 아래 가운데가 `at`에 오게 옮긴다. 가로는 `at.x − 폭/2` 반올림(`carriedPlace`와 같은 셈). */
 export function placedBox(box: HitBox, at: Point): HitBox {
   return { left: Math.round(at.x - box.width / 2), top: at.y - box.height, width: box.width, height: box.height };
@@ -337,10 +346,11 @@ const characterNames: Readonly<Record<string, true>> = Object.fromEntries(CHARAC
  * 라벨 문구(설계 7절). t는 텍스트 ID → 문자열(없으면 ID를 그대로 돌려줘도 된다).
  * 대상이 있으면 `ui.label.<verb>` 패턴(`{target}にのる`, `{target}に{item}を使う`)으로 `<이름><조사><동사>`를 만든다(#703).
  * 대상이 없으면(`walk`·`release`) 동사 이름표 `ui.verb.<verb>`만, 동사가 없으면(캐릭터) 이름만.
+ * `nameOf`는 대상·든 물건 ID → 이름 ID(상태별 이름, `hotspotNameId`). 없으면 ID 그대로.
  */
-export function labelText(label: Label, screenId: string, t: (id: string) => string): string {
+export function labelText(label: Label, screenId: string, t: (id: string) => string, nameOf: (id: string) => string = (id) => id): string {
   const name = (id: string): string =>
-    id in characterNames ? t(`char.${id}.name`) : t(`${screenId}.name.${id}`);
+    id in characterNames ? t(`char.${id}.name`) : t(`${screenId}.name.${nameOf(id)}`);
   if (label.verb === null) return label.target === null ? '' : name(label.target);
   const item = label.verb !== 'item' && label.verb !== 'put' ? '' : label.held ? name(label.item ?? '') : t(`${label.item ?? ''}.name`);
   if (label.target === null) return t(`ui.verb.${label.verb}`).replace('{item}', item);
