@@ -7,7 +7,7 @@ import jjukJson from '../../public/sprites/jjuk-base.json';
 import type { CharactersData, ScreenData } from './puzzle/types';
 import { carried, charPose, createScene, isBusy, runAction, sceneArtView, sceneTick, type SceneData, type SceneState } from './scene';
 import { carriedPlace, parseSceneArt, sceneDraws, type SceneArtMeta } from './sceneArt';
-import { parseSpriteMeta, spriteBox, spriteCarry, type Pose, type SpriteMeta } from './sprite';
+import { parseSpriteMeta, POLE_WIDTH, spriteBox, spriteCarry, spritePole, type Pose, type SpriteMeta } from './sprite';
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 const characters = charactersJson as CharactersData;
@@ -69,9 +69,25 @@ describe('spriteCarry (ADR-1031 5절)', () => {
     expect(spriteCarry(meta, pose({ event: { name: 'common.pick', ms: 250 } }), 100, 240, 1)).not.toBe('rest');
   });
 
-  it('carry 없는 연출·시트에 없는 연출은 서 있기 첫 칸 점, 서 있기 carry도 없으면 null', () => {
+  it('장대를 잇는 칸(tip): 이은 장대 가운데선 x, 집게 칸 위 끝 y. 장대가 자라면 같이 올라간다(PR #1064 Luna 리뷰)', () => {
+    for (const facing of [1, -1] as const) {
+      for (const [name, ms] of [['common.pick_high', 0], ['common.pick_high', 400], ['common.reach_wobble', 150], ['common.reach_wobble', 400]] as const) {
+        const p = pose({ event: { name, ms }, reach: { x: 0, y: 40 } });
+        const pole = spritePole(meta, p, 100, 240, facing)!;
+        expect(pole).not.toBeNull();
+        expect(spriteCarry(meta, p, 100, 240, facing)).toEqual({ x: pole.left + POLE_WIDTH / 2, y: pole.clawTop });
+      }
+    }
+    // 첫 틱(길이 0)은 칸 위 끝 집게 위, 다 자라면 그만큼(max 64) 위
+    const at = (ms: number) => spriteCarry(meta, pose({ event: { name: 'common.pick_high', ms } }), 100, 240, 1) as { x: number; y: number };
+    expect(at(0).y - at(400).y).toBe(meta.claw!.max);
+    expect(at(400).x).toBe(at(0).x);
+  });
+
+  it('carry 없는 연출의 장대 안 잇는 칸(tip null)·tip 없는 반응·시트에 없는 연출은 서 있기 첫 칸 점, 서 있기 carry도 없으면 null', () => {
     const idle0 = spriteCarry(meta, pose(), 100, 240, 1);
-    expect(spriteCarry(meta, pose({ event: { name: 'common.pick_high', ms: 0 } }), 100, 240, 1)).toEqual(idle0);
+    expect(spriteCarry(meta, pose({ event: { name: 'common.reach_wobble', ms: 1000 } }), 100, 240, 1)).toEqual(idle0); // 3번 칸 tip null
+    expect(spriteCarry(meta, pose({ event: { name: 'common.zap', ms: 0 } }), 100, 240, 1)).toEqual(idle0);
     expect(spriteCarry(meta, pose({ event: { name: 'no_such_anim', ms: 0 } }), 100, 240, 1)).toEqual(idle0);
     const bare = clone(meta);
     delete bare.anims.idle!.carry;
@@ -145,8 +161,15 @@ describe('손 표시 지연과 제자리 빼기 (handsShown)', () => {
       expect(carried(d, s)?.item).toBe('basket');
       sceneTick(d, s);
     }
-    // carry 없는 연출: 서 있기 첫 칸 점에 그대로 든다
-    expect(carried(d, s)?.at).not.toBeNull();
+    // carry 없는 장대 연출: 집게 위에 얹혀 장대와 같이 올라간다(PR #1064 Luna 리뷰: 예전엔 머리 높이 y 180에 남았다)
+    const w = s.walkers.jjuk;
+    const at0 = carried(d, s)!.at!;
+    for (let n = 0; n < 24; n++) sceneTick(d, s);
+    expect(playing(s, 'common.pick_high')).toBe(true);
+    const pole = spritePole(d.sprites!.jjuk!, charPose(d, s, 'jjuk'), w.x, w.y, w.facing)!;
+    const at = carried(d, s)!.at!;
+    expect(at).toEqual({ x: pole.left + POLE_WIDTH / 2, y: pole.clawTop });
+    expect(at.y).toBeLessThan(at0.y - 40);
     settle(d, s);
     expect(carried(d, s)).toBeNull();
     expect(sceneDraws(art, sceneArtView(d, s)).byObject['basket']).toEqual([]);

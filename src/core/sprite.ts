@@ -420,8 +420,11 @@ function posePlace(meta: SpriteMeta, pose: Pose): { anim: SpriteAnim; i: number 
 /**
  * 든 물건을 얹을 화면 점(ADR-1031 4·5절, `carry`). 물건 그림의 아래 가운데를 여기에 맞춘다. x는 픽셀 경계(연속 좌표)다.
  * - 지금 자세에 `carry`가 있으면 그 칸 점. 그 칸이 `null`이면(집기·내려놓기 연출 중 물건이 아직/이미 바닥, #1056) `'rest'`.
- * - 자세에 `carry`가 없으면(든 채 받는 반응 연출 등) 서 있기 첫 칸 점이다. 몸이 거의 서 있기라 갈고리 자리가 가깝고,
- *   물건이 잠깐 사라지거나 제자리로 튀는 것보다 덜 어색하다(추측, 그림 확인은 Luna).
+ * - 자세에 `carry`가 없고 이 칸에 `spritePole`이 장대를 이으면(`tip` 연출, PR #1064 Luna 리뷰) 이은 장대 끝 집게 위:
+ *   x = 장대 가운데선, y = 집게 칸 위 끝(= 집게 첫 잉크 행, `art/build.mjs`가 0행 잉크를 검사). 집게와 같이 올라간다.
+ *   서 있기 `carry` y가 "갈고리 위 외곽선 행"인 것과 같은 뜻이다.
+ * - 그 밖에 `carry`가 없으면(`tip: null` 칸, `zap`·`wet` 같은 든 채 받는 반응) 서 있기 첫 칸 점이다. 몸이 거의 서 있기라
+ *   갈고리 자리가 가깝고, 물건이 잠깐 사라지거나 제자리로 튀는 것보다 덜 어색하다.
  * - 그것도 없으면(시트 없음·실루엣) null: 엔진은 든 물건을 안 그린다.
  * 뒤집기는 `tip`과 같다: 왼쪽을 보면 칸 안 x → `cell[0] − x`.
  */
@@ -432,6 +435,8 @@ export function spriteCarry(meta: SpriteMeta, pose: Pose, x: number, y: number, 
     point = p.anim.carry[p.i];
     if (point === null) return 'rest';
   } else {
+    const pole = spritePole(meta, pose, x, y, facing);
+    if (pole) return { x: pole.left + POLE_WIDTH / 2, y: pole.clawTop };
     point = meta.anims.idle?.carry?.[0];
   }
   if (!point) return null;
