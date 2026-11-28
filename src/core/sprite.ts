@@ -35,9 +35,10 @@ export type SpriteAnim = ({ frames: number[]; ms: number[] } | { frames: number[
   /**
    * 든 물건을 얹는 점(ADR-1031 4·5절, 쭉이 손 1칸). 프레임마다 [x, y](오른쪽을 본 시트 기준, 뒤집기는 `tip`과 같은 규칙).
    * x는 장대 가운데선(픽셀 경계), y는 장대 끝 갈고리 위 외곽선 행. 든 물건 그림의 아래 가운데를 이 점에 맞춘다.
-   * 갈고리가 칸 안에 그려진 자세(서 있기·걷기)에만 있고, 장대를 이어 그리지 않는다(`tip`과 다른 점). 모든 칸에 있다.
+   * 갈고리가 칸 안에 그려진 칸에만 쓰고, 장대를 이어 그리지 않는다(`tip`과 다른 점). 서 있기·걷기(`CARRY_FULL`)는 모든 칸에 있다.
+   * 집기·내려놓기 연출(#1053)은 `null` 칸을 둘 수 있다: 그 칸 동안 물건은 쭉이 손이 아니라 놓인 자리에 그린다. 적어도 한 칸은 점이다.
    */
-  carry?: [x: number, y: number][];
+  carry?: ([x: number, y: number] | null)[];
   /** 프레임마다 집게 칸 번호(시트 최상위 `claw` 줄). tip이 null인 칸은 null. */
   claw?: (number | null)[];
   /**
@@ -105,6 +106,12 @@ const intTuple = (v: unknown, n: number): boolean => Array.isArray(v) && v.lengt
 export const POLE_JOINT = 8;
 
 /** 메타 JSON을 검사한다. 형식이 틀리면 그 캐릭터는 실루엣으로 남기도록 이유를 던진다. */
+
+/**
+ * `carry`가 모든 칸에 있어야 하는 자세(서 있기·걷기, ADR-1031). 이 자세를 그리는 동안 든 물건은 늘 손에 있다.
+ * 다른 자세(집기·내려놓기 연출, #1053)는 `null` 칸으로 "아직/이미 놓인 자리" 칸을 적는다.
+ */
+export const CARRY_FULL: ReadonlySet<string> = new Set(['idle', 'walk']);
 export function parseSpriteMeta(raw: unknown): SpriteMeta {
   const m = raw as Partial<SpriteMeta>;
   const fail = (why: string): never => {
@@ -170,7 +177,11 @@ export function parseSpriteMeta(raw: unknown): SpriteMeta {
     if ('carry' in a) {
       const [cw, ch] = m.cell as [number, number];
       const inCell = (c: unknown): boolean => intTuple(c, 2) && (c as number[])[0]! >= 0 && (c as number[])[0]! <= cw && (c as number[])[1]! >= 0 && (c as number[])[1]! < ch;
-      if (!Array.isArray(a.carry) || a.carry.length !== a.frames!.length || !a.carry.every(inCell)) fail(`${name}.carry는 프레임마다 칸 안의 [x, y]`);
+      const full = CARRY_FULL.has(name);
+      const ok = (c: unknown): boolean => (c === null ? !full : inCell(c));
+      if (!Array.isArray(a.carry) || a.carry.length !== a.frames!.length || !a.carry.every(ok) || !a.carry.some((c) => c !== null)) {
+        fail(full ? `${name}.carry는 프레임마다 칸 안의 [x, y]` : `${name}.carry는 프레임마다 칸 안의 [x, y] 또는 null(점이 한 칸 이상)`);
+      }
     }
     if ('joint' in a) {
       if (!('tip' in a)) fail(`${name}.joint는 tip 있는 자세에만`);
