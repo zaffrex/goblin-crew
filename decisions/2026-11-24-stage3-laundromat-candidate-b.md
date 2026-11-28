@@ -2,7 +2,7 @@
 schema: 1
 id: 2620d7b4-effa-454a-9b94-3aea162bad0c
 title: 스테이지 3 `laundromat`은 후보 B "거꾸로 도는 건조기"로 설계한다(진마씨 L3)
-status: accepted
+status: superseded
 accepted_via: pr-merge
 decided_at: 2026-11-24
 owner: "@zaffrex"
