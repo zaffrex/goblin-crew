@@ -240,8 +240,12 @@ export function drawFrame(p) {
   const tilt = u(p.poleTilt);
   const pole = K.limb([[px, poleTop, 0.95], [px, poleBot, 0.95]], R4.metal); // 마디는 마감 전에 poleJoints가 찍는다
   // 집게 갈고리(장대 끝): 금속 4단, 걸을 때 1px 흔들린다
+  // carry(ADR-1031 4·5절, 쭉이 손 1칸): 든 물건을 얹는 점 = 갈고리 위 외곽선 행(hy − 1)의 장대 가운데선(갈고리 줄기 2·3열 사이, hx + 3).
+  // 엔진은 든 물건 그림의 아래 가운데를 이 점에 맞춰 갈고리 위에 얹는다. 갈고리가 칸 안에 이미 그려져 있어서 claw 칸은 안 그린다.
+  let carry;
   {
     const hx = Math.round(K.X(px + tilt - 1.6)), hy = Math.round(K.Y(poleTop - 4.4));
+    carry = [hx + 3, hy - 1];
     K.stamp(hx, hy, [
       '.LLLD.',
       'L....D',
@@ -329,7 +333,7 @@ export function drawFrame(p) {
   poleJoints(K, pole, poleTop);
   soles(K, feet);
   K.outline();
-  return { K, feet, grip: P(px, handY) };
+  return { K, feet, grip: P(px, handY), carry };
 }
 
 // ══════════ 화면 1 자세 (#142 "화면 1 자세", 설계 docs/design/screens/magpie_nest.md 7절) ══════════

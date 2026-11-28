@@ -14,6 +14,14 @@ describe('parseSpriteMeta', () => {
     expect(JJUK.cell).toEqual([48, 64]);
   });
 
+  it('쭉이 서 있기·걷기는 칸마다 든 물건 얹는 점(carry)이 있고, 장대를 이어 그리는 tip은 없다(ADR-1031)', () => {
+    for (const name of ['idle', 'walk']) {
+      const a = JJUK.anims[name]!;
+      expect(a.carry).toHaveLength(a.frames.length);
+      expect(a.tip).toBeUndefined();
+    }
+  });
+
   it.each([
     ['cell 없음', { cell: undefined }],
     ['anchor 소수', { anchor: [25.5, 64] }],
@@ -46,6 +54,9 @@ describe('parseSpriteMeta', () => {
     ['tip null 칸에 joint 숫자(#284)', { anims: { r: { frames: [0, 1], ms: [50, 50], tip: [[34, 0], null], claw: [0, null], joint: [3, 3] } } }],
     ['claw.max가 0(#284)', { claw: { image: 'x.png', cell: [8, 8], anchor: [4, 8], max: 0 } }],
     ['claw.growMs가 소수(#284)', { claw: { image: 'x.png', cell: [8, 8], anchor: [4, 8], growMs: 1.5 } }],
+    ['carry 길이가 frames와 다름(ADR-1031)', { anims: { idle: { frames: [0, 1], ms: [700, 500], carry: [[36, 0]] } } }],
+    ['carry에 null 칸(ADR-1031)', { anims: { idle: { frames: [0, 1], ms: [700, 500], carry: [[36, 0], null] } } }],
+    ['carry가 칸 밖(ADR-1031)', { anims: { idle: { frames: [0], ms: [700], carry: [[36, -1]] } } }],
     ['head 형식(#255)', { head: [13, 0, 24] }],
     ['head가 칸 밖(#255)', { head: [30, 0, 24, 24] }],
   ])('%s → 던진다(그 캐릭터는 실루엣으로 남는다)', (_, patch) => {
