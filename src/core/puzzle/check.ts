@@ -133,7 +133,7 @@ export interface FiredRule {
 
 export interface ChainSummary {
   fired: FiredRule[];
-  /** C1: `combine`+`use` 규칙 수(일반), `pick` 규칙 수(튜토리얼). */
+  /** C1: 맞은 `combine`+`use` 규칙의 서로 다른 id 수(일반, 같은 규칙 반복은 1개), `pick` 행동 수(튜토리얼). */
   uses: number;
   picks: number;
   /** C2: 변화가 켠 플래그를 그 뒤 결합이 `when.flags` true로 본 쌍 `[변화 i, 결합 j, 플래그]`. */
@@ -169,12 +169,26 @@ export function firedRules(screen: ScreenData, characters?: CharactersData): Fir
   return out;
 }
 
+/**
+ * C2 결합이 읽는 플래그: `when.flags`의 true 값 + 재료 물건(`when.item`, 문자열 `when.holds`)의 `present.flags` true 값.
+ * 변화가 새 물건을 만들고(`<new>.made` 켬 → `present`로 나타남) 그 물건을 재료로 쓰면 `when.item`만 적어도 간선이다.
+ */
+function combineReads(screen: ScreenData, r: RuleDef): Record<string, boolean> {
+  const out: Record<string, boolean> = { ...(r.when?.flags ?? {}) };
+  const held = typeof r.when?.holds === 'string' ? r.when.holds : undefined;
+  for (const id of [r.when?.item, held]) {
+    if (id === undefined || !Object.hasOwn(screen.hotspots, id)) continue;
+    for (const [k, v] of Object.entries(screen.hotspots[id]!.present?.flags ?? {})) if (v === true) out[k] = true;
+  }
+  return out;
+}
+
 export function chainSummary(screen: ScreenData, characters?: CharactersData): ChainSummary {
   const fired = firedRules(screen, characters);
   const changeIntoCombine: [number, number, string][] = [];
   for (const c of fired.filter((f) => isKind(f.rule, 'change'))) {
     for (const b of fired.filter((f) => f.i > c.i && isKind(f.rule, 'combine'))) {
-      const want = b.rule.when?.flags ?? {};
+      const want = combineReads(screen, b.rule);
       for (const k of c.on) if (want[k] === true) changeIntoCombine.push([c.i, b.i, k]);
     }
   }
@@ -184,7 +198,7 @@ export function chainSummary(screen: ScreenData, characters?: CharactersData): C
   }
   return {
     fired,
-    uses: fired.filter((f) => isKind(f.rule, 'combine', 'use')).length,
+    uses: new Set(fired.filter((f) => isKind(f.rule, 'combine', 'use')).map((f) => f.rule.id)).size,
     picks: fired.filter((f) => f.rule.do?.pick === true).length,
     changeIntoCombine,
     stateChangers,
@@ -207,7 +221,7 @@ export function chainErrors(screen: ScreenData, c: ChainSummary): string[] {
   if (changes < 1) out.push('C2 solution에 변화(chain change) 0개');
   if (combines < 1) out.push('C2 solution에 결합(chain combine) 0개');
   if (changes >= 1 && combines >= 1 && c.changeIntoCombine.length === 0)
-    out.push('C2 변화가 켠 플래그를 그 뒤 결합 규칙의 when.flags(true)가 보지 않음(변화된 물건이 결합 재료가 아님)');
+    out.push('C2 변화가 켠 플래그를 그 뒤 결합 규칙이 보지 않음(when.flags true·재료 물건 present true 어디에도 없음, 변화된 물건이 결합 재료가 아님)');
   for (const [ch, n] of Object.entries(c.stateChangers)) {
     if (n === 0) out.push(`C4(b) ${ch}가 solution에서 물건 상태를 바꾸는 고리(change·combine) 0개`);
   }

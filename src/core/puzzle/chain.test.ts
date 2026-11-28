@@ -80,11 +80,45 @@ describe('chain checks (ADR-1031 C1·C2·C4(b)·C7)', () => {
     expect(errs(s)[0]).toMatch(/^C1 .* 2개 < 3$/);
   });
 
+  it('C1 counts distinct rules: the same use rule fired three times is one link', () => {
+    const s = generalScreen();
+    rule(s, 'start_dryer').chain = undefined;
+    rule(s, 'load_soap').chain = undefined;
+    s.rules.push({ id: 'ring_bucket', target: 'bucket', verb: 'look', chain: 'use' });
+    const ring = { char: 'jjuk' as const, verb: 'look' as const, target: 'bucket' };
+    s.solution!.splice(6, 0, ring, ring, ring);
+    expect(chainSummary(s).fired.filter((f) => f.rule.id === 'ring_bucket')).toHaveLength(3);
+    expect(chainSummary(s).uses).toBe(2); // 행동 수로 세면 load_sock 1 + ring_bucket 3 = 4
+    expect(errs(s)).toEqual(['C1 solution의 결합+쓰기(chain combine·use) 2개 < 3']);
+  });
+
   it('C2: a change whose flag no later combine reads fails, and so does a change after the combine', () => {
     const s = generalScreen();
     rule(s, 'load_sock').when = { item: 'sock' };
     rule(s, 'load_soap').when = { item: 'soap' };
-    expect(errs(s)).toEqual(['C2 변화가 켠 플래그를 그 뒤 결합 규칙의 when.flags(true)가 보지 않음(변화된 물건이 결합 재료가 아님)']);
+    expect(errs(s)).toEqual(['C2 변화가 켠 플래그를 그 뒤 결합 규칙이 보지 않음(when.flags true·재료 물건 present true 어디에도 없음, 변화된 물건이 결합 재료가 아님)']);
+  });
+
+  it('C2: a combine that only names a made item (when.item) reads that item\'s present flags', () => {
+    const s = generalScreen();
+    // 묵직이가 양말을 밟으면 양말이 사라지고 새 물건 pad가 나타난다. 결합은 when.item만 적는다(PR #1051 Kai 리뷰).
+    s.hotspots.pad = { box: [120, 220, 24, 16], present: { flags: { 'pad.made': true, 'pad.used': false } } };
+    Object.assign(s.flags, { 'pad.made': false, 'pad.used': false });
+    rule(s, 'flatten_sock').do = { set: { 'sock.flat': true, 'sock.used': true, 'pad.made': true } };
+    s.rules = s.rules.filter((r) => r.id !== 'load_sock');
+    s.rules.push(
+      { id: 'pick_pad', target: 'pad', verb: 'stretch', do: { pick: true } },
+      { id: 'put_pad', target: 'pad', verb: 'item', when: { item: 'pad' }, do: { put: true } },
+      {
+        id: 'load_pad', target: 'dryer', verb: 'item', chain: 'combine',
+        when: { item: 'pad' }, do: { set: { 'dryer.sock': true, 'pad.used': true }, take: ['pad'] },
+      },
+    );
+    rule(s, 'load_soap').when = { item: 'soap' }; // 비누 쪽 간선은 끊는다. pad 간선만 남는다.
+    s.solution![1] = { char: 'jjuk', verb: 'stretch', target: 'pad' };
+    s.solution![2] = { char: 'jjuk', verb: 'item', target: 'dryer', item: 'pad' };
+    expect(chainSummary(s).changeIntoCombine).toEqual([[0, 2, 'pad.made']]);
+    expect(errs(s)).toEqual([]);
   });
 
   it('C2: no change or no combine on the solution fails', () => {
