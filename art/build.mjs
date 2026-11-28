@@ -63,6 +63,11 @@ function unionBox(boxes) {
   return [x0, y0, x1 - x0, y1 - y0];
 }
 
+/**
+ * `carry`가 모든 칸에 있어야 하는 자세. `src/core/sprite.ts` `CARRY_FULL`과 같은 목록이다(이 파일은 TS를 못 읽어서 따로 둔다).
+ * 어긋나면 엔진 쪽 `parseSpriteMeta`가 빌드된 `jjuk-base.json`을 못 읽어 테스트(`carried.test.ts` 등)가 깨진다.
+ */
+const CARRY_FULL = ['idle', 'walk'];
 function buildSheet(def) {
   const [cw, ch] = def.cell ?? [48, 64];
   if (cw % 16 || ch % 16) fail(`${def.name}: 칸 ${cw}×${ch}는 16의 배수가 아니다`);
@@ -132,7 +137,7 @@ function buildSheet(def) {
     if (carries.some(Boolean)) {
       idx.forEach((i, j) => {
         const c = carries[j];
-        if (!c && (a.name === 'idle' || a.name === 'walk')) fail(`${def.name} ${a.name}${j}: carry는 서 있기·걷기 모든 칸에 있어야 한다`);
+        if (!c && CARRY_FULL.includes(a.name)) fail(`${def.name} ${a.name}${j}: carry는 서 있기·걷기 모든 칸에 있어야 한다`);
         if (!c) return;
         const [x, y] = c;
         if (!Number.isInteger(x) || !Number.isInteger(y) || x < 1 || x >= cw || y < 0 || y >= ch) fail(`${def.name} ${a.name}${j}: carry ${JSON.stringify(c)}가 칸 밖이다`);

@@ -14,11 +14,9 @@ const characters = charactersJson as CharactersData;
 const art = parseSceneArt(sheetJson) as SceneArtMeta;
 const BASKET_FRAME = 15;
 
-/** 실제 쭉이 시트. `pickNull`이면 `common.pick` 0번 칸 `carry`를 뺀다(4/4 메타 조각에서 할 것, #1056 형식). */
-function jjuk(pickNull = false): SpriteMeta {
-  const m = clone(jjukJson) as unknown as { anims: Record<string, { carry?: unknown[] }> };
-  if (pickNull) m.anims['common.pick']!.carry![0] = null;
-  return parseSpriteMeta(m);
+/** 실제 쭉이 시트(`common.pick` 0번 칸 `carry` = null, #1056 형식). */
+function jjuk(): SpriteMeta {
+  return parseSpriteMeta(clone(jjukJson));
 }
 
 /** 화면 1에 바구니 집기·쓰기 규칙을 앞에 붙인다. 바구니는 장난감이라 다른 규칙과 안 겹친다. */
@@ -46,7 +44,7 @@ function settle(d: SceneData, s: SceneState): void {
 const playing = (s: SceneState, name: string): boolean => s.current?.ev.type === 'anim' && s.current.ev.target === 'jjuk' && s.current.ev.name === name;
 
 describe('spriteCarry (ADR-1031 5절)', () => {
-  const meta = jjuk(true);
+  const meta = jjuk();
 
   it('서 있기: 칸 점을 화면으로, 왼쪽을 보면 tip과 같이 cell − x', () => {
     const [cx, cy] = meta.anims.idle!.carry![0]!;
@@ -67,6 +65,16 @@ describe('spriteCarry (ADR-1031 5절)', () => {
   it('집기 연출의 null 칸은 rest(물건이 아직 바닥), 다음 칸부터 점', () => {
     expect(spriteCarry(meta, pose({ event: { name: 'common.pick', ms: 0 } }), 100, 240, 1)).toBe('rest');
     expect(spriteCarry(meta, pose({ event: { name: 'common.pick', ms: 250 } }), 100, 240, 1)).not.toBe('rest');
+  });
+
+  it('내려놓기는 집기 칸을 거꾸로 쓰고(새 칸 0), 마지막 칸이 rest(이미 바닥)다(#1056 형식)', () => {
+    const pick = meta.anims['common.pick']!;
+    const put = meta.anims['common.put']!;
+    expect(put.frames).toEqual([...pick.frames].reverse());
+    expect(put.carry).toEqual([...pick.carry!].reverse());
+    expect(put.carry![2]).toBeNull();
+    expect(spriteCarry(meta, pose({ event: { name: 'common.put', ms: 0 } }), 100, 240, 1)).not.toBe('rest');
+    expect(spriteCarry(meta, pose({ event: { name: 'common.put', ms: 310 } }), 100, 240, 1)).toBe('rest');
   });
 
   it('장대를 잇는 칸(tip): 이은 장대 가운데선 x, 집게 칸 위 끝 y. 장대가 자라면 같이 올라간다(PR #1064 Luna 리뷰)', () => {
@@ -110,7 +118,7 @@ describe('carriedPlace', () => {
 
 describe('손 표시 지연과 제자리 빼기 (handsShown)', () => {
   it('집기: 걸어가는 동안·null 칸은 제자리, carry 칸부터 손. 손에 있으면 제자리 그림이 빠진다', () => {
-    const d: SceneData = { screen: pickScreen(), characters, art, sprites: { jjuk: jjuk(true) } };
+    const d: SceneData = { screen: pickScreen(), characters, art, sprites: { jjuk: jjuk() } };
     const s = createScene(d);
     settle(d, s);
     s.walkers.jjuk.x = 40; // 바구니(144~176)에서 떨어뜨려 걸어가게
@@ -140,7 +148,7 @@ describe('손 표시 지연과 제자리 빼기 (handsShown)', () => {
   });
 
   it('쭉이 연출이 없는 집기 규칙은 바로 손으로 간다', () => {
-    const d: SceneData = { screen: pickScreen(false), characters, art, sprites: { jjuk: jjuk(true) } };
+    const d: SceneData = { screen: pickScreen(false), characters, art, sprites: { jjuk: jjuk() } };
     const s = createScene(d);
     settle(d, s);
     runAction(d, s, { char: 'jjuk', verb: 'stretch', target: 'basket' }, null);
@@ -149,7 +157,7 @@ describe('손 표시 지연과 제자리 빼기 (handsShown)', () => {
   });
 
   it('재료로 쓰기(take): 쓰는 연출이 끝날 때까지 손에 있고, 끝나면 손에도 제자리에도 없다', () => {
-    const d: SceneData = { screen: pickScreen(), characters, art, sprites: { jjuk: jjuk(true) } };
+    const d: SceneData = { screen: pickScreen(), characters, art, sprites: { jjuk: jjuk() } };
     const s = createScene(d);
     settle(d, s);
     runAction(d, s, { char: 'jjuk', verb: 'stretch', target: 'basket' }, null);

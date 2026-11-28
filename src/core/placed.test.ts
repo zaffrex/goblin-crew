@@ -25,9 +25,7 @@ const FRONT_X = 300 + 15 + 2 + 16;
 
 /** 실제 쭉이 시트, `common.pick` 0번 칸 `carry` = null(#1056 형식). */
 function jjuk(): SpriteMeta {
-  const m = clone(jjukJson) as unknown as { anims: Record<string, { carry?: unknown[] }> };
-  m.anims['common.pick']!.carry![0] = null;
-  return parseSpriteMeta(m);
+  return parseSpriteMeta(clone(jjukJson));
 }
 
 /** 화면 1에 바구니 집기·내려놓기·쓰기 규칙을 앞에 붙인다(carried.test.ts와 같은 모양 + `put`). */
