@@ -27,6 +27,7 @@ import { buildScene } from './scene-build.mjs';
 import { clippedEdge } from './lib/finish.mjs';
 import { buildIcons, previewIcons } from './ui/hud-icons-build.mjs';
 import { buildFxText, previewFxText } from './ui/fx-text-build.mjs';
+import { buildPropFx, previewPropFx } from './ui/prop-fx.mjs';
 import { buildTitleLogo, previewTitleLogo } from './ui/title-logo.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -332,6 +333,11 @@ const fxText = buildFxText();
 outputs.push([join(UI_OUT, 'fx-text.png'), indexedPng(fxText.sheet)]);
 outputs.push([join(UI_OUT, 'fx-text.json'), Buffer.from(JSON.stringify(fxText.meta, null, 2) + '\n')]);
 
+// ── 성질 효과(#1053, ADR-1031 5절): 젖음·따뜻함·반짝·바람 × 2칸 가로 한 줄 + 이름 → 칸·기준
+const propFx = buildPropFx();
+outputs.push([join(UI_OUT, 'prop-fx.png'), indexedPng(propFx.sheet)]);
+outputs.push([join(UI_OUT, 'prop-fx.json'), Buffer.from(JSON.stringify(propFx.meta, null, 2) + '\n')]);
+
 // ── 타이틀 로고(#792, title-and-map.md 2절): [ja | en] 가로 한 줄 + 칸 메타
 const logo = buildTitleLogo();
 outputs.push([join(UI_OUT, 'title-logo.png'), indexedPng(logo.sheet)]);
@@ -400,6 +406,8 @@ if (check) {
   writeFileSync(join(PREVIEW, 'hud-icons-preview-4x.png'), indexedPng(previewIcons(icons.cells, HEX), 4));
   writeFileSync(join(PREVIEW, 'fx-text-preview-4x.png'), indexedPng(previewFxText(fxText.items), 4));
   console.log(`fx-text: ${fxText.items.length}칸 ${fxText.sheet.w}×${fxText.sheet.h}`);
+  writeFileSync(join(PREVIEW, 'prop-fx-preview-4x.png'), indexedPng(previewPropFx(propFx.items), 4));
+  console.log(`prop-fx: ${propFx.items.length}칸 ${propFx.sheet.w}×${propFx.sheet.h}`);
   writeFileSync(join(PREVIEW, 'title-logo-preview-3x.png'), indexedPng(previewTitleLogo(logo), 3));
   console.log(`title-logo: ja ${logo.ja.w}×${logo.ja.h}, en ${logo.en.w}×${logo.en.h}`);
   console.log(`hud-icons: ${icons.cells.length}개 ${icons.sheet.w}×${icons.sheet.h} (${Object.keys(icons.meta.icons).join(' ')})`);
