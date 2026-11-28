@@ -384,3 +384,46 @@ describe('validateTexts / validateCharacters / textFits', () => {
     expect(validateCharacters({}, ctx).errors.map((e) => e.code)).toEqual(Array(6).fill('hint-missing'));
   });
 });
+
+describe('validateScreen: hands (ADR-1031 pick/put/holds/chain)', () => {
+  // 화면 1 둥지를 들 물건으로 본다(검사 모양만 본다. 화면 1 자체는 안 바꾼다).
+  const pick = { id: 'pick_nest', target: 'nest', verb: 'stretch', do: { pick: true } };
+  const put = { id: 'put_nest', target: 'nest', verb: 'item', when: { item: 'nest' }, do: { put: true } };
+  const withRules = (...rules: unknown[]): ValidationResult => mutate((s) => s.rules.push(...rules));
+
+  it('accepts a pick + put pair and when.item / holds / take on the picked id', () => {
+    const r = withRules(pick, put, {
+      id: 'use_nest', target: 'magpie', verb: 'item', chain: 'use',
+      when: { item: 'nest', holds: 'nest' }, do: { take: ['nest'] },
+    });
+    expect(r.errors).toEqual([]);
+  });
+
+  it('pick must be the picker ability on a hotspot, without a chain tag', () => {
+    expect(codes(withRules({ ...pick, verb: 'stomp' }))).toEqual(['pick-verb']);
+    expect(codes(withRules({ ...pick, target: 'seesaw_left' }))).toEqual(['pick-target']);
+    expect(codes(withRules({ ...pick, chain: 'change' }))).toEqual(['chain-hands']);
+    expect(codes(withRules({ ...pick, when: { who: ['mukjik'] } }))).toEqual(['pick-who']);
+    expect(codes(withRules({ ...pick, do: { pick: 1 } }))).toContain('schema');
+  });
+
+  it('put needs verb item on an item that has a pick rule', () => {
+    expect(codes(withRules(put))).toEqual(expect.arrayContaining(['put-target']));
+    expect(codes(withRules(pick, { ...put, verb: 'stretch', when: undefined }))).toEqual(['put-verb']);
+    expect(codes(withRules(pick, { ...put, when: { item: 'item.shop_key' } }))).toEqual(['put-verb']);
+  });
+
+  it('chain tag is one of change/combine/use', () => {
+    const r = mutate((s) => (s.rules[0].chain = 'merge'));
+    expect(r.errors).toEqual([expect.objectContaining({ code: 'schema', path: 'rules[0].chain' })]);
+  });
+
+  it('holds must name a pickable item, and picked ids must not collide with party items', () => {
+    expect(codes(withRules({ ...pick, id: 'x', target: 'magpie', when: { holds: 'nest' } }))).toEqual(['ref-item']);
+    const r = mutate((s) => {
+      s.hotspots['item.shop_key'] = { box: [0, 0, 24, 24] };
+      s.rules.push({ id: 'pick_key', target: 'item.shop_key', verb: 'stretch', do: { pick: true } });
+    });
+    expect(codes(r)).toContain('hands-item-overlap');
+  });
+});

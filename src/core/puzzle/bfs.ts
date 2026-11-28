@@ -9,6 +9,8 @@ export interface PuzzleStateLike {
   flags: Record<string, boolean>;
   items: string[];
   gauge: number;
+  /** One-slot hands (ADR-1031). Absent = empty. Part of the key, so a held item is a distinct node. */
+  hands?: string;
 }
 
 export interface ActionLike {
@@ -99,12 +101,17 @@ export interface ExploreResult<S extends PuzzleStateLike, A extends ActionLike> 
 
 /** Full node key: the puzzle state including gauge. `screen` is constant per run, so it is ignored. */
 export function stateKey(s: PuzzleStateLike): string {
-  return JSON.stringify([s.at, s.flags, [...s.items].sort(), s.gauge]);
+  return JSON.stringify([s.at, s.flags, [...s.items].sort(), s.gauge, ...handsKey(s)]);
+}
+
+/** Empty hands add nothing, so keys of screens without `pick` stay byte-identical to before ADR-1031. */
+function handsKey(s: PuzzleStateLike): string[] {
+  return s.hands === undefined ? [] : [s.hands];
 }
 
 /** Folded key: same without gauge, for reports. */
 export function foldedKey(s: PuzzleStateLike): string {
-  return JSON.stringify([s.at, s.flags, [...s.items].sort()]);
+  return JSON.stringify([s.at, s.flags, [...s.items].sort(), ...handsKey(s)]);
 }
 
 interface Node<S, A> {

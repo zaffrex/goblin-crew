@@ -6,7 +6,9 @@
 import { CHARACTERS } from '../characters';
 import { WALK_AREA, walkAreaOf } from '../config';
 import {
+  CHAIN_KINDS,
   FLOOR,
+  PICKER,
   STAY,
   VERBS,
   type AbilityVerb,
@@ -106,9 +108,9 @@ const SPOT_KEYS = fieldsOf<SpotDef>({
 });
 const HOTSPOT_KEYS = fieldsOf<HotspotDef>({ box: true, approach: true, variants: true, hintAbility: true, reachPoint: true });
 const VARIANT_KEYS = fieldsOf<HotspotVariant>({ when: true, box: true, approach: true });
-const RULE_KEYS = fieldsOf<RuleDef>({ id: true, target: true, verb: true, when: true, do: true, show: true });
-const COND_KEYS = fieldsOf<Condition>({ who: true, at: true, flags: true, has: true, lacks: true, item: true, occupied: true });
-const EFFECT_KEYS = fieldsOf<Effect>({ set: true, give: true, take: true, move: true, gauge: true });
+const RULE_KEYS = fieldsOf<RuleDef>({ id: true, target: true, verb: true, when: true, do: true, show: true, chain: true });
+const COND_KEYS = fieldsOf<Condition>({ who: true, at: true, flags: true, has: true, lacks: true, item: true, occupied: true, holds: true });
+const EFFECT_KEYS = fieldsOf<Effect>({ set: true, pick: true, put: true, give: true, take: true, move: true, gauge: true });
 const ACTION_KEYS = fieldsOf<Action>({ char: true, verb: true, target: true, item: true });
 const CHARACTERS_KEYS = fieldsOf<CharactersData>({ fallbacks: true, hints: true });
 
@@ -561,7 +563,9 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
   }
 
   // --- 아이템: 선언 목록이 없으니 start.items + 규칙 give가 "있는 아이템"이다 ---
+  // 쭉이가 들 수 있는 물건(ADR-1031) = `pick` 규칙의 대상 핫스팟. 같은 ID로 `item`·`take`·`holds`에서 부른다.
   const itemIds = new Set<string>();
+  const pickIds = new Set<string>();
   const ruleList = c.arr(raw.rules, 'rules');
   const collectItems = (v: unknown, path: string): void => {
     c.arr(v, path).forEach((x, i) => {
@@ -571,6 +575,12 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
   ruleList.forEach((r, i) => {
     if (isObj(r) && isObj(r.do) && r.do.give !== undefined) collectItems(r.do.give, `rules[${i}].do.give`);
   });
+  ruleList.forEach((r) => {
+    if (isObj(r) && isObj(r.do) && r.do.pick === true && typeof r.target === 'string' && hotspotIds.has(r.target)) pickIds.add(r.target);
+  });
+  // 파티 아이템과 들 물건이 같은 ID면 `take`·`item`이 어느 쪽인지 모호하다(손과 items를 섞지 않는다, ADR-1031 3절).
+  for (const id of pickIds) if (itemIds.has(id)) c.err('rules', 'hands-item-overlap', `들 물건과 파티 아이템이 같은 ID: ${id}`);
+  for (const id of pickIds) itemIds.add(id);
   const itemRef = (v: unknown, path: string): void => {
     if (!c.id(v, path)) return;
     if (!itemIds.has(v)) c.err(path, 'ref-item', `어디서도 얻을 수 없는 아이템: ${v}`);
@@ -605,6 +615,27 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
     if (isObj(raw.flags) && raw.flags[raw.exitFlag] === true) c.err('exitFlag', 'exit-initial', 'exitFlag가 처음부터 true라 클리어가 안 난다');
   } else c.err('exitFlag', 'schema', 'exitFlag는 플래그 ID');
   showList(c, ctx, raw.onEnter, 'onEnter', scope(false));
+
+  // --- 집기·내려놓기 모양(ADR-1031 1·4절) ---
+  // UI가 만드는 행동과 맞춘다: 집기 = 빈손 쭉이가 능력으로 물건 핫스팟 누르기, 내려놓기 = 든 물건을 그 물건에 쓰기.
+  const pickerAbility = CHARACTERS.find((ch) => ch.id === PICKER)?.ability;
+  const handsEffect = (r: Obj, d: Obj, p: string): void => {
+    for (const k of ['pick', 'put'] as const) {
+      if (d[k] === undefined) continue;
+      if (d[k] !== true) c.err(`${p}.do.${k}`, 'schema', `${k}는 true만`);
+      if (typeof r.target !== 'string' || !hotspotIds.has(r.target)) c.err(`${p}.target`, `${k}-target`, `${k} 규칙의 대상은 물건 핫스팟이어야 한다`);
+      if (r.chain !== undefined) c.err(`${p}.chain`, 'chain-hands', `${k} 규칙에는 chain을 달지 않는다(운반은 고리가 아니다)`);
+      const who = isObj(r.when) ? r.when.who : undefined;
+      if (Array.isArray(who) && !who.includes(PICKER)) c.err(`${p}.when.who`, `${k}-who`, `${k}는 ${PICKER}만 한다`);
+    }
+    if (d.pick !== undefined && d.put !== undefined) c.err(`${p}.do`, 'schema', 'pick과 put은 한 규칙에 같이 둘 수 없다');
+    if (d.pick !== undefined && r.verb !== pickerAbility) c.err(`${p}.verb`, 'pick-verb', `pick 규칙의 동사는 ${String(pickerAbility)}`);
+    if (d.put !== undefined) {
+      if (r.verb !== 'item') c.err(`${p}.verb`, 'put-verb', 'put 규칙의 동사는 item');
+      else if (isObj(r.when) && r.when.item !== undefined && r.when.item !== r.target) c.err(`${p}.when.item`, 'put-verb', 'put 규칙의 when.item은 대상과 같아야 한다');
+      if (typeof r.target === 'string' && hotspotIds.has(r.target) && !pickIds.has(r.target)) c.err(`${p}.target`, 'put-target', `pick 규칙이 없는 물건은 내려놓을 수 없다: ${r.target}`);
+    }
+  };
 
   // --- 규칙 ---
   const ruleIds = new Set<string>();
@@ -643,12 +674,20 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
           c.bool(x, kp);
         }
       }
+      if (w.holds !== undefined && typeof w.holds !== 'boolean') {
+        if (c.id(w.holds, `${wp}.holds`) && !pickIds.has(w.holds)) c.err(`${wp}.holds`, 'ref-item', `들 수 없는 물건(pick 규칙 없음): ${w.holds}`);
+      }
+    }
+
+    if (r.chain !== undefined && !(CHAIN_KINDS as readonly unknown[]).includes(r.chain)) {
+      c.err(`${p}.chain`, 'schema', `chain은 ${CHAIN_KINDS.join('·')} 중 하나`);
     }
 
     if (r.do !== undefined && c.obj(r.do, `${p}.do`, EFFECT_KEYS)) {
       const d = r.do;
       const dp = `${p}.do`;
       if (d.set !== undefined) flagMap(d.set, `${dp}.set`);
+      handsEffect(r, d, p);
       if (d.take !== undefined) c.arr(d.take, `${dp}.take`).forEach((x, j) => itemRef(x, `${dp}.take[${j}]`));
       if (d.gauge !== undefined && !isInt(d.gauge)) c.err(`${dp}.gauge`, 'schema', 'gauge는 정수');
       if (d.move !== undefined) {

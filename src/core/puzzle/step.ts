@@ -7,6 +7,7 @@ import {
   FLOOR,
   isDoHere,
   GAUGE_MAX,
+  PICKER,
   STAY,
   type Action,
   type CharacterId,
@@ -46,7 +47,14 @@ export function initialState(screen: ScreenData): PuzzleState {
 }
 
 function cloneState(s: PuzzleState): PuzzleState {
-  return { screen: s.screen, at: { ...s.at }, flags: { ...s.flags }, items: [...s.items], gauge: s.gauge };
+  const out: PuzzleState = { screen: s.screen, at: { ...s.at }, flags: { ...s.flags }, items: [...s.items], gauge: s.gauge };
+  if (s.hands !== undefined) out.hands = s.hands;
+  return out;
+}
+
+/** 이 행동이 든 물건 내려놓기 모양인가: 쭉이가 든 물건을 그 물건 자신에게 쓴다(ADR-1031 4절). */
+function isPutAction(s: PuzzleState, a: Action): boolean {
+  return a.char === PICKER && a.verb === 'item' && s.hands !== undefined && a.item === s.hands && a.target === s.hands;
 }
 
 function capacityOf(spot: SpotDef): number {
@@ -93,6 +101,10 @@ function conditionMatches(s: PuzzleState, action: Action, when: Condition | unde
   if (when.has && !when.has.every((i) => s.items.includes(i))) return false;
   if (when.lacks && when.lacks.some((i) => s.items.includes(i))) return false;
   if (when.item !== undefined && (action.verb !== 'item' || action.item !== when.item)) return false;
+  if (when.holds !== undefined) {
+    const ok = typeof when.holds === 'string' ? s.hands === when.holds : (s.hands !== undefined) === when.holds;
+    if (!ok) return false;
+  }
   if (when.occupied) {
     for (const [spot, want] of Object.entries(when.occupied)) {
       if (occupants(s, spot).length > 0 !== want) return false;
@@ -110,8 +122,19 @@ function findRule(
   extra?: (r: RuleDef) => boolean,
 ): RuleDef | undefined {
   return screen.rules.find(
-    (r) => r.target === target && r.verb === verb && (!extra || extra(r)) && conditionMatches(s, action, r.when),
+    (r) =>
+      r.target === target && r.verb === verb && (!extra || extra(r)) && handsAllow(screen, s, action, r) && conditionMatches(s, action, r.when),
   );
+}
+
+/**
+ * 집기·내려놓기의 엔진 조건(ADR-1031). 데이터에 적지 않아도 늘 건다.
+ * `pick`: 쭉이가 빈손. `put`: 쭉이가 규칙 대상을 들고 `free` 자리에 서 있다(아니면 캐릭터 폴백, 4절 표).
+ */
+function handsAllow(screen: ScreenData, s: PuzzleState, action: Action, r: RuleDef): boolean {
+  if (r.do?.pick && (action.char !== PICKER || s.hands !== undefined)) return false;
+  if (r.do?.put && (action.char !== PICKER || s.hands !== r.target || screen.spots[s.at[action.char]]?.free !== true)) return false;
+  return true;
 }
 
 /** `self`, `@자리`(그 자리에 지금 있는 첫 캐릭터)를 실제 캐릭터 ID로 바꾼다. 빈 자리면 undefined. */
@@ -153,19 +176,30 @@ function applyGauge(s: PuzzleState, delta: number, events: PuzzleEvent[]): void 
   events.push({ type: 'gauge', delta, value: s.gauge });
 }
 
-/** 효과를 set → give/take → move → gauge 순서로 적용한다(ADR-0065 5절). s를 바꾼다. */
-function applyEffect(screen: ScreenData, s: PuzzleState, actor: CharacterId, eff: Effect | undefined, events: PuzzleEvent[]): void {
+/** 효과를 set → pick/put → give/take → move → gauge 순서로 적용한다(ADR-0065 5절, ADR-1031). s를 바꾼다. */
+function applyEffect(
+  screen: ScreenData,
+  s: PuzzleState,
+  actor: CharacterId,
+  target: string,
+  eff: Effect | undefined,
+  events: PuzzleEvent[],
+): void {
   if (!eff) return;
   for (const [k, v] of Object.entries(eff.set ?? {})) {
     if (!(k in s.flags)) throw new PuzzleContentError(`선언 안 된 플래그: ${k}`);
     s.flags[k] = v;
   }
+  // 손 바꾸기는 이벤트를 내지 않는다. 그림은 행동 앞뒤 상태의 `hands`로 그린다.
+  if (eff.pick) s.hands = target;
+  if (eff.put) delete s.hands;
   for (const item of eff.give ?? []) {
     if (s.items.includes(item)) continue;
     s.items.push(item);
     events.push({ type: 'item', op: 'give', item });
   }
   for (const item of eff.take ?? []) {
+    if (s.hands === item) delete s.hands;
     const i = s.items.indexOf(item);
     if (i < 0) continue;
     s.items.splice(i, 1);
@@ -213,6 +247,12 @@ function isValidAction(screen: ScreenData, s: PuzzleState, a: Action): boolean {
   if (!(a.char in s.at) || !(a.char in ABILITY)) return false;
   const isTarget = a.target in screen.spots || a.target in screen.hotspots;
   if (!isTarget) return false;
+  if (s.hands !== undefined) {
+    // 든 물건은 장대 끝에 있어 화면 대상이 아니다. 그 물건을 누르는 건 내려놓기 모양뿐이다(ADR-1031 1·4절).
+    if (a.target === s.hands) return isPutAction(s, a);
+    // 든 채로 쭉이는 장대 능력이 안 나간다(4절 표).
+    if (a.char === PICKER && a.verb === ABILITY[PICKER]) return false;
+  }
   switch (a.verb) {
     case 'move':
       return a.target in screen.spots && s.at[a.char] !== a.target && a.item === undefined;
@@ -224,7 +264,7 @@ function isValidAction(screen: ScreenData, s: PuzzleState, a: Action): boolean {
     case 'squeak':
       return ABILITY[a.char] === a.verb && a.item === undefined;
     case 'item':
-      return a.item !== undefined && s.items.includes(a.item);
+      return a.item !== undefined && (s.items.includes(a.item) || (a.char === PICKER && s.hands === a.item));
     default:
       return false;
   }
@@ -265,7 +305,7 @@ export function step(screen: ScreenData, state: PuzzleState, action: Action, cha
     const before = showEvents(show.slice(0, split), s, actor);
     const after = showEvents(show.slice(split + 1), s, actor);
     events.push(...before);
-    applyEffect(screen, s, actor, rule.do, events);
+    applyEffect(screen, s, actor, rule.target, rule.do, events);
     events.push(...after);
     return finish('rule', rule.id);
   };
@@ -293,7 +333,8 @@ export function step(screen: ScreenData, state: PuzzleState, action: Action, cha
     if (g.kind === 'moved') return finish('move');
     return { state: g.kind === 'invalid' ? cloneState(state) : s, events, source: g.kind };
   }
-  if (verb !== 'look') {
+  // 내려놓기는 걷지 않는다(그 자리에 놓는다).
+  if (verb !== 'look' && !isPutAction(s, action)) {
     const dest = approachFor(screen, s, actor, target, verb);
     if (dest !== STAY && s.at[actor] !== dest) {
       const g = goTo(screen, s, action, dest, events);
