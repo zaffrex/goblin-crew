@@ -42,7 +42,15 @@ export interface TapContext {
    * 없으면 몸 상자 아래 끝(발 y)이 큰 쪽이 앞이다.
    */
   order?: readonly CharacterId[];
+  /** 내려놓은 물건의 놓인 자리(`Placements`, ADR-1031 4절). 있으면 그 물건 상자가 `variants`보다 먼저 그리로 간다. */
+  placed?: Placements;
 }
+
+/**
+ * 쭉이가 내려놓은 물건의 놓인 자리(ADR-1031 4절 116줄, UI 상태). 물건 ID → 상자 아래 가운데 점(쭉이가 선 `free` 자리의 발 x·y).
+ * 퍼즐 상태·BFS·세이브가 아니다(캐릭터 좌표와 같은 UI 상태, ADR-0065 4절). 엔진(`scene.ts`)이 적고 지운다.
+ */
+export type Placements = Readonly<Record<string, Point>>;
 
 /** 그린 그림 칸 하나. `box`는 칸 전체 사각형(그리는 자리), `at`은 화면 점이 보이는 불투명 칸인가(물건·나중에 그린 사람에 덮인 칸은 아니다). */
 export interface DrawnBody {
@@ -103,14 +111,22 @@ function flagsMatch(puzzle: PuzzleState, flags: Record<string, boolean>): boolea
 /**
  * 핫스팟의 지금 박스. `variants`는 플래그가 맞는 첫 것(step.ts approachFor와 같은 순서).
  * 있음 조건(`present`)이 안 맞으면 null: 클릭 판정·행동 상자·라벨이 다 여기서 빠진다(ADR-1031, step `isValidAction`과 같은 판정).
+ * 놓인 자리(`placed`, ADR-1031 4절)가 있으면 크기는 그대로 두고 아래 가운데를 그 점에 옮긴다(`variants`보다 먼저).
  */
-export function hotspotBox(screen: TapContext['screen'], puzzle: PuzzleState, id: string): HitBox | null {
+export function hotspotBox(screen: TapContext['screen'], puzzle: PuzzleState, id: string, placed?: Placements): HitBox | null {
   const hs = screen.hotspots[id];
   if (!hs || !hotspotPresent(screen, puzzle.flags, id)) return null;
   // 든 물건은 쭉이 장대 끝에 있어 화면 대상이 아니다(ADR-1031 1절, step `isValidAction`과 같은 판정).
   if (puzzle.hands === id) return null;
   const v = hs.variants?.find((variant) => flagsMatch(puzzle, variant.when.flags));
-  return toHitBox(v?.box ?? hs.box);
+  const box = toHitBox(v?.box ?? hs.box);
+  const at = placed?.[id];
+  return at ? placedBox(box, at) : box;
+}
+
+/** 상자를 크기 그대로, 아래 가운데가 `at`에 오게 옮긴다. 가로는 `at.x − 폭/2` 반올림(`carriedPlace`와 같은 셈). */
+export function placedBox(box: HitBox, at: Point): HitBox {
+  return { left: Math.round(at.x - box.width / 2), top: at.y - box.height, width: box.width, height: box.height };
 }
 
 /** 지금 캐릭터가 유지 상태(`hold`) 자리에 있나. 자리 데이터만 본다. */
@@ -172,7 +188,7 @@ export function worldTargets(ctx: TapContext, ui: UiState): WorldTarget[] {
     if (spot.box) out.push({ id: `spot:${id}`, kind: 'spot', ref: id, box: toHitBox(spot.box), z: 0 });
   }
   for (const id of Object.keys(ctx.screen.hotspots)) {
-    const box = hotspotBox(ctx.screen, ctx.puzzle, id);
+    const box = hotspotBox(ctx.screen, ctx.puzzle, id, ctx.placed);
     if (box) out.push({ id: `hotspot:${id}`, kind: 'hotspot', ref: id, box, z: 0 });
   }
   return out;
