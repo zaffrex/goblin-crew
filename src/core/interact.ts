@@ -9,7 +9,7 @@
 import { characterDef, CHARACTERS, type CharacterId } from './characters';
 import { hitTest, type HitBox, type HitTarget } from './hit';
 import { CHAR_SLOTS, inHudZone, type HudId } from './hud';
-import { FLOOR, type Action, type Box, type PuzzleState, type ScreenData, type Verb } from './puzzle/types';
+import { FLOOR, hotspotPresent, type Action, type Box, type PuzzleState, type ScreenData, type Verb } from './puzzle/types';
 import type { Point } from './viewport';
 
 /** UI 상태. 퍼즐 상태(PuzzleState)와 따로 둔다(ADR-0065 4절). JSON 직렬화 가능. */
@@ -95,10 +95,13 @@ function flagsMatch(puzzle: PuzzleState, flags: Record<string, boolean>): boolea
   return Object.entries(flags).every(([k, v]) => puzzle.flags[k] === v);
 }
 
-/** 핫스팟의 지금 박스. `variants`는 플래그가 맞는 첫 것(step.ts approachFor와 같은 순서). */
+/**
+ * 핫스팟의 지금 박스. `variants`는 플래그가 맞는 첫 것(step.ts approachFor와 같은 순서).
+ * 있음 조건(`present`)이 안 맞으면 null: 클릭 판정·행동 상자·라벨이 다 여기서 빠진다(ADR-1031, step `isValidAction`과 같은 판정).
+ */
 export function hotspotBox(screen: TapContext['screen'], puzzle: PuzzleState, id: string): HitBox | null {
   const hs = screen.hotspots[id];
-  if (!hs) return null;
+  if (!hs || !hotspotPresent(screen, puzzle.flags, id)) return null;
   const v = hs.variants?.find((variant) => flagsMatch(puzzle, variant.when.flags));
   return toHitBox(v?.box ?? hs.box);
 }

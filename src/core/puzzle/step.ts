@@ -7,6 +7,7 @@ import {
   FLOOR,
   isDoHere,
   GAUGE_MAX,
+  hotspotPresent,
   PICKER,
   STAY,
   type Action,
@@ -253,6 +254,8 @@ function isValidAction(screen: ScreenData, s: PuzzleState, a: Action): boolean {
     // 든 채로 쭉이는 장대 능력이 안 나간다(4절 표).
     if (a.char === PICKER && a.verb === ABILITY[PICKER]) return false;
   }
+  // 있음 조건이 안 맞는 핫스팟은 화면에 없다(다 쓴 물건, 아직 안 생긴 물건). 폴백도 없다.
+  if (!hotspotPresent(screen, s.flags, a.target)) return false;
   switch (a.verb) {
     case 'move':
       return a.target in screen.spots && s.at[a.char] !== a.target && a.item === undefined;

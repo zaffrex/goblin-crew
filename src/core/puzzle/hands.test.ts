@@ -14,11 +14,12 @@ function chainScreen(): ScreenData {
       stool: { x: 300, y: 220, box: [290, 200, 24, 24] },
     },
     hotspots: {
-      sock: { box: [100, 220, 24, 16] },
+      // 재료로 써서 사라짐: `load_dryer`가 `sock.used`를 켠다(`present`, 검사 `take-leaves-item`).
+      sock: { box: [100, 220, 24, 16], present: { flags: { 'sock.used': false } } },
       dryer: { box: [200, 180, 40, 48] },
       bell: { box: [400, 100, 24, 24] },
     },
-    flags: { 'sock.flat': false, 'dryer.loaded': false, 'dryer.on': false, 'bell.rung': false },
+    flags: { 'sock.flat': false, 'sock.used': false, 'dryer.loaded': false, 'dryer.on': false, 'bell.rung': false },
     start: { at: { jjuk: 'floor', mukjik: 'floor', ppik: 'floor' }, items: [] },
     exitFlag: 'dryer.on',
     rules: [
@@ -28,7 +29,7 @@ function chainScreen(): ScreenData {
       {
         id: 'load_dryer', target: 'dryer', verb: 'item', chain: 'combine',
         when: { item: 'sock', flags: { 'sock.flat': true } },
-        do: { set: { 'dryer.loaded': true }, take: ['sock'] },
+        do: { set: { 'dryer.loaded': true, 'sock.used': true }, take: ['sock'] },
       },
       { id: 'start_dryer', target: 'dryer', verb: 'squeak', chain: 'use', when: { flags: { 'dryer.loaded': true } }, do: { set: { 'dryer.on': true } } },
       // 든 채로 종 치기: 빈손이면 안 맞는다(`holds`).

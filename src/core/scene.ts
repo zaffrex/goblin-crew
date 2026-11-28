@@ -16,7 +16,7 @@ import { FX_TICKS, fxTicks } from './fx';
 import { sayText, seenSayKey } from './sayText';
 import { cueMs, spriteBox, spriteFacing, spriteFrame, spriteHit, spriteOpaqueAt, type Pose, type SpriteAnim, type SpriteMeta } from './sprite';
 import { approachFor, initialState, step } from './puzzle/step';
-import { GAUGE_MAX, type Action, type CharactersData, type PuzzleEvent, type PuzzleState, type ScreenData, type StepSource, type Verb } from './puzzle/types';
+import { GAUGE_MAX, hotspotPresent, type Action, type CharactersData, type PuzzleEvent, type PuzzleState, type ScreenData, type StepSource, type Verb } from './puzzle/types';
 import type { Point } from './viewport';
 import { clampToArea, createWalker, stepWalker, walkTo, type Facing, type Walker } from './walk';
 
@@ -581,12 +581,31 @@ function placed(data: SceneData, s: SceneState, id: CharacterId): Placed | null 
 const placedOpaque = (p: Placed, px: number, py: number): boolean => spriteOpaqueAt(p.meta, p.mask, p.frame, p.x, p.y, p.facing, px, py);
 
 /**
+ * 그림 물건이 화면에 없나: 가리키는 대상(`ids`)이 하나 이상이고 전부 있음 조건(`present`)이 안 맞는 핫스팟이다(ADR-1031).
+ * 보이는 플래그(`shownFlags`)로 봐서 그 물건 모습이 바뀌는 때(anim 시작/끝, 4-2절)에 같이 사라지고 나타난다.
+ */
+function artAbsent(data: SceneData, s: SceneState, objectKey: string): boolean {
+  const o = data.art?.objects.find((x) => x.key === objectKey);
+  if (!o || o.ids.length === 0) return false;
+  const flags = shownFlags(s, objectKey);
+  return o.ids.every((id) => Object.hasOwn(data.screen.hotspots, id) && !hotspotPresent(data.screen, flags, id));
+}
+
+/**
  * 물건 그림 고르기에 넘길 지금 장면(`sceneDraws`). 엔진 그리기와 판정의 덮개(`drawnBodies`)가 같이 쓴다.
  * 반복 시작 시각(`loopStarts`)은 엔진 상태라 넣지 않는다. 엔진은 그리기 전에 덧붙인다.
  */
 export function sceneArtView(data: SceneData, s: SceneState): SceneView {
   const playing = s.current?.art ? { ...s.current.art, ms: s.current.t * TICK_MS } : null;
-  return { flagsOf: (k: string) => shownFlags(s, k), playing, cued: cuedArtView(s), held: heldArtView(s), clockMs: s.tick * TICK_MS, tiltOf: (k: string) => tiltOf(data, s, k) };
+  return {
+    flagsOf: (k: string) => shownFlags(s, k),
+    playing,
+    cued: cuedArtView(s),
+    held: heldArtView(s),
+    clockMs: s.tick * TICK_MS,
+    tiltOf: (k: string) => tiltOf(data, s, k),
+    absent: (k: string) => artAbsent(data, s, k),
+  };
 }
 
 /**

@@ -106,7 +106,7 @@ const SPOT_KEYS = fieldsOf<SpotDef>({
   approach: true,
   hintAbility: true,
 });
-const HOTSPOT_KEYS = fieldsOf<HotspotDef>({ box: true, approach: true, variants: true, hintAbility: true, reachPoint: true });
+const HOTSPOT_KEYS = fieldsOf<HotspotDef>({ box: true, approach: true, variants: true, present: true, hintAbility: true, reachPoint: true });
 const VARIANT_KEYS = fieldsOf<HotspotVariant>({ when: true, box: true, approach: true });
 const RULE_KEYS = fieldsOf<RuleDef>({ id: true, target: true, verb: true, when: true, do: true, show: true, chain: true });
 const COND_KEYS = fieldsOf<Condition>({ who: true, at: true, flags: true, has: true, lacks: true, item: true, occupied: true, holds: true });
@@ -543,8 +543,16 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
   }
 
   // --- 핫스팟 ---
+  // 있음 조건(ADR-1031): 핫스팟 ID → 플래그. 아래 `take-leaves-item` 검사가 쓴다.
+  const presentOf = new Map<string, Obj>();
   for (const [hid, h, p] of hotspotEntries) {
     if (!c.obj(h, p, HOTSPOT_KEYS)) continue;
+    if (h.present !== undefined && c.obj(h.present, `${p}.present`, ['flags'])) {
+      if (isObj(h.present.flags) && Object.keys(h.present.flags).length > 0) {
+        flagMap(h.present.flags, `${p}.present.flags`);
+        presentOf.set(hid, h.present.flags);
+      } else c.err(`${p}.present.flags`, 'schema', 'present.flags는 플래그 하나 이상');
+    }
     c.box(h.box, `${p}.box`);
     approach(h.approach, `${p}.approach`);
     if (h.hintAbility !== undefined) ability(h.hintAbility, `${p}.hintAbility`, hid);
@@ -637,6 +645,20 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
     }
   };
 
+  // 들 물건을 재료로 쓰기(`take`, ADR-1031 3절). 엔진은 손만 비우니 핫스팟은 데이터가 지워야 한다(#1043 Kai·Luna).
+  const takeHeld = (r: Obj, d: Obj, item: string, path: string): void => {
+    const w = isObj(r.when) ? r.when : undefined;
+    // 든 것을 요구하지 않으면 바닥의 물건에는 아무 일도 안 일어난다(조용한 헛규칙).
+    if (w?.item !== item && w?.holds !== item) {
+      c.err(path, 'take-not-held', `들 물건 ${item}을 take하는데 when.item·when.holds로 그 물건을 든 것을 요구하지 않는다`);
+    }
+    // 손에서 사라진 물건이 제자리에 다시 생기지 않게, 같은 규칙의 set이 그 물건의 present를 끈다.
+    const want = presentOf.get(item);
+    const set = isObj(d.set) ? d.set : {};
+    const off = want !== undefined && Object.entries(want).some(([k, v]) => k in set && set[k] !== v);
+    if (!off) c.err(path, 'take-leaves-item', `들 물건 ${item}을 take하는데 같은 규칙 set이 ${item}의 present를 끄지 않는다(제자리에 다시 생긴다)`);
+  };
+
   // --- 규칙 ---
   const ruleIds = new Set<string>();
   ruleList.forEach((r, i) => {
@@ -688,7 +710,12 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
       const dp = `${p}.do`;
       if (d.set !== undefined) flagMap(d.set, `${dp}.set`);
       handsEffect(r, d, p);
-      if (d.take !== undefined) c.arr(d.take, `${dp}.take`).forEach((x, j) => itemRef(x, `${dp}.take[${j}]`));
+      if (d.take !== undefined) {
+        c.arr(d.take, `${dp}.take`).forEach((x, j) => {
+          itemRef(x, `${dp}.take[${j}]`);
+          if (typeof x === 'string' && pickIds.has(x)) takeHeld(r, d, x, `${dp}.take[${j}]`);
+        });
+      }
       if (d.gauge !== undefined && !isInt(d.gauge)) c.err(`${dp}.gauge`, 'schema', 'gauge는 정수');
       if (d.move !== undefined) {
         c.arr(d.move, `${dp}.move`).forEach((m, j) => {
