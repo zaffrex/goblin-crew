@@ -14,9 +14,9 @@ import { hotspotBox, hudTargets, tap, type DrawnBody, type Intent, type TapConte
 import { animObject, animOf, animTicks, coverFrames, frameOpaqueAt, restingBox, tiltDrop, timedIndex, type SceneAnim, type SceneArtMeta, type SceneObject, type SceneView } from './sceneArt';
 import { FX_TICKS, fxTicks } from './fx';
 import { sayText, seenSayKey } from './sayText';
-import { cueMs, spriteBox, spriteFacing, spriteFrame, spriteHit, spriteOpaqueAt, type Pose, type SpriteAnim, type SpriteMeta } from './sprite';
+import { cueMs, spriteBox, spriteCarry, spriteFacing, spriteFrame, spriteHit, spriteOpaqueAt, type Pose, type SpriteAnim, type SpriteMeta } from './sprite';
 import { approachFor, initialState, step } from './puzzle/step';
-import { GAUGE_MAX, hotspotPresent, type Action, type CharactersData, type PuzzleEvent, type PuzzleState, type ScreenData, type StepSource, type Verb } from './puzzle/types';
+import { GAUGE_MAX, PICKER, hotspotPresent, type Action, type CharactersData, type PuzzleEvent, type PuzzleState, type ScreenData, type StepSource, type Verb } from './puzzle/types';
 import type { Point } from './viewport';
 import { clampToArea, createWalker, stepWalker, walkTo, type Facing, type Walker } from './walk';
 
@@ -206,6 +206,12 @@ export interface SceneState {
   started: number;
   /** 물건 키 → 아직 옛 플래그로 그리는 물건(4-2절). 없으면 진짜 플래그로 그린다. 그림 전용이고 판정·히트 박스는 안 쓴다. */
   shown: Record<string, ShownFlags>;
+  /**
+   * 쭉이 손(`hands`, ADR-1031)이 이번 행동에서 바뀌었을 때 그림이 아직 따르는 옛 손(`hands` 없음 = 빈손).
+   * `seq`번째 이벤트(그 행동의 쭉이 첫 연출)가 끝나면 지운다. 그 연출 동안은 칸마다 `carry`가 정한다(`carried`).
+   * 플래그의 `shown`(4-2절)과 같은 생각이다: `step`은 연출 전에 손을 바꾸지만 걸어가는 동안 물건이 손으로 튀면 안 된다.
+   */
+  handsShown?: { hands?: string; seq: number };
   /** `move floor` 행동에서 걸어갈 바닥 점. 캐릭터별. */
   floorTo: Partial<Record<CharacterId, Point>>;
   /**
@@ -584,11 +590,11 @@ const placedOpaque = (p: Placed, px: number, py: number): boolean => spriteOpaqu
  * 그림 물건이 화면에 없나: 가리키는 대상(`ids`)이 하나 이상이고 전부 있음 조건(`present`)이 안 맞는 핫스팟이다(ADR-1031).
  * 보이는 플래그(`shownFlags`)로 봐서 그 물건 모습이 바뀌는 때(anim 시작/끝, 4-2절)에 같이 사라지고 나타난다.
  */
-function artAbsent(data: SceneData, s: SceneState, objectKey: string): boolean {
+function artAbsent(data: SceneData, s: SceneState, objectKey: string, inHand: string | undefined): boolean {
   const o = data.art?.objects.find((x) => x.key === objectKey);
   if (!o || o.ids.length === 0) return false;
   const flags = shownFlags(s, objectKey);
-  return o.ids.every((id) => Object.hasOwn(data.screen.hotspots, id) && !hotspotPresent(data.screen, flags, id));
+  return o.ids.every((id) => id === inHand || (Object.hasOwn(data.screen.hotspots, id) && !hotspotPresent(data.screen, flags, id)));
 }
 
 /**
@@ -597,6 +603,8 @@ function artAbsent(data: SceneData, s: SceneState, objectKey: string): boolean {
  */
 export function sceneArtView(data: SceneData, s: SceneState): SceneView {
   const playing = s.current?.art ? { ...s.current.art, ms: s.current.t * TICK_MS } : null;
+  // 손에 그리는 물건은 제자리에서 뺀다(같은 물건이 두 군데 보이지 않게).
+  const inHand = carried(data, s)?.item;
   return {
     flagsOf: (k: string) => shownFlags(s, k),
     playing,
@@ -604,7 +612,7 @@ export function sceneArtView(data: SceneData, s: SceneState): SceneView {
     held: heldArtView(s),
     clockMs: s.tick * TICK_MS,
     tiltOf: (k: string) => tiltOf(data, s, k),
-    absent: (k: string) => artAbsent(data, s, k),
+    absent: (k: string) => artAbsent(data, s, k, inHand),
   };
 }
 
@@ -723,6 +731,42 @@ export function shownFlags(s: SceneState, objectKey: string): Readonly<Record<st
 
 function commitShown(s: SceneState, seq: number, edge: 'start' | 'end'): void {
   for (const [k, v] of Object.entries(s.shown)) if (v.seq === seq && v.edge === edge) delete s.shown[k];
+  if (edge === 'end' && s.handsShown?.seq === seq) delete s.handsShown;
+}
+
+/**
+ * 손이 바뀐 행동(집기·내려놓기·든 물건 쓰기, ADR-1031): 쭉이 첫 연출이 끝날 때까지 그림은 옛 손을 따른다(`handsShown`).
+ * 쭉이 연출이 없으면 바로 바꾼다. 순번은 `deferShown`과 같은 셈이다(새 이벤트는 대기열 뒤에 붙는다).
+ */
+function deferHands(s: SceneState, before: string | undefined, events: readonly PuzzleEvent[]): void {
+  if (before === s.puzzle.hands) return;
+  const own = events.findIndex((e) => e.type === 'anim' && e.target === PICKER);
+  if (own < 0) {
+    delete s.handsShown;
+    return;
+  }
+  const seq = s.started + s.queue.length + own;
+  s.handsShown = before === undefined ? { seq } : { hands: before, seq };
+}
+
+/**
+ * 이번 프레임 쭉이가 손에 들고 그리는 물건과 얹을 점(ADR-1031 5절, `spriteCarry`). null이면 손에 그리는 물건이 없다
+ * (빈손, 또는 집기·내려놓기 연출의 `carry: null` 칸 = 물건이 제자리에 있음).
+ * `at`이 null이면 들고는 있지만 얹을 점이 없다(시트 없음): 제자리에서는 빼고 손에도 안 그린다.
+ * 손이 바뀐 행동의 쭉이 첫 연출 동안은 옛 손과 새 손 중 있는 쪽이 그 물건이고, 칸 `carry`가 손/제자리를 정한다.
+ * 내려놓은 물건은 지금은 제자리에 다시 그린다. 놓인 자리(쭉이 x)로 옮기기는 다음 조각이다(ADR-1031 5절).
+ */
+export function carried(data: SceneData, s: SceneState): { item: string; at: Point | null } | null {
+  const pend = s.handsShown;
+  const during = pend !== undefined && s.current?.seq === pend.seq;
+  const item = during ? (pend.hands ?? s.puzzle.hands) : pend ? pend.hands : s.puzzle.hands;
+  if (item === undefined) return null;
+  const meta = data.sprites?.[PICKER];
+  if (!meta) return { item, at: null };
+  const w = s.walkers[PICKER];
+  const c = spriteCarry(meta, charPose(data, s, PICKER), w.x, w.y + boardDrop(data, s, PICKER), charFacing(data, s, PICKER));
+  if (c === 'rest') return null;
+  return { item, at: c };
 }
 
 /** 설계 5-1절: 바닥에서 대상 앞까지 걸어가는 동사. `move`는 `step`이 `walk`를 내서 뺀다. */
@@ -1058,6 +1102,7 @@ export function runAction(data: SceneData, s: SceneState, action: Action, to: Po
     s.queue.push(face === null ? { type: 'walk', char: action.char, from: spot, to: spot } : { type: 'walk', char: action.char, from: spot, to: spot, face });
   }
   deferShown(data, s, before, events);
+  deferHands(s, prev.hands, events);
   if (to) s.floorTo[action.char] = standAside(data, s, action.char, clampToArea(floorTarget(data, to), walkAreaOf(data.screen)));
   // 장대 대상 점: `reachPoint`, 없으면 대상 상자 아래 끝 가운데(#284: 고리 뻗기 실패는 집게가 고리 "바로 아래"에서 멈춘다).
   const rp = data.screen.hotspots[action.target]?.reachPoint;
