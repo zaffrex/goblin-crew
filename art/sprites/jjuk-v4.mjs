@@ -439,7 +439,7 @@ function drawPose(p) {
   };
 
   // 장대(맨 뒤): 집게는 위 끝에 선 채로 붙는다
-  let pole;
+  let pole, carry;
   if (p.pole) {
     const { top, bot } = p.pole;
     pole = K.limb([[...top, 0.95], [...bot, 0.95]], R4.metal); // 마디는 마감 전에 poleJoints가 찍는다
@@ -449,6 +449,8 @@ function drawPose(p) {
         ? ['......', '.LLD..', 'L..LD.', '.LLD..', '..LD..', '..LD..', '..dD..']
         : ['.LLLD.', 'L....D', 'L...LD', '.D..D.', '..LD..', '..LD..', '..dD..'];
       K.stamp(hx, hy, rows, { L: C.lint, D: C.dusk, d: C.plum }, pole);
+      // 든 물건 얹는 점(서 있기 drawFrame과 같은 규칙): 갈고리 위 외곽선 행의 장대 가운데선. 다문 집게는 0행이 비어서 한 행 아래다.
+      if (p.pole.carry) carry = [hx + 3, p.pole.shut ? hy : hy - 1];
     }
   }
   const feet = [];
@@ -489,7 +491,7 @@ function drawPose(p) {
   if (p.flat) squash(K, { ...p.flat, keep: [[hy0 + 8, hy0 + 11], [hy0 + 14, hy0 + 17]] });
   K.outline();
   if (p.fx) p.fx(K); // 먼지·속도선: 외곽선 없이(ADR-0007 결정 3-1, 검은 테두리 = 만질 수 있음)
-  return { K, feet, hand: p.hand, facing: p.facing, tip: p.pole?.claw === false ? poleTip(K, pole) : undefined, joint: p.pole?.claw === false ? joint : undefined, claw: p.claw };
+  return { K, feet, hand: p.hand, facing: p.facing, tip: p.pole?.claw === false ? poleTip(K, pole) : undefined, joint: p.pole?.claw === false ? joint : undefined, claw: p.claw, carry };
 }
 
 /**
@@ -1030,6 +1032,48 @@ Object.assign(POSES, {
   },
 });
 
+// common.pick  쭉이 바닥 집기(ADR-1031 5절, #1053 "바닥 띠": 물건 아래 끝이 발 기준 0~16px). 내려놓기는 2 → 1 → 0 거꾸로 재생한다.
+//   0 낮춤(무릎을 굽히고 장대를 앞으로 눕혀 갈고리를 발 앞 바닥에, 집게 벌림, 이 악묾) → 1 딸깍(같은 자세, 집게 다묾, 입 다문 웃음)
+//   → 2 휙(장대를 반쯤 세움, 몸을 살짝 젖혀 올려다봄, 아래로 속도선). 그다음은 서 있기(`carry` 맨 위).
+//   세 칸 다 `carry`(갈고리 위 외곽선 행)를 둔다. 든 물건이 바닥(0번 y 55) → 반쯤(2번 y 19) → 서 있기(y 0)로 두 번에 나눠 오른다.
+//   2칸(0·1번만)이면 1번 → 서 있기 사이에서 물건이 한 장에 55px 튀어 순간이동으로 보인다(#1053 표).
+//   갈고리는 코 오른쪽(칸 41·43열 가운데선)에 둬서 2번 칸 든 물건이 얼굴을 덜 가린다.
+const PICK_LOW = { back: { x: -2.8, lift: 0, toe: false }, front: { x: 3.2, lift: 0, toe: false } };
+Object.assign(POSES, {
+  'common.pick'(k) {
+    if (k < 2) {
+      const dy = 2.4, wr = [23.6, 29.6 + dy], top = [28.4, 46.2]; // top y 46.2 = 벌린 갈고리 아래 끝이 62행(바닥 63행 위)
+      return standPose({
+        dx: 1.0,
+        dy,
+        head: k === 0 ? { eyes: 'open', mouth: 'grit', hair: 1 } : { eyes: 'open', mouth: 'shut', hair: 2 },
+        back: { sh: [13.6, 20 + dy], el: [10.8, 24.8 + dy], wr: [8.4, 28.4 + dy], hand: { rows: 'back', at: handAt([8.4, 28.4 + dy], -2, -1) } }, // 균형 잡는 뒷팔
+        el: [20.0, 25.4 + dy], wr, grip: wr,
+        pole: { top, bot: poleThrough(top, wr, 3), shut: k === 1, carry: true },
+        legs: PICK_LOW,
+      });
+    }
+    const wr = [26.2, 27.0], top = [30.0, 19.0];
+    return standPose({
+      dx: -0.6,
+      dy: 0.4,
+      head: { eyes: 'up', mouth: 'open', brows: 'up', hair: 0 },
+      back: { sh: [12.8, 20.4], el: [10.4, 25.2], wr: [9.0, 29.6], hand: { rows: 'mid', at: handAt([9.0, 29.6], -2, -1) } },
+      el: [21.0, 24.6], wr, grip: wr,
+      pole: { top, bot: poleThrough(top, wr, 4), shut: true, carry: true },
+      fx: (K) => streaks(K, [[46, 30, 44], [44, 36, 52]], { fall: true }),
+    });
+  },
+  // common.pick_high  쭉이 높은 데서 집기(#1053 "높음 띠": 물건 아래 끝이 발 기준 64~128px). 0번 = reach_wobble 0번(까치발, 장대가 칸 위로
+  //   나가 엔진이 대상까지 늘임, 집게 벌림)과 같은 그림, 1번 = 같은 자세에서 집게 다묾 + "잡았다" 얼굴(새 칸 1칸).
+  //   장대가 줄어들며 물건이 끝에 따라 내려오는 건 엔진 몫이다(#1053 엔진 질문 ②). 물건은 장대 끝 claw 칸에 얹혀 내려온다.
+  'common.pick_high'(k) {
+    const base = POSES['common.reach_wobble'](0);
+    if (k === 0) return base;
+    return { ...base, head: { ...base.head, eyes: 'up', mouth: 'open', brows: 'up', hair: 1 }, claw: 1 };
+  },
+});
+
 // 장대 끝 집게 칸(8×8, 엔진이 tip에서 이은 장대 끝에 그린다). 기준점 (4,8) = 장대가 들어오는 아래 가운데.
 // 줄기(5~7행) 3·4열은 lint 2px = 시트 장대 0행과 같은 색이라, 엔진이 tip 0행을 위로 복사해 이어도 이음매가 없다(#188 Theo 리뷰 2).
 // 0 벌림 / 1 다묾(열쇠 고리를 문다).
@@ -1088,6 +1132,10 @@ export const SHEET = {
     // P6 재킷 집기(#529, park_fountain 1-3·7절). short 0(집게가 재킷 손 그림 안에 다 든다), cue [0, 1] = ビヨーン / jacket.cover.
     { name: 'take_up', frames: 3, ms: [300, 350, 500], short: 0, cue: [0, 1] },
     { name: 'take_off', frames: 1, ms: [450] },
+    // 집기(ADR-1031 손 1칸, #1053). 맨 뒤에 붙여서 앞 칸 번호는 그대로다. 내려놓기는 엔진이 2 → 1 → 0 거꾸로 재생한다.
+    { name: 'common.pick', frames: 3, ms: [200, 150, 150] },
+    // 높은 데서 집기: 0번 칸 300ms = CLAW.growMs(reach_wobble과 같음). short 없음 = 집게가 대상 점까지 닿는다.
+    { name: 'common.pick_high', frames: 2, ms: [300, 250] },
   ],
   pose,
   drawFrame,
