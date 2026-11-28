@@ -4,7 +4,7 @@
 import { explore, requiredAbilitiesBoth, type BfsHost, type ExploreResult, type PathStep } from './bfs';
 import { initialState, step } from './step';
 import type { Action, CharactersData, PuzzleState, ScreenData, Verb } from './types';
-import { VERBS } from './types';
+import { PICKER, VERBS } from './types';
 
 export function screenHost(screen: ScreenData, characters?: CharactersData): BfsHost<PuzzleState, Action> {
   const targets = [...new Set([...Object.keys(screen.spots), ...Object.keys(screen.hotspots)])];
@@ -19,7 +19,11 @@ export function screenHost(screen: ScreenData, characters?: CharactersData): Bfs
       for (const char of chars) {
         for (const target of targets) {
           for (const verb of VERBS as readonly Verb[]) {
-            if (verb === 'item') for (const item of s.items) out.push({ char, verb, target, item });
+            if (verb === 'item') {
+              for (const item of s.items) out.push({ char, verb, target, item });
+              // 든 물건은 쭉이만 쓴다(ADR-1031). 파티 아이템과 ID가 겹치지 않는다(검사 `hands-item-overlap`).
+              if (char === PICKER && s.hands !== undefined) out.push({ char, verb, target, item: s.hands });
+            }
             else out.push({ char, verb, target });
           }
         }
@@ -97,7 +101,7 @@ export function damageWarnings(e: ExploreResult<PuzzleState, Action>): string[] 
   else if (e.shortestLength !== null && e.safeShortestLength !== null && e.shortestLength < e.safeShortestLength)
     w.push(`피해 지름길: 피해 포함 ${e.shortestLength}수 < 피해 없이 ${e.safeShortestLength}수 경로 ${fmtPath(e.shortestPath ?? [])}`);
   for (const d of e.damageWarnings)
-    w.push(`피해로만 탈출하는 상태 ${JSON.stringify({ at: d.state.at, flags: d.state.flags, items: d.state.items })} 게이지 ${d.gauges.join(',')} 경로 ${fmtPath(d.path)}`);
+    w.push(`피해로만 탈출하는 상태 ${JSON.stringify({ at: d.state.at, flags: d.state.flags, items: d.state.items, hands: d.state.hands })} 게이지 ${d.gauges.join(',')} 경로 ${fmtPath(d.path)}`);
   return w;
 }
 

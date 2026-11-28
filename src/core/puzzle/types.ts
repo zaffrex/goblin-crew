@@ -105,6 +105,11 @@ export interface Condition {
   lacks?: string[];
   item?: string;
   occupied?: Record<string, boolean>;
+  /**
+   * 쭉이 손(`PuzzleState.hands`) 조건(ADR-1031 1절). 물건 ID = 그 물건을 들고 있다, `true` = 뭔가 들고 있다, `false` = 빈손.
+   * "들고 있을 때 다른 행동을 막거나 여는" 경우에만 쓴다. 든 물건으로 누르기는 `verb: "item"` + `item`으로 쓴다.
+   */
+  holds?: string | boolean;
 }
 
 /**
@@ -113,10 +118,22 @@ export interface Condition {
  */
 export type MoveEffect = ({ who: CharacterId | 'self'; to: string } | { from: string; to: string }) & { via?: string };
 
-/** 효과(ADR-0065 5절). set → give/take → move → gauge 순서로 적용한다. */
+/** 효과(ADR-0065 5절). set → pick/put → give/take → move → gauge 순서로 적용한다. */
 export interface Effect {
   set?: Record<string, boolean>;
+  /**
+   * 집기(ADR-1031 1절): 규칙 대상(핫스팟 ID = 물건 ID)을 쭉이 손에 든다. 쭉이가 빈손일 때만 규칙이 맞는다.
+   * 동사는 쭉이 능력(`stretch`)이어야 한다(검사 `pick-verb`).
+   */
+  pick?: true;
+  /**
+   * 내려놓기(ADR-1031 4절): 든 물건(= 규칙 대상)을 손에서 놓는다. 놓은 뒤 상태는 "안 든 물건"이라 제자리와 같다.
+   * 놓는 위치는 퍼즐 상태가 아니다(엔진이 쭉이 선 x에 그린다). 쭉이가 그 물건을 들고 `free` 자리에 서 있을 때만 규칙이 맞는다.
+   * 행동 모양은 `{ char: "jjuk", verb: "item", item: X, target: X }`(UI: 든 채로 쭉이 얼굴 누르기). 걷지 않는다.
+   */
+  put?: true;
   give?: string[];
+  /** 파티 아이템에서 뺀다. 든 물건이면 손에서 없앤다(재료로 써서 사라짐, ADR-1031 3절). */
   take?: string[];
   move?: MoveEffect[];
   gauge?: number;
@@ -130,8 +147,16 @@ export interface RuleDef {
   do?: Effect;
   /** `{ "do": "here" }`가 있으면 효과 이벤트를 그 자리에, 없으면 맨 뒤에 낸다. */
   show?: RuleShowItem[];
+  /**
+   * 고리 종류(ADR-1031 1절 표). 사람이 단다. 검사는 종류를 추론하지 않고 태그가 모양에 맞는지만 본다.
+   * 집기(`pick`)·내려놓기(`put`) 규칙에는 달지 않는다.
+   */
+  chain?: ChainKind;
   note?: string;
 }
+
+export type ChainKind = 'change' | 'combine' | 'use';
+export const CHAIN_KINDS: readonly ChainKind[] = ['change', 'combine', 'use'];
 
 /** 폴백 ①. 상태를 바꾸지 않는다. 예외로 게이지만 허용(다치는 실패). */
 export interface HotspotFallbackDef {
@@ -184,6 +209,11 @@ export interface PuzzleState {
   items: string[];
   /** 보송 게이지 0..5 (ADR-0018 G1). 행동 사이에는 항상 1..5. */
   gauge: number;
+  /**
+   * 쭉이(`PICKER`) 손 1칸(ADR-1031). 든 물건 ID, 없으면 빈손. 파티 `items`와 섞지 않는다.
+   * 세이브하지 않는다(화면 입구에서 다시 시작, ADR-1031 3절). 기절해도 그대로다(아이템과 같음).
+   */
+  hands?: string;
 }
 
 /** 엔진이 순서대로 재생할 연출. 엔진은 이것으로만 반응한다. */
@@ -219,5 +249,7 @@ export interface StepResult {
 }
 
 export const GAUGE_MAX = 5;
+/** 물건을 집고 드는 사람(진마씨 11/28 "줍기는 한 명만", ADR-1031 1절). 능력 동사는 `stretch`. */
+export const PICKER: CharacterId = 'jjuk';
 export const FLOOR = 'floor';
 export const STAY = 'stay';
