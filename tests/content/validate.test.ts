@@ -234,6 +234,14 @@ describe('validateScreen', () => {
     expect(codes(mutate((s) => (s.spots.hook.hintAbility = 'look')))).toEqual(['hint-ability']);
   });
 
+  it('variant name is an id with a <screen>.name.<name> text (#1031 state label)', () => {
+    // 글이 있는 이름(둥지)을 빌려 쓰면 통과, 없는 글·ID 문법 위반은 오류.
+    expect(mutate((s) => (s.hotspots.magpie.variants[0].name = 'nest')).errors).toEqual([]);
+    const missing = mutate((s) => (s.hotspots.magpie.variants[0].name = 'magpie_ground'));
+    expect(missing.errors).toEqual([expect.objectContaining({ code: 'ref-text', path: 'hotspots.magpie.variants[0].name' })]);
+    expect(codes(mutate((s) => (s.hotspots.magpie.variants[0].name = 'Bad Name')))).toEqual(['id']);
+  });
+
   it('checks box size, screen bounds, and warns on HUD overlap', () => {
     expect(codes(mutate((s) => (s.hotspots.basket.box = [144, 212, 20, 24])))).toEqual(['box-small']);
     expect(codes(mutate((s) => (s.hotspots.basket.box = [470, 212, 24, 24])))).toEqual(['box-offscreen']);

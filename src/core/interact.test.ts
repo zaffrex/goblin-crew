@@ -5,7 +5,7 @@ import { characterDef, characterFaceBox, characterHitBox, CHARACTERS, type Chara
 import type { HitBox } from './hit';
 import { CHAR_SLOTS, HUD_AREA } from './hud';
 import { hitTest } from './hit';
-import { hudTargets, labelText, resolveTap, tap, targetIntent, worldTargets, type TapContext, type UiState } from './interact';
+import { hotspotNameId, hudTargets, labelText, resolveTap, tap, targetIntent, worldTargets, type TapContext, type UiState } from './interact';
 import { initialState, step } from './puzzle/step';
 import type { PuzzleState, ScreenData } from './puzzle/types';
 import { HUD_BOX } from './puzzle/validate';
@@ -657,5 +657,51 @@ describe('쭉이 손 1칸 입력 (ADR-1031 4절 표)', () => {
         }
       }
     }
+  });
+});
+
+describe('상태별 라벨 이름 (#1031, variants[].name)', () => {
+  // 빨래방 v2 수건 모양: 바닥에 떨어진 뒤 젖으면 `ぬれたタオル`. 상자와 같은 첫 일치 변형에서 이름을 읽는다.
+  const shop: Pick<ScreenData, 'hotspots'> = {
+    hotspots: {
+      towel: {
+        box: [116, 40, 32, 36],
+        variants: [
+          { when: { flags: { 'towel.wet': true } }, box: [156, 236, 16, 12], name: 'towel_wet' },
+          { when: { flags: { 'towel.down': true } }, box: [156, 236, 16, 12] },
+        ],
+      },
+      gap: { box: [200, 240, 40, 12] },
+    },
+  };
+  const tx: Record<string, string> = {
+    'shop.name.towel': 'かわいたタオル',
+    'shop.name.towel_wet': 'ぬれたタオル',
+    'shop.name.gap': 'すきま',
+    'ui.label.item': '{target}に{item}を使う',
+    'ui.label.stretch': '{target}までのばす',
+    'ui.verb.put': '{item}をおろす',
+  };
+  const t = (id: string): string => tx[id] ?? id;
+  const state = (flags: Record<string, boolean>): PuzzleState => ({ flags, at: {}, items: [], gauge: 3 }) as unknown as PuzzleState;
+
+  it('첫 일치 변형의 name, 없거나 안 맞으면 핫스팟 ID', () => {
+    expect(hotspotNameId(shop, state({}), 'towel')).toBe('towel');
+    expect(hotspotNameId(shop, state({ 'towel.down': true }), 'towel')).toBe('towel');
+    expect(hotspotNameId(shop, state({ 'towel.down': true, 'towel.wet': true }), 'towel')).toBe('towel_wet');
+    // 핫스팟이 아닌 ID(서는 자리·캐릭터)는 그대로.
+    expect(hotspotNameId(shop, state({ 'towel.wet': true }), 'floor')).toBe('floor');
+  });
+
+  it('labelText는 대상과 든 물건 이름을 둘 다 상태별로 읽는다', () => {
+    const wet = state({ 'towel.down': true, 'towel.wet': true });
+    const nameOf = (id: string): string => hotspotNameId(shop, wet, id);
+    expect(labelText({ verb: 'stretch', target: 'towel' }, 'shop', t, nameOf)).toBe('ぬれたタオルまでのばす');
+    expect(labelText({ verb: 'item', target: 'gap', item: 'towel', held: true }, 'shop', t, nameOf)).toBe('すきまにぬれたタオルを使う');
+    expect(labelText({ verb: 'put', target: null, item: 'towel', held: true }, 'shop', t, nameOf)).toBe('ぬれたタオルをおろす');
+    // 넘기지 않으면 예전처럼 ID 이름(호출 쪽이 안 바뀐 테스트·도구).
+    expect(labelText({ verb: 'item', target: 'gap', item: 'towel', held: true }, 'shop', t)).toBe('すきまにかわいたタオルを使う');
+    // 캐릭터 이름은 nameOf를 안 탄다.
+    expect(labelText({ verb: null, target: 'jjuk' }, 'shop', (id) => (id === 'char.jjuk.name' ? 'ノビー' : id), () => 'x')).toBe('ノビー');
   });
 });

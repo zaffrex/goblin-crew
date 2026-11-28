@@ -17,7 +17,7 @@ import { cutCenter } from './core/cutPlace';
 import { cardFacePx, cardInput, cardPointer, cardRowGapPx, cardReady, cardText, cardTick, cardTight, createStartCard, entryCardKind, reopenCard, type CardKind } from './core/startCard';
 import { createFirstNotes, currentNote, labelKey, noteAction, noteGauge, noteHover, noteStood, noteSwitch, noteSwitched, noteTap, noteWalkDone, noteWalkSkipped, noteWalkStart, noteWalkTap, selectLabelText, standLabel, standSelect } from './core/firstNotes';
 import { cutFontPx, firstSwitchText, GAUGE_BAND, GAUGE_SEGS, GAUGE_TRACK, GOAL_AT, goalMaxWidthPx, HUD_AREA, hudHoverText, hudTagFontPx, hudTags, hudTagTight, LABEL_BOTTOM, labelFontPx, switchText, type HudId } from './core/hud';
-import { labelText, resolveTap, type Label } from './core/interact';
+import { hotspotNameId, labelText, resolveTap, type Label } from './core/interact';
 import { PICKER, type CharactersData, type ScreenData } from './core/puzzle/types';
 import { pickScreen, screenTextKey } from './core/screenPick';
 import { AFTER_MENU, cardLines, enterCharacter, flowTap, flowTick, flowView, nextIndex, parseOrder, PLAYING, playtestOrder, showCard, soloCardKey, startOrder, usesSave, type Flow } from './core/flow';
@@ -552,7 +552,7 @@ function onSettled(): void {
   const view = { screen: data.screen, puzzle: scene.puzzle };
   const stood = noteStood(notes, scene.ui.active, scene.tick, ({ char, spot }) => {
     const l = standLabel(view, data.screen.rules, char, spot);
-    return l ? labelText(l, data.screen.id, t) : null;
+    return l ? labelText(l, data.screen.id, t, (id) => hotspotNameId(data.screen, scene.puzzle, id)) : null;
   });
   // 터치로 올라섰으면 글 대신 그 자리 특기를 첫 탭으로 고른 상태로(6-4-1a-1절, #710). 라벨은 터치 선택 라벨 그대로라 꼬리가 붙는다.
   // 플레이어가 이미 뭔가 골라 뒀으면 덮지 않는다.
@@ -960,7 +960,7 @@ function render(): void {
   const armed = restartArmed(restart, playNow());
   const restartText = armed ? t('ui.restart_confirm') : restartHover ? t('ui.restart_hover') : null;
   // 터치 첫 탭 라벨에는 그 판 내내 "한 번 더 탭" 줄을 붙인다(#661 → #680). 호버 라벨(마우스)에는 안 붙는다.
-  const shownText = shown ? labelText(shown, data.screen.id, t) : null;
+  const shownText = shown ? labelText(shown, data.screen.id, t, (id) => hotspotNameId(data.screen, scene.puzzle, id)) : null;
   const targetText = shownText !== null && shown === touchLabel ? selectLabelText(shownText, t('ui.touch.tap_again')) : shownText;
   const labelString = restartText ?? note ?? targetText ?? hudHover ?? '';
   label.hidden = labelString === '';

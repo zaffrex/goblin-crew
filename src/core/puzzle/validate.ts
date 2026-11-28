@@ -107,7 +107,7 @@ const SPOT_KEYS = fieldsOf<SpotDef>({
   hintAbility: true,
 });
 const HOTSPOT_KEYS = fieldsOf<HotspotDef>({ box: true, approach: true, variants: true, present: true, hintAbility: true, reachPoint: true });
-const VARIANT_KEYS = fieldsOf<HotspotVariant>({ when: true, box: true, approach: true });
+const VARIANT_KEYS = fieldsOf<HotspotVariant>({ when: true, box: true, approach: true, name: true });
 const RULE_KEYS = fieldsOf<RuleDef>({ id: true, target: true, verb: true, when: true, do: true, show: true, chain: true });
 const COND_KEYS = fieldsOf<Condition>({ who: true, at: true, flags: true, has: true, lacks: true, item: true, occupied: true, holds: true });
 const EFFECT_KEYS = fieldsOf<Effect>({ set: true, pick: true, put: true, give: true, take: true, move: true, gauge: true });
@@ -566,6 +566,10 @@ export function validateScreen(raw: unknown, ctx: ValidateContext): ValidationRe
         if (c.obj(v.when, `${vp}.when`, ['flags'])) flagMap(v.when.flags, `${vp}.when.flags`);
         if (v.box !== undefined) c.box(v.box, `${vp}.box`);
         approach(v.approach, `${vp}.approach`);
+        // 상태별 라벨 이름(#1031): 글이 없으면 라벨에 키가 그대로 뜬다.
+        if (v.name !== undefined && c.id(v.name, `${vp}.name`) && typeof raw.id === 'string' && ctx.texts[`${raw.id}.name.${v.name}`] === undefined) {
+          c.err(`${vp}.name`, 'ref-text', `없는 이름 글: ${raw.id}.name.${v.name}`);
+        }
       });
     }
   }

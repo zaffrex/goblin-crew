@@ -95,6 +95,11 @@ export interface HotspotVariant {
   when: { flags: Record<string, boolean> };
   box?: Box;
   approach?: Approach;
+  /**
+   * 이 상태의 라벨 이름 ID(#1031, `laundromat-v2.md` 8절 `かわいたタオル` → `ぬれたタオル`). 글은 `<screen>.name.<name>`.
+   * 없으면 핫스팟 ID 이름. 퍼즐 판정은 안 읽는다(UI 라벨만). `box`와 같은 첫 일치 변형에서 읽는다.
+   */
+  name?: string;
 }
 
 export interface HotspotDef {
