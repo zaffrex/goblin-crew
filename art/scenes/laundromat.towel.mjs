@@ -1,5 +1,5 @@
 // 빨래방 v2 (`docs/design/screens/laundromat-v2.md` 9-2절, #1031) 수건 사슬 물건 칸.
-// 이번 조각: N4 세탁기 1번 열린 통 속 마른 수건, N5 동전 넣는 곳에 반쯤 낀 동전.
+// 이번 조각: N4 세탁기 1번 열린 통 속 마른 수건, N5 세탁기 윗선 투입 홈에 반쯤 낀 동전.
 // 아직 빌드(art/build.mjs)에 연결하지 않았다. 화면 JSON PR이 `washer`·`towel`·`coin` 핫스팟을 만들면 물건 시트에 붙인다
 // (시트가 있는 화면은 핫스팟을 전부 그려야 해서, 핫스팟보다 먼저 시트에 넣으면 순서가 꼬인다).
 //
@@ -60,28 +60,45 @@ export const DRUM_TOWEL_BOX = {
   h: DRUM_TOWEL_ROWS.length + 2,
 };
 
-// N5 동전 넣는 곳(세탁기 몸 dx 4~8, dy 3~7 lav 판, 세로 홈 dx 6 dy 4~6)에 반쯤 낀 동전.
-// 자판기 동전(은색, 금색은 열쇠 전용)을 앞에서 본 반달로 그린다: 동전 윗반쪽 5×3이 홈 위로 솟고 아랫반쪽은 홈 속이다.
-// 첫 시안은 옆에서 본 테두리(stand 3×5) 위 세 줄이었는데 3배로 봐도 "손잡이·꼭지"로 읽혀서, 저금통 투입구처럼 누구나 아는 반달로 바꿨다.
-// 홈(dusk)은 아래로 그대로 비친다. 동전 몸 lint(Y178)·white와 조작판 cotton(Y222)은 44 이상 떨어지고, ink 외곽선이 한 번 더 가른다.
-// 외곽선 아래 줄은 그리지 않는다(동전이 홈 안으로 이어진다). 위 끝은 몸 dy 0(세탁기 윗선)까지라 상자 밖으로 안 나간다.
-const SLOT_COIN_AT = { dx: 4, dy: 1 };
-const SLOT_COIN_ROWS = ['.cWc.', 'cWWcd', 'cWccd'];
-const SLOT_COIN_LEGEND = { c: C.lint, W: C.white, d: C.lav };
+// N5 반쯤 낀 동전. 세탁기 윗선(몸 dy 0)에 난 투입 홈에 은색 동전이 세로로 서서 윗부분이 윗선 위로 솟는다(저금통 투입구처럼).
+// 둘째 시안(#1068)은 조작판 lav 판 홈 위 반달 5×3이었는데, 블라인드 두 번(PM·Theo, 1배)에서 동전 언급이 0이었고 3배로 봐도
+// ink 아치가 "세탁기에 걸린 자물쇠 고리"로 읽혔다. 원인은 둘: 몸이 13px로 작고, 뒤가 밝은 조작판(cotton Y222)이라 은색(lint Y178)이 묻히고
+// 어두운 ink 아치만 남았다. 그래서 (1) 윗선 위로 올려 실루엣을 깨고(눈은 윤곽이 튀어나온 데로 먼저 간다),
+// (2) 뒤를 기계 줄 뒤 아래 벽 띠 plum(Y54, 명도 띠 결정)으로 바꿔 은색 몸이 어두운 배경 위에 서게 하고, (3) 몸을 13px에서 47px로 키웠다.
+// ink 외곽선은 plum 위에서 거의 안 보여서 아치로 읽히지 않는다. 몸이 먼저 보인다.
+// (3)에서 지름 8 원의 위 6줄 + 오른쪽 두께 1줄(9×6)로 키웠다. 위 4·5줄 반달은 공처럼 음영이 져서 "종·돌·버튼"으로 읽혔다.
+// 그래서 공 음영 대신 동전 문법을 쓴다: lav 테두리 한 바퀴 + lint 면 + 왼쪽 위에서 내려오는 white 사선 반사(납작한 금속) + 오른쪽 dusk 두께(원판 옆면).
+// 바닥 동전(`COIN` 5×3)보다 크게 그렸다. 낀 동전은 읽는 것이 목적이라 크기 맞춤보다 먼저다.
+// 색: 면 lint(Y178), 반사 white(Y249), 테두리 lav(Y131), 두께 dusk(Y87). 금색은 열쇠 전용이라 은색(100円玉)을 지킨다.
+// 투입 홈은 윗선 위 dusk 9px 한 줄이다. 배경 세탁기에는 없고 동전과 같이만 그린다(`coin.stuck`이 꺼지면 홈도 같이 사라진다. 1px 줄이라 눈에 안 띈다).
+// 가로 자리는 조작판 동전 투입구(dx 6 세로 홈) 바로 위라 "여기에 넣는 기계"로 이어 읽힌다.
+const SLOT_COIN_AT = { dx: 2, dy: -6 };
+const SLOT_COIN_ROWS = ['..rrrr...', '.rcWccrd.', 'rcWccccrd', 'rWcccccrd', 'rccccccrd', 'rcccccrrd'];
+const SLOT_COIN_LEGEND = { c: C.lint, W: C.white, r: C.lav, d: C.dusk };
+const COIN_SLIT = { dx: 1, dy: 0, w: 11 };
 
-/** N5 동전 넣는 곳에 반쯤 낀 동전. (x, y) = 세탁기 몸 왼쪽 위. `nudge`는 1px 떨림(0칸, 시트 anim이 쓴다)으로 가로만 민다. */
+/** N5 세탁기 윗선 홈에 반쯤 낀 동전. (x, y) = 세탁기 몸 왼쪽 위. 동전은 몸 위로 6줄(외곽선 7줄) 나간다. `nudge`는 1px 떨림(0칸, 시트 anim이 쓴다)으로 가로만 민다. */
 export function slotCoin(img, x, y, { nudge = 0 } = {}) {
   const t = new Image(img.w, img.h);
   const cx = x + SLOT_COIN_AT.dx + nudge, cy = y + SLOT_COIN_AT.dy;
   stamp(t, cx, cy, SLOT_COIN_ROWS, SLOT_COIN_LEGEND);
   const o = outlined(t);
-  // 외곽선 중 몸 아래 줄보다 아래(홈 속)는 지운다
+  // 외곽선 중 몸 아래 줄보다 아래(홈 속)는 지우고, 그 자리에 투입 홈을 긋는다(홈은 떨리지 않는다)
   for (let px = cx - 1; px <= cx + SLOT_COIN_ROWS[0].length; px++) o.set(px, cy + SLOT_COIN_ROWS.length, EMPTY);
+  for (let i = 0; i < COIN_SLIT.w; i++) o.set(x + COIN_SLIT.dx + i, y + COIN_SLIT.dy, C.dusk);
   img.blit(o, 0, 0);
 }
 
-/** N5 동전이 그리는 상자(세탁기 몸 기준, 외곽선 포함, nudge 0). */
-export const SLOT_COIN_BOX = { dx: SLOT_COIN_AT.dx - 1, dy: SLOT_COIN_AT.dy - 1, w: SLOT_COIN_ROWS[0].length + 2, h: SLOT_COIN_ROWS.length + 1 };
+/** N5 동전 몸 픽셀 수(외곽선·홈 빼고). 검사용. */
+export const SLOT_COIN_BODY_PX = SLOT_COIN_ROWS.join('').replace(/\./g, '').length;
+
+/** N5 동전이 그리는 상자(세탁기 몸 기준, 외곽선·홈 포함, nudge 0). dy가 음수다(몸 위로 나간다). */
+export const SLOT_COIN_BOX = {
+  dx: Math.min(SLOT_COIN_AT.dx - 1, COIN_SLIT.dx),
+  dy: SLOT_COIN_AT.dy - 1,
+  w: Math.max(SLOT_COIN_ROWS[0].length + 2, COIN_SLIT.w),
+  h: SLOT_COIN_ROWS.length + 2,
+};
 
 /** 세탁기 한 대 폭(문 열림 때 왼쪽으로 나오는 8px 포함). 물건 시트에 1번을 자를 때 쓴다. */
 export const WASHER_OPEN_SPAN = { dx: -7, w: WASHER_W + 7 };

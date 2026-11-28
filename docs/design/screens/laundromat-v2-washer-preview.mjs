@@ -9,9 +9,10 @@
 // 검사(어기면 종료 코드 1):
 //   - 수건 채움 픽셀이 입구 테두리(반지름 13) 안이거나 늘어진 자락 자리에만 있고, 60% 이상이 통 안쪽 원 안
 //   - 마른 수건 주색과 통 속 색(dusk·plum) 명도 차 ≥ 30
-//   - 동전 몸 픽셀 13개(반달)가 다 보이고, 동전 몸 주색과 조작판 cotton 명도 차 ≥ 30
-//   - 동전 홈(dusk 세로 홈 dy 4~6)은 그대로 비친다("반쯤 들어감")
-//   - 수건·동전은 세탁기 몸 상자(+ 문 열림 왼쪽 7px) 밖에 안 그린다
+//   - 동전 몸 픽셀(9×6 원판)이 다 보이고, 동전 몸 색(lint·white·lav·dusk)과 뒤 아래 벽 띠 plum 명도 차 ≥ 30
+//   - 진짜 배경에서 동전 몸 뒤(윗선 위)는 전부 plum 띠 타일(plum·purD·이음매 dusk)이고, 띠 위쪽 경계(y 174)보다 아래다
+//   - 윗선 투입 홈(dusk)이 동전 밑에 있고, 조작판 동전 투입구(dusk 세로 홈 dy 4~6)는 그대로다
+//   - 수건은 세탁기 몸 상자(+ 문 열림 왼쪽 7px) 안, 동전은 SLOT_COIN_BOX 안에만 그린다
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { inflateSync, deflateSync } from 'node:zlib';
@@ -23,7 +24,7 @@ import { dirname, join } from 'node:path';
 import { C, PALETTE, EMPTY, Image, indexedPng } from '../../../art/lib/pixel.mjs';
 import { fill } from '../../../art/lib/texture.mjs';
 import { washer, WASHER_W, WASHER_H } from '../../../art/scenes/laundromat.washer.mjs';
-import { drumTowel, slotCoin, DRUM_TOWEL_BOX, WASHER_OPEN_SPAN } from '../../../art/scenes/laundromat.towel.mjs';
+import { drumTowel, slotCoin, DRUM_TOWEL_BOX, SLOT_COIN_BOX, SLOT_COIN_BODY_PX, WASHER_OPEN_SPAN } from '../../../art/scenes/laundromat.towel.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '../../..');
@@ -98,18 +99,24 @@ check(towelPx.every(([x, y]) => x >= 20 + DRUM_TOWEL_BOX.dx && x < 20 + DRUM_TOW
 const withCoin = new Image(80, 80); withCoin.blit(withTowel, 0, 0); slotCoin(withCoin, 20, 10);
 const coinPx = diffPixels(withTowel, withCoin);
 const lone = new Image(80, 80); slotCoin(lone, 20, 10);
-const coinBody = diffPixels(new Image(80, 80), lone).filter(([, , c]) => c !== C.ink);
+const coinBody = diffPixels(new Image(80, 80), lone).filter(([, y, c]) => c !== C.ink && y < 10); // 외곽선·투입 홈(윗선 줄 y 10) 빼고 몸만
 const coinHidden = coinBody.filter(([x, y, c]) => withCoin.get(x, y) !== c).length;
-check(coinBody.length === 13 && coinHidden === 0, `동전 몸 ${coinBody.length}px(반달 5×3에서 위 두 귀퉁이 뺀 13)이 수건 그림 위에서도 다 보임(가림 ${coinHidden})`);
-check(dY(C.lint, C.cotton) >= 30, `동전 몸 lint(Y${Y[C.lint]}) vs 조작판 cotton(Y${Y[C.cotton]}) 차 ${dY(C.lint, C.cotton)} ≥ 30`);
+check(coinBody.length === SLOT_COIN_BODY_PX && coinHidden === 0, `동전 몸 ${coinBody.length}px(9×6 원판 = ${SLOT_COIN_BODY_PX})이 수건 그림 위에서도 다 보임(가림 ${coinHidden})`);
+for (const [name, c] of [['면 lint', C.lint], ['반사 white', C.white], ['테두리 lav', C.lav], ['두께 dusk', C.dusk]]) check(dY(c, C.plum) >= 30, `동전 ${name}(Y${Y[c]}) vs 아래 벽 띠 plum(Y${Y[C.plum]}) 차 ${dY(c, C.plum)} ≥ 30`);
+const bodyAbove = coinBody.filter(([, y]) => y < 10);
+check(bodyAbove.length === coinBody.length, `동전 몸 ${bodyAbove.length}/${coinBody.length}px이 세탁기 윗선 위(실루엣 밖)`);
+const behind = coinBody.map(([x, y]) => bg.get(x - 20 + W1.x, y - 10 + W1.y));
+check(behind.every((c) => c === C.plum || c === C.purD || c === C.dusk) && coinBody.every(([, y]) => y - 10 + W1.y >= 174), `진짜 배경에서 동전 몸 뒤가 전부 plum 띠 타일(plum·purD·이음매 dusk: ${[...new Set(behind)].join(',')}), 띠 위 경계 y 174 아래`);
+const topSlit = withCoin.get(20 + 6, 10);
 const slit = [4, 5, 6].map((dy) => withCoin.get(20 + 6, 10 + dy));
-check(slit.every((c) => c === C.dusk), `동전 홈 dy 4~6 그대로 dusk (${slit.join(',')})`);
-const all = [...towelPx, ...coinPx];
+check(topSlit === C.dusk && slit.every((c) => c === C.dusk), `윗선 투입 홈 dusk(${topSlit}), 조작판 세로 홈 dy 4~6 그대로 dusk (${slit.join(',')})`);
 const span = { x0: 20 + WASHER_OPEN_SPAN.dx, x1: 20 + WASHER_OPEN_SPAN.dx + WASHER_OPEN_SPAN.w, y0: 10, y1: 10 + WASHER_H };
-check(all.every(([x, y]) => x >= span.x0 && x < span.x1 && y >= span.y0 && y < span.y1), '수건·동전이 세탁기 상자(문 열림 포함) 안');
-// 배경과 합친 장면에서 1번 세탁기 밖 픽셀이 안 바뀌었나
+const inBox = (x, y, ox, oy, b) => x >= ox + b.dx && x < ox + b.dx + b.w && y >= oy + b.dy && y < oy + b.dy + b.h;
+check(towelPx.every(([x, y]) => x >= span.x0 && x < span.x1 && y >= span.y0 && y < span.y1), '수건이 세탁기 상자(문 열림 포함) 안');
+check(coinPx.every(([x, y]) => inBox(x, y, 20, 10, SLOT_COIN_BOX)), `동전·홈 ${coinPx.length}px이 SLOT_COIN_BOX 안`);
+// 배경과 합친 장면에서 1번 세탁기(+ 동전 상자) 밖 픽셀이 안 바뀌었나
 const sceneDiff = diffPixels(bg, scene);
-check(sceneDiff.every(([x, y]) => x >= W1.x + WASHER_OPEN_SPAN.dx && x < W1.x + WASHER_OPEN_SPAN.dx + WASHER_OPEN_SPAN.w && y >= W1.y && y < W1.y + WASHER_H), `진짜 배경에서 바뀐 ${sceneDiff.length}px이 1번 세탁기 안`);
+check(sceneDiff.every(([x, y]) => (x >= W1.x + WASHER_OPEN_SPAN.dx && x < W1.x + WASHER_OPEN_SPAN.dx + WASHER_OPEN_SPAN.w && y >= W1.y && y < W1.y + WASHER_H) || inBox(x, y, W1.x, W1.y, SLOT_COIN_BOX)), `진짜 배경에서 바뀐 ${sceneDiff.length}px이 1번 세탁기·동전 상자 안`);
 console.log(`새 칸: N4 수건 ${towelPx.length}px(외곽선 포함), N5 동전 ${coinPx.length}px`);
 
 // ── 출력
